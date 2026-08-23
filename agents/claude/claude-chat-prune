@@ -1,0 +1,201 @@
+#!/usr/bin/env zsh
+#
+# claude-chat-prune — interactively bulk-delete chats by size or by name.
+#
+# A single top-level fzf with two views, toggled with TAB:
+#   • size view — rows are size thresholds; enter deletes every chat ≤ the size.
+#   • name view — rows are the unique chat names (count + total size); enter
+#                 deletes every chat with that name (great for the (untitled)s).
+# Enter confirms (y/N) then deletes (transcript + sidecar) and the list refreshes
+# in place (cursor kept). The preview shows what each row would remove. Esc quits.
+#
+# Rows are self-describing: <type>\t<key>\t<display>  (type = size|name).
+# Re-invokes itself for fzf's list source / preview / delete / toggle / header:
+#   claude-chat-prune                              interactive
+#   claude-chat-prune --rows    <list>             rows for the current view
+#   claude-chat-prune --preview <list> <type> <key>
+#   claude-chat-prune --delete  <list> <type> <key>
+#   claude-chat-prune --toggle  <list>             flip the view (<list>.mode)
+#   claude-chat-prune --header  <list>             header for the current view
+# <list> rows are <path>\t<bytes>\t<name>.
+#
+# NB: never name a local `path` — it's the zsh array tied to $PATH; a local
+# (empty) one breaks command resolution inside the function. Use `fp`.
+
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+zmodload zsh/stat zsh/datetime 2>/dev/null
+SCRIPT=${0:A}                          # capture before entering functions ($0 = fn name inside)
+
+hsize() {                              # human size of $1 bytes -> $REPLY (fork-free)
+  local b=$1
+  if   (( b >= 1048576 )); then printf -v REPLY '%.1fM' $(( b / 1048576.0 ))
+  elif (( b >= 1024 ));    then printf -v REPLY '%dK'   $(( (b + 1023) / 1024 ))
+  else                          printf -v REPLY '%dB'   $b
+  fi
+}
+
+_mode() { local mf=$1.mode; [[ -r $mf ]] && print -r -- "$(<$mf)" || print -r -- size }
+
+# --- rows ---------------------------------------------------------------------
+_rows_size() {
+  local list=$1 fp b name l p T line sum=0 count=0 si=1 N
+  local -a bytes sb pairs
+  typeset -A maxb
+  while IFS=$'\t' read -r fp b name; do
+    bytes+=$b; hsize $b; l=$REPLY
+    (( b > maxb[$l] )) && maxb[$l]=$b
+  done < "$list"
+  (( ${#bytes} )) || return 0
+  sb=( ${(n)bytes} ); N=${#sb}
+  for l in ${(k)maxb}; do pairs+=( "${maxb[$l]} ${l}" ); done
+  pairs=( ${(n)pairs} )
+  for p in $pairs; do
+    T=${p%% *}
+    while (( si <= N && sb[si] <= T )); do (( count++, sum += sb[si], si++ )); done
+    hsize $sum
+    printf -v line '%-9s  %7s  %9s' "≤ ${p#* }" "${count}" "${REPLY}"
+    print -r -- "size"$'\t'"${T}"$'\t'"${line}"
+  done
+}
+
+_rows_name() {
+  local list=$1 cnt tot nm line
+  awk -F'\t' '{c[$3]++; b[$3]+=$2} END {for (k in c) print c[k] "\t" b[k] "\t" k}' "$list" \
+    | sort -t$'\t' -k1 -rn \
+    | while IFS=$'\t' read -r cnt tot nm; do
+        hsize $tot
+        printf -v line '%7s  %9s  %s' "$cnt" "$REPLY" "$nm"
+        print -r -- "name"$'\t'"${nm}"$'\t'"${line}"
+      done
+}
+
+_rows() {
+  emulate -L zsh
+  local list=$1
+  [[ $(_mode "$list") == name ]] && _rows_name "$list" || _rows_size "$list"
+}
+
+# --- preview ------------------------------------------------------------------
+_preview() {
+  emulate -L zsh
+  local list=$1 type=$2 key=$3
+  local usertext='[ .[] | select(.type=="user")
+                   | (.message.content | if type=="array" then (map(.text? // "")|join("")) else (.//"") end)
+                   | select(length>0) ]'
+  if [[ $type == name ]]; then
+    local n=0 more=0 fp b nm snip total
+    total=$(awk -F'\t' -v k="$key" '$3==k {c++} END {print c+0}' "$list")
+    print "name: ${key} — ${total} chats"; print ""
+    while IFS=$'\t' read -r fp b nm; do
+      [[ $nm == "$key" ]] || continue
+      if (( n < 20 )); then
+        snip=$(head -n 80 "$fp" | jq -rs "${usertext} | (.[0] // \"\")" 2>/dev/null | tr '\n\t' '  ')
+        hsize $b
+        printf '• %5s  %s\n' "$REPLY" "${snip[1,80]:-(empty)}"
+        (( n++ ))
+      else
+        (( more++ ))
+      fi
+    done < <(sort -t$'\t' -k2 -n -- "$list")
+    (( more )) && { print ""; print "… and ${more} more" }
+  else
+    local total
+    total=$(awk -F'\t' -v t=$key '($2+0)<=t {c++} END {print c+0}' "$list")
+    hsize $key; print "chats ≤ ${REPLY} — ${total} total"; print ""
+    printf '%6s  %s\n' count name
+    awk -F'\t' -v t=$key '($2+0)<=t {c[$3]++} END {for (k in c) printf "%6d  %s\n", c[k], k}' "$list" \
+      | sort -rn | head -40
+  fi
+}
+
+# --- delete -------------------------------------------------------------------
+_delete() {
+  emulate -L zsh
+  local list=$1 type=$2 key=$3 _flush v what
+  local -a victims
+  if [[ $type == name ]]; then
+    victims=( ${(f)"$(awk -F'\t' -v k="$key" '$3==k {print $1}' "$list")"} )
+    what="named \"${key}\""
+  else
+    victims=( ${(f)"$(awk -F'\t' -v t=$key '($2+0)<=t {print $1}' "$list")"} )
+    hsize $key; what="≤ ${REPLY}"
+  fi
+  (( ${#victims} )) || return 0
+  while read -t 0 -k 1 _flush </dev/tty 2>/dev/null; do : ; done   # drain stray input
+  print "delete ${#victims} chats ${what}?"
+  if read -q "?[y/N] " </dev/tty; then
+    for v in $victims; do
+      rm -f -- "$v"
+      [[ -d ${v:r} ]] && rm -rf -- "${v:r}"          # sidecar folder, if any
+    done
+    if [[ $type == name ]]; then
+      awk -F'\t' -v k="$key" '$3 != k' "$list" > "$list.new" && mv "$list.new" "$list"
+    else
+      awk -F'\t' -v t=$key '($2+0) > t' "$list" > "$list.new" && mv "$list.new" "$list"
+    fi
+  fi
+}
+
+# --- toggle / header ----------------------------------------------------------
+_toggle() {
+  local list=$1
+  [[ $(_mode "$list") == size ]] && print -r -- name > "$list.mode" || print -r -- size > "$list.mode"
+}
+
+_header() {
+  print "enter = delete group · tab = size/name view · esc = quit"
+  if [[ $(_mode "$1") == name ]]; then
+    printf '  %7s  %9s  %s\n' chats size name
+  else
+    printf '  %-9s  %7s  %9s\n' 'max size' chats reclaim
+  fi
+}
+
+# --- main ---------------------------------------------------------------------
+_main() {
+  emulate -L zsh
+  local fzf=${commands[fzf]} zsh=${commands[zsh]:-/bin/zsh}
+  [[ -n $fzf ]] || { print -u2 "claude-chat-prune: needs fzf (brew install fzf)"; return 1 }
+
+  local -a files
+  files=( $HOME/.claude*/projects/*/*.jsonl(.N) )
+  (( ${#files} )) || { print "no chats found"; return 0 }
+
+  local list; list=$(mktemp -t claude-chat-prune) || { print -u2 "mktemp failed"; return 1 }
+  trap "rm -f -- ${(q)list} ${(q)list}.mode ${(q)list}.new" EXIT INT TERM
+  print -r -- size > "$list.mode"
+
+  # Scan: one <path>\t<bytes>\t<name> line per chat. zstat is a builtin; titles
+  # come from two batched greps (custom title wins over the AI-generated one).
+  print -u2 "scanning ${#files} chats…"
+  local fp name gl key; typeset -A st tcustom tai
+  while IFS= read -r gl; do
+    key=${gl%%:'"customTitle":'*}; tcustom[$key]=${${gl#*:'"customTitle":"'}%'"'}
+  done < <(grep -m1 -H -o '"customTitle":"[^"]*"' -- $files 2>/dev/null)
+  while IFS= read -r gl; do
+    key=${gl%%:'"aiTitle":'*}; tai[$key]=${${gl#*:'"aiTitle":"'}%'"'}
+  done < <(grep -m1 -H -o '"aiTitle":"[^"]*"' -- $files 2>/dev/null)
+  for fp in $files; do
+    zstat -H st -- "$fp" 2>/dev/null
+    name=${tcustom[$fp]:-${tai[$fp]:-"(untitled)"}}
+    print -r -- "${fp}"$'\t'"${st[size]:-0}"$'\t'"${name}" >> "$list"
+  done
+
+  # enter -> confirm+delete (helper updates $list) -> reload keeps the cursor.
+  # tab  -> flip the view, reload rows, swap the header, jump to top.
+  "$zsh" "$SCRIPT" --rows "$list" | $fzf \
+    --delimiter=$'\t' --with-nth=3.. --no-sort --layout=reverse --height=90% \
+    --header="$("$zsh" "$SCRIPT" --header "$list")" \
+    --preview="${zsh} ${SCRIPT} --preview ${list} {1} {2}" --preview-window='down,55%,wrap' \
+    --bind "enter:execute(${zsh} ${SCRIPT} --delete ${list} {1} {2})+reload(${zsh} ${SCRIPT} --rows ${list})" \
+    --bind "tab:execute-silent(${zsh} ${SCRIPT} --toggle ${list})+reload(${zsh} ${SCRIPT} --rows ${list})+transform-header(${zsh} ${SCRIPT} --header ${list})+first"
+}
+
+case $1 in
+  --rows)    _rows "$2" ;;
+  --preview) _preview "$2" "$3" "$4" ;;
+  --delete)  _delete "$2" "$3" "$4" ;;
+  --toggle)  _toggle "$2" ;;
+  --header)  _header "$2" ;;
+  *)         _main ;;
+esac

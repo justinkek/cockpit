@@ -1,0 +1,4 @@
+interface:
+  display_name: "Register Cockpit Ticket"
+  short_description: "Register the session's Cockpit board ticket"
+  default_prompt: "Use $ticket to register the Cockpit board ticket for this session."

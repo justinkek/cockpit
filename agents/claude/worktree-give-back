@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+
+set -uo pipefail
+
+usage() {
+  printf 'usage: worktree-give-back <worktree-path> <branch>\n' >&2
+  exit 2
+}
+
+refuse() {
+  printf '[give-back] refused: %s\n' "$1" >&2
+  exit "$2"
+}
+
+[ $# -eq 2 ] || usage
+requested_path="$1"
+branch="$2"
+[ -n "$requested_path" ] && [ -n "$branch" ] || usage
+
+main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")"
+[ -d "$main_checkout" ] || refuse "no git repository here, so there is no checkout to run from." 7
+cd "$main_checkout" || refuse "cannot enter the main checkout at $main_checkout." 7
+
+[ -d "$requested_path" ] || refuse "$requested_path is not a directory." 3
+worktree_path="$(cd "$requested_path" && pwd -P)"
+
+[ "$worktree_path" != "$(cd "$main_checkout" && pwd -P)" ] ||
+  refuse "$worktree_path is the main checkout, not a worktree to give back." 3
+
+registered_worktrees="$(git worktree list --porcelain)"
+
+printf '%s\n' "$registered_worktrees" | grep --quiet --line-regexp --fixed-strings "worktree $worktree_path" ||
+  refuse "$worktree_path is not a worktree this repository knows." 3
+
+outstanding="$(git -C "$worktree_path" status --porcelain 2>/dev/null)" ||
+  refuse "cannot read the working tree at $worktree_path." 7
+[ -z "$outstanding" ] ||
+  refuse "$worktree_path has uncommitted changes. A card reaching Done is not a licence to throw away work nobody has looked at." 4
+
+default_reference="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"
+default_branch="${default_reference#origin/}"
+[ -n "$default_branch" ] || default_branch=main
+
+[ "$branch" != "$default_branch" ] ||
+  refuse "$branch is this repository's default branch." 5
+
+git show-ref --quiet --verify "refs/heads/$branch" ||
+  refuse "$branch is not a branch in this repository." 5
+
+checked_out_elsewhere="$(printf '%s\n' "$registered_worktrees" | awk -v branch="refs/heads/$branch" -v keep="worktree $worktree_path" '
+  /^worktree / { here = $0 }
+  $0 == "branch " branch && here != keep { print here }
+')"
+[ -z "$checked_out_elsewhere" ] ||
+  refuse "$branch is checked out in another worktree: ${checked_out_elsewhere#worktree }" 5
+
+git fetch origin "$default_branch" --quiet 2>/dev/null ||
+  printf '[give-back] could not refresh origin/%s - checking against the reference already on disk\n' "$default_branch" >&2
+
+reached_main=""
+if git merge-base --is-ancestor "$branch" "origin/$default_branch" 2>/dev/null; then
+  reached_main=1
+else
+  state="$(gh pr view "$branch" --json state --jq .state 2>/dev/null)"
+  if [ "$state" = "MERGED" ]; then
+    head_commit="$(gh pr view "$branch" --json headRefOid --jq .headRefOid 2>/dev/null)"
+    local_tip="$(git rev-parse "$branch" 2>/dev/null)"
+    [ -n "$head_commit" ] && [ "$head_commit" = "$local_tip" ] && reached_main=1
+  fi
+fi
+
+[ -n "$reached_main" ] ||
+  refuse "$branch is not an ancestor of origin/$default_branch, and no merged pull request for it has a head commit matching its local tip. Its work has not reached main." 6
+
+git worktree remove "$worktree_path" ||
+  refuse "git would not remove $worktree_path." 7
+git branch --delete --force "$branch" ||
+  refuse "the worktree is gone, but git would not delete $branch." 7
+
+printf '[give-back] removed worktree %s and branch %s\n' "$worktree_path" "$branch"

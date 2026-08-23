@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+#
+# settings-scope-confirm — confirm that settings scope was discussed.
+#
+#   usage: settings-scope-confirm <scope>
+#
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+scope="${1:-}"
+if [ -z "$scope" ]; then
+  echo "usage: settings-scope-confirm <scope>" >&2
+  echo "  scope: project | project-local | global" >&2
+  exit 1
+fi
+
+case "$scope" in
+  project|project-local|global) ;;
+  *)
+    echo "settings-scope-confirm: unknown scope '$scope'" >&2
+    echo "  expected: project | project-local | global" >&2
+    exit 1
+    ;;
+esac
+
+STATE_DIR="$HOME/.local/state/claude-settings-scope"
+session="$(session_id)"
+if [ -n "$session" ]; then
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$scope" > "$STATE_DIR/$session"
+fi
+
+TICKET_STATE_DIR="$STATE_DIR" ticket_state_confirm "" "$scope" "Settings scope confirmed"

@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "$0")/notion-blocks-lib.sh"
+
+exit_usage=2
+exit_no_credential=3
+exit_token_rejected=4
+exit_page_unreadable=5
+exit_rate_limited=6
+exit_section_absent=7
+
+default_properties=(
+  "Name"
+  "Status"
+  "Type"
+  "Epic"
+  "Agent: Session Id"
+  "PRs"
+  "Complexity"
+  "Dependent on"
+  "Dependency for"
+  "Source Ticket URL"
+)
+
+if [ "$#" -lt 1 ]; then
+  echo "usage: ticket-read <page-id-or-url> [--section <heading>] [property...]" >&2
+  exit "$exit_usage"
+fi
+
+page_reference="$1"
+shift
+
+section=""
+if [ "${1:-}" = "--section" ]; then
+  section="${2:-}"
+  while [ "${section#\#}" != "$section" ]; do
+    section="${section#\#}"
+  done
+  section="${section# }"
+  if [ -z "$section" ]; then
+    echo "usage: ticket-read <page-id-or-url> --section <heading>" >&2
+    exit "$exit_usage"
+  fi
+  shift 2
+fi
+
+if [ "$#" -eq 0 ]; then
+  requested=( "${default_properties[@]}" )
+else
+  requested=( "$@" )
+fi
+
+page_id="${page_reference%%\?*}"
+page_id="${page_id##*/}"
+page_id="$(printf '%s' "$page_id" | tr -cd '[:alnum:]' | tail -c 32)"
+
+if ! printf '%s' "$page_id" | grep --quiet --extended-regexp '^[0-9a-fA-F]{32}$'; then
+  echo "[ticket-read] no 32 character hexadecimal page id in '$page_reference'" >&2
+  exit "$exit_usage"
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[ticket-read] jq is required to read the page response" >&2
+  exit "$exit_page_unreadable"
+fi
+
+resolve_board_poller_token() {
+  NOTION_TOKEN="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+  if [ -z "$NOTION_TOKEN" ]; then
+    echo "[ticket-read] no credential - store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w" >&2
+    exit "$exit_no_credential"
+  fi
+  export NOTION_TOKEN
+}
+
+indent_for_depth() {
+  local depth="$1" indent="" step=0
+  while [ "$step" -lt "$depth" ]; do
+    indent="$indent	"
+    step=$((step + 1))
+  done
+  printf '%s' "$indent"
+}
+
+markdown_for_block() {
+  local type="$1" text="$2"
+  case "$type" in
+    heading_1)          printf '%s' "# $text" ;;
+    heading_2)          printf '%s' "## $text" ;;
+    heading_3)          printf '%s' "### $text" ;;
+    to_do)              printf '%s' "- [ ] $text" ;;
+    to_do_checked)      printf '%s' "- [x] $text" ;;
+    numbered_list_item) printf '%s' "1. $text" ;;
+    bulleted_list_item) printf '%s' "- $text" ;;
+    toggle)             printf '%s' "- $text" ;;
+    *)                  printf '%s' "$text" ;;
+  esac
+}
+
+if [ -n "$section" ]; then
+  if [ -z "${NOTION_LINES_FIXTURE:-}" ] || [ ! -r "${NOTION_LINES_FIXTURE}" ]; then
+    resolve_board_poller_token
+  fi
+
+  page_lines_file="$(mktemp)"
+  trap 'rm -f "$page_lines_file"' EXIT
+  page_lines_status=0
+  notion_page_lines_in_reading_order "$page_id" > "$page_lines_file" || page_lines_status="$?"
+
+  case "$page_lines_status" in
+    0) ;;
+    "$NOTION_LINES_TOKEN_REJECTED")
+      echo "[ticket-read] token rejected - expired or revoked. Replace it with: security add-generic-password -U -a \"\$USER\" -s cockpit-notion-token -w" >&2
+      exit "$exit_token_rejected" ;;
+    "$NOTION_LINES_RATE_LIMITED")
+      echo "[ticket-read] rate limited - wait 30 seconds before reading again" >&2
+      exit "$exit_rate_limited" ;;
+    *)
+      echo "[ticket-read] page $page_id could not be read" >&2
+      exit "$exit_page_unreadable" ;;
+  esac
+
+  section_lines="$(while IFS=$'\t' read -r block_id depth type text; do
+        printf '%s\t%s\t%s\t%s\n' "$block_id" "$depth" "$type" "$(markdown_for_block "$type" "$text")"
+      done < "$page_lines_file" \
+    | awk -F'\t' -v wanted="$section" '
+        $2 == 0 && $3 ~ /^heading_/ { inside = (substr($4, index($4, " ") + 1) == wanted) }
+        inside')"
+
+  if [ -z "$section_lines" ]; then
+    echo "[ticket-read] page $page_id has no section '$section'" >&2
+    exit "$exit_section_absent"
+  fi
+
+  printf '%s\n' "$section_lines" | while IFS=$'\t' read -r block_id depth type line; do
+    indent="$(indent_for_depth "$depth")"
+    printf '%s%s\n' "$indent" "$line"
+    notion_unresolved_comments_on_block "$block_id" | while IFS= read -r comment; do
+      printf '%s[comment] %s\n' "$indent" "$comment"
+    done
+  done
+
+  notion_unresolved_comments_on_block "$page_id" | while IFS= read -r comment; do
+    printf '[comment on the page] %s\n' "$comment"
+  done
+
+  exit 0
+fi
+
+http_status=""
+retry_after=""
+
+if [ -n "${TICKET_READ_FIXTURE:-}" ] && [ -r "${TICKET_READ_FIXTURE}" ]; then
+  response="$(cat "$TICKET_READ_FIXTURE")"
+  http_status="${TICKET_READ_FIXTURE_STATUS:-}"
+  retry_after="${TICKET_READ_FIXTURE_RETRY_AFTER:-}"
+else
+  resolve_board_poller_token
+  token="$NOTION_TOKEN"
+  header_file="$(mktemp)"
+  trap 'rm -f "$header_file"' EXIT
+  response="$(printf '%s\n' \
+    "header = \"Authorization: Bearer $token\"" \
+    'header = "Notion-Version: 2022-06-28"' \
+    "url = \"https://api.notion.com/v1/pages/$page_id\"" \
+    'silent' \
+    "dump-header = \"$header_file\"" \
+    'write-out = "\n%{http_code}"' \
+    | curl --config - || true)"
+  http_status="${response##*$'\n'}"
+  response="${response%$'\n'*}"
+  retry_after="$(grep --ignore-case '^retry-after:' "$header_file" 2>/dev/null | tr -cd '0-9' || true)"
+fi
+
+api_code="$(printf '%s' "$response" | jq --raw-output 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+if [ "$api_code" = "unauthorized" ]; then
+  echo "[ticket-read] token rejected - expired or revoked. Replace it with: security add-generic-password -U -a \"\$USER\" -s cockpit-notion-token -w" >&2
+  exit "$exit_token_rejected"
+fi
+
+if [ "$api_code" = "rate_limited" ] || [ "$http_status" = "429" ]; then
+  echo "[ticket-read] rate limited - wait ${retry_after:-30} seconds before reading again" >&2
+  exit "$exit_rate_limited"
+fi
+
+if ! printf '%s' "$response" | jq --exit-status '.properties | type == "object"' >/dev/null 2>&1; then
+  if [ -n "$http_status" ] && [ "$http_status" != "200" ]; then
+    echo "[ticket-read] page $page_id could not be read - the endpoint answered $http_status" >&2
+  else
+    echo "[ticket-read] page $page_id could not be read" >&2
+  fi
+  exit "$exit_page_unreadable"
+fi
+
+printf '%s' "$response" | jq --raw-output --args '
+  def printable:
+      if   .type == "status"    then .status.name // empty
+      elif .type == "select"    then .select.name // empty
+      elif .type == "title"     then [ .title[].plain_text ] | join("")
+      elif .type == "rich_text" then [ .rich_text[].plain_text ] | join("")
+      elif .type == "number"    then .number // empty
+      elif .type == "date"      then .date.start // empty
+      elif .type == "unique_id" then "\(.unique_id.prefix)-\(.unique_id.number)"
+      elif .type == "relation"  then [ .relation[].id ] | join(" ")
+      elif .type == "people"    then [ .people[].id ] | join(" ")
+      else empty
+      end;
+  .properties as $properties
+  | $ARGS.positional[]
+  | . as $name
+  | ( $properties[$name] // empty | printable ) as $value
+  | select($value != null and ($value | tostring) != "")
+  | [ $name, ($value | tostring) ]
+  | @tsv' -- "${requested[@]}"

@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+#
+# ticket-claim-lock — take, release or inspect the local lock on a cockpit card.
+#
+#   ticket-claim-lock take        <page-id>   # exit 0 = won it, 1 = someone else has it
+#   ticket-claim-lock release     <page-id>   # release a lock this session holds
+#   ticket-claim-lock owner       <page-id>   # print the holding session id, if any
+#   ticket-claim-lock release-all             # release every lock this session holds
+#
+# Two sessions on this machine can reach for the same waiting ticket at the same
+# moment. The Notion `Agent: Session Id` property cannot arbitrate that: Notion
+# has no compare-and-set, so both sessions write, both read back their own value,
+# and both proceed — observed twice. `mkdir` can: it is atomic, so exactly one
+# caller creates the directory and the other is told no.
+#
+# The Notion property stays, for a different job — showing a person, and any
+# session on another machine, that a card is taken. This lock is the arbiter;
+# that property is the signal.
+#
+# Scope: this machine only. A session elsewhere sees nothing here and races on
+# the Notion property alone.
+#
+set -euo pipefail
+
+action="${1:-}"
+page="${2:-}"
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+LOCK_DIR="${TICKET_CLAIM_LOCK_DIR:-$HOME/.local/state/claude-ticket-claims}"
+me="$(session_id)"
+
+# release-all takes no page: it is the session-end sweep, and it releases only
+# what this session holds, so a concurrent session's lock is never touched.
+if [ "$action" = "release-all" ]; then
+  [ -d "$LOCK_DIR" ] || exit 0
+  [ -n "$me" ] || exit 0
+  for d in "$LOCK_DIR"/*/; do
+    [ -d "$d" ] || continue
+    if [ -f "$d/session" ] && [ "$(cat "$d/session")" = "$me" ]; then
+      rm -rf "$d"
+      echo "released $(basename "$d")"
+    fi
+  done
+  exit 0
+fi
+
+if [ -z "$action" ] || [ -z "$page" ]; then
+  echo "usage: ticket-claim-lock take|release|owner <page-id> | release-all" >&2
+  exit 2
+fi
+
+# Page ids arrive both dashed and bare depending on the caller; normalise so the
+# same card is the same lock either way.
+page="$(printf '%s' "$page" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+case "$page" in
+  *[!0-9a-f]*|"") echo "ticket-claim-lock: not a page id: $2" >&2; exit 2 ;;
+esac
+
+lock="$LOCK_DIR/$page"
+owner_file="$lock/session"
+
+mkdir -p "$LOCK_DIR"
+find "$LOCK_DIR" -maxdepth 1 -type d -mtime +1 -not -path "$LOCK_DIR" -exec rm -rf {} + 2>/dev/null || true
+
+case "$action" in
+  take)
+    if [ -z "$me" ]; then
+      echo "ticket-claim-lock: no session id — set CLAUDE_SESSION_ID or CLAUDE_CODE_SESSION_ID" >&2
+      exit 2
+    fi
+    # The whole point: mkdir succeeds for exactly one caller.
+    if mkdir "$lock" 2>/dev/null; then
+      printf '%s\n' "$me" > "$owner_file"
+      echo "took $page"
+      exit 0
+    fi
+    # Already held. Re-entrant for the session that holds it, so a skill that
+    # retries its own step is not told no by itself.
+    if [ -f "$owner_file" ] && [ "$(cat "$owner_file")" = "$me" ]; then
+      echo "already yours: $page"
+      exit 0
+    fi
+    echo "held by $(cat "$owner_file" 2>/dev/null || echo 'another session'): $page" >&2
+    exit 1
+    ;;
+  release)
+    if [ -d "$lock" ] && [ -f "$owner_file" ] && [ "$(cat "$owner_file")" != "$me" ]; then
+      echo "not yours to release: $page" >&2
+      exit 1
+    fi
+    rm -rf "$lock"
+    echo "released $page"
+    ;;
+  owner)
+    # Nobody holding it is an answer, not a failure — print nothing, exit 0, so
+    # a caller can tell "free" apart from "the check itself broke".
+    if [ -f "$owner_file" ]; then
+      cat "$owner_file"
+    fi
+    ;;
+  *)
+    echo "usage: ticket-claim-lock take|release|owner <page-id>" >&2
+    exit 2
+    ;;
+esac

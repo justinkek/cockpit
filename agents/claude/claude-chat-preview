@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+#
+# claude-chat-preview — render a Claude chat transcript for claude-chat-delete's
+# fzf preview pane. Usage: claude-chat-preview <transcript.jsonl>
+# Not a user command; called by claude-chat-delete via an absolute path.
+
+# fzf/Warp may hand the preview subprocess a stripped PATH, so grep/head/jq/tail
+# aren't found. Restore a sane one (everything used here lives in these dirs).
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+
+f=$1
+[[ -r $f ]] || { print "cannot read: $f"; exit 0 }
+
+acct=${f#$HOME/}; acct=${acct%%/*}
+cwd=$(grep -m1 -o '"cwd":"[^"]*"' "$f"); cwd=${cwd#'"cwd":"'}; cwd=${cwd%'"'}
+
+# Extract the text of every human user turn (skipping tool-result records, whose
+# content is an array of non-text blocks), as a JSON array of non-empty strings.
+USER_TEXT='[ .[] | select(.type=="user")
+            | (.message.content
+               | if type=="array" then (map(.text? // "") | join("")) else (. // "") end)
+            | select(length > 0) ]'
+
+print "id:   ${f:t:r}"
+print "acct: ${acct}"
+print "dir:  ${cwd:-(unknown)}"
+print ""
+print "── first message ──"
+# Head/tail keep this fast on multi-MB transcripts (one record per line).
+head -n 80  "$f" | jq -rs "${USER_TEXT} | (.[0]  // \"\")" 2>/dev/null | head -c 700
+print ""
+print "── last message ──"
+tail -n 200 "$f" | jq -rs "${USER_TEXT} | (.[-1] // \"\")" 2>/dev/null | head -c 700

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: pr-watch-checks <pull-request-url-or-number>" >&2
+  exit 1
+fi
+pull_request="$1"
+
+for required in gh jq; do
+  if ! command -v "$required" >/dev/null 2>&1; then
+    echo "[pr-checks] $required is required to read the pull request's checks" >&2
+    exit 1
+  fi
+done
+
+if ! gh auth status >/dev/null 2>&1; then
+  echo "[pr-checks] gh is not authenticated - run: gh auth login" >&2
+  exit 1
+fi
+
+watch_output="$(mktemp -t pr-watch-checks)"
+trap 'rm -f "$watch_output"' EXIT
+
+status=0
+gh pr checks "$pull_request" --watch >"$watch_output" 2>&1 || status=$?
+
+if grep --quiet --fixed-strings "no checks reported" "$watch_output"; then
+  printf '[pr-checks] no checks reported on %s - nothing to wait for.\n' "$pull_request"
+  exit 0
+fi
+
+buckets="$(gh pr checks "$pull_request" --json name,bucket 2>/dev/null || true)"
+if [ -z "$buckets" ]; then
+  echo "[pr-checks] the checks could not be read once they finished" >&2
+  [ "$status" -ne 0 ] || status=1
+  exit "$status"
+fi
+
+total="$(printf '%s' "$buckets" | jq --raw-output 'length')"
+failed="$(printf '%s' "$buckets" \
+  | jq --raw-output --compact-output '[.[] | select(.bucket == "fail" or .bucket == "cancel") | .name]')"
+failed_count="$(printf '%s' "$failed" | jq --raw-output 'length')"
+
+if [ "$failed_count" -eq 0 ]; then
+  printf '[pr-checks] all %s checks passed on %s.\n' "$total" "$pull_request"
+  exit 0
+fi
+
+printf '[pr-checks] %s of %s checks failed on %s: %s - invoke /cockpit:ticket:3:dev to fix them.\n' \
+  "$failed_count" "$total" "$pull_request" \
+  "$(printf '%s' "$failed" | jq --raw-output 'join(", ")')"

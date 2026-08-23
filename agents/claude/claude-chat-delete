@@ -1,0 +1,51 @@
+#!/usr/bin/env zsh
+#
+# claude-chat-delete — interactively pick a Claude chat transcript and delete it.
+#
+# Lists every chat across all accounts via claude-chat-list, each row annotated
+# with its launch dir, account, and last-modified time. fzf gives arrow +
+# type-to-filter selection; the preview pane shows the chat's first and last
+# message. Enter asks for y/N confirmation, deletes the transcript (and its
+# sidecar folder), and refreshes the list in place — the cursor keeps its
+# position, so you can clean several in a row without jumping to the top. Esc
+# quits.
+#
+# Delete is irreversible — every delete is confirmed, last copy or not.
+
+() {
+  emulate -L zsh
+
+  # Resolve fzf to its real path and invoke it by that path. Some terminals
+  # (e.g. Warp) intercept the bare `fzf` command word, which breaks invoking it
+  # from a script even though it's on PATH.
+  local fzf=${commands[fzf]}
+  [[ -n $fzf ]] || {
+    print -u2 "claude-chat-delete: needs fzf (brew install fzf)"; return 1
+  }
+
+  local lister="$HOME/.claude-shared/claude-chat-list"
+  local preview="$HOME/.claude-shared/claude-chat-preview"
+  local rmhelper="$HOME/.claude-shared/claude-chat-rm"
+  local zsh=${commands[zsh]:-/bin/zsh}    # explicit interpreter; fzf preview env lacks PATH
+  local tmp colhdr
+
+  # Drive the list from a temp file. Enter runs the delete helper (confirm +
+  # delete + drop the row from the file), then reload re-reads the file. fzf's
+  # reload preserves the cursor position, so consecutive deletes stay put.
+  print -u2 "scanning chats…"
+  tmp=$(mktemp -t claude-chat-delete) || { print -u2 "mktemp failed"; return 1 }
+  trap "rm -f -- ${(q)tmp}" EXIT INT TERM
+  "$lister" > "$tmp"
+  [[ -s $tmp ]] || { print "no chats found"; return 0 }
+
+  # Column header (the leading 2 spaces line up under fzf's pointer gutter).
+  colhdr=$("$lister" --header)
+
+  # /bin/cat (not bare `cat`): reload runs with the same stripped PATH as preview.
+  $fzf < "$tmp" \
+    --delimiter=$'\t' --with-nth=2.. \
+    --no-sort --layout=reverse --height=90% \
+    --header="enter = delete · type to filter · esc = quit"$'\n'"${colhdr}" \
+    --preview="${zsh} ${preview} {1}" --preview-window='down,45%,wrap' \
+    --bind "enter:execute(${zsh} ${rmhelper} ${tmp} {1} {2..})+reload(/bin/cat ${tmp})"
+}

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#
+# ticket-register-column — store the current cockpit column for status line display.
+#
+#   usage: ticket-register-column "<column>"
+#
+# Writes a .column file alongside the session's ticket marker so the status
+# line can show the ticket's current board column.
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+column="${1:-}"
+if [ -z "$column" ]; then
+  echo "usage: ticket-register-column <column>" >&2
+  exit 1
+fi
+
+session="$(session_id)"
+if [ -n "$session" ]; then
+  mkdir -p "$TICKET_STATE_DIR"
+  printf '%s\n' "$column" > "$TICKET_STATE_DIR/$session.column"
+fi
+
+ticket_state_confirm .column "$column" "Column stored"

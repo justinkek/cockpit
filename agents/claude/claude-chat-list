@@ -1,0 +1,64 @@
+#!/usr/bin/env zsh
+#
+# claude-chat-list — enumerate every Claude chat transcript across all accounts
+# (~/.claude*/projects/*/*.jsonl), newest first, as TAB-delimited rows:
+#   <transcript-path>\t<display>
+# where <display> is: modified · name · size · short-id · account · dir.
+# Name is the chat's customTitle (/rename), else aiTitle, else "(untitled)".
+#
+# Shared by claude-chat-delete (pick a chat to delete) and claude-chat-copy
+# (pick a source chat). Feed stdout to fzf with --delimiter=$'\t' --with-nth=2..
+# so the path in field 1 stays hidden but selectable.
+#   --header   print only the column-header line, aligned to sit above the rows
+#              (2 leading spaces line up under fzf's pointer gutter).
+
+() {
+  emulate -L zsh
+  zmodload zsh/stat zsh/datetime 2>/dev/null
+
+  if [[ $1 == --header ]]; then
+    printf '  %-16s  %-45s  %6s  %-8s  %-16s  %s\n' \
+      modified name size id account dir
+    return 0
+  fi
+
+  local f acct id short cwd when name bytes size gl key row
+  local -a files
+  typeset -A cwd_of title_custom title_ai st
+
+  files=( $HOME/.claude*/projects/*/*.jsonl(.omN) )      # newest first
+  (( ${#files} )) || return 0
+
+  # Batch one grep per field (≤1 line/file) rather than forking per file.
+  # Compute key/val in plain vars — quotes inside an array [subscript] break parsing.
+  while IFS= read -r gl; do
+    key=${gl%%:'"cwd":'*}; cwd_of[$key]=${${gl#*:'"cwd":"'}%'"'}
+  done < <(grep -m1 -H -o '"cwd":"[^"]*"' -- $files 2>/dev/null)
+  while IFS= read -r gl; do
+    key=${gl%%:'"customTitle":'*}; title_custom[$key]=${${gl#*:'"customTitle":"'}%'"'}
+  done < <(grep -m1 -H -o '"customTitle":"[^"]*"' -- $files 2>/dev/null)
+  while IFS= read -r gl; do
+    key=${gl%%:'"aiTitle":'*}; title_ai[$key]=${${gl#*:'"aiTitle":"'}%'"'}
+  done < <(grep -m1 -H -o '"aiTitle":"[^"]*"' -- $files 2>/dev/null)
+
+  # Fork-free loop: zstat, strftime -s and printf -v are builtins.
+  for f in $files; do
+    acct=${f#$HOME/}; acct=${acct%%/*}
+    id=${f:t:r}; short=${id[1,8]}
+    cwd=${cwd_of[$f]:-"(${f:h:t})"}                      # fallback: bucket name
+    name=${title_custom[$f]:-${title_ai[$f]:-"(untitled)"}}
+    zstat -H st -- "$f" 2>/dev/null
+    strftime -s when '%Y-%m-%d %H:%M' ${st[mtime]:-0}
+    bytes=${st[size]:-0}
+    if (( bytes >= 1048576 )); then
+      printf -v size '%.1fM' $(( bytes / 1048576.0 ))
+    elif (( bytes >= 1024 )); then
+      printf -v size '%dK' $(( (bytes + 1023) / 1024 ))
+    else
+      printf -v size '%dB' $bytes
+    fi
+    printf -v row '%s  %-45.45s  %6s  %s  [%s]  %s' \
+      "$when" "$name" "$size" "$short" "$acct" "$cwd"
+    printf '%s\t%s\n' "$f" "$row"
+  done
+} "$@"

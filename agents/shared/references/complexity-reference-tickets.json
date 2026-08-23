@@ -1,0 +1,132 @@
+[
+	{
+		"name": "Fix a typo in user-facing copy",
+		"points": 1,
+		"domain": "Tech",
+		"stack": "React Native",
+		"meaningful_lines": 1,
+		"files": 1,
+		"description": "Change a single word or punctuation mark in a UI string. No logic change, no test change, no migration.",
+		"why_this_score": "The smallest tech change that delivers value to the user. One file, one line, zero decisions."
+	},
+	{
+		"name": "Send a templated status update email",
+		"points": 1,
+		"domain": "Bizdev",
+		"stack": "Daily Mail",
+		"meaningful_lines": null,
+		"files": null,
+		"description": "Fill in a pre-existing template with project-specific data and send to the client. No drafting, no new content creation.",
+		"why_this_score": "The smallest bizdev task that delivers value. One template, one send, zero decisions."
+	},
+	{
+		"name": "Fix a broken local dev config",
+		"points": 1,
+		"domain": "Tech",
+		"stack": "Shell",
+		"meaningful_lines": 5,
+		"files": 3,
+		"description": "Change 3 lines across 3 config files to fix npm run dev. No logic, no test, no research.",
+		"why_this_score": "Same caliber as a typo fix but in tooling - one fix, zero decisions."
+	},
+	{
+		"name": "Pin tool versions in config files",
+		"points": 1,
+		"domain": "Tech",
+		"stack": "Shell",
+		"meaningful_lines": 3,
+		"files": 2,
+		"description": "Drop two config files (.nvmrc, .tool-versions) to pin node/npm versions. No logic, no test.",
+		"why_this_score": "Pure config, no decisions, no side effects."
+	},
+	{
+		"name": "Add tracking properties to Notion DB and record in skill",
+		"points": 2,
+		"domain": "Tech",
+		"stack": "Notion",
+		"meaningful_lines": 30,
+		"files": 2,
+		"description": "Add 4 text properties to DB schema + update one skill file to write them during status transitions. Static mapping, no logic.",
+		"why_this_score": "Two mechanical edits (schema + skill), more than a glance but still one sitting."
+	},
+	{
+		"name": "Add a CI gate (license, security, or lint check)",
+		"points": 2,
+		"domain": "Tech",
+		"stack": "GitHub Actions",
+		"meaningful_lines": 20,
+		"files": 4,
+		"description": "New CI workflow file + config. Follows pattern from existing workflows, adapts for the specific check.",
+		"why_this_score": "Self-contained, follows a template. Slightly more than config-only (1 pt) because it needs workflow + integration verification."
+	},
+	{
+		"name": "New UI screen with static layout and navigation wiring",
+		"points": 3,
+		"domain": "Tech",
+		"stack": "React Native",
+		"meaningful_lines": 236,
+		"files": 11,
+		"description": "New screen component, stylesheet, route registration, navigation wiring from Figma. Layout-only, no API calls or complex state.",
+		"why_this_score": "Requires visual layout decisions and file structure setup. Bounded: single screen, no API, no shared state. More than schema edits (2) but less than full feature (5)."
+	},
+	{
+		"name": "Set up GitHub Actions CI pipeline for a new repo",
+		"points": 3,
+		"domain": "Tech",
+		"stack": "GitHub Actions",
+		"meaningful_lines": 163,
+		"files": 7,
+		"description": "Multiple workflow files, environment config, test/lint/build jobs for a new repository.",
+		"why_this_score": "Cross-cutting setup across multiple workflow files but each is formulaic. More than one gate (2) but less than feature work (5)."
+	},
+	{
+		"name": "Feature screen with dynamic content, first in its domain",
+		"points": 5,
+		"domain": "Tech",
+		"stack": "React Native",
+		"meaningful_lines": 332,
+		"files": 26,
+		"description": "Full screen establishing UI patterns (theme, typography, layout components) with navigation and visual layout from Figma. Sets conventions for subsequent screens.",
+		"why_this_score": "Crosses multiple concerns (UI patterns, theme, navigation) and establishes precedent for the codebase. Approaches daily speed limit."
+	},
+	{
+		"name": "Automated system with scheduled execution and data pipeline",
+		"points": 5,
+		"domain": "Tech",
+		"stack": "Notion",
+		"meaningful_lines": null,
+		"files": null,
+		"description": "Multiple databases, cron job, data aggregation logic, generated chart/report. Each piece is small but the integration surface demands sustained attention.",
+		"why_this_score": "Multiple moving parts (schema, automation, computation, visualization). At daily speed ceiling."
+	},
+	{
+		"name": "Research, evaluate, and propose a plan from 10+ options",
+		"points": 5,
+		"domain": "Bizdev",
+		"stack": "Macro Plan",
+		"meaningful_lines": null,
+		"files": null,
+		"description": "Evaluate 10+ candidates against criteria (budget, capacity, logistics), produce structured comparison table, recommend one option with backup.",
+		"why_this_score": "Significant research volume with structured decision output. Fills a full working session."
+	},
+	{
+		"name": "Feature with navigation architecture and multiple child screens",
+		"points": 8,
+		"domain": "Tech",
+		"stack": "React Native",
+		"meaningful_lines": 417,
+		"files": 37,
+		"description": "Sidebar navigation, multiple screens, shared layout components, state management across child routes. Exceeds daily speed - should have been split.",
+		"why_this_score": "Exceeds daily speed (5 pts). Recognition anchor: should be split into navigation (3) + individual screens (2-3 each)."
+	},
+	{
+		"name": "Full auth flow: API client, tokens, session persistence",
+		"points": 13,
+		"domain": "Tech",
+		"stack": "React Native",
+		"meaningful_lines": 827,
+		"files": 54,
+		"description": "API transport layer, endpoint factories, token refresh, secure session storage, navigation guards, error handling. Multiple services across 54 files.",
+		"why_this_score": "Way beyond daily speed. Should be an epic of 4-5 tickets: API client (3), token management (3), session persistence (3), navigation guards (2)."
+	}
+]

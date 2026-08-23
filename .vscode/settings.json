@@ -1,0 +1,13 @@
+{
+	"files.associations": {
+		"agents/claude/auto-rename": "shellscript",
+		"agents/claude/claude-*": "shellscript",
+		"agents/claude/cockpit-*": "shellscript",
+		"agents/claude/pr-*": "shellscript",
+		"agents/claude/settings-scope-confirm": "shellscript",
+		"agents/claude/ticket-*": "shellscript",
+		"agents/claude/worktree-give-back": "shellscript",
+		"scripts/*": "shellscript",
+		"agents/codex/settings/merge-*": "python"
+	}
+}

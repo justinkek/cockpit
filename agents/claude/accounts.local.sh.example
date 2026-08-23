@@ -1,0 +1,17 @@
+# Per-user account overlay. Copy this to accounts.local.sh (same directory) and
+# list the Claude accounts you run. accounts.local.sh is untracked.
+#
+# Naming convention (from accounts.sh): `claude` -> ~/.claude (the desktop app),
+# any other <name> -> ~/.claude-<name>. So usually you only set ACCOUNTS:
+ACCOUNTS=(claude)
+
+# If one of your accounts doesn't follow the ~/.claude-<name> pattern, redefine
+# acct_dir too, e.g.:
+#
+# acct_dir() {
+#   case "$1" in
+#     claude) printf '%s' "$HOME/.claude" ;;
+#     work)   printf '%s' "$HOME/.config/claude-work" ;;
+#     *)      printf '%s' "$HOME/.claude-$1" ;;
+#   esac
+# }

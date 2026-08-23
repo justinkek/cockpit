@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+#
+# ticket-watch-board — announce once when refinement work is waiting.
+#
+#   usage: ticket-watch-board
+#
+# The sibling script, ticket-watch-column, watches one card for a session that
+# already knows which ticket it is on. This one runs before that is true: a
+# session with no ticket registered arms it and waits, and the moment a card
+# lands in a by-AI refinement column it says so, once, and exits.
+#
+# Setup is the credential the sibling already uses — see ticket-watch-column for
+# the one-time Keychain steps. The integration needs read access to the Tickets
+# database; nothing here writes.
+#
+# TICKET_WATCH_INTERVAL overrides the 60s cadence (seconds) so a hand check does
+# not have to wait a minute for a verdict.
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[ticket-listen] jq is required to parse the board response" >&2
+  exit 1
+fi
+
+# A missing credential must be loud: silence would look exactly like "nothing is
+# waiting", and the watch would sit there proving nothing.
+token="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+if [ -z "$token" ]; then
+  echo "[ticket-listen] no credential — store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w '<token>'" >&2
+  exit 1
+fi
+
+interval="${TICKET_WATCH_INTERVAL:-60}"
+
+# Waiting, and nothing else. Whether a card is actually takeable — on the board,
+# unclaimed — is the copilot skill's decision, made against the board view it can
+# read and this script cannot. Testing the claim here would put the same rule in
+# two places that have to agree, and the count is advisory either way.
+#
+# `In Dev` is the one exception, and it is not the same rule. A refinement column
+# empties as work is taken out of it, so a card sitting there is waiting by
+# definition. `In Dev` does not: a card stays there for the whole of dev, so every
+# card any session is currently building would be counted and the listener would
+# ring on its first poll and every poll after. The claim test on that clause is
+# what keeps the count meaningful. It costs the abandoned case — an `In Dev` card
+# whose session died still holds a claim, so it is not announced — and
+# ticket-waiting-cards still lists it, so `/copilot` run by hand finds it.
+#
+# The body goes to a file and curl reads it with @, so no amount of quoting in
+# the JSON has to survive a trip through the config format.
+filter_file="$(mktemp -t ticket-watch-board)"
+trap 'rm -f "$filter_file"' EXIT
+cat >"$filter_file" <<'JSON'
+{"filter":{"or":[
+  {"property":"Status","status":{"equals":"Ready for BR by AI"}},
+  {"property":"Status","status":{"equals":"Ready for TR by AI"}},
+  {"and":[
+    {"property":"Status","status":{"equals":"In Dev"}},
+    {"property":"Agent: Session Id","rich_text":{"is_empty":true}}]}]},
+ "page_size":100}
+JSON
+
+count_the_board_shows() {
+  local view="$1" board="$2" waiting="$3" shown
+  shown="$("$(dirname "$0")/ticket-board-members" "$view")" || {
+    echo "[ticket-listen] $board could not be listed to the end - not counted this poll" >&2
+    return 1
+  }
+  comm -12 \
+    <(printf '%s\n' "$waiting" | tr 'A-Z' 'a-z' | tr -d '-' | sort) \
+    <(printf '%s\n' "$shown" | tr 'A-Z' 'a-z' | tr -d '-' | sort) \
+    | wc -l | tr -d ' '
+}
+
+failures=0
+
+# Resolved once, before the first poll: the listener is armed by the copilot
+# skill for a checkout it has already settled, so a board list that fails here
+# fails on every poll too. Failing at arm time says so while someone is looking.
+boards_tsv="$(cockpit_boards)" || {
+  status=$?
+  cockpit_boards_explain "$status" ticket-listen
+  exit "$status"
+}
+
+while :; do
+  count=0
+  polled=0
+  boards=0
+  rejected=0
+
+  while IFS=$'\t' read -r board db view; do
+    boards=$((boards + 1))
+
+    # Options go in on stdin, never in argv: a token passed as an argument is
+    # readable in `ps` by anything running as this user for the life of the
+    # request.
+    response="$(printf '%s\n' \
+      "header = \"Authorization: Bearer $token\"" \
+      'header = "Notion-Version: 2022-06-28"' \
+      'header = "Content-Type: application/json"' \
+      "url = \"https://api.notion.com/v1/databases/$db/query\"" \
+      'request = "POST"' \
+      "data = \"@$filter_file\"" \
+      'silent' \
+      | curl --config - || true)"
+
+    # A rejected token never recovers, so it must not hide inside the generic
+    # failure count — five minutes of "poll failing" reads like a network blip.
+    api_code="$(printf '%s' "$response" | jq -r 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+    if [ -n "$api_code" ]; then
+      # Any error the board names is permanent for this configuration — a revoked
+      # token, a database the integration cannot see, a filter naming a property
+      # that does not exist. None of them start working on the next poll, so none
+      # may hide inside the failure counter: five minutes of "poll failing" reads
+      # like a network blip, and an unreachable board reads exactly like an empty
+      # queue. Say what the board said, and stop only if no board is left.
+      echo "[ticket-listen] $board rejected the query ($api_code): $(printf '%s' "$response" | jq -r '.message // empty')" >&2
+      if [ "$api_code" = "unauthorized" ]; then
+        echo "[ticket-listen] replace the token with: security add-generic-password -U -a \"\$USER\" -s cockpit-notion-token -w" >&2
+      fi
+      rejected=$((rejected + 1))
+      continue
+    fi
+
+    n="$(printf '%s' "$response" | jq -r 'if .results then (.results | length) else empty end' 2>/dev/null || true)"
+    [ -n "$n" ] || continue
+    polled=$((polled + 1))
+    [ "$n" -gt 0 ] || continue
+
+    if [ -n "$view" ]; then
+      n="$(count_the_board_shows "$view" "$board" "$(printf '%s' "$response" | jq -r '.results[].id')")" || {
+        polled=$((polled - 1))
+        continue
+      }
+    fi
+    count=$((count + n))
+  done <<< "$boards_tsv"
+
+  # Every board permanently rejecting is the same dead end the single-board
+  # version exited on. One board rejecting is not: the others still answer, and
+  # taking the whole listener down for it would hide work that is waiting.
+  if [ "$rejected" -eq "$boards" ]; then
+    exit 1
+  fi
+
+  if [ "$polled" -eq 0 ]; then
+    # One failed request must not kill the watch, but a persistently broken poll
+    # must not stay quiet either.
+    failures=$((failures + 1))
+    if [ "$failures" -eq 5 ]; then
+      echo "[ticket-listen] poll failing"
+    fi
+    sleep "$interval"
+    continue
+  fi
+  failures=0
+
+  if [ "$count" -gt 0 ]; then
+    # Announce once and end. There is no repeat to suppress: the session takes a
+    # ticket and stops listening, so a second announcement could only ever be
+    # noise. If the pick finds every waiting card already taken by another
+    # session, the skill arms this again.
+    echo "[ticket-listen] $count ticket(s) waiting for an agent - invoke /cockpit:ticket:0:copilot to take one. Follow ~/.claude-shared/templates/board-event.md."
+    exit 0
+  fi
+
+  sleep "$interval"
+done

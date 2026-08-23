@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+give_back="$HOME/.claude-shared/worktree-give-back"
+if [ ! -x "$give_back" ]; then
+  printf 'worktrees-clean: nothing executable at %s\n' "$give_back" >&2
+  exit 7
+fi
+
+main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+cd "$main_checkout"
+
+removed=""
+kept=""
+
+keep() {
+  kept="${kept}$1"$'\n'
+}
+
+hand_to_give_back() {
+  local worktree_path="$1" branch="$2" locked="$3"
+
+  if [ -n "$locked" ]; then
+    keep "$worktree_path - locked by a running session"
+    return 0
+  fi
+
+  if [ -z "$branch" ]; then
+    keep "$worktree_path - no branch checked out"
+    return 0
+  fi
+
+  local give_back_output
+  if give_back_output="$("$give_back" "$worktree_path" "$branch" 2>&1 > /dev/null)"; then
+    removed="${removed}${worktree_path} ($branch)"$'\n'
+    return 0
+  fi
+
+  local reason="${give_back_output##*refused: }"
+  keep "$worktree_path ($branch) - ${reason%%$'\n'*}"
+}
+
+print_group() {
+  local label="$1" body="$2" count=0
+
+  [ -n "$body" ] && count="$(printf '%s' "$body" | grep --count '')"
+  printf '%s %d\n' "$label" "$count"
+  [ -n "$body" ] && printf '%s' "$body" | sed 's/^/  /'
+  return 0
+}
+
+worktree_path=""
+branch=""
+locked=""
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*)
+      worktree_path="${line#worktree }"
+      branch=""
+      locked=""
+      ;;
+    "branch refs/heads/"*)
+      branch="${line#branch refs/heads/}"
+      ;;
+    "locked"*)
+      locked=yes
+      ;;
+    "")
+      if [ -n "$worktree_path" ] && [ "$worktree_path" != "$main_checkout" ]; then
+        hand_to_give_back "$worktree_path" "$branch" "$locked"
+      fi
+      worktree_path=""
+      ;;
+  esac
+done < <(git worktree list --porcelain)
+
+print_group removed "$removed"
+print_group kept "$kept"

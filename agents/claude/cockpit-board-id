@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+KNOWN_KEYS=(
+  page sprints-view
+  tickets-data-source epics-data-source projects-data-source
+  reference-tickets-data-source sprints-data-source
+  tickets-database epics-database projects-database reference-tickets-database
+)
+
+usage() {
+  echo "usage: cockpit-board-id get <key> [board]" >&2
+  echo "       cockpit-board-id set <key> <value> [board]" >&2
+  echo "       cockpit-board-id boards" >&2
+  echo "keys: ${KNOWN_KEYS[*]}" >&2
+  echo "board: defaults to the one serving this checkout; name one to reach another" >&2
+  echo "exits: 2 usage or unknown key · 3 no board claims this checkout" >&2
+  echo "       4 no board of that name · 6 board found, key not recorded — ask, then set" >&2
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[board-id] jq is required to read and write the board list" >&2
+  exit 1
+fi
+
+action="${1:-}"
+key="${2:-}"
+
+if [ "$action" = "boards" ]; then
+  no_boards_recorded_yet && exit 0
+  jq --raw-output '.boards[].name' "$COCKPIT_BOARDS_FILE"
+  exit 0
+fi
+
+if [ -z "$action" ] || [ -z "$key" ]; then
+  usage
+  exit 2
+fi
+
+case " ${KNOWN_KEYS[*]} " in
+  *" $key "*) ;;
+  *)
+    echo "[board-id] no such key '$key' — a key nothing reads would be asked for again tomorrow" >&2
+    usage
+    exit 2
+    ;;
+esac
+
+seed_boards_file() {
+  [ -f "$COCKPIT_BOARDS_FILE" ] && return 0
+  mkdir -p "$(dirname "$COCKPIT_BOARDS_FILE")"
+  printf '{\n\t"boards": []\n}\n' > "$COCKPIT_BOARDS_FILE"
+}
+
+resolve_board() {
+  local named="${1:-}" boards status first matched
+  if [ -n "$named" ]; then
+    matched="$(jq --raw-output --arg named "$named" \
+      '.boards[] | select((.name | ascii_downcase) == ($named | ascii_downcase)) | .name' \
+      "$COCKPIT_BOARDS_FILE")"
+    COCKPIT_BOARD="${matched:-$named}"
+  fi
+  status=0
+  boards="$(cockpit_boards)" || status=$?
+  if [ "$status" -ne 0 ]; then
+    cockpit_boards_explain "$status" board-id
+    return "$status"
+  fi
+  first="${boards%%$'\n'*}"
+  printf '%s\n' "${first%%$'\t'*}"
+}
+
+case "$action" in
+  get)
+    board="$(resolve_board "${3:-}")"
+    value="$(jq --raw-output --arg board "$board" --arg key "$key" \
+      '.boards[] | select(.name == $board) | .ids[$key] // empty' \
+      "$COCKPIT_BOARDS_FILE")"
+    if [ -z "$value" ]; then
+      echo "[board-id] $board has no '$key' recorded — ask for it once, then: cockpit-board-id set $key <value>" >&2
+      exit 6
+    fi
+    printf '%s\n' "$value"
+    ;;
+
+  set)
+    value="${3:-}"
+    if [ -z "$value" ]; then
+      usage
+      exit 2
+    fi
+    seed_boards_file
+    board="$(resolve_board "${4:-}")"
+
+    written_atomically="$(mktemp "$(dirname "$COCKPIT_BOARDS_FILE")/.cockpit-boards.XXXXXX")"
+    trap 'rm -f "$written_atomically"' EXIT
+
+    jq --tab --arg board "$board" --arg key "$key" --arg value "$value" '
+      .boards |= map(
+        if .name == $board
+        then .ids = ((.ids // {}) + { ($key): $value })
+        else . end)' "$COCKPIT_BOARDS_FILE" > "$written_atomically"
+
+    mv "$written_atomically" "$COCKPIT_BOARDS_FILE"
+    trap - EXIT
+
+    printf '%s now reaches %s at %s\n' "$board" "$key" "$value"
+    ;;
+
+  *)
+    usage
+    exit 2
+    ;;
+esac

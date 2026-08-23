@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+#
+# ticket-waiting-cards — print the cards sitting in a by-AI refinement column,
+# or the cards one session is holding.
+#
+#   usage: ticket-waiting-cards [--claimed-by <session-id>]
+#
+# One tab-separated line per card, across every board in boards.json:
+#
+#   <board>	<page-id>	<status>	<claim or ->	<name>	<live|stale|->
+#
+# Two callers, two questions. Bare, it answers the copilot skill's: which cards
+# are waiting in a by-AI column. With --claimed-by it answers the SessionEnd
+# hook's: which cards this session is holding, in any column — a claim runs from
+# pickup to Done, so a session ending mid-dev holds a card no by-AI listing
+# would show.
+#
+# The board comes first because it decides where the claim is written: a card on
+# a project board is claimed there, not on the cockpit.
+#
+# Why REST rather than the SQL query tool: `query_data_sources` is a paid
+# capability, capped on this workspace's plan. It stops answering for stretches
+# of the day, which would take `/cockpit:ticket:0:copilot` down with it. The
+# classic database query endpoint has no plan cap — the board poller has used it
+# every 60 seconds all day — so the candidate list comes from there.
+#
+# This says nothing about whether a card is on the board: the raw database has no
+# view filters. Intersect with ticket-board-members for that.
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+claimed_by=""
+if [ "${1:-}" = "--claimed-by" ]; then
+  claimed_by="${2:-}"
+  if [ -z "$claimed_by" ]; then
+    echo "[waiting-cards] --claimed-by needs a session id" >&2
+    exit 2
+  fi
+fi
+
+# Seconds a session may go without a heartbeat before its claim is expirable,
+# and the floor under every claim regardless. Both have to be exceeded: the
+# heartbeat is written on this machine only, so the floor is what stops a claim
+# held by a session elsewhere being taken over on sight.
+BEAT_WINDOW=1800
+CLAIM_FLOOR=3600
+
+# Epoch seconds for an iso formatted datetime, read as UTC because that is how a
+# claim is written. Prints nothing when it cannot be parsed.
+_claim_epoch() {
+  local ts="${1%%.*}"
+  ts="${ts%Z}"
+  ts="${ts%%+*}"
+  TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$ts" +%s 2>/dev/null \
+    || date -u -d "$1" +%s 2>/dev/null
+}
+
+# live, stale or `-` for one claim field. The column a card sits in cannot answer
+# this: a claim is held from pickup to Done, so a claimed card can be sitting in
+# any column with a session still working it.
+#
+# Fails towards `live`. A claim whose age cannot be measured is never taken off a
+# session that might still be there — expiring one wrongly is what put two
+# sessions on the same card.
+claim_verdict() {
+  local claim="$1" sid ts now age
+  if [ "$claim" = "-" ]; then
+    printf '%s' '-'
+    return
+  fi
+
+  sid="${claim%% *}"
+  if [ -f "$TICKET_STATE_DIR/$sid.alive" ]; then
+    age="$(_ticket_state_age "$TICKET_STATE_DIR/$sid.alive" 2>/dev/null || true)"
+    if [ -n "$age" ] && [ "$age" -le "$BEAT_WINDOW" ]; then
+      printf '%s' 'live'
+      return
+    fi
+  fi
+
+  now="$(date +%s)"
+  ts="$(_claim_epoch "${claim##* }")"
+  if [ -n "$ts" ] && [ "$(( now - ts ))" -ge "$CLAIM_FLOOR" ]; then
+    printf '%s' 'stale'
+  else
+    printf '%s' 'live'
+  fi
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[waiting-cards] jq is required to parse the board response" >&2
+  exit 1
+fi
+
+token="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+if [ -z "$token" ]; then
+  echo "[waiting-cards] no credential — store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w" >&2
+  exit 1
+fi
+
+body="$(mktemp -t ticket-waiting-cards)"
+trap 'rm -f "$body"' EXIT
+if [ -n "$claimed_by" ]; then
+  jq -nc --arg s "$claimed_by" \
+    '{filter:{property:"Agent: Session Id",rich_text:{contains:$s}},page_size:100}' >"$body"
+else
+  cat >"$body" <<'JSON'
+{"filter":{"or":[
+  {"property":"Status","status":{"equals":"Ready for BR by AI"}},
+  {"property":"Status","status":{"equals":"In BR by AI"}},
+  {"property":"Status","status":{"equals":"Ready for TR by AI"}},
+  {"property":"Status","status":{"equals":"In TR by AI"}},
+  {"property":"Status","status":{"equals":"In Dev"}},
+  {"property":"Status","status":{"equals":"In CR by AI"}}]},
+ "page_size":100}
+JSON
+fi
+
+boards="$(cockpit_boards)" || {
+  status=$?
+  cockpit_boards_explain "$status" waiting-cards
+  exit "$status"
+}
+
+while IFS=$'\t' read -r board db _view; do
+  response="$(printf '%s\n' \
+    "header = \"Authorization: Bearer $token\"" \
+    'header = "Notion-Version: 2022-06-28"' \
+    'header = "Content-Type: application/json"' \
+    "url = \"https://api.notion.com/v1/databases/$db/query\"" \
+    'request = "POST"' \
+    "data = \"@$body\"" \
+    'silent' \
+    | curl --config - || true)"
+
+  # One unreadable board must not blank the whole list. A caller that gets no
+  # lines cannot tell "nothing is waiting" from "the query died", so a board that
+  # rejects is named on stderr and the rest are still printed.
+  code="$(printf '%s' "$response" | jq -r 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+  if [ -n "$code" ]; then
+    echo "[waiting-cards] $board rejected the query ($code): $(printf '%s' "$response" | jq -r '.message // empty')" >&2
+    continue
+  fi
+
+  # The claim prints as `-` when empty, so an empty field can never be mistaken
+  # for a missing column by whatever reads this.
+  #
+  # The verdict is appended in shell rather than computed in the jq program: it
+  # reads a file's modification time, which jq cannot. Appending it keeps the
+  # five fields before it in the positions the SessionEnd hook parses.
+  printf '%s' "$response" | jq -r --arg board "$board" '
+    .results[]
+    | [ $board,
+        .id,
+        (.properties.Status.status.name // "?"),
+        ((."properties"["Agent: Session Id"].rich_text // []) | map(.plain_text) | join("") | if . == "" then "-" else . end),
+        ((.properties.Name.title // []) | map(.plain_text) | join(""))
+      ]
+    | @tsv' \
+  | while IFS=$'\t' read -r f_board f_page f_status f_claim f_name; do
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$f_board" "$f_page" "$f_status" "$f_claim" "$f_name" "$(claim_verdict "$f_claim")"
+    done
+done <<< "$boards"

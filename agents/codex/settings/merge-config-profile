@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""merge-config-profile — merge the managed permission-profile slice into an
+app-owned ~/.codex/config.toml without re-serializing it.
+
+Codex permission profiles live in config.toml, which the Desktop app also
+writes. A parse->emit tool (dasel, tomlkit) would reformat the whole file; this
+does a *targeted text edit* instead, touching only what we own:
+
+  1. the top-level `default_permissions = "..."` line — inserted before the
+     first [table] so it stays valid TOML (top-level keys must precede tables);
+  2. the `[permissions.*]` block — kept between two marker comments, replaced in
+     place if present, appended at EOF otherwise.
+
+Everything else in the file is left byte-for-byte untouched. The result is
+validated with tomllib before any write; a parse failure aborts.
+
+Usage: merge-config-profile --source <base.config-profile.toml> --target <config.toml> [--check|--apply]
+  --check : print drift, write nothing, exit 1 if drift
+  --apply : write the merged file (caller handles backups)
+Exit: 0 = in sync / applied; 1 = drift (check mode); 2 = error.
+"""
+import argparse
+import re
+import sys
+import tomllib
+
+MARK_START = "# >>> dotfiles-codex-permissions"
+MARK_END = "# <<< dotfiles-codex-permissions"
+DP_RE = re.compile(r"^\s*default_permissions\s*=")
+TABLE_RE = re.compile(r"^\s*\[")
+
+
+def parse_source(text):
+    """Return (default_permissions_line, block_lines) from the source file."""
+    lines = text.splitlines()
+    dp_line = next((ln for ln in lines if DP_RE.match(ln)), None)
+    if dp_line is None:
+        sys.exit("merge-config-profile: source has no default_permissions line")
+    try:
+        start = next(i for i, ln in enumerate(lines) if ln.startswith(MARK_START))
+        end = next(i for i, ln in enumerate(lines) if ln.startswith(MARK_END))
+    except StopIteration:
+        sys.exit("merge-config-profile: source is missing the managed-block markers")
+    return dp_line.strip(), lines[start:end + 1]
+
+
+def merge(target_text, dp_line, block_lines):
+    """Return the merged config text (idempotent)."""
+    lines = target_text.splitlines()
+
+    # 1. default_permissions: replace in place, else insert before the first table.
+    idx = next((i for i, ln in enumerate(lines) if DP_RE.match(ln)), None)
+    if idx is not None:
+        lines[idx] = dp_line
+    else:
+        tbl = next((i for i, ln in enumerate(lines) if TABLE_RE.match(ln)), None)
+        if tbl is None:
+            if lines and lines[-1].strip():
+                lines.append("")
+            lines.append(dp_line)
+        else:
+            # insert the line (and a trailing blank) just before the first table
+            lines[tbl:tbl] = [dp_line, ""]
+
+    # 2. managed block: replace between markers, else append at EOF.
+    start = next((i for i, ln in enumerate(lines) if ln.startswith(MARK_START)), None)
+    end = next((i for i, ln in enumerate(lines) if ln.startswith(MARK_END)), None)
+    if start is not None and end is not None and end >= start:
+        lines[start:end + 1] = block_lines
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(block_lines)
+
+    return "\n".join(lines) + "\n"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--source", required=True)
+    ap.add_argument("--target", required=True)
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    args = ap.parse_args()
+
+    with open(args.source) as f:
+        dp_line, block_lines = parse_source(f.read())
+
+    try:
+        with open(args.target) as f:
+            current = f.read()
+    except FileNotFoundError:
+        current = ""
+
+    merged = merge(current, dp_line, block_lines)
+
+    # never write something that doesn't parse
+    try:
+        tomllib.loads(merged)
+    except tomllib.TOMLDecodeError as e:
+        sys.exit(f"merge-config-profile: merged result is not valid TOML: {e}")
+
+    if merged == current:
+        print("in sync")
+        return 0
+
+    if args.check:
+        # emit a minimal unified diff for the caller to show
+        import difflib
+        diff = difflib.unified_diff(
+            current.splitlines(True), merged.splitlines(True),
+            fromfile="current", tofile="desired",
+        )
+        sys.stdout.writelines(diff)
+        return 1
+
+    if args.apply:
+        with open(args.target, "w") as f:
+            f.write(merged)
+        print(f"wrote {args.target}")
+        return 0
+
+    # default: print merged to stdout (dry run)
+    sys.stdout.write(merged)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,128 @@
+#!/usr/bin/env zsh
+#
+# claude-chat-copy — copy a chat transcript so it can be resumed from another
+# directory and/or another account. Resume keys off (account, launch-cwd): chats
+# live at ~/.claude*/projects/<cwd with '/' and '.' turned into '-'>/<id>.jsonl.
+# Duplicates the transcript (and its sidecar folder) without touching the
+# original.
+#   --to <profile>   re-homes into a different account (~/.claude-<profile>),
+#                    keeping the same cwd bucket. Omit to stay in the source's.
+#   --from <profile> restricts the source lookup to one account — needed when the
+#                    same id lives in several (e.g. after a cross-account copy).
+#   [dest-dir]       overrides the cwd bucket (defaults to $PWD), independently.
+# Omit <session-id> to pick the source chat interactively (needs fzf): lists
+# every chat across all accounts, newest first, with a first/last-message
+# preview. The pick sets the source directly, so --from is not needed.
+# Usage: claude-chat-copy [session-id] [dest-dir] [--from <profile>] [--to <profile>]
+# Caveat: dest is realpath-resolved (:A); a symlinked cwd may bucket elsewhere.
+
+# Die (listing valid profiles) unless ~/.claude-<profile> exists.
+_require_profile() {
+  [[ -d $HOME/.claude-$1 ]] && return
+  print -u2 "unknown profile: $1 (no $HOME/.claude-$1)"
+  print -u2 "available profiles:"
+  for d in $HOME/.claude-*/projects(N/); do print -u2 "  ${${d:h:t}#.claude-}"; done
+  exit 1
+}
+
+id=""
+dest=""
+profile=""
+from=""
+picked=""
+while (( $# )); do
+  case $1 in
+    --to)     profile=$2; shift 2 ;;
+    --to=*)   profile=${1#--to=}; shift ;;
+    --from)   from=$2; shift 2 ;;
+    --from=*) from=${1#--from=}; shift ;;
+    -h|--help)
+      print "usage: claude-chat-copy [session-id] [dest-dir] [--from <profile>] [--to <profile>]"
+      print "omit session-id to pick the source chat interactively (needs fzf)"
+      exit 0 ;;
+    -*) print -u2 "unknown option: $1"; exit 1 ;;
+    *)  if [[ -z $id ]]; then id=$1
+        elif [[ -z $dest ]]; then dest=$1
+        else print -u2 "too many arguments: $1"; exit 1; fi
+        shift ;;
+  esac
+done
+
+# No session id → interactive picker: list every chat and pick the source. The
+# pick hands back the transcript's full path, so we set the source directly
+# (bypassing the id lookup below) and just derive the id for the dest filename.
+if [[ -z $id ]]; then
+  # Resolve fzf to its real path and invoke it by that path — some terminals
+  # (e.g. Warp) intercept the bare `fzf` command word inside a script.
+  fzf=${commands[fzf]}
+  [[ -n $fzf ]] || {
+    print -u2 "claude-chat-copy: needs fzf to pick a chat (brew install fzf), or pass a session id"
+    exit 1
+  }
+  lister="$HOME/.claude-shared/claude-chat-list"
+  preview="$HOME/.claude-shared/claude-chat-preview"
+  zsh=${commands[zsh]:-/bin/zsh}          # explicit interpreter; fzf preview env lacks PATH
+  colhdr=$("$lister" --header)
+  sel=$("$lister" | $fzf \
+    --delimiter=$'\t' --with-nth=2.. \
+    --no-sort --layout=reverse --height=90% \
+    --header="enter = pick source chat · type to filter · esc = quit"$'\n'"${colhdr}" \
+    --preview="${zsh} ${preview} {1}" --preview-window='down,45%,wrap')
+  [[ -n $sel ]] || { print -u2 "no chat selected"; exit 1 }
+  src=${sel%%$'\t'*}                      # field 1 = transcript path
+  id=${src:t:r}
+  picked=1
+fi
+
+dest=${dest:-$PWD}
+dest=${dest:A}
+bucket=${${dest:gs@/@-@}:gs@.@-@}
+
+# Source lookup (skipped when the picker already set $src): --from narrows to one
+# account; otherwise glob every account.
+if [[ -z $picked ]]; then
+  if [[ -n $from ]]; then
+    _require_profile $from
+    matches=( $HOME/.claude-$from/projects/*/${id}.jsonl(N) )
+    (( ${#matches} )) || { print -u2 "no transcript for session $id in profile: $from"; exit 1 }
+  else
+    matches=( ${HOME}/.claude*/projects/*/${id}.jsonl(N) )
+    (( ${#matches} )) || { print -u2 "no transcript found for session: $id"; exit 1 }
+  fi
+  if (( ${#matches} > 1 )); then
+    print -u2 "ambiguous — $id exists in multiple buckets:"
+    printf '  %s\n' $matches >&2
+    [[ -z $from ]] && print -u2 "narrow the source account with --from <profile>"
+    exit 1
+  fi
+  src=$matches[1]
+fi
+
+# Destination account: a named profile (--to) re-homes across accounts; otherwise
+# stay in the source's own account. Derive the launcher name for the resume hint.
+if [[ -n $profile ]]; then
+  _require_profile $profile
+  dest_root=$HOME/.claude-$profile/projects
+  launcher="claude-$profile"
+else
+  dest_root=${src:h:h}                        # source's own projects dir
+  srcdirname=${src:h:h:h:t}                    # a named profile dir / the default one
+  [[ $srcdirname == .claude-* ]] && launcher="claude-${srcdirname#.claude-}" || launcher=""
+fi
+
+dest_dir=$dest_root/$bucket
+dest_file=$dest_dir/$id.jsonl
+if [[ -e $dest_file ]]; then
+  print -u2 "destination already has this chat: $dest_file"
+  exit 1
+fi
+
+mkdir -p $dest_dir
+cp -p $src $dest_file
+[[ -d ${src:r} ]] && cp -Rp ${src:r} $dest_dir/
+print "copied chat $id → $dest_dir/"
+if [[ -n $launcher ]]; then
+  print "resume from there with: cd ${dest} && $launcher --resume $id"
+else
+  print "resume from there with: cd ${dest} && CLAUDE_CONFIG_DIR=${src:h:h:h} claude --resume $id"
+fi

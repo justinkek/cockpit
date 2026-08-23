@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#
+# auto-rename — programmatically name a Claude Code session.
+#
+#   usage: auto-rename "<session-name>"
+#
+# The actual transcript write + marker creation is done by
+# hooks/require-rename.sh, which intercepts this command in its PreToolUse
+# position (it is the component that knows session_id and transcript_path).
+# This script is the stable command name the hook matches on; it validates
+# the argument and confirms.
+#
+set -euo pipefail
+
+name="${1:-}"
+if [ -z "$name" ]; then
+  echo "usage: auto-rename \"<session-name>\"" >&2
+  exit 1
+fi
+
+echo "Session named: $name"

@@ -1,0 +1,28 @@
+{
+  "name": "Pi",
+  "base": "light",
+  "overrides": {
+    "claude": "#dd7a5f",
+    "briefLabelClaude": "#dd7a5f",
+    "briefLabelYou": "#56789c",
+    "text": "#485160",
+    "inactive": "#7fa3c7",
+    "subtle": "#aab8c6",
+    "suggestion": "#95d886",
+    "inverseText": "#eff0f2",
+    "success": "#66c2b4",
+    "error": "#e08a72",
+    "warning": "#b58900",
+    "remember": "#b58900",
+    "promptBorder": "#56789c",
+    "permission": "#56789c",
+    "diffAdded": "#dcebe6",
+    "diffRemoved": "#f2e2db",
+    "diffAddedWord": "#66c2b4",
+    "diffRemovedWord": "#e08a72",
+    "rate_limit_fill": "#dd7a5f",
+    "rate_limit_empty": "#d5dde5",
+    "userMessageBackground": "#95d886",
+    "userMessageBackgroundHover": "#a9e19b"
+  }
+}

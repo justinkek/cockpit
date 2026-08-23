@@ -1,0 +1,8 @@
+# base.tui-profile.toml — the managed Codex TUI status-line slice.
+#
+# Codex exposes native footer items rather than Claude Code's arbitrary status
+# command. These are the closest native equivalents for session title, model +
+# reasoning effort, token usage, and five-hour plan-limit usage.
+
+[tui]
+status_line = ["model-with-reasoning", "used-tokens", "five-hour-limit", "thread-title"]
