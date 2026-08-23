@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+repo_root_through_symlink() {
+  cd "$(dirname "$0")" && cd "$(pwd -P)/.." && pwd
+}
+
+cd "$(repo_root_through_symlink)" || exit 1
+
+pass=0
+fail=0
+failures=""
+
+while IFS= read -r -d '' test_path; do
+  if output="$(bash "$test_path" 2>&1)"; then
+    printf "  OK  %s\n" "$test_path"
+    pass=$((pass + 1))
+  else
+    printf "  KO  %s\n" "$test_path"
+    fail=$((fail + 1))
+    failures="${failures}
+${test_path}
+${output}
+"
+  fi
+done < <(git ls-files --cached --others --exclude-standard -z "*/tests/test-*.sh" "tests/test-*.sh")
+
+if [ "$((pass + fail))" -eq 0 ]; then
+  printf "\nno test found under any tests directory\n"
+  exit 1
+fi
+
+printf "\n%d passed, %d failed\n" "$pass" "$fail"
+[ "$fail" -eq 0 ] && exit 0
+printf "%s\n" "$failures"
+exit 1

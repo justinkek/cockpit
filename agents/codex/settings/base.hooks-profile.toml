@@ -1,0 +1,48 @@
+# base.hooks-profile.toml — the managed hooks slice of ~/.codex/config.toml that
+# ports Claude Code hooks into Codex's [hooks] config format.
+#
+# Both agents share the same hook scripts at ~/.claude-shared/hooks/ and the
+# same protocol: stdin JSON with tool_name/tool_input/session_id, exit-code-2 +
+# stderr to block, or JSON stdout with hookSpecificOutput for structured
+# decisions. Codex supports both protocols identically (verified in source:
+# codex-rs/hooks/src/events/pre_tool_use.rs).
+#
+# Only hooks whose tool_input format is compatible are ported here. Hooks that
+# parse tool_input.file_path (block-user-claudemd, guard-secrets-gitignore,
+# confine-to-repo) need adaptation for Codex's apply_patch format (which sends
+# {"command": "<patch>"} instead of {"file_path": "..."}) — deferred to a
+# follow-up ticket.
+#
+# Matchers use the same regex syntax as Claude Code. Codex's apply_patch tool
+# exposes "Write" and "Edit" as matcher aliases, so Edit|Write matchers fire
+# for apply_patch calls.
+#
+# Trust enrollment: Codex requires user-level hooks to be trusted via the
+# Desktop app UI on first encounter. After sync, launch Codex once and approve
+# the hooks when prompted — they stay trusted until the command text changes.
+
+# >>> dotfiles-codex-hooks (managed by agents/codex/settings) >>>
+
+# require-ticket.sh — PreToolUse poka-yoke. Denies Edit/Write/Bash until the
+# session registers a cockpit ticket. Uses JSON stdout protocol
+# (hookSpecificOutput with permissionDecision). NotebookEdit dropped (Codex has
+# no equivalent tool).
+[[hooks.PreToolUse]]
+matcher = "Edit|Write|Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "$HOME/.claude-shared/hooks/require-ticket.sh"
+
+# guard-bash-secret-read.sh — PreToolUse guard for Bash. Blocks shell commands
+# that would read secret files (cat .env, head id_rsa, etc.) — defense-in-depth
+# behind the permission profile's deny rules, which gate the agent's reader but
+# not arbitrary shell commands.
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "$HOME/.claude-shared/hooks/guard-bash-secret-read.sh"
+
+# <<< dotfiles-codex-hooks <<<

@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+#
+# ticket-board-members — print the page ids the cockpit board currently shows.
+#
+#   usage: ticket-board-members [view-id]
+#
+# With no argument, every board in boards.json. With one, that view
+# alone.
+#
+# The copilot skill needs to know which cards are on the board, because the board
+# is a view and a view hides cards. Reading the view's filter rules and
+# evaluating them is what went wrong repeatedly; asking Notion which pages the
+# view contains cannot disagree with what the user sees.
+#
+# A board with no view id in the config has no view to hide anything, so every
+# row in its database is a member. That is not a fallback for a view we failed
+# to read — it is the honest answer for a board nobody has filtered.
+#
+# Why a script rather than an MCP call: the MCP database-view tool returns every
+# property of every row — a quarter of a megabyte for this board, which spills to
+# a tool-result file the agent then cannot read. This endpoint returns ids only,
+# so the whole board is a few kilobytes and fits in one call.
+#
+# Credential: the same read-only integration token as ticket-watch-column.
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[board-members] jq is required to parse the board response" >&2
+  exit 1
+fi
+
+token="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+if [ -z "$token" ]; then
+  echo "[board-members] no credential — store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w" >&2
+  exit 1
+fi
+
+body="$(mktemp -t ticket-board-members)"
+trap 'rm -f "$body"' EXIT
+
+members_by_view() {
+  local view="$1" label="$2" query_id="" cursor="" response next
+  local rows_the_view_reports="" rows_this_run_printed=0
+  printf '{"page_size":100}' > "$body"
+
+  while :; do
+    if [ -z "$query_id" ]; then
+      response="$(printf '%s\n' \
+        "header = \"Authorization: Bearer $token\"" \
+        'header = "Notion-Version: 2025-09-03"' \
+        'header = "Content-Type: application/json"' \
+        "url = \"https://api.notion.com/v1/views/$view/queries\"" \
+        'request = "POST"' \
+        "data = \"@$body\"" \
+        'silent' \
+        | curl --config - || true)"
+    else
+      response="$(printf '%s\n' \
+        "header = \"Authorization: Bearer $token\"" \
+        'header = "Notion-Version: 2025-09-03"' \
+        "url = \"https://api.notion.com/v1/views/$view/queries/$query_id?page_size=100&start_cursor=$(jq -rn --arg c "$cursor" '$c|@uri')\"" \
+        'request = "GET"' \
+        'silent' \
+        | curl --config - || true)"
+    fi
+
+    code="$(printf '%s' "$response" | jq -r 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+    if [ -n "$code" ]; then
+      echo "[board-members] $label rejected the query ($code): $(printf '%s' "$response" | jq -r '.message // empty')" >&2
+      return 1
+    fi
+
+    printf '%s' "$response" | jq -r '.results[].id'
+    rows_this_run_printed=$(( rows_this_run_printed + $(printf '%s' "$response" | jq -r '.results | length') ))
+    [ -n "$rows_the_view_reports" ] || rows_the_view_reports="$(printf '%s' "$response" | jq -r '.total_count // empty')"
+
+    [ "$(printf '%s' "$response" | jq -r '.has_more // false')" = "true" ] || break
+
+    next="$(printf '%s' "$response" | jq -r '.next_cursor // empty')"
+    if [ -z "$next" ] || [ "$next" = "$cursor" ]; then
+      echo "[board-members] $label says there is more but the cursor did not advance — stopping short" >&2
+      return 1
+    fi
+    cursor="$next"
+    [ -n "$query_id" ] || query_id="$(printf '%s' "$response" | jq -r '.id')"
+  done
+
+  if [ -n "$rows_the_view_reports" ] && [ "$rows_this_run_printed" -lt "$rows_the_view_reports" ]; then
+    echo "[board-members] $label printed $rows_this_run_printed of the $rows_the_view_reports rows it reports — the list is short" >&2
+    return 1
+  fi
+}
+
+members_by_database() {
+  local db="$1" label="$2" cursor="" page response
+  page="$(mktemp -t ticket-board-members-page)"
+  while :; do
+    if [ -n "$cursor" ]; then
+      jq -n --arg c "$cursor" '{page_size:100, start_cursor:$c}' > "$page"
+    else
+      printf '{"page_size":100}' > "$page"
+    fi
+
+    response="$(printf '%s\n' \
+      "header = \"Authorization: Bearer $token\"" \
+      'header = "Notion-Version: 2022-06-28"' \
+      'header = "Content-Type: application/json"' \
+      "url = \"https://api.notion.com/v1/databases/$db/query\"" \
+      'request = "POST"' \
+      "data = \"@$page\"" \
+      'silent' \
+      | curl --config - || true)"
+
+    code="$(printf '%s' "$response" | jq -r 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+    if [ -n "$code" ]; then
+      echo "[board-members] $label rejected the query ($code): $(printf '%s' "$response" | jq -r '.message // empty')" >&2
+      rm -f "$page"
+      return 1
+    fi
+
+    printf '%s' "$response" | jq -r '.results[].id'
+
+    [ "$(printf '%s' "$response" | jq -r '.has_more // false')" = "true" ] || break
+    cursor="$(printf '%s' "$response" | jq -r '.next_cursor')"
+  done
+  rm -f "$page"
+}
+
+# One argument names a view outright — the hand-check path, unchanged.
+if [ "$#" -gt 0 ]; then
+  members_by_view "$1" "view $1"
+  exit $?
+fi
+
+boards="$(cockpit_boards)" || {
+  status=$?
+  cockpit_boards_explain "$status" board-members
+  exit "$status"
+}
+
+failed=0
+while IFS=$'\t' read -r board db view; do
+  if [ -n "$view" ]; then
+    members_by_view "$view" "$board" || failed=1
+  else
+    members_by_database "$db" "$board" || failed=1
+  fi
+done <<< "$boards"
+
+exit "$failed"

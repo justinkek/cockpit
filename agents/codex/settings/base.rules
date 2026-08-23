@@ -1,0 +1,56 @@
+# base.rules — Codex execpolicy allowlist (twin of Claude settings.json
+# permissions.allow). Codex loads every *.rules file under $CODEX_HOME/rules/;
+# sync.settings.sh installs this as rules/dotfiles.rules, layered alongside any
+# hand-authored rules (e.g. the pre-existing default.rules) rather than
+# replacing them.
+#
+# Syntax is Starlark. prefix_rule(pattern=[...]) matches a command whose leading
+# tokens equal the pattern, so ["git","status"] auto-approves `git status`,
+# `git status --short`, etc. decision="allow" runs without prompting; the
+# most-restrictive layer wins, and requirements.toml may override to prompt/
+# forbidden. Validate with:  codex execpolicy check --rules <file> -- git status
+#
+# Codex's `untrusted` approval policy already auto-trusts common read-only shell
+# builtins (ls, cat, sed, …); these rules add the dev-tooling commands that
+# mirror the Claude allowlist.
+
+# --- git: read-only inspection ---
+prefix_rule(pattern=["git", "status"], decision="allow", justification="read-only: working tree status")
+prefix_rule(pattern=["git", "log"], decision="allow", justification="read-only: history")
+prefix_rule(pattern=["git", "diff"], decision="allow", justification="read-only: diff")
+prefix_rule(pattern=["git", "show"], decision="allow", justification="read-only: object contents")
+prefix_rule(pattern=["git", "blame"], decision="allow", justification="read-only: line attribution")
+prefix_rule(pattern=["git", "rev-parse"], decision="allow", justification="read-only: ref resolution")
+prefix_rule(pattern=["git", "rev-list"], decision="allow", justification="read-only: commit listing")
+prefix_rule(pattern=["git", "ls-files"], decision="allow", justification="read-only: tracked files")
+prefix_rule(pattern=["git", "branch", "--show-current"], decision="allow", justification="read-only: current branch")
+
+# --- git: revertible mutations (mirrors Claude allowlist) ---
+prefix_rule(pattern=["git", "add"], decision="allow", justification="stage changes; revertible")
+prefix_rule(pattern=["git", "commit"], decision="allow", justification="commit; revertible in-repo")
+
+# --- gh: read-only GitHub queries ---
+prefix_rule(pattern=["gh", "pr", "view"], decision="allow", justification="read-only: PR view")
+prefix_rule(pattern=["gh", "pr", "list"], decision="allow", justification="read-only: PR list")
+prefix_rule(pattern=["gh", "pr", "diff"], decision="allow", justification="read-only: PR diff")
+prefix_rule(pattern=["gh", "pr", "checks"], decision="allow", justification="read-only: PR checks")
+prefix_rule(pattern=["gh", "repo", "view"], decision="allow", justification="read-only: repo view")
+prefix_rule(pattern=["gh", "issue", "view"], decision="allow", justification="read-only: issue view")
+prefix_rule(pattern=["gh", "issue", "list"], decision="allow", justification="read-only: issue list")
+prefix_rule(pattern=["gh", "run", "view"], decision="allow", justification="read-only: run view")
+prefix_rule(pattern=["gh", "run", "list"], decision="allow", justification="read-only: run list")
+
+# --- mise: read-only toolchain queries ---
+prefix_rule(pattern=["mise", "ls"], decision="allow", justification="read-only: installed tools")
+prefix_rule(pattern=["mise", "current"], decision="allow", justification="read-only: active versions")
+prefix_rule(pattern=["mise", "which"], decision="allow", justification="read-only: tool path")
+prefix_rule(pattern=["mise", "env"], decision="allow", justification="read-only: env")
+prefix_rule(pattern=["mise", "doctor"], decision="allow", justification="read-only: diagnostics")
+
+# --- syntax checks (no execution) ---
+prefix_rule(pattern=["zsh", "-n"], decision="allow", justification="syntax check only")
+prefix_rule(pattern=["bash", "-n"], decision="allow", justification="syntax check only")
+prefix_rule(pattern=["node", "--check"], decision="allow", justification="syntax check only")
+
+# --- filesystem: create dirs ---
+prefix_rule(pattern=["mkdir"], decision="allow", justification="create directories")

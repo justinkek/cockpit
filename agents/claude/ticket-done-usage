@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#
+# ticket-done-usage — sum cost/token usage across all sessions for a ticket.
+#
+#   usage: ticket-done-usage <ticket-url>
+#
+# Scans session markers in the state directory for sessions registered to the
+# given ticket URL, reads each session's .usage sidecar (written by the
+# statusline command), and outputs a JSON object with cumulative totals.
+#
+# Cost: summed across sessions. Empty values (plan doesn't track cost) are
+# skipped; if ALL sessions have empty cost, outputs null.
+# Tokens: uses tokens_k_cumul (delta-accumulated). Falls back to tokens_k
+# for old-format .usage files.
+#
+set -euo pipefail
+
+url="${1:-}"
+if [ -z "$url" ]; then
+  echo "usage: ticket-done-usage <ticket-url>" >&2
+  exit 1
+fi
+
+STATE_DIR="$HOME/.local/state/claude-ticket-sessions"
+cost_sum=0
+tokens_sum=0
+has_cost=false
+
+if [ -d "$STATE_DIR" ]; then
+  for marker in "$STATE_DIR"/*.ticket; do
+    [ -f "$marker" ] || continue
+
+    marker_url=$(cat "$marker" 2>/dev/null) || continue
+    [ "$marker_url" = "$url" ] || continue
+
+    usage_file="${marker%.ticket}.usage"
+    [ -f "$usage_file" ] || continue
+
+    _cost=""; _tok_cumul=""; _tok_legacy=""
+    while IFS='=' read -r key val; do
+      case "$key" in
+        cost_usd)       _cost="$val" ;;
+        tokens_k_cumul) _tok_cumul="$val" ;;
+        tokens_k)       _tok_legacy="$val" ;;
+      esac
+    done < "$usage_file"
+
+    if [ -n "$_cost" ]; then
+      has_cost=true
+      cost_sum=$(printf '%s + %s\n' "$cost_sum" "$_cost" | bc)
+    fi
+
+    _tok="${_tok_cumul:-$_tok_legacy}"
+    if [ -n "$_tok" ]; then
+      tokens_sum=$(printf '%s + %s\n' "$tokens_sum" "${_tok:-0}" | bc)
+    fi
+  done
+fi
+
+if [ "$has_cost" = true ]; then
+  printf '{"cost_usd": %s, "tokens_k": %s}\n' "$cost_sum" "$tokens_sum"
+else
+  printf '{"cost_usd": null, "tokens_k": %s}\n' "$tokens_sum"
+fi

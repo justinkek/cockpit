@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# ticket-register — register the SSOT board ticket a Claude session works on.
+#
+#   usage: ticket-register <cockpit-ticket-url>
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+url="${1:-}"
+if [ -z "$url" ]; then
+  echo "usage: ticket-register <cockpit-ticket-url>" >&2
+  exit 1
+fi
+case "$url" in
+  https://*) ;;
+  *) echo "ticket-register: expected an https ticket URL, got: $url" >&2; exit 1 ;;
+esac
+
+session="$(session_id)"
+if [ -n "$session" ]; then
+  mkdir -p "$TICKET_STATE_DIR"
+  printf '%s\n' "$url" > "$TICKET_STATE_DIR/$session.ticket"
+fi
+
+ticket_state_confirm .ticket "$url" "Registered SSOT ticket for this session"

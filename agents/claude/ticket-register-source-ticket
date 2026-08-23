@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# ticket-register-source-ticket — register the source ticket URL.
+#
+#   usage: ticket-register-source-ticket <source-ticket-url>
+#
+# When a session works on a cross-board ticket, the cockpit stub is registered
+# via ticket-register (for tracking) and this script registers the source ticket
+# (for content). Content writes (BR, TR, dev notes) go to the source ticket;
+# status walks and hooks continue to use the cockpit ticket.
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+url="${1:-}"
+if [ -z "$url" ]; then
+  echo "usage: ticket-register-source-ticket <source-ticket-url>" >&2
+  exit 1
+fi
+case "$url" in
+  https://*) ;;
+  *) echo "ticket-register-source-ticket: expected an https URL, got: $url" >&2; exit 1 ;;
+esac
+
+session="$(session_id)"
+if [ -n "$session" ]; then
+  mkdir -p "$TICKET_STATE_DIR"
+  printf '%s\n' "$url" > "$TICKET_STATE_DIR/$session.source-ticket"
+fi
+
+ticket_state_confirm .source-ticket "$url" "Registered source ticket for this session"

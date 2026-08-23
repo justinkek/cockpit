@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+#
+# ticket-comment-line — put one comment on one line of a Notion page.
+#
+#   usage: ticket-comment-line <page-id> <line-text> <suggestion> <why>
+#
+# A session drafting BR or TR in a by-AI column uses this instead of asking its
+# question in chat: the user reads the suggestion beside the line it changes,
+# in Notion, and never has to leave the board to unblock the session.
+#
+# The two-part format is built here rather than by each caller, so every comment
+# the board carries reads the same way.
+#
+set -euo pipefail
+
+source "$(dirname "$0")/notion-blocks-lib.sh"
+
+page_id="${1:-}"
+line="${2:-}"
+suggestion="${3:-}"
+why="${4:-}"
+
+if [ -z "$page_id" ] || [ -z "$line" ] || [ -z "$suggestion" ] || [ -z "$why" ]; then
+  echo "usage: ticket-comment-line <page-id> <line-text> <suggestion> <why>" >&2
+  exit 2
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[comment-line] jq is required to build and read the request" >&2
+  exit 1
+fi
+
+squashed_line="$(printf '%s' "$line" | notion_squash)"
+if [ "${#squashed_line}" -lt "$NOTION_MATCH_MINIMUM_LENGTH" ]; then
+  echo "[comment-line] too little text to match on, so nothing was posted: $line" >&2
+  exit 2
+fi
+
+can_post="yes"
+if [ -z "${NOTION_TOKEN:-}" ]; then
+  NOTION_TOKEN="$(security find-generic-password -a "$USER" -s cockpit-notion-comment-token -w 2>/dev/null || true)"
+fi
+if [ -z "${NOTION_TOKEN:-}" ]; then
+  can_post="no"
+  NOTION_TOKEN="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+fi
+export NOTION_TOKEN
+
+if [ "$can_post" = "no" ] && [ -z "${TICKET_COMMENT_LINE_DRY_RUN:-}" ]; then
+  depth="$(notion_match_block_depth "$page_id" "$line" | cut -f2 || true)"
+  if [ "$depth" = "0" ]; then
+    echo "[comment-line] no credential - post it through the agent's Notion connection instead, following raise-a-decision.md" >&2
+    exit 3
+  fi
+  if [ -z "$depth" ]; then
+    echo "[comment-line] no credential, and where this line sits on the page could not be read - comment on the page and open with the line, following raise-a-decision.md" >&2
+  else
+    echo "[comment-line] this line sits under another line, which nothing here can anchor to - comment on the page and open with the line, following raise-a-decision.md" >&2
+  fi
+  exit 4
+fi
+
+block_id="$(notion_match_block "$page_id" "$line")" || resolve=$?
+if [ -n "${resolve:-}" ]; then
+  if [ "$resolve" -eq 2 ]; then
+    echo "[comment-line] too little text to match on, so nothing was posted: $line" >&2
+  else
+    echo "[comment-line] no single block matches, so nothing was posted: $line" >&2
+  fi
+  exit "$resolve"
+fi
+
+body="$(jq -n --arg b "$block_id" --arg s "$suggestion" --arg w "$why" '{
+  parent: {block_id: $b},
+  rich_text: [
+    {text: {content: "[suggestion] "}, annotations: {bold: true}},
+    {text: {content: $s}},
+    {text: {content: "\n[why] "}, annotations: {bold: true}},
+    {text: {content: $w}}
+  ]}')"
+
+# Test seam: print what would be posted and stop, so a test can assert the
+# anchor and the format without a credential or a network.
+if [ -n "${TICKET_COMMENT_LINE_DRY_RUN:-}" ]; then
+  printf '%s\n' "$body"
+  exit 0
+fi
+
+payload="$(mktemp -t ticket-comment-line)"
+trap 'rm -f "$payload"' EXIT
+printf '%s' "$body" >"$payload"
+
+response="$(printf '%s\n' \
+  "header = \"Authorization: Bearer $NOTION_TOKEN\"" \
+  'header = "Notion-Version: 2022-06-28"' \
+  'header = "Content-Type: application/json"' \
+  'url = "https://api.notion.com/v1/comments"' \
+  'request = "POST"' \
+  "data = \"@$payload\"" \
+  'silent' \
+  | curl --config - || true)"
+
+code="$(printf '%s' "$response" | jq -r 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+if [ -n "$code" ]; then
+  echo "[comment-line] Notion refused the comment ($code): $(printf '%s' "$response" | jq -r '.message // empty')" >&2
+  exit 1
+fi
+
+comment_id="$(printf '%s' "$response" | jq -r '.id // empty')"
+if [ -z "$comment_id" ]; then
+  echo "[comment-line] no comment id came back, so the comment is unconfirmed: $line" >&2
+  exit 1
+fi
+
+# Read it back rather than trusting the write. There is no delete-comment API,
+# so a comment on the wrong line can only be removed by the user by hand — the
+# caller has to be told at once, while it still knows which line it meant.
+placed="$(printf '%s\n' \
+  "header = \"Authorization: Bearer $NOTION_TOKEN\"" \
+  'header = "Notion-Version: 2022-06-28"' \
+  "url = \"https://api.notion.com/v1/comments?block_id=$block_id\"" \
+  'silent' \
+  | curl --config - || true)"
+
+if ! printf '%s' "$placed" | jq -e --arg id "$comment_id" '.results[]? | select(.id == $id)' >/dev/null 2>&1; then
+  echo "[comment-line] the comment posted but is not on block $block_id — check it by hand, it cannot be deleted by API" >&2
+  exit 1
+fi
+
+printf 'commented on %s (block %s)\n' "$page_id" "$block_id"

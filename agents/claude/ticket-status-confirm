@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# ticket-status-confirm — confirm the ticket status has been advanced.
+#
+#   usage: ticket-status-confirm <stage>
+#
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+stage="${1:-}"
+if [ -z "$stage" ]; then
+  echo "usage: ticket-status-confirm <stage>" >&2
+  exit 1
+fi
+
+session="$(session_id)"
+if [ -n "$session" ]; then
+  mkdir -p "$TICKET_STATE_DIR"
+  : > "$TICKET_STATE_DIR/${session}.stage-${stage}"
+fi
+
+# The stage marker is an empty file, so existence and freshness are the only
+# signal available — there are no contents to compare.
+ticket_state_confirm ".stage-${stage}" "" "Confirmed ticket status" "stage=$stage"

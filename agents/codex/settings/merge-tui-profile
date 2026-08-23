@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Merge the managed status-line key into an app-owned Codex config.toml.
+
+The merger owns only ``tui.status_line``. It inserts or replaces a marked slice
+inside an existing ``[tui]`` table, or appends that table when absent. Every
+unrelated key remains intact, and the merged result is validated with tomllib
+before it can be written.
+
+Usage: merge-tui-profile --source <base.tui-profile.toml>
+                         --target <config.toml> [--check|--apply]
+Exit: 0 = in sync / applied; 1 = drift in check mode; 2 = invalid arguments.
+"""
+
+import argparse
+import re
+import sys
+import tomllib
+
+
+MARK_START = "# >>> dotfiles-codex-status-line (managed by agents/codex/settings) >>>"
+MARK_END = "# <<< dotfiles-codex-status-line <<<"
+TUI_TABLE_RE = re.compile(r"^\s*\[tui\]\s*$")
+TABLE_RE = re.compile(r"^\s*\[")
+STATUS_LINE_RE = re.compile(r"^\s*status_line\s*=")
+
+
+def source_line(text):
+    parsed = tomllib.loads(text)
+    items = parsed.get("tui", {}).get("status_line")
+    if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
+        sys.exit("merge-tui-profile: source must define tui.status_line as strings")
+    quoted = ", ".join(f'"{item}"' for item in items)
+    return f"status_line = [{quoted}]"
+
+
+def without_status_line(lines):
+    """Remove an unmanaged status_line assignment, including multiline arrays."""
+    kept = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if not STATUS_LINE_RE.match(line):
+            kept.append(line)
+            index += 1
+            continue
+
+        value = line.split("=", 1)[1]
+        bracket_depth = value.count("[") - value.count("]")
+        index += 1
+        while bracket_depth > 0 and index < len(lines):
+            bracket_depth += lines[index].count("[") - lines[index].count("]")
+            index += 1
+    return kept
+
+
+def merge(target_text, status_line):
+    lines = target_text.splitlines()
+    header = next((i for i, line in enumerate(lines) if TUI_TABLE_RE.match(line)), None)
+
+    if header is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines:
+            lines.append("")
+        lines.extend(["[tui]", MARK_START, status_line, MARK_END])
+        return "\n".join(lines) + "\n"
+
+    end = next(
+        (i for i in range(header + 1, len(lines)) if TABLE_RE.match(lines[i])),
+        len(lines),
+    )
+    body = lines[header + 1 : end]
+
+    start_mark = next((i for i, line in enumerate(body) if line == MARK_START), None)
+    end_mark = next((i for i, line in enumerate(body) if line == MARK_END), None)
+    if start_mark is not None and end_mark is not None and end_mark >= start_mark:
+        body[start_mark : end_mark + 1] = [MARK_START, status_line, MARK_END]
+    else:
+        body = without_status_line(body)
+        while body and not body[-1].strip():
+            body.pop()
+        body.extend([MARK_START, status_line, MARK_END])
+
+    suffix = lines[end:]
+    if suffix:
+        body.append("")
+    return "\n".join(lines[: header + 1] + body + suffix) + "\n"
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source", required=True)
+    parser.add_argument("--target", required=True)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+
+    with open(args.source) as file:
+        status_line = source_line(file.read())
+    try:
+        with open(args.target) as file:
+            current = file.read()
+    except FileNotFoundError:
+        current = ""
+
+    merged = merge(current, status_line)
+    try:
+        tomllib.loads(merged)
+    except tomllib.TOMLDecodeError as error:
+        sys.exit(f"merge-tui-profile: merged result is not valid TOML: {error}")
+
+    if merged == current:
+        print("in sync")
+        return 0
+    if args.check:
+        import difflib
+
+        sys.stdout.writelines(
+            difflib.unified_diff(
+                current.splitlines(True),
+                merged.splitlines(True),
+                fromfile="current",
+                tofile="desired",
+            )
+        )
+        return 1
+    if args.apply:
+        with open(args.target, "w") as file:
+            file.write(merged)
+        print(f"wrote {args.target}")
+        return 0
+
+    sys.stdout.write(merged)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

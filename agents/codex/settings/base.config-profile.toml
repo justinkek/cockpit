@@ -1,0 +1,35 @@
+# base.config-profile.toml — the managed slice of ~/.codex/config.toml that ports
+# the deny side of Claude's settings.json into Codex's permission-profile model.
+#
+# Codex permission profiles DO gate the agent's own file reader (verified), not
+# just shell commands — so a profile that denies secret globs actually stops the
+# agent reading them, at the user level, no sudo. This is the correct mechanism;
+# `requirements.toml`/`deny_read` was a dead end (that file isn't user-loaded and
+# only ever governed shell reads).
+#
+# sync merges ONLY these keys into ~/.codex/config.toml (a file the Desktop app
+# also owns): the top-level `default_permissions` line, plus everything from the
+# managed-block marker down. The app's own keys are left untouched.
+#
+# `extends = ":workspace"` keeps normal read/write working; each "<glob>" = "deny"
+# carves a hole for a secret. Globs are matched under the workspace roots, so this
+# covers secrets living inside a repo Codex is working in (the primary risk).
+# Secrets kept OUTSIDE the workspace are already unreadable via the sandbox.
+
+default_permissions = "dotfiles-restricted"
+
+# >>> dotfiles-codex-permissions (managed by agents/codex/settings) >>>
+[permissions.dotfiles-restricted]
+extends = ":workspace"
+
+[permissions.dotfiles-restricted.filesystem.":workspace_roots"]
+"." = "write"
+"**/*.env" = "deny"
+"**/.env.*" = "deny"
+"**/*.pem" = "deny"
+"**/*.key" = "deny"
+"**/id_rsa" = "deny"
+"**/id_ed25519" = "deny"
+"**/.npmrc" = "deny"
+"**/.netrc" = "deny"
+# <<< dotfiles-codex-permissions <<<

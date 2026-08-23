@@ -1,0 +1,76 @@
+#!/usr/bin/env zsh
+#
+# claude-desktop-bedrock — toggle AWS Bedrock for the Claude desktop app.
+#
+#   claude-desktop-bedrock         status (on/off)
+#   claude-desktop-bedrock on      route the desktop app through Bedrock
+#   claude-desktop-bedrock off     back to the Anthropic API
+#
+# Scope: only the `claude` account (~/.claude, the desktop app). The env block
+# in settings.json is the only channel that reaches the app — it launches
+# outside the shell wrappers, so exports can't. Assumes a single credential
+# set (AWS_PROFILE=default).
+#
+# `env` is a sync-managed key, so a change to the live file alone would show
+# as drift and be reverted by the next claude-sync. To stay drift-free WITHOUT
+# running the sync, the same edit is written to both places:
+#   • ~/.claude/settings.json                            (live — the app reads this)
+#   • ~/.claude-shared/settings/overrides/claude.settings.json  (sync source of truth)
+
+set -euo pipefail
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+
+LIVE="$HOME/.claude/settings.json"
+OVR="${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/settings/overrides/claude.settings.json"
+
+BEDROCK_ENV='{
+  "CLAUDE_CODE_USE_BEDROCK": "1",
+  "AWS_REGION": "eu-west-2",
+  "AWS_PROFILE": "default",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL": "eu.anthropic.claude-sonnet-4-6",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL": "eu.anthropic.claude-opus-4-6-v1",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL": "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+}'
+
+command -v jq >/dev/null || { print -u2 "error: jq is required"; exit 3 }
+[[ -f $LIVE ]] || { print -u2 "error: missing $LIVE"; exit 3 }
+[[ -f $OVR ]]  || { print -u2 "error: missing $OVR"; exit 3 }
+
+# Apply a jq filter (given $b = the Bedrock env block) to a file, in place.
+edit() {
+  local file=$1 filter=$2 tmp
+  tmp="$(mktemp "${file}.XXXXXX")"
+  jq --argjson b "$BEDROCK_ENV" "$filter" "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
+status() {
+  local flag
+  flag="$(jq -r '.env.CLAUDE_CODE_USE_BEDROCK // empty' "$LIVE")"
+  if [[ $flag == 1 ]]; then
+    print "Bedrock: on  (desktop app, ~/.claude)"
+  else
+    print "Bedrock: off  (desktop app, ~/.claude)"
+  fi
+}
+
+case "${1:-}" in
+  '')
+    status
+    ;;
+  on)
+    edit "$LIVE" '.env = (.env // {}) + $b'
+    edit "$OVR"  '.env = (.env // {}) + $b'
+    status
+    ;;
+  off)
+    strip='.env = ((.env // {}) | with_entries(select(.key as $k | ($b | has($k)) | not)))'
+    edit "$LIVE" "$strip"
+    edit "$OVR"  "$strip | if .env == {} then del(.env) else . end"
+    status
+    ;;
+  *)
+    print -u2 "usage: claude-desktop-bedrock [on|off]"
+    exit 2
+    ;;
+esac

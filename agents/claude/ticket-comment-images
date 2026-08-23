@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exit_usage=2
+exit_no_credential=3
+exit_token_rejected=4
+exit_page_unreadable=5
+exit_rate_limited=6
+
+if [ "$#" -lt 1 ]; then
+  echo "usage: ticket-comment-images <page-id-or-url>" >&2
+  exit "$exit_usage"
+fi
+
+page_reference="$1"
+
+page_id="${page_reference%%\?*}"
+page_id="${page_id##*/}"
+page_id="$(printf '%s' "$page_id" | tr -cd '[:alnum:]' | tail -c 32)"
+
+if ! printf '%s' "$page_id" | grep --quiet --extended-regexp '^[0-9a-fA-F]{32}$'; then
+  echo "[comment-images] no 32 character hexadecimal page id in '$page_reference'" >&2
+  exit "$exit_usage"
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[comment-images] jq is required to read the comments response" >&2
+  exit "$exit_page_unreadable"
+fi
+
+fixture="${TICKET_COMMENT_IMAGES_FIXTURE:-}"
+
+token=""
+if [ -z "$fixture" ]; then
+  token="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+  if [ -z "$token" ]; then
+    echo "[comment-images] no credential - store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w" >&2
+    exit "$exit_no_credential"
+  fi
+fi
+
+destination="${TICKET_COMMENT_IMAGES_DESTINATION:-$HOME/.local/state/cockpit/comment-images}/$page_id"
+mkdir -p "$destination"
+
+extension_of() {
+  local signed_url="$1" extension
+  extension="${signed_url%%\?*}"
+  extension="${extension##*.}"
+  case "$extension" in
+    *[!A-Za-z0-9]* | '') printf 'bin\n' ;;
+    *) printf '%s\n' "$extension" ;;
+  esac
+}
+
+write_attachment() {
+  local comment_id="$1" category="$2" signed_url="$3" attachment_path
+  attachment_path="$destination/$comment_id.$(extension_of "$signed_url")"
+
+  if [ ! -s "$attachment_path" ]; then
+    if ! printf '%s\n' \
+      "url = \"$signed_url\"" \
+      "output = \"$attachment_path\"" \
+      'location' \
+      'fail' \
+      'silent' \
+      | curl --config -; then
+      rm -f "$attachment_path"
+    fi
+  fi
+
+  if [ -s "$attachment_path" ]; then
+    printf '%s\t%s\t%s\n' "$comment_id" "$category" "$attachment_path"
+  else
+    echo "[comment-images] the signed link for comment $comment_id served no file - a link expires an hour after the comment is read" >&2
+  fi
+}
+
+cursor=""
+while :; do
+  if [ -n "$fixture" ]; then
+    response="$(cat "$fixture")"
+  else
+    url="https://api.notion.com/v1/comments?block_id=$page_id&page_size=100"
+    if [ -n "$cursor" ]; then
+      url="$url&start_cursor=$cursor"
+    fi
+    transport_status=0
+    response="$(printf '%s\n' \
+      "header = \"Authorization: Bearer $token\"" \
+      'header = "Notion-Version: 2025-09-03"' \
+      "url = \"$url\"" \
+      'silent' \
+      | curl --config -)" || transport_status=$?
+
+    if [ "$transport_status" -ne 0 ]; then
+      echo "[comment-images] the comments endpoint could not be reached - curl exited $transport_status" >&2
+      exit "$exit_page_unreadable"
+    fi
+  fi
+
+  api_code="$(printf '%s' "$response" | jq --raw-output 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
+
+  case "$api_code" in
+    unauthorized|restricted_resource)
+      echo "[comment-images] the credential cannot read the comments on page $page_id - its integration needs the read comments capability, and the page shared with it" >&2
+      exit "$exit_token_rejected" ;;
+    rate_limited)
+      echo "[comment-images] rate limited - wait before reading the comments again" >&2
+      exit "$exit_rate_limited" ;;
+  esac
+
+  if ! printf '%s' "$response" | jq --exit-status '.results | type == "array"' >/dev/null 2>&1; then
+    echo "[comment-images] the comments on page $page_id could not be read" >&2
+    exit "$exit_page_unreadable"
+  fi
+
+  printf '%s' "$response" | jq --raw-output '
+    .results[]?
+    | . as $comment
+    | $comment.attachments[]?
+    | [ $comment.id, (.category // "file"), (.file.url // "") ]
+    | @tsv' \
+  | while IFS=$'\t' read -r comment_id category signed_url; do
+      [ -n "$signed_url" ] || continue
+      write_attachment "$comment_id" "$category" "$signed_url"
+    done
+
+  if [ -n "$fixture" ]; then
+    break
+  fi
+
+  cursor="$(printf '%s' "$response" | jq --raw-output '.next_cursor // empty' 2>/dev/null || true)"
+  if [ -z "$cursor" ]; then
+    break
+  fi
+done

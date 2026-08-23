@@ -1,0 +1,23 @@
+#!/usr/bin/env zsh
+#
+# claude-chat-rm — confirm and delete a single chat transcript, then drop its
+# row from the fzf list file. Called only by claude-chat-delete via fzf's enter
+# binding (so deletes happen in-place and the cursor keeps its position).
+# Usage: claude-chat-rm <listfile> <transcript.jsonl> [label...]
+# Not a user command.
+
+# fzf/Warp hands this a stripped PATH, so restore one for rm/awk/mv/etc.
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+
+listfile=$1; f=$2; shift 2; label="$*"
+[[ -n $f && -e $f ]] || exit 0
+
+print "delete this chat?"
+print "  ${label:-${f:t:r}}"
+if read -q "?[y/N] " </dev/tty; then
+  rm -f -- "$f"
+  [[ -d ${f:r} ]] && rm -rf -- "${f:r}"        # sidecar folder, if any
+  # drop the row whose first (tab-delimited) field is this path
+  awk -F'\t' -v p="$f" '$1 != p' "$listfile" > "$listfile.new" \
+    && mv "$listfile.new" "$listfile"
+fi

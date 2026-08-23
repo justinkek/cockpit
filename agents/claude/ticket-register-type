@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+#
+# ticket-register-type — store the work item type for status line display.
+#
+#   usage: ticket-register-type <type> "<name>" ["<ticket_type>"]
+#
+# Writes a .type file alongside the session's ticket marker so the status
+# line can show whether this session is working on a ticket or an epic.
+# Optional third arg stores the ticket type (feature/timebox/bug).
+#
+set -euo pipefail
+
+source "$(dirname "$0")/ticket-state-lib.sh"
+
+type="${1:-}"
+name="${2:-}"
+ticket_type="${3:-}"
+if [ -z "$type" ] || [ -z "$name" ]; then
+  echo "usage: ticket-register-type <type> <name> [<ticket_type>]" >&2
+  exit 1
+fi
+
+expected="$(printf 'type=%s\nname=%s' "$type" "$name")"
+if [ -n "$ticket_type" ]; then
+  expected="$expected$(printf '\nticket_type=%s' "$ticket_type")"
+fi
+
+session="$(session_id)"
+if [ -n "$session" ]; then
+  mkdir -p "$TICKET_STATE_DIR"
+  printf 'type=%s\nname=%s\n' "$type" "$name" > "$TICKET_STATE_DIR/$session.type"
+  if [ -n "$ticket_type" ]; then
+    printf 'ticket_type=%s\n' "$ticket_type" >> "$TICKET_STATE_DIR/$session.type"
+  fi
+fi
+
+ticket_state_confirm .type "$expected" "Type stored" "$type · $name"

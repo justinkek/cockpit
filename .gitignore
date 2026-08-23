@@ -1,0 +1,11 @@
+*.bak-*
+.DS_Store
+*.swp
+*~
+.artifacts/
+agents/claude/accounts.local.sh
+agents/claude/settings/base.settings.local.json
+.claude/worktrees/
+.claude/settings.local.json
+agents/claude/settings/overrides/
+agents/claude/claude-md/overrides/

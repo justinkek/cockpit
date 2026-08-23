@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""merge-hooks-profile — merge the managed hooks slice into an app-owned
+~/.codex/config.toml without re-serializing it.
+
+Same approach as merge-config-profile: a *targeted text edit* that inserts or
+replaces a marker-delimited block, leaving every app-owned key untouched.
+
+The managed block sits between two marker comments:
+  # >>> dotfiles-codex-hooks ...
+  # <<< dotfiles-codex-hooks ...
+
+If the markers already exist, the block between them (inclusive) is replaced.
+Otherwise the block is appended at EOF.
+
+The result is validated with tomllib before any write; a parse failure aborts.
+
+Usage: merge-hooks-profile --source <base.hooks-profile.toml> --target <config.toml> [--check|--apply]
+  --check : print drift, write nothing, exit 1 if drift
+  --apply : write the merged file (caller handles backups)
+Exit: 0 = in sync / applied; 1 = drift (check mode); 2 = error.
+"""
+import argparse
+import sys
+import tomllib
+
+MARK_START = "# >>> dotfiles-codex-hooks"
+MARK_END = "# <<< dotfiles-codex-hooks"
+
+
+def parse_source(text):
+    """Return the managed block lines (including markers) from the source."""
+    lines = text.splitlines()
+    try:
+        start = next(i for i, ln in enumerate(lines) if ln.startswith(MARK_START))
+        end = next(i for i, ln in enumerate(lines) if ln.startswith(MARK_END))
+    except StopIteration:
+        sys.exit("merge-hooks-profile: source is missing the managed-block markers")
+    return lines[start : end + 1]
+
+
+def merge(target_text, block_lines):
+    """Return the merged config text (idempotent)."""
+    lines = target_text.splitlines()
+
+    start = next(
+        (i for i, ln in enumerate(lines) if ln.startswith(MARK_START)), None
+    )
+    end = next(
+        (i for i, ln in enumerate(lines) if ln.startswith(MARK_END)), None
+    )
+    if start is not None and end is not None and end >= start:
+        lines[start : end + 1] = block_lines
+    else:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(block_lines)
+
+    return "\n".join(lines) + "\n"
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--source", required=True)
+    ap.add_argument("--target", required=True)
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    args = ap.parse_args()
+
+    with open(args.source) as f:
+        block_lines = parse_source(f.read())
+
+    try:
+        with open(args.target) as f:
+            current = f.read()
+    except FileNotFoundError:
+        current = ""
+
+    merged = merge(current, block_lines)
+
+    try:
+        tomllib.loads(merged)
+    except tomllib.TOMLDecodeError as e:
+        sys.exit(f"merge-hooks-profile: merged result is not valid TOML: {e}")
+
+    if merged == current:
+        print("in sync")
+        return 0
+
+    if args.check:
+        import difflib
+
+        diff = difflib.unified_diff(
+            current.splitlines(True),
+            merged.splitlines(True),
+            fromfile="current",
+            tofile="desired",
+        )
+        sys.stdout.writelines(diff)
+        return 1
+
+    if args.apply:
+        with open(args.target, "w") as f:
+            f.write(merged)
+        print(f"wrote {args.target}")
+        return 0
+
+    sys.stdout.write(merged)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

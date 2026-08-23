@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CACHE="$HOME/.local/state/cockpit/cache.json"
+STALE_AFTER_DAYS=1
+
+if [ ! -f "$CACHE" ]; then
+  echo "cockpit-cache-query: cache not found at $CACHE" >&2
+  echo "Run /cockpit-cache to populate it." >&2
+  exit 1
+fi
+
+key="${1:-}"
+if [ -z "$key" ]; then
+  echo "usage: cockpit-cache-query <key>" >&2
+  echo "keys: user-id, epics, epic-statuses, reference-tickets, statuses, ticket-properties, projects, project-boards" >&2
+  exit 1
+fi
+
+updated="$(jq -r '.updated_at // empty' "$CACHE")"
+updated="${updated%%.*}"
+updated="${updated%Z}"
+if epoch="$(TZ=UTC date -j -f '%Y-%m-%dT%H:%M:%S' "$updated" +%s 2>/dev/null)"; then
+  age=$(( ($(date +%s) - epoch) / 86400 ))
+  if [ "$age" -gt "$STALE_AFTER_DAYS" ]; then
+    echo "cockpit-cache-query: cache is $age days old — run /cockpit:cache before trusting it" >&2
+  fi
+else
+  echo "cockpit-cache-query: cache carries no readable date, so its age is unknown — run /cockpit:cache before trusting it" >&2
+fi
+
+case "$key" in
+  user-id)           answer="$(jq -r '.user.id' "$CACHE")" ;;
+  epics)             answer="$(jq '[.cockpit.epics.items[] | select(.status != "Epic Done")]' "$CACHE")" ;;
+  epic-statuses)     answer="$(jq '.cockpit.epics.items // empty | [.[] | {id, name, status}]' "$CACHE")" ;;
+  reference-tickets) answer="$(jq '.cockpit.reference_tickets.items' "$CACHE")" ;;
+  statuses)          answer="$(jq '.cockpit.tickets.statuses' "$CACHE")" ;;
+  ticket-properties) answer="$(jq '.cockpit.tickets.properties' "$CACHE")" ;;
+  projects)          answer="$(jq '.cockpit.projects.items' "$CACHE")" ;;
+  project-boards)    answer="$(jq '.project_boards' "$CACHE")" ;;
+  *)
+    echo "cockpit-cache-query: unknown key '$key'" >&2
+    echo "keys: user-id, epics, epic-statuses, reference-tickets, statuses, ticket-properties, projects, project-boards" >&2
+    exit 1
+    ;;
+esac
+
+if [ -z "$answer" ] || [ "$answer" = "null" ]; then
+  echo "cockpit-cache-query: this cache predates '$key' — run /cockpit:cache before reading it" >&2
+  exit 1
+fi
+
+printf '%s\n' "$answer"

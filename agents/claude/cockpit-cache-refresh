@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CACHE="${COCKPIT_CACHE:-$HOME/.local/state/cockpit/cache.json}"
+
+BOARD_ID="$(dirname "$0")/cockpit-board-id"
+
+TICKETS_DATABASE="$("$BOARD_ID" get tickets-database)"
+EPICS_DATABASE="$("$BOARD_ID" get epics-database)"
+PROJECTS_DATABASE="$("$BOARD_ID" get projects-database)"
+REFERENCE_DATABASE="$("$BOARD_ID" get reference-tickets-database)"
+TICKETS_DATA_SOURCE="$("$BOARD_ID" get tickets-data-source)"
+EPICS_DATA_SOURCE="$("$BOARD_ID" get epics-data-source)"
+PROJECTS_DATA_SOURCE="$("$BOARD_ID" get projects-data-source)"
+REFERENCE_DATA_SOURCE="$("$BOARD_ID" get reference-tickets-data-source)"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[cache-refresh] jq is required to build the cache" >&2
+  exit 1
+fi
+
+token="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
+if [ -z "$token" ]; then
+  echo "[cache-refresh] no credential — store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w" >&2
+  exit 1
+fi
+
+NOTION_BASE_URL="${COCKPIT_NOTION_BASE_URL:-https://api.notion.com/v1}"
+
+reject_error() {
+  local response="$1" what="$2"
+  if [ "$(printf '%s' "$response" | jq --raw-output '.object // empty' 2>/dev/null)" = "error" ]; then
+    echo "[cache-refresh] $what was rejected: $(printf '%s' "$response" | jq --raw-output '.message // empty')" >&2
+    return 1
+  fi
+  if [ -z "$response" ]; then
+    echo "[cache-refresh] $what returned nothing" >&2
+    return 1
+  fi
+}
+
+notion_get() {
+  local path="$1" response
+  response="$(printf '%s\n' \
+    "header = \"Authorization: Bearer $token\"" \
+    'header = "Notion-Version: 2022-06-28"' \
+    "url = \"$NOTION_BASE_URL/$path\"" \
+    'silent' \
+    | curl --config -)"
+  reject_error "$response" "$path" || return 1
+  printf '%s' "$response"
+}
+
+notion_query() {
+  local database="$1" cursor="" response accumulated="[]" body_file
+  body_file="$(mktemp -t cockpit-cache-refresh)"
+  while :; do
+    jq --null-input --arg cursor "$cursor" \
+      'if $cursor == "" then {page_size: 100} else {page_size: 100, start_cursor: $cursor} end' \
+      >"$body_file"
+    response="$(printf '%s\n' \
+      "header = \"Authorization: Bearer $token\"" \
+      'header = "Notion-Version: 2022-06-28"' \
+      'header = "Content-Type: application/json"' \
+      "url = \"$NOTION_BASE_URL/databases/$database/query\"" \
+      'request = "POST"' \
+      "data = \"@$body_file\"" \
+      'silent' \
+      | curl --config -)"
+    if ! reject_error "$response" "the query on $database"; then
+      rm -f "$body_file"
+      return 1
+    fi
+    accumulated="$(jq --null-input --compact-output \
+      --argjson accumulated "$accumulated" \
+      --argjson page "$(printf '%s' "$response" | jq --compact-output '.results')" \
+      '$accumulated + $page')"
+    [ "$(printf '%s' "$response" | jq --raw-output '.has_more')" = "true" ] || break
+    cursor="$(printf '%s' "$response" | jq --raw-output '.next_cursor')"
+  done
+  rm -f "$body_file"
+  printf '%s' "$accumulated"
+}
+
+self="$(notion_get "users/me")"
+tickets_schema="$(notion_get "databases/$TICKETS_DATABASE")"
+epic_rows="$(notion_query "$EPICS_DATABASE")"
+project_rows="$(notion_query "$PROJECTS_DATABASE")"
+reference_rows="$(notion_query "$REFERENCE_DATABASE")"
+
+existing_project_boards="{}"
+existing_user="null"
+if [ -f "$CACHE" ]; then
+  existing_project_boards="$(jq --compact-output '.project_boards // {}' "$CACHE" 2>/dev/null || echo '{}')"
+  existing_user="$(jq --compact-output '.user // null' "$CACHE" 2>/dev/null || echo 'null')"
+fi
+
+user_block="$(jq --null-input --compact-output \
+  --argjson self "$self" \
+  --argjson existing_user "$existing_user" '
+    def identity: if type == "object" and ((.id // "") != "") and ((.type // "") != "bot")
+      then { id: .id, name: (.name // "") } else null end;
+    ($self.bot.owner.user | identity) // ($existing_user | identity) // { id: $self.id, name: ($self.name // "") }
+  ')"
+
+if [ "$(printf '%s' "$user_block" | jq --raw-output '.id')" = "$(printf '%s' "$self" | jq --raw-output '.id')" ] \
+  && [ "$(printf '%s' "$self" | jq --raw-output '.type // empty')" = "bot" ]; then
+  echo "[cache-refresh] the token identifies an integration, not a person — user.id is the integration's own and will not match a human assignee" >&2
+fi
+
+mkdir -p "$(dirname "$CACHE")"
+temporary="$CACHE.tmp"
+
+jq --null-input \
+  --argjson user_block "$user_block" \
+  --argjson tickets_schema "$tickets_schema" \
+  --argjson epic_rows "$epic_rows" \
+  --argjson project_rows "$project_rows" \
+  --argjson reference_rows "$reference_rows" \
+  --argjson project_boards "$existing_project_boards" \
+  --arg tickets_data_source "$TICKETS_DATA_SOURCE" \
+  --arg epics_data_source "$EPICS_DATA_SOURCE" \
+  --arg projects_data_source "$PROJECTS_DATA_SOURCE" \
+  --arg reference_data_source "$REFERENCE_DATA_SOURCE" \
+  --arg updated_at "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" '
+    def page_url: "https://app.notion.com/" + (.id | gsub("-"; ""));
+    def title: (.properties.Name.title // []) | map(.plain_text) | join("");
+    def text($name): (.properties[$name].rich_text // []) | map(.plain_text) | join("");
+    {
+      user: $user_block,
+      cockpit: {
+        tickets: {
+          data_source_id: $tickets_data_source,
+          statuses: [
+            ($tickets_schema.properties.Status.status.options
+              // $tickets_schema.properties.Status.select.options
+              // [])[].name
+          ],
+          properties: (($tickets_schema.properties // {}) | map_values(.type))
+        },
+        epics: {
+          data_source_id: $epics_data_source,
+          items: [ $epic_rows[] | {
+            id: page_url,
+            name: title,
+            status: (.properties.Status.status.name // .properties.Status.select.name // "")
+          } ]
+        },
+        projects: {
+          data_source_id: $projects_data_source,
+          items: [ $project_rows[] | { id: page_url, name: title } ]
+        },
+        reference_tickets: {
+          data_source_id: $reference_data_source,
+          items: [ $reference_rows[] | {
+            id: page_url,
+            name: title,
+            points: .properties.Points.number,
+            domain: (.properties.Domain.select.name // ""),
+            stack: (.properties.Stack.select.name // ""),
+            description: text("Description"),
+            why_this_score: text("Why this score")
+          } ]
+        }
+      },
+      project_boards: $project_boards,
+      updated_at: $updated_at
+    }
+  ' >"$temporary"
+
+mv "$temporary" "$CACHE"
+
+printf '[cache-refresh] %s statuses, %s epics, %s projects, %s reference tickets at %s\n' \
+  "$(jq '.cockpit.tickets.statuses | length' "$CACHE")" \
+  "$(jq '.cockpit.epics.items | length' "$CACHE")" \
+  "$(jq '.cockpit.projects.items | length' "$CACHE")" \
+  "$(jq '.cockpit.reference_tickets.items | length' "$CACHE")" \
+  "$(jq --raw-output '.updated_at' "$CACHE")"
