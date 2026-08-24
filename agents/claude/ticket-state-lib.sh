@@ -57,7 +57,7 @@ cockpit_boards() {
     return 5
   fi
   out="$(jq -r --arg checkout "$(cockpit_main_checkout)" --arg home "$HOME" --arg named "${COCKPIT_BOARD:-}" '
-    [ .boards[] | .checkouts = (((.checkouts // .repos) // []) | map(sub("^~"; $home))) ] as $all
+    [ .boards[] | .checkouts = ((.checkouts // .repos // []) | map(sub("^~"; $home))) ] as $all
     | (if $named == "" then [ $all[] | select(.checkouts | index($checkout)) ]
        else [ $all[] | select(.name == $named) ] end)
     | .[] | [.name, (.ids["tickets-database"] // error("[boards] \(.name) has no tickets-database id: cockpit-board-id set tickets-database <value> \(.name)")), (.view_id // "")] | @tsv

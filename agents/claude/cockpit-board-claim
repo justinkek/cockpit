@@ -45,7 +45,7 @@ trap 'rm -f "$tmp"' EXIT
 jq --tab --arg name "$board" --arg checkout "$checkout" '
   .boards |= map(
     if .name == $name
-    then .checkouts = ((((.checkouts // .repos) // []) + [$checkout]) | unique) | del(.repos)
+    then .checkouts = (((.checkouts // .repos // []) + [$checkout]) | unique) | del(.repos)
     else . end)' "$COCKPIT_BOARDS_FILE" > "$tmp"
 
 mv "$tmp" "$COCKPIT_BOARDS_FILE"
