@@ -13,6 +13,7 @@ KNOWN_KEYS=(
 usage() {
   echo "usage: cockpit-board-id get <key> [board]" >&2
   echo "       cockpit-board-id set <key> <value> [board]" >&2
+  echo "       cockpit-board-id create <name>" >&2
   echo "       cockpit-board-id boards" >&2
   echo "keys: ${KNOWN_KEYS[*]}" >&2
   echo "board: defaults to the one serving this checkout; name one to reach another" >&2
@@ -28,9 +29,49 @@ fi
 action="${1:-}"
 key="${2:-}"
 
+seed_boards_file() {
+  [ -f "$COCKPIT_BOARDS_FILE" ] && return 0
+  mkdir -p "$(dirname "$COCKPIT_BOARDS_FILE")"
+  printf '{\n\t"boards": []\n}\n' > "$COCKPIT_BOARDS_FILE"
+}
+
+rewrite_boards_file_atomically() {
+  local written_beside_the_original
+  written_beside_the_original="$(mktemp "$(dirname "$COCKPIT_BOARDS_FILE")/.cockpit-boards.XXXXXX")"
+  trap 'rm -f "$written_beside_the_original"' EXIT
+
+  jq --tab "$@" "$COCKPIT_BOARDS_FILE" > "$written_beside_the_original"
+
+  mv "$written_beside_the_original" "$COCKPIT_BOARDS_FILE"
+  trap - EXIT
+}
+
 if [ "$action" = "boards" ]; then
   no_boards_recorded_yet && exit 0
   jq --raw-output '.boards[].name' "$COCKPIT_BOARDS_FILE"
+  exit 0
+fi
+
+if [ "$action" = "create" ]; then
+  name="${2:-}"
+  if [ -z "$name" ]; then
+    usage
+    exit 2
+  fi
+
+  seed_boards_file
+
+  if jq --exit-status --arg name "$name" '.boards | any(.name == $name)' \
+       "$COCKPIT_BOARDS_FILE" >/dev/null; then
+    printf '%s is already a board\n' "$name"
+    exit 0
+  fi
+
+  rewrite_boards_file_atomically --arg name "$name" \
+    '.boards += [ { "name": $name, "ids": {}, "checkouts": [] } ]'
+
+  printf '%s is now a board — record its ids with: cockpit-board-id set <key> <value> %s\n' \
+    "$name" "$name"
   exit 0
 fi
 
@@ -48,18 +89,17 @@ case " ${KNOWN_KEYS[*]} " in
     ;;
 esac
 
-seed_boards_file() {
-  [ -f "$COCKPIT_BOARDS_FILE" ] && return 0
-  mkdir -p "$(dirname "$COCKPIT_BOARDS_FILE")"
-  printf '{\n\t"boards": []\n}\n' > "$COCKPIT_BOARDS_FILE"
+board_named_in_file() {
+  [ -n "${1:-}" ] || return 0
+  jq --raw-output --arg named "$1" \
+    '.boards[] | select((.name | ascii_downcase) == ($named | ascii_downcase)) | .name' \
+    "$COCKPIT_BOARDS_FILE"
 }
 
 resolve_board() {
   local named="${1:-}" boards status first matched
   if [ -n "$named" ]; then
-    matched="$(jq --raw-output --arg named "$named" \
-      '.boards[] | select((.name | ascii_downcase) == ($named | ascii_downcase)) | .name' \
-      "$COCKPIT_BOARDS_FILE")"
+    matched="$(board_named_in_file "$named")"
     COCKPIT_BOARD="${matched:-$named}"
   fi
   status=0
@@ -92,19 +132,14 @@ case "$action" in
       exit 2
     fi
     seed_boards_file
-    board="$(resolve_board "${4:-}")"
+    board="$(board_named_in_file "${4:-}")"
+    [ -n "$board" ] || board="$(resolve_board "${4:-}")"
 
-    written_atomically="$(mktemp "$(dirname "$COCKPIT_BOARDS_FILE")/.cockpit-boards.XXXXXX")"
-    trap 'rm -f "$written_atomically"' EXIT
-
-    jq --tab --arg board "$board" --arg key "$key" --arg value "$value" '
+    rewrite_boards_file_atomically --arg board "$board" --arg key "$key" --arg value "$value" '
       .boards |= map(
         if .name == $board
         then .ids = ((.ids // {}) + { ($key): $value })
-        else . end)' "$COCKPIT_BOARDS_FILE" > "$written_atomically"
-
-    mv "$written_atomically" "$COCKPIT_BOARDS_FILE"
-    trap - EXIT
+        else . end)'
 
     printf '%s now reaches %s at %s\n' "$board" "$key" "$value"
     ;;
