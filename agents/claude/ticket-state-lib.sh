@@ -39,11 +39,6 @@ cockpit_main_checkout() {
 # empty when the board has no view — see boards.json for what that means
 # to a caller.
 #
-# Only the boards for the checkout the session is in: a session in one project
-# must not be offered another project's cards. A board claims its checkouts in
-# `repos`, and COCKPIT_BOARD names one outright — that is how the copilot skill
-# passes the user's answer down to the scripts it runs.
-#
 # When no board claims the checkout this returns nothing and exits 3, which the
 # copilot skill turns into a question. There is deliberately no default board:
 # answering silently is how a session ends up offered another project's cards,
@@ -61,9 +56,9 @@ cockpit_boards() {
     echo "[boards] no boards configured — check $COCKPIT_BOARDS_FILE" >&2
     return 5
   fi
-  out="$(jq -r --arg repo "$(cockpit_main_checkout)" --arg home "$HOME" --arg named "${COCKPIT_BOARD:-}" '
-    [ .boards[] | .repos = ((.repos // []) | map(sub("^~"; $home))) ] as $all
-    | (if $named == "" then [ $all[] | select(.repos | index($repo)) ]
+  out="$(jq -r --arg checkout "$(cockpit_main_checkout)" --arg home "$HOME" --arg named "${COCKPIT_BOARD:-}" '
+    [ .boards[] | .checkouts = (((.checkouts // .repos) // []) | map(sub("^~"; $home))) ] as $all
+    | (if $named == "" then [ $all[] | select(.checkouts | index($checkout)) ]
        else [ $all[] | select(.name == $named) ] end)
     | .[] | [.name, (.ids["tickets-database"] // error("[boards] \(.name) has no tickets-database id: cockpit-board-id set tickets-database <value> \(.name)")), (.view_id // "")] | @tsv
   ' "$COCKPIT_BOARDS_FILE")" || return 1

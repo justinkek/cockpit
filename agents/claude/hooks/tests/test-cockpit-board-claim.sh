@@ -26,7 +26,7 @@ reset_boards() {
 {
 	"comment": "a comment the script must not eat",
 	"boards": [
-		{"name": "Cockpit", "ids": {"tickets-database": "db-cockpit"}, "view_id": "v-cockpit", "repos": ["~/dotfiles"]},
+		{"name": "Cockpit", "ids": {"tickets-database": "db-cockpit"}, "view_id": "v-cockpit", "checkouts": ["~/dotfiles"]},
 		{"name": "Project", "ids": {"tickets-database": "db-project"}, "repos": []}
 	]
 }
@@ -37,29 +37,31 @@ claim() {
   COCKPIT_BOARDS_FILE="$BOARDS" bash "$CLAIM" "$@"
 }
 
-repos_of() {
-  jq -c --arg n "$1" '.boards[] | select(.name == $n) | .repos' "$BOARDS"
+checkouts_of() {
+  jq --compact-output --arg name "$1" '.boards[] | select(.name == $name) | .checkouts' "$BOARDS"
 }
 
 printf "Test group: the answer is recorded against the board\n"
 
 reset_boards
 claim Project /tmp/newcheckout >/dev/null
-assert_eq "the checkout lands in that board's repos" \
-  '["/tmp/newcheckout"]' "$(repos_of Project)"
+assert_eq "the checkout lands in that board's checkouts" \
+  '["/tmp/newcheckout"]' "$(checkouts_of Project)"
 assert_eq "the other board is untouched" \
-  '["~/dotfiles"]' "$(repos_of Cockpit)"
+  '["~/dotfiles"]' "$(checkouts_of Cockpit)"
 assert_eq "the rest of the file survives the rewrite" \
   "a comment the script must not eat" "$(jq -r .comment "$BOARDS")"
+assert_eq "a board still on the old key carries none of it away" \
+  'null' "$(jq --compact-output '.boards[] | select(.name == "Project") | .repos' "$BOARDS")"
 
 printf "\nTest group: claiming twice leaves one entry\n"
 
 claim Project /tmp/newcheckout >/dev/null
-assert_eq "no duplicate" '["/tmp/newcheckout"]' "$(repos_of Project)"
+assert_eq "no duplicate" '["/tmp/newcheckout"]' "$(checkouts_of Project)"
 
 claim Project /tmp/second >/dev/null
 assert_eq "a second checkout is added, not replaced" \
-  '["/tmp/newcheckout","/tmp/second"]' "$(repos_of Project)"
+  '["/tmp/newcheckout","/tmp/second"]' "$(checkouts_of Project)"
 
 printf "\nTest group: a name no board has changes nothing\n"
 

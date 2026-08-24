@@ -34,8 +34,8 @@ status() {
 
 cat > "$TMPDIR/boards.json" <<JSON
 {"boards":[
-  {"name":"Cockpit","ids":{"tickets-database":"db-cockpit"},"view_id":"v-cockpit","repos":["$TMPDIR/dotfiles"]},
-  {"name":"Project","ids":{"tickets-database":"db-project"},"repos":["$TMPDIR/project"]}
+  {"name":"Cockpit","ids":{"tickets-database":"db-cockpit"},"view_id":"v-cockpit","checkouts":["$TMPDIR/dotfiles"]},
+  {"name":"Project","ids":{"tickets-database":"db-project"},"checkouts":["$TMPDIR/project"]}
 ]}
 JSON
 
@@ -74,7 +74,7 @@ COCKPIT_BOARDS_FILE="$TMPDIR/empty.json"
 assert_eq "exit 5, so nobody asks the user to pick from nothing" "5" \
   "$(status "$TMPDIR/dotfiles")"
 
-printf "\nTest group: a leading ~ in repos means the home directory\n"
+printf "\nTest group: a leading ~ means the home directory, on a file still using the old key\n"
 
 COCKPIT_BOARDS_FILE="$TMPDIR/tilde.json"
 
