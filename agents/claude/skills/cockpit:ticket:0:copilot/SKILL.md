@@ -79,15 +79,7 @@ Treat a `stale` claim as unheld and overwrite it, and say in the report that a c
 
 ### 2a. When no board claims this checkout, ask
 
-Ask which board serves it, listing the names from `~/.local/state/cockpit/boards.json` so the user picks rather than types. Then record the answer, always - never leave it unrecorded and ask again:
-
-```sh
-"$HOME/.claude-shared/cockpit-board-claim" <board-name>
-```
-
-That writes the checkout into that board's `repos`. Re-run step 2 afterwards — the board now claims this checkout, so nothing needs passing by hand.
-
-**Never pick for the user, and never guess from the checkout's name.** If the user declines to choose, say the skill cannot pick a board and stop — do not fall back to any board.
+Follow "When no board claims the checkout" in `~/.claude-shared/templates/board-ids.md`, then re-run step 2.
 
 `COCKPIT_BOARD=<name>` forces a board for one command without recording it. Use it only when the user explicitly wants a one-off; the recorded claim is the normal path.
 

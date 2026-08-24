@@ -13,6 +13,8 @@ Read each with `"$HOME/.claude-shared/cockpit-board-id" get <key>`, following `~
 
 This skill needs: `page`, `tickets-data-source`, `epics-data-source`, `projects-data-source`, `sprints-view`.
 
+Exit 3 on the first of them is answered before step 1.
+
 ## What the card's column allows the session to write
 
 Once the ticket is registered, the column it sits in decides what kind of output is permitted. Check which column it is in rather than judging whether "refinement is done".
