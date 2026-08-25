@@ -19,12 +19,12 @@ write_fixture() {
 		{
 			"name": "Served",
 			"ids": { "tickets-data-source": "collection://tickets-of-served", "tickets-database": "aaa" },
-			"repos": [ "$COCKPIT_REPO" ]
+			"checkouts": [ "$COCKPIT_REPO" ]
 		},
 		{
 			"name": "Elsewhere",
 			"ids": { "tickets-data-source": "collection://tickets-of-elsewhere", "tickets-database": "bbb" },
-			"repos": [ "$TMPDIR/other" ]
+			"checkouts": [ "$TMPDIR/other" ]
 		}
 	]
 }
@@ -118,6 +118,52 @@ assert_key_count "and leaves one entry per key" 3
 
 run_board_id set epics-data-source "collection://elsewhere-epics" Elsewhere
 assert_key_count "recording against another board leaves this one alone" 3
+
+printf "\nTest group: a board nobody has configured is created before its ids are set\n"
+
+write_fixture
+run_board_id create Fresh
+assert_status "creating a board the file does not have exits clean" 0
+
+run_board_id boards
+assert_output "the new name joins the ones already there" "Served
+Elsewhere
+Fresh"
+
+run_board_id set tickets-database ccc Fresh
+assert_status "an id records against it straight away" 0
+
+run_board_id create Fresh
+assert_output "creating the same name again says so" "Fresh is already a board"
+
+output="$(jq '[.boards[] | select(.name == "Fresh")] | length' "$COCKPIT_BOARDS_FILE")"
+assert_output "and leaves one entry" "1"
+
+run_board_id create
+assert_status "a create with no name is a usage error" 2
+
+rm -f "$COCKPIT_BOARDS_FILE"
+run_board_id create First
+assert_status "creating the first board of all writes the file itself" 0
+
+run_board_id boards
+assert_output "and that board is the only one in it" "First"
+
+printf "\nTest group: a boards file still on the old key keeps working\n"
+
+cat > "$COCKPIT_BOARDS_FILE" <<FIXTURE
+{
+	"boards": [
+		{
+			"name": "Older",
+			"ids": { "tickets-data-source": "collection://tickets-of-older", "tickets-database": "ddd" },
+			"repos": [ "$COCKPIT_REPO" ]
+		}
+	]
+}
+FIXTURE
+run_board_id get tickets-data-source
+assert_output "a checkout listed under the old key still finds its board" "collection://tickets-of-older"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
