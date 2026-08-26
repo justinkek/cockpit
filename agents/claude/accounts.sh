@@ -7,14 +7,9 @@
 # instead of being copy-pasted into each. Defines:
 #   ACCOUNTS    — ordered, deterministic list of account names to sync.
 #   acct_dir()  — maps an account name to its Claude config dir.
-#
-# The committed default is intentionally minimal (just the desktop app's
-# ~/.claude) so a fresh clone works for any user. Add your own accounts in an
-# untracked accounts.local.sh alongside this file (see accounts.local.sh.example);
-# it is sourced last and can replace ACCOUNTS and/or acct_dir.
 
 # Default list — overridden by accounts.local.sh if present.
-ACCOUNTS=(claude)
+ACCOUNTS=(cockpit)
 
 # Naming convention: `claude` is the Claude Code DESKTOP app's account (it
 # launches outside the claude-<name> wrappers, so it defaults to ~/.claude);

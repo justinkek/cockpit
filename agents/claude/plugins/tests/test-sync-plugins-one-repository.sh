@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 WORKER="$(cd "$(dirname "$0")/.." && pwd)/sync.plugins.sh"
-ACCOUNTS_SOURCE="$(cd "$(dirname "$0")/../.." && pwd)/accounts.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -36,14 +35,17 @@ assert_absent() {
   esac
 }
 
-ACCOUNT_DIR="$WORK/home/.claude"
+ACCOUNT_DIR="$WORK/home/.claude-probe"
 REPOSITORY="$WORK/one-repo"
 export CALLS_FILE="$WORK/calls"
 
 build_fixture() {
   rm -rf "$WORK/home" "$WORK/shared" "$REPOSITORY"
   mkdir -p "$WORK/shared" "$REPOSITORY" "$ACCOUNT_DIR/plugins/cache/slack" "$ACCOUNT_DIR/plugins/cache/github"
-  cp "$ACCOUNTS_SOURCE" "$WORK/shared/accounts.sh"
+  cat > "$WORK/shared/accounts.sh" <<'ACCOUNTS'
+ACCOUNTS=(probe)
+acct_dir() { printf '%s' "$HOME/.claude-$1"; }
+ACCOUNTS
   : > "$ACCOUNT_DIR/plugins/cache/slack/plugin.json"
   : > "$CALLS_FILE"
 

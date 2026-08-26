@@ -3,7 +3,7 @@
 #
 # Naming convention (from accounts.sh): `claude` -> ~/.claude (the desktop app),
 # any other <name> -> ~/.claude-<name>. So usually you only set ACCOUNTS:
-ACCOUNTS=(claude)
+ACCOUNTS=(cockpit)
 
 # If one of your accounts doesn't follow the ~/.claude-<name> pattern, redefine
 # acct_dir too, e.g.:

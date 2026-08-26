@@ -2,6 +2,27 @@
   <img width="14414" height="6190" alt="image" src="https://github.com/user-attachments/assets/91082d1d-392b-431c-99ee-8db966fe7527" />
 </a>
 
+## Install
+
+Needs `bash`, `git` and `jq`.
+
+    git clone https://github.com/justinkek/cockpit.git ~/cockpit
+    ~/cockpit/install.sh --apply
+    ~/.claude-shared/sync.sh --yes
+    export PATH="$HOME/.claude-shared/bin:$PATH"
+
+`install.sh` symlinks the three agent trees into `$HOME` and scaffolds `accounts.local.sh`. It writes no profile, which is why the sync is a step of its own. The sync writes to `~/.claude-cockpit` and to no other profile. Put the `export` line in your shell config to keep the command between sessions.
+
+## Run it
+
+    cockpit
+
+Every argument goes to `claude` unchanged, so `cockpit --resume` and the rest behave as they do without it.
+
+It refuses to start outside a git repository: Claude runs with broad read and write permissions, and the repository is what keeps its edits reviewable and revertible. To start anyway, run `CLAUDE_ALLOW_NONREPO=1 cockpit`.
+
+The profile runs on `base.settings.json` alone. To choose a model or a permission mode, write your own `agents/claude/settings/overrides/cockpit.settings.json` and run the sync again. That directory is untracked, so nobody else's choices arrive with the clone and yours never leave it.
+
 ## agents/
 
 `agents/` is the agent-agnostic root. `agents/shared/` holds cross-agent files — the canonical `base.AGENTS.md` instruction source and `messages.json`. `agents/claude/` holds the Claude Code wiring (settings, hooks, skills, themes, plugins, sync scripts). `agents/claude/` installs to `~/.claude-shared` under its original name as a compat shim, so existing generated account configs keep resolving. `agents/codex/` is the Codex twin — it generates `~/.codex/AGENTS.md` from the same shared source (installs to `~/.codex-shared`). Cross-agent skills live in `agents/shared/skills/`; both agent syncs link them into their native user skill locations.
@@ -9,17 +30,17 @@
 `agents/claude/` is the source of truth for Claude Code settings across the accounts you list in `agents/claude/accounts.local.sh`. `~/.claude-vanilla` is deliberately absent from that list: `claude-vanilla` runs Claude with none of this repo's settings, instructions, hooks or skills applied. A shared `base` + per-account `overrides` are merged into each account's real config by the sync scripts.
 
 ```sh
-claude-sync            # interactive: per-account diff, prompt, backup, write
-claude-sync --check    # report drift only, no writes
-claude-sync --yes      # apply without prompting
+~/.claude-shared/sync.sh          # interactive: per-account diff, prompt, backup, write
+~/.claude-shared/sync.sh --check  # report drift only, no writes
+~/.claude-shared/sync.sh --yes    # apply without prompting
 ```
 
 `agents/codex/` mirrors this for the Codex agent — `codex-sync` runs every concern's sync script. It generates `~/.codex/AGENTS.md` from the same `agents/shared/base.AGENTS.md`, installs the enforced settings layer from `agents/codex/settings/`, and links shared skills into `~/.agents/skills/`:
 
 ```sh
-codex-sync             # interactive: diff, prompt, backup, write
-codex-sync --check     # report drift only, no writes
-codex-sync --yes       # apply without prompting
+~/.codex-shared/sync.sh          # interactive: diff, prompt, backup, write
+~/.codex-shared/sync.sh --check  # report drift only, no writes
+~/.codex-shared/sync.sh --yes    # apply without prompting
 ```
 
 The settings layer maps the Claude `settings.json` permissions onto Codex's native model, in two forms:
@@ -29,4 +50,11 @@ The settings layer maps the Claude `settings.json` permissions onto Codex's nati
 
 MCP/env and hooks are not synced yet. (A dead end worth recording: Codex's `requirements.toml` `deny_read` is not the mechanism — that file is only loaded from system/managed locations like `/etc/codex`, and its deny only ever governs sandboxed shell commands, never the agent's reader.)
 
-Account `settings.json` / `CLAUDE.md` are **generated** from `base` + `overrides` — they are not tracked here. Workflow: edit the source → `claude-sync` to apply.
+Account `settings.json` / `CLAUDE.md` are **generated** from `base` + `overrides` — they are not tracked here. Workflow: edit the source → `~/.claude-shared/sync.sh` to apply.
+
+## Send a change back
+
+1. Fork the repository and branch off `main`.
+2. Edit the files in the checkout, never in `~/.claude-cockpit` - the next sync overwrites that copy.
+3. Run `./scripts/run-tests` and check every line reads OK.
+4. Open a pull request saying what changed and what it is for.
