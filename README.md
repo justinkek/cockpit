@@ -9,9 +9,12 @@ Needs `bash`, `git` and `jq`.
     git clone https://github.com/justinkek/cockpit.git ~/cockpit
     ~/cockpit/install.sh --apply
     ~/.claude-shared/sync.sh --yes
-    export PATH="$HOME/.claude-shared/bin:$PATH"
 
-`install.sh` symlinks the three agent trees into `$HOME` and scaffolds `accounts.local.sh`. It writes no profile, which is why the sync is a step of its own. The sync writes to `~/.claude-cockpit` and to no other profile. Put the `export` line in your shell config to keep the command between sessions.
+`install.sh` symlinks the three agent trees into `$HOME`, links the `cockpit` command into `~/.local/bin`, and scaffolds `accounts.local.sh`. It writes no profile, which is why the sync is a step of its own. The sync writes to `~/.claude-cockpit` and to no other profile.
+
+If `cockpit` still comes back `command not found`, `~/.local/bin` is not on your PATH. Add this to your shell config:
+
+    export PATH="$HOME/.local/bin:$PATH"
 
 ## Run it
 
