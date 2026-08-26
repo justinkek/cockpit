@@ -46,10 +46,6 @@ printf '\n%s\n%s\n\n' \
 
 cd "$fresh/cockpit"
 
-if [ "${1:-}" = "--shell" ]; then
-  HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$SHELL" || true
-else
-  HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$fresh/.local/bin/cockpit" || true
-fi
+HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$fresh/.local/bin/cockpit" || true
 
 rm -rf "$fresh"
