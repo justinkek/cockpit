@@ -10,8 +10,8 @@ checkout_here() {
   printf '%s' "$toplevel"
 }
 
-if [ -n "${COCKPIT_FRESH_REMOTE:-}" ]; then
-  source="$COCKPIT_FRESH_REMOTE"
+if [ -n "${COCKPIT_SANDBOX_REMOTE:-}" ]; then
+  source="$COCKPIT_SANDBOX_REMOTE"
   reference="$(git -C "$source" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'default branch')"
   clone_options=()
 elif source="$(checkout_here)"; then
