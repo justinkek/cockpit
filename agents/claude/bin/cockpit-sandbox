@@ -10,8 +10,8 @@ checkout_here() {
   printf '%s' "$toplevel"
 }
 
-if [ -n "${COCKPIT_FRESH_REMOTE:-}" ]; then
-  source="$COCKPIT_FRESH_REMOTE"
+if [ -n "${COCKPIT_SANDBOX_REMOTE:-}" ]; then
+  source="$COCKPIT_SANDBOX_REMOTE"
   reference="$(git -C "$source" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'default branch')"
   clone_options=()
 elif source="$(checkout_here)"; then
@@ -28,23 +28,24 @@ if [ "${1:-}" = "--print-source" ]; then
   exit 0
 fi
 
-fresh="$(mktemp -d)"
+sandbox="$(mktemp -d)"
 
 if [ "$source" != "$upstream" ] && [ -n "$(git -C "$source" status --porcelain 2>/dev/null)" ]; then
   printf '%s\n' "$source has uncommitted changes; a clone takes committed state only." >&2
 fi
 
 printf '%s\n' "cloning $reference from $source" >&2
-git clone --quiet "${clone_options[@]+"${clone_options[@]}"}" "$source" "$fresh/cockpit"
+git clone --quiet "${clone_options[@]+"${clone_options[@]}"}" "$source" "$sandbox/cockpit"
 
-HOME="$fresh" bash "$fresh/cockpit/install.sh" --apply
-HOME="$fresh" bash "$fresh/.claude-shared/sync.sh" --yes
+HOME="$sandbox" bash "$sandbox/cockpit/install.sh" --apply
+HOME="$sandbox" bash "$sandbox/.claude-shared/sync.sh" --yes
 
 printf '\n%s\n%s\n\n' \
-  "A new user's install is at $fresh, on $reference at $(git -C "$fresh/cockpit" rev-parse --short HEAD). Type cockpit to start it." \
-  "Exit the shell to come back here; the directory is deleted then." >&2
+  "A new user's install is at $sandbox, on $reference at $(git -C "$sandbox/cockpit" rev-parse --short HEAD)." \
+  "Quit it to come back here; the directory is deleted then." >&2
 
-cd "$fresh/cockpit"
-HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$SHELL" || true
+cd "$sandbox/cockpit"
 
-rm -rf "$fresh"
+HOME="$sandbox" PATH="$sandbox/.local/bin:$PATH" "$sandbox/.local/bin/cockpit" || true
+
+rm -rf "$sandbox"

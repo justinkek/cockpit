@@ -64,9 +64,9 @@ Account `settings.json` / `CLAUDE.md` are **generated** from `base` + `overrides
 
 ## Rehearse the install
 
-    cockpit-fresh
+    cockpit-sandbox
 
-It clones this repository into a throwaway home, installs and syncs into it, and drops you into a shell there with that install's own `cockpit` on PATH. Type `cockpit` to start it, `exit` to come back; the directory is deleted on the way out.
+It clones this repository into a throwaway home, installs and syncs into it, then starts that install's own `cockpit` for you. Quit it to come back; the directory is deleted on the way out.
 
 What it clones depends on where you run it:
 
@@ -76,4 +76,4 @@ What it clones depends on where you run it:
 | the main checkout | that checkout, on the branch it is on |
 | anywhere else     | `main` from the remote                |
 
-Cloning takes committed state, so uncommitted changes do not travel - it says so before it starts when the tree is dirty. `cockpit-fresh --print-source` prints what it would clone and stops. `COCKPIT_FRESH_REMOTE` overrides the choice with a path or a URL.
+Cloning takes committed state, so uncommitted changes do not travel - it says so before it starts when the tree is dirty. `cockpit-sandbox --print-source` prints what it would clone and stops. `COCKPIT_SANDBOX_REMOTE` overrides the choice with a path or a URL.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 REPO="$(cd "$(dirname "$0")" && cd "$(pwd -P)/../.." && pwd)"
-COMMAND="$REPO/agents/claude/bin/cockpit-fresh"
+COMMAND="$REPO/agents/claude/bin/cockpit-sandbox"
 TEMP="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TEMP"' EXIT
 
@@ -79,7 +79,7 @@ assert_holds "another repository is not mistaken for this one" "$source" "github
 
 printf "\nTest group: the environment variable still wins\n"
 
-read -r source reference <<< "$(COCKPIT_FRESH_REMOTE="$CHECKOUT" source_from "$ELSEWHERE")"
+read -r source reference <<< "$(COCKPIT_SANDBOX_REMOTE="$CHECKOUT" source_from "$ELSEWHERE")"
 assert_equal "an explicit remote overrides the walk" "$source" "$CHECKOUT"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
