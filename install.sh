@@ -34,6 +34,7 @@ MAP=(
   "agents/claude:$HOME/.claude-shared"
   "agents/shared:$HOME/.agents-shared"
   "agents/codex:$HOME/.codex-shared"
+  "agents/claude/bin/cockpit:$HOME/.local/bin/cockpit"
 )
 
 # repo-relative example  ->  per-user target, COPIED from the example ONCE and
@@ -84,6 +85,7 @@ for entry in "${MAP[@]}"; do
     mv "$dst" "$dst.bak-$ts"
     echo "    backup: $dst.bak-$ts"
   fi
+  mkdir -p "$(dirname "$dst")"
   ln -s "$src" "$dst"
   echo "    ${C_GREEN}linked${C_RESET} $dst → $src"
 done
