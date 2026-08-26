@@ -66,7 +66,7 @@ Account `settings.json` / `CLAUDE.md` are **generated** from `base` + `overrides
 
     cockpit-fresh
 
-It clones this repository into a throwaway home, installs and syncs into it, and drops you into a shell there with that install's own `cockpit` on PATH. Type `cockpit` to start it, `exit` to come back; the directory is deleted on the way out.
+It clones this repository into a throwaway home, installs and syncs into it, then starts that install's own `cockpit` for you. Quit it to come back; the directory is deleted on the way out. `cockpit-fresh --shell` drops you into a shell there instead, for poking at the files rather than running the agent.
 
 What it clones depends on where you run it:
 

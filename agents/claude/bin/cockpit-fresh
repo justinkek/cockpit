@@ -41,10 +41,15 @@ HOME="$fresh" bash "$fresh/cockpit/install.sh" --apply
 HOME="$fresh" bash "$fresh/.claude-shared/sync.sh" --yes
 
 printf '\n%s\n%s\n\n' \
-  "A new user's install is at $fresh, on $reference at $(git -C "$fresh/cockpit" rev-parse --short HEAD). Type cockpit to start it." \
-  "Exit the shell to come back here; the directory is deleted then." >&2
+  "A new user's install is at $fresh, on $reference at $(git -C "$fresh/cockpit" rev-parse --short HEAD)." \
+  "Quit it to come back here; the directory is deleted then." >&2
 
 cd "$fresh/cockpit"
-HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$SHELL" || true
+
+if [ "${1:-}" = "--shell" ]; then
+  HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$SHELL" || true
+else
+  HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$fresh/.local/bin/cockpit" || true
+fi
 
 rm -rf "$fresh"
