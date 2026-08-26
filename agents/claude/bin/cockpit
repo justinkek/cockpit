@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -z "${CLAUDE_ALLOW_NONREPO:-}" ]; then
+  printf '%s\n' \
+    "Not inside a git repo ($PWD)." \
+    "  Claude runs with broad read and write permissions, and the git repo is the" \
+    "  safety net that keeps its changes reviewable and revertible. Outside one," \
+    "  edits are not tracked and cannot be rolled back." \
+    "  cd into a repo, or bypass: CLAUDE_ALLOW_NONREPO=1 cockpit" >&2
+  exit 1
+fi
+
+exec env CLAUDE_CONFIG_DIR="$HOME/.claude-cockpit" claude "$@"
