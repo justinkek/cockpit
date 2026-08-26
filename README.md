@@ -61,3 +61,11 @@ Account `settings.json` / `CLAUDE.md` are **generated** from `base` + `overrides
 2. Edit the files in the checkout, never in `~/.claude-cockpit` - the next sync overwrites that copy.
 3. Run `./scripts/run-tests` and check every line reads OK.
 4. Open a pull request saying what changed and what it is for.
+
+## Rehearse the install
+
+    cockpit-fresh
+
+It clones this repository from the remote into a throwaway home, installs and syncs into it, and drops you into a shell there with that install's own `cockpit` on PATH. Type `cockpit` to start it, `exit` to come back; the directory is deleted on the way out.
+
+It clones from the remote, not your working tree, so it shows what someone else gets from `main` rather than what you have locally. Point it elsewhere with `COCKPIT_FRESH_REMOTE=/path/to/your/fork cockpit-fresh` to rehearse a branch you have pushed.
