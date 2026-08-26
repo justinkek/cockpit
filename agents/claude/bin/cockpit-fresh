@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote="${COCKPIT_FRESH_REMOTE:-https://github.com/justinkek/cockpit.git}"
+fresh="$(mktemp -d)"
+
+printf '%s\n' "cloning $remote" >&2
+git clone --quiet "$remote" "$fresh/cockpit"
+
+printf '%s\n' "installing into $fresh" >&2
+HOME="$fresh" bash "$fresh/cockpit/install.sh" --apply
+
+printf '%s\n' "syncing the profile" >&2
+HOME="$fresh" bash "$fresh/.claude-shared/sync.sh" --yes
+
+printf '\n%s\n%s\n\n' \
+  "A new user's install is at $fresh. Type cockpit to start it." \
+  "Exit the shell to come back here; the directory is deleted then." >&2
+
+cd "$fresh/cockpit"
+HOME="$fresh" PATH="$fresh/.local/bin:$PATH" "$SHELL" || true
+
+rm -rf "$fresh"

@@ -35,6 +35,7 @@ MAP=(
   "agents/shared:$HOME/.agents-shared"
   "agents/codex:$HOME/.codex-shared"
   "agents/claude/bin/cockpit:$HOME/.local/bin/cockpit"
+  "agents/claude/bin/cockpit-fresh:$HOME/.local/bin/cockpit-fresh"
 )
 
 # repo-relative example  ->  per-user target, COPIED from the example ONCE and

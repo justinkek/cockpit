@@ -12,6 +12,7 @@ PROBE_HOME="$TEMP/home"
 mkdir -p "$CLONE/agents/claude/bin" "$CLONE/agents/shared" "$CLONE/agents/codex" "$PROBE_HOME"
 cp "$REPO/install.sh" "$CLONE/install.sh"
 cp "$REPO/agents/claude/bin/cockpit" "$CLONE/agents/claude/bin/cockpit"
+cp "$REPO/agents/claude/bin/cockpit-fresh" "$CLONE/agents/claude/bin/cockpit-fresh"
 
 assert_link() {
   local label="$1" link="$2" target="$3"
@@ -51,6 +52,7 @@ HOME="$PROBE_HOME" bash "$CLONE/install.sh" >/dev/null 2>&1
 printf "Test group: a dry run writes nothing\n"
 
 assert_absent "the command is not linked" "$PROBE_HOME/.local/bin/cockpit"
+assert_absent "nor the rehearsal command" "$PROBE_HOME/.local/bin/cockpit-fresh"
 
 HOME="$PROBE_HOME" bash "$CLONE/install.sh" --apply >/dev/null 2>&1
 
@@ -59,6 +61,9 @@ printf "\nTest group: an apply puts the command where a shell already looks\n"
 assert_link "the command is linked into the user's own bin" \
   "$PROBE_HOME/.local/bin/cockpit" "$CLONE/agents/claude/bin/cockpit"
 assert_runs "and a shell can run it without chmod" "$PROBE_HOME/.local/bin/cockpit"
+assert_link "the rehearsal command is linked too" \
+  "$PROBE_HOME/.local/bin/cockpit-fresh" "$CLONE/agents/claude/bin/cockpit-fresh"
+assert_runs "and it runs without chmod as well" "$PROBE_HOME/.local/bin/cockpit-fresh"
 assert_link "the shared tree is still linked too" \
   "$PROBE_HOME/.claude-shared" "$CLONE/agents/claude"
 
