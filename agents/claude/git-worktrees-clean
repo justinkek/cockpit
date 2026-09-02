@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-give_back="$HOME/.claude-shared/worktree-give-back"
+give_back="$HOME/.cockpit/scripts/worktree-give-back"
 if [ ! -x "$give_back" ]; then
   printf 'worktrees-clean: nothing executable at %s\n' "$give_back" >&2
   exit 7

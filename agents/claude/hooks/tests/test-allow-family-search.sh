@@ -56,7 +56,7 @@ assert_verdict "find -delete mutates" "defer" \
 assert_verdict "a path outside the family" "defer" \
   "$(verdict "$(through allow-family-search.sh 'grep --recursive todo /usr/local/lib')")"
 assert_verdict "a command that is not a search" "defer" \
-  "$(verdict "$(through allow-family-search.sh 'cat agents/claude/hooks/tab-status.sh')")"
+  "$(verdict "$(through allow-family-search.sh 'cat marketplace/plugins/cockpit/scripts/hooks/tab-status.sh')")"
 
 printf "\nTest group: a secret stays refused, whatever this hook would have said about it\n"
 

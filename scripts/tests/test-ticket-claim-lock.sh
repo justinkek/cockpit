@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 REPO="$(cd "$(dirname "$0")" && cd "$(pwd -P)/../.." && pwd)"
-SCRIPT="$REPO/agents/claude/ticket-claim-lock"
+SCRIPT="$REPO/marketplace/plugins/cockpit/scripts/ticket-claim-lock"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 

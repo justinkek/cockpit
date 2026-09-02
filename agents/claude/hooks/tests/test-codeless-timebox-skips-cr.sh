@@ -2,8 +2,9 @@
 
 HOOKS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$CLAUDE_DIR/../../marketplace/plugins/cockpit" && pwd)"
 CONTRACT="$CLAUDE_DIR/templates/cockpit-operating-contract.md"
-STATUS_SKILL="$CLAUDE_DIR/skills/cockpit:ticket:x:status/SKILL.md"
+STATUS_SKILL="$PLUGIN_DIR/skills/cockpit:ticket:x:status/SKILL.md"
 
 pass=0
 fail=0

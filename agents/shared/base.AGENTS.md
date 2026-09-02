@@ -228,13 +228,13 @@ Work that cannot proceed without input from outside the session sets the `Blocke
 
 ## Cockpit cache
 
-Read cockpit board reference data with `"$HOME/.claude-shared/cockpit-cache-query" <key>` - never the cache file, and never the Tickets data source for what a property is called or what type it is. Call the Notion API only when the script exits non-zero. The two paths that rewrite the cache open it whole: `/cockpit:cache`, and the register skill's project-board discovery.
+Read cockpit board reference data with `"$HOME/.cockpit/scripts/cockpit-cache-query" <key>` - never the cache file, and never the Tickets data source for what a property is called or what type it is. Call the Notion API only when the script exits non-zero. The two paths that rewrite the cache open it whole: `/cockpit:cache`, and the register skill's project-board discovery.
 
 ## Cockpit - metered queries
 
 Never reach for the SQL query tool to read board data another call already answers:
 
-- A ticket's own properties (`Status`, `Type`, a `Date:` stamp) - `"$HOME/.claude-shared/ticket-read"`, naming each one. `notion-fetch` on the ticket URL is for the body, and carries every property alongside it.
+- A ticket's own properties (`Status`, `Type`, a `Date:` stamp) - `"$HOME/.cockpit/scripts/ticket-read"`, naming each one. `notion-fetch` on the ticket URL is for the body, and carries every property alongside it.
 - Every row of a small database (Sprints) - `notion-query-database-view` on its view. `notion-fetch` on a data source returns the schema, never the rows.
 - The tickets board's rows - the board scripts (`ticket-waiting-cards`, `ticket-board-members`), which call the unmetered classic endpoint.
 

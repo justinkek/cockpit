@@ -34,6 +34,7 @@ MAP=(
   "agents/claude:$HOME/.claude-shared"
   "agents/shared:$HOME/.agents-shared"
   "agents/codex:$HOME/.codex-shared"
+  "marketplace/plugins/cockpit:$HOME/.cockpit"
   "agents/claude/bin/cockpit:$HOME/.local/bin/cockpit"
   "agents/claude/bin/cockpit-sandbox:$HOME/.local/bin/cockpit-sandbox"
 )

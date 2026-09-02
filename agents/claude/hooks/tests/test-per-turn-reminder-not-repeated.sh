@@ -3,6 +3,7 @@
 HOOKS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 REPO="$(cd "$CLAUDE_DIR/../.." && pwd)"
+PLUGIN_HOOKS_DIR="$REPO/marketplace/plugins/cockpit/scripts/hooks"
 SETTINGS="$CLAUDE_DIR/settings/base.settings.json"
 RULES="$REPO/agents/shared/base.AGENTS.md"
 
@@ -69,8 +70,9 @@ while IFS= read -r command_line; do
   [ -n "$command_line" ] || continue
   script="${command_line%% *}"
   hook="$HOOKS_DIR/${script##*/}"
+  [ -f "$hook" ] || hook="$PLUGIN_HOOKS_DIR/${script##*/}"
   if [ ! -f "$hook" ]; then
-    assert "$(basename "$hook") exists" 1 "$command_line names a file that is not in $HOOKS_DIR"
+    assert "$(basename "$hook") exists" 1 "$command_line names a file in neither $HOOKS_DIR nor $PLUGIN_HOOKS_DIR"
     continue
   fi
   repeated="$(repeated_sentence_of "$hook")"

@@ -2,12 +2,12 @@
 
 ## File paths
 
-This repo IS the source of truth that `~/.claude-shared` and `~/.agents-shared` symlink into. Both paths reach the same file, so which one to use depends on the verb:
+This repo IS the source of truth that `~/.claude-shared`, `~/.agents-shared` and `~/.cockpit` symlink into. Both paths reach the same file, so which one to use depends on the verb:
 
 - **Reading or editing a file** → repo path, e.g. `agents/claude/settings/base.settings.json`. This keeps `git diff` clean and avoids confusion about which repo the edit lands in.
-- **Executing a script** → the `~/` symlink path, e.g. `"$HOME/.claude-shared/cockpit-cache-query"`. Permission patterns match the literal command string and never resolve symlinks, so the repo path misses the allowlist and prompts on every call.
+- **Executing a script** → the `~/` symlink path, e.g. `"$HOME/.cockpit/scripts/cockpit-cache-query"`. Permission patterns match the literal command string and never resolve symlinks, so the repo path misses the allowlist and prompts on every call.
 
-Which symlink depends on what the file is: the Claude configuration and the scripts the agent itself invokes execute via `~/.claude-shared/`, the shared agent rules and the cross-agent skills are read via `~/.agents-shared/`.
+Which symlink depends on what the file is: the Claude configuration executes via `~/.claude-shared/`, the shared agent rules and the cross-agent skills are read via `~/.agents-shared/`, and everything the ticket board owns - its hooks, its skills and the scripts they call - executes via `~/.cockpit/`.
 
 One execution path, always. Never add repo-path twins to the allowlist to make the other form work - that leaves two valid conventions and the prompt comes back the next time the wrong one is picked.
 
@@ -17,10 +17,21 @@ Key mappings:
 
 - `~/.claude-shared/` → `agents/claude/`
 - `~/.agents-shared/` → `agents/shared/`
+- `~/.cockpit/` → `marketplace/plugins/cockpit/`
 - the shared agent rules - `~/.agents-shared/base.AGENTS.md` → `agents/shared/base.AGENTS.md`
 - the Claude adapter - `~/.claude-shared/claude-md/adapter.CLAUDE.md` → `agents/claude/claude-md/adapter.CLAUDE.md`
 - the base settings file - `~/.claude-shared/settings/base.settings.json` → `agents/claude/settings/base.settings.json`
 - the base plugins file - `~/.claude-shared/plugins/base.plugins.json` → `agents/claude/plugins/base.plugins.json`
+
+## The cockpit plugin
+
+`marketplace/` is a plugin marketplace this repo hosts, and `marketplace/plugins/cockpit/` is the one plugin in it. It holds `hooks/hooks.json`, `scripts/` for every script the board's hooks and skills call, `scripts/hooks/` for the hooks themselves, and `skills/` for the board's skills. A test moves with its subject, so a test under `scripts/hooks/tests/` reaches its subject through the same `..` and `../..` a test in the shared root reaches its own.
+
+`hooks/hooks.json` names its commands through the plugin root variable, which Claude Code sets only while it runs a plugin's own hook. Nothing else can read that variable, so `base.settings.json`, the permission allowlist and a skill's shell call all reach the same files through `$HOME/.cockpit/` instead.
+
+`base.settings.json` still declares the board's hooks and `base.plugins.json` still enables no cockpit plugin, so `hooks.json` runs nothing yet. Until it does, `sync.skills.sh` carries the plugin's skills directory as a third source root; that root comes out on the commit that enables the plugin per account.
+
+Three libraries are shared with hooks that stay in `agents/claude/hooks/` - `hook-argv-lib.sh`, `hook-stop-note-lib.sh` and `session-name-lib.sh`. A moved hook reads each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home.
 
 ## Sync concerns
 

@@ -88,11 +88,13 @@ case "$target" in
   "$HOME"/.claude|"$HOME"/.claude/*) exit 0 ;;
   "$HOME"/.claude-*|"$HOME"/.claude-*/*) exit 0 ;;
   "$HOME"/.agents-shared|"$HOME"/.agents-shared/*) exit 0 ;;
+  "$HOME"/.cockpit|"$HOME"/.cockpit/*) exit 0 ;;
 esac
 case "$orig_abs" in
   "$HOME"/.claude|"$HOME"/.claude/*) exit 0 ;;
   "$HOME"/.claude-*|"$HOME"/.claude-*/*) exit 0 ;;
   "$HOME"/.agents-shared|"$HOME"/.agents-shared/*) exit 0 ;;
+  "$HOME"/.cockpit|"$HOME"/.cockpit/*) exit 0 ;;
 esac
 
 while IFS= read -r line; do

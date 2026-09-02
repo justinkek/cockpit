@@ -2,11 +2,11 @@
 
 The ids a skill reaches Notion through are config, not text in the skill. Read each one:
 
-    "$HOME/.claude-shared/cockpit-board-id" get <key>
+    "$HOME/.cockpit/scripts/cockpit-board-id" get <key>
 
 It answers for the board serving the checkout this session was opened in - the same resolution `/cockpit:ticket:0:copilot` uses, so a session is never handed another project's ids. Pass a board name as a third argument to reach a board this checkout does not serve.
 
-    "$HOME/.claude-shared/cockpit-board-id" boards
+    "$HOME/.cockpit/scripts/cockpit-board-id" boards
 
 prints one configured board name per line, and prints nothing when no board list has been recorded yet. It is how a skill finds the name to pass as that third argument when a person names a board rather than a checkout.
 
@@ -39,7 +39,7 @@ Exit 6 means the board is configured but that key is not. It is a question, not 
 1. Ask which id the board uses, once.
 2. Record the answer, always - never leave it unrecorded and ask again:
 
-       "$HOME/.claude-shared/cockpit-board-id" set <key> <value>
+       "$HOME/.cockpit/scripts/cockpit-board-id" set <key> <value>
 
 An unattended session has nobody to ask, so the finding rule applies instead - flag the ticket `Blocked`, comment, and stop. See the "a finding in a copilot session" section of the shared rules.
 
@@ -50,11 +50,11 @@ Exit 3 is a question, and every entry point that needs a board asks it.
 1. Print the names `cockpit-board-id boards` returns and ask which of them serves this checkout. Nothing printed means no board is configured at all - ask for the name of the one this checkout works to.
 2. A name outside that list is a board nobody has recorded yet:
 
-       "$HOME/.claude-shared/cockpit-board-id" create <name>
+       "$HOME/.cockpit/scripts/cockpit-board-id" create <name>
 
 3. Record the checkout against it:
 
-       "$HOME/.claude-shared/cockpit-board-claim" <name>
+       "$HOME/.cockpit/scripts/cockpit-board-claim" <name>
 
 4. Read the id again. A board created a moment ago holds no ids at all, so the read names the first one it needs - record each with `cockpit-board-id set <key> <value> <name>` until it answers.
 

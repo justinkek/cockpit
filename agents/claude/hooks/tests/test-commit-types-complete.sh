@@ -2,10 +2,11 @@
 
 HOOKS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$CLAUDE_DIR/../../marketplace/plugins/cockpit" && pwd)"
 AGENTS_DIR="$(cd "$CLAUDE_DIR/.." && pwd)"
 
-COMMIT_SKILL="$CLAUDE_DIR/skills/cockpit:ticket:4:commit/SKILL.md"
-CLEANUP_SKILL="$CLAUDE_DIR/skills/cockpit:ticket:4:cr:cleanup-commits/SKILL.md"
+COMMIT_SKILL="$PLUGIN_DIR/skills/cockpit:ticket:4:commit/SKILL.md"
+CLEANUP_SKILL="$PLUGIN_DIR/skills/cockpit:ticket:4:cr:cleanup-commits/SKILL.md"
 
 pass=0
 fail=0
