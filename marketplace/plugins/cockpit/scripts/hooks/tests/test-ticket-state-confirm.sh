@@ -54,7 +54,7 @@ assert_equals "refuses when only another session's file holds the value" 1 \
     unset CLAUDE_CODE_SESSION_ID
     export CLAUDE_SESSION_ID=session-d
     printf 'In Dev\n' > "$TICKET_STATE_DIR/session-d.column"
-    source "$SCRIPT_DIR/ticket-state-lib.sh"
+    source "$CLAUDE_SHARED_DIR/ticket-state-lib.sh"
     ticket_state_confirm .column "Ready for CR" "Column stored" >/dev/null 2>&1
     echo $?
   )"

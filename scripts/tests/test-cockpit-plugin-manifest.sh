@@ -129,6 +129,14 @@ grep --quiet --fixed-strings 'account_works_the_ticket_board "$acct"' "$MEMORY_S
 assert_eq "sync.skills.sh no longer carries the plugin's skills directory" "" \
   "$(grep --fixed-strings 'COCKPIT_SKILLS_DIR' "$SKILLS_SYNC" || true)"
 
+printf "\nTest group: the plugin reads the shared root and nothing reads back\n"
+
+reads_the_plugin="$(grep --recursive --line-number --extended-regexp \
+  '(COCKPIT_PLUGIN_DIR|\$HOME/\.cockpit|~/\.cockpit)' \
+  "$REPO/agents/claude" --exclude-dir=tests --exclude-dir=skills --exclude-dir=templates --exclude-dir=settings --exclude-dir=claude-md 2>/dev/null || true)"
+
+assert_eq "no script in the shared root reaches into the plugin" "" "$reads_the_plugin"
+
 printf "\nTest group: a skill the plugin serves keeps the name it is invoked by\n"
 
 prefixed="$(find "$PLUGIN/skills" -mindepth 1 -maxdepth 1 -type d -name 'cockpit:*' -exec basename {} \;)"

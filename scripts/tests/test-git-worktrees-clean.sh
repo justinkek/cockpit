@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-CLEAN="$(cd "$(dirname "$0")/../.." && pwd)/agents/claude/git-worktrees-clean"
+CLEAN="$(cd "$(dirname "$0")/../.." && pwd)/marketplace/plugins/cockpit/scripts/git-worktrees-clean"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 

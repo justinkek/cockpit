@@ -39,7 +39,9 @@ A plugin cannot carry always-on instructions, so the board's rules stay in the m
 
 `agents/claude/board-accounts.sh` is the one statement of which accounts those are, and both the settings sync and the memory sync read it. It sits beside `accounts.sh` rather than inside it because a test stubs `accounts.sh` to control the account list, and a stubbed-away answer here would quietly take the board off every account.
 
-Three libraries are shared with hooks that stay in `agents/claude/hooks/` - `hook-argv-lib.sh`, `hook-stop-note-lib.sh` and `session-name-lib.sh`. A moved hook reads each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home.
+The plugin reads the shared root and nothing reads back. Four libraries stay in `agents/claude/` because a hook or script that is not the board's own also reads them - `hook-argv-lib.sh`, `hook-stop-note-lib.sh`, `session-name-lib.sh` and `ticket-state-lib.sh` - and the plugin reaches each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home. `test-cockpit-plugin-manifest.sh` refuses an arrow in the other direction: a cycle would mean neither directory could be reasoned about alone.
+
+The marketplace source is a path inside this repository, so the plugin is only ever installed from a checkout of it. That is what makes the dependency on the shared root safe, and what would have to change before the plugin could be served from anywhere else.
 
 ## Sync concerns
 

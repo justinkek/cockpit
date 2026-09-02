@@ -176,4 +176,3 @@ A write carrying more than that section is read for its `## Tech Steps` heading,
 ## Cockpit status gates what output is allowed
 
 Which column allows which output is in the `cockpit:ticket:0:register` skill. Do not _propose_ implementation - code snippets, "here's what I'd change", file-level plans - while the card is in a BR or TR column.
-
