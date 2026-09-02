@@ -245,7 +245,7 @@ rm -rf "$clone/.git/rebase-merge"
 
 printf "\nTest group: the ready-for-cr skill is what arms it\n"
 
-READY_FOR_CR="$(cd "$(dirname "$0")/../../../skills/cockpit:ticket:4:ready-for-cr" && pwd)/SKILL.md"
+READY_FOR_CR="$(cd "$(dirname "$0")/../../../skills/ticket:4:ready-for-cr" && pwd)/SKILL.md"
 assert_contains "the skill names the script" "pr-catch-up-with-base" "$(cat "$READY_FOR_CR")"
 assert_contains "and the interval that makes it poll" "PR_CATCH_UP_INTERVAL" "$(cat "$READY_FOR_CR")"
 assert_contains "and arms it persistently" "persistent" "$(cat "$READY_FOR_CR")"

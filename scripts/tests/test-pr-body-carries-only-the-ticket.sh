@@ -9,8 +9,8 @@ TEMPLATE="$REPO/agents/claude/templates/pull-request-to-ticket.md"
 TEMPLATE_RULE="A link to the ticket page and nothing else"
 
 BODY_SOURCES=(
-  "marketplace/plugins/cockpit/skills/cockpit:ticket:4:ready-for-cr/SKILL.md"
-  "marketplace/plugins/cockpit/skills/cockpit:ticket:x:destock/SKILL.md"
+  "marketplace/plugins/cockpit/skills/ticket:4:ready-for-cr/SKILL.md"
+  "marketplace/plugins/cockpit/skills/ticket:x:destock/SKILL.md"
 )
 
 pass=0

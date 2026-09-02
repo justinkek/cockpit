@@ -90,6 +90,39 @@ installed_for_one_repository() {
   esac
 }
 
+MANIFEST="${CLAUDE_PLUGINS_MANIFEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base.plugins.json}"
+
+source_is_repository_relative() {
+  case "$1" in
+    ./*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+marketplace_source_path() {
+  local repository
+  if ! source_is_repository_relative "$1"; then
+    printf '%s' "$1"
+    return 0
+  fi
+  repository="$(cd "$(dirname "$MANIFEST")/../../.." && pwd -P)" || return 1
+  [ -d "$repository/${1#./}" ] || return 1
+  printf '%s/%s' "$repository" "${1#./}"
+}
+
+locally_served_marketplaces() {
+  jq --raw-output '.marketplaces | to_entries[] | select(.value | startswith("./")) | .key' "$MANIFEST" 2>/dev/null || true
+}
+
+LOCALLY_SERVED=" $(locally_served_marketplaces | tr '\n' ' ') "
+
+served_from_the_manifest_repository() {
+  case "$LOCALLY_SERVED" in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # --- apply: reconcile each account to base.plugins.json ----------------------
 # Track-latest, and deliberately SAFE: never runs `marketplace remove` (that
 # cascades — uninstalls the marketplace's plugins). It only adds missing
@@ -99,7 +132,6 @@ installed_for_one_repository() {
 # `marketplace remove <name>` then `add` then reinstall — since that cascade is
 # too destructive to run unattended.
 if [ "$MODE" = "apply" ]; then
-  MANIFEST="${CLAUDE_PLUGINS_MANIFEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base.plugins.json}"
   [ -f "$MANIFEST" ] || { echo "error: missing manifest: $MANIFEST" >&2; exit 3; }
   CLAUDE_BIN="${CLAUDE_BIN:-}"
   if [ -z "$CLAUDE_BIN" ]; then
@@ -122,7 +154,9 @@ if [ "$MODE" = "apply" ]; then
       [ -n "$name" ] && [ -n "$source" ] || continue
       loc="$(jq -r --arg n "$name" '.[$n].installLocation // empty' "$dir/plugins/known_marketplaces.json" 2>/dev/null || true)"
       if [ -z "$loc" ]; then
-        if "$CLAUDE_BIN" plugin marketplace add "$source" </dev/null >/dev/null 2>&1; then
+        if ! source_path="$(marketplace_source_path "$source")"; then
+          echo "  ${C_RED}! marketplace $name source '$source' is not a directory under $(dirname "$MANIFEST")/../../..${C_RESET}"
+        elif "$CLAUDE_BIN" plugin marketplace add "$source_path" </dev/null >/dev/null 2>&1; then
           echo "  ${C_GREEN}+ marketplace $name added${C_RESET}"
         else
           echo "  ${C_RED}! marketplace $name add failed${C_RESET}"
@@ -249,10 +283,12 @@ for acct in $PRESENT_ACCTS; do
       case "$path/" in
         "$dir/"*) : ;;   # cached and local to this account — good
         *)
-          drift=1; issues=1
-          echo "${C_YELLOW}△ $acct  $plugin ($scope)  FOREIGN store${C_RESET}"
-          echo "    ${C_DIM}$path${C_RESET}"
-          echo "    ${C_DIM}→ loads from another account's dir; reinstall in a $acct session to localise${C_RESET}"
+          if ! served_from_the_manifest_repository "${plugin##*@}"; then
+            drift=1; issues=1
+            echo "${C_YELLOW}△ $acct  $plugin ($scope)  FOREIGN store${C_RESET}"
+            echo "    ${C_DIM}$path${C_RESET}"
+            echo "    ${C_DIM}→ loads from another account's dir; reinstall in a $acct session to localise${C_RESET}"
+          fi
           ;;
       esac
     fi
@@ -273,6 +309,7 @@ for acct in $PRESENT_ACCTS; do
         case "$loc/" in
           "$dir/"*) : ;;   # registered locally — good
           *)
+            if served_from_the_manifest_repository "$mkt"; then continue; fi
             drift=1; issues=1
             echo "${C_YELLOW}△ $acct  marketplace $mkt  FOREIGN store${C_RESET}"
             echo "    ${C_DIM}$loc${C_RESET}"

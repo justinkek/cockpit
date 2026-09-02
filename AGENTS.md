@@ -27,9 +27,13 @@ Key mappings:
 
 `marketplace/` is a plugin marketplace this repo hosts, and `marketplace/plugins/cockpit/` is the one plugin in it. It holds `hooks/hooks.json`, `scripts/` for every script the board's hooks and skills call, `scripts/hooks/` for the hooks themselves, and `skills/` for the board's skills. A test moves with its subject, so a test under `scripts/hooks/tests/` reaches its subject through the same `..` and `../..` a test in the shared root reaches its own.
 
-`hooks/hooks.json` names its commands through the plugin root variable, which Claude Code sets only while it runs a plugin's own hook. Nothing else can read that variable, so `base.settings.json`, the permission allowlist and a skill's shell call all reach the same files through `$HOME/.cockpit/` instead.
+`hooks/hooks.json` names its commands through the plugin root variable, which Claude Code sets only while it runs a plugin's own hook. Nothing else can read that variable, so the permission allowlist and a skill's shell call reach the same files through `$HOME/.cockpit/` instead.
 
-`base.settings.json` still declares the board's hooks and `base.plugins.json` still enables no cockpit plugin, so `hooks.json` runs nothing yet. Until it does, `sync.skills.sh` carries the plugin's skills directory as a third source root; that root comes out on the commit that enables the plugin per account.
+`base.plugins.json` declares the marketplace as `./marketplace` and the plugin at user scope, and `sync.plugins.sh` resolves that leading `./` against the repository its own manifest sits in. A marketplace served that way is registered from a path outside the account directory, so the install-health check does not report it as a foreign store.
+
+`base.settings.json` enables the plugin for every account; `settings/overrides/claude.settings.json` turns it back off for the one the desktop app reads. Installed and not enabled is what leaves a desktop chat the skills without the hooks.
+
+A skill the plugin serves is invoked under the plugin's own name, so `skills/ticket:3:dev` is reached as `/cockpit:ticket:3:dev` and its directory carries no `cockpit:` of its own. `daily-mail` is the one whose name changes, to `/cockpit:daily-mail`.
 
 Three libraries are shared with hooks that stay in `agents/claude/hooks/` - `hook-argv-lib.sh`, `hook-stop-note-lib.sh` and `session-name-lib.sh`. A moved hook reads each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home.
 

@@ -6,16 +6,16 @@ TEMPLATE="raise-a-decision.md"
 ASK_PATTERN="[Aa]sk the user|[Aa]sk which|[Aa]sk whether|[Ww]ait for the user"
 
 BRANCHES_THAT_TAKE_A_DEFAULT="agents/claude/templates/sprint-auto-assign.md
-marketplace/plugins/cockpit/skills/cockpit:ticket:1:br/SKILL.md
-marketplace/plugins/cockpit/skills/cockpit:epic:0:register/SKILL.md
-marketplace/plugins/cockpit/skills/cockpit:general:problem-solving/SKILL.md
+marketplace/plugins/cockpit/skills/ticket:1:br/SKILL.md
+marketplace/plugins/cockpit/skills/epic:0:register/SKILL.md
+marketplace/plugins/cockpit/skills/general:problem-solving/SKILL.md
 marketplace/plugins/cockpit/skills/daily-mail/SKILL.md"
 
 BRANCHES_THAT_RAISE_ON_THE_TICKET="agents/claude/templates/sprint-auto-assign.md
-marketplace/plugins/cockpit/skills/cockpit:ticket:1:br/SKILL.md
-marketplace/plugins/cockpit/skills/cockpit:epic:0:register/SKILL.md
-marketplace/plugins/cockpit/skills/cockpit:ticket:0:register/SKILL.md
-marketplace/plugins/cockpit/skills/cockpit:general:problem-solving/SKILL.md"
+marketplace/plugins/cockpit/skills/ticket:1:br/SKILL.md
+marketplace/plugins/cockpit/skills/epic:0:register/SKILL.md
+marketplace/plugins/cockpit/skills/ticket:0:register/SKILL.md
+marketplace/plugins/cockpit/skills/general:problem-solving/SKILL.md"
 
 pass=0
 fail=0
@@ -57,7 +57,7 @@ printf "\nTest group: registration settles the ticket type without asking\n"
 
 asks_for_type="no"
 grep --extended-regexp --quiet "ask when ambiguous|[Aa]sk .*[Tt]ype" \
-  "$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:0:register/SKILL.md" && asks_for_type="yes"
+  "$REPO/marketplace/plugins/cockpit/skills/ticket:0:register/SKILL.md" && asks_for_type="yes"
 assert_eq "no ask about the type survives" "no" "$asks_for_type"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"

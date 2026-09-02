@@ -38,18 +38,18 @@ assert_absent() {
 printf "Test group: every stage an agent runs opens on the comments\n"
 
 for skill in \
-  "cockpit:ticket:1:br" \
-  "cockpit:ticket:2:tr" \
-  "cockpit:ticket:3:dev" \
-  "cockpit:ticket:x:back-from-column" \
-  "cockpit:epic:1:fd" \
-  "cockpit:epic:2:td"; do
+  "ticket:1:br" \
+  "ticket:2:tr" \
+  "ticket:3:dev" \
+  "ticket:x:back-from-column" \
+  "epic:1:fd" \
+  "epic:2:td"; do
   assert_names "$skill reads them" \
     "$SKILLS_DIR/$skill/SKILL.md" 'templates/page-comments.md'
 done
 
 assert_names "and dev reads them before it edits anything" \
-  "$SKILLS_DIR/cockpit:ticket:3:dev/SKILL.md" 'open comments before the first edit'
+  "$SKILLS_DIR/ticket:3:dev/SKILL.md" 'open comments before the first edit'
 
 printf "\nTest group: one read, taken once, at the start\n"
 

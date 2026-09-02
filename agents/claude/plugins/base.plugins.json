@@ -2,9 +2,11 @@
 	"_comment": "Declared plugin state, applied per account by sync.plugins.sh --apply. Track-latest: no versions pinned; apply installs/updates to the newest from each marketplace. Marketplaces: name -> GitHub repo (or URL/path). Plugins: <id>@<marketplace> -> install scope, always user: a plugin installed for one repository is that repository's own config and this manifest never speaks for it.",
 	"marketplaces": {
 		"claude-code-warp": "warpdotdev/claude-code-warp",
-		"claude-plugins-official": "anthropics/claude-plugins-official"
+		"claude-plugins-official": "anthropics/claude-plugins-official",
+		"cockpit": "./marketplace"
 	},
 	"plugins": {
+		"cockpit@cockpit": "user",
 		"warp@claude-code-warp": "user",
 		"notion@claude-plugins-official": "user",
 		"typescript-lsp@claude-plugins-official": "user",

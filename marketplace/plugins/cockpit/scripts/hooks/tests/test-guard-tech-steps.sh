@@ -5,7 +5,7 @@ CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 PLUGIN_DIR="$(cd "$CLAUDE_DIR/.." && pwd)"
 REPO_DIR="$(cd "$PLUGIN_DIR/../../.." && pwd)"
 GUARD="$HOOKS_DIR/guard-tech-steps.sh"
-TR="$PLUGIN_DIR/skills/cockpit:ticket:2:tr/SKILL.md"
+TR="$PLUGIN_DIR/skills/ticket:2:tr/SKILL.md"
 CONVENTIONS="$REPO_DIR/CLAUDE.md"
 
 pass=0
