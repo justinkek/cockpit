@@ -54,13 +54,16 @@ assert "the rules send what needs attention there" "$?" "no such clause in $RULE
 
 printf "\nTest group: no turn-end check discards the reply\n"
 
-for hook in note-long-reply note-unflagged-question advance-after-dev; do
-  grep --quiet --fixed-strings '"decision":"block"' "$HOOKS_DIR/$hook.sh"
-  [ "$?" = "1" ]
-  assert "$hook.sh sends no block back" "$?" "$hook.sh still returns a block decision"
+PLUGIN_HOOKS_DIR="$(cd "$HOOKS_DIR/../../../marketplace/plugins/cockpit/scripts/hooks" && pwd)"
 
-  grep --quiet --fixed-strings 'stop_note_record' "$HOOKS_DIR/$hook.sh"
-  assert "$hook.sh records its finding" "$?" "no stop_note_record call in $hook.sh"
+for hook_path in "$HOOKS_DIR/note-long-reply.sh" "$HOOKS_DIR/note-unflagged-question.sh" "$PLUGIN_HOOKS_DIR/advance-after-dev.sh"; do
+  hook="$(basename "$hook_path")"
+  grep --quiet --fixed-strings '"decision":"block"' "$hook_path"
+  [ "$?" = "1" ]
+  assert "$hook sends no block back" "$?" "$hook still returns a block decision"
+
+  grep --quiet --fixed-strings 'stop_note_record' "$hook_path"
+  assert "$hook records its finding" "$?" "no stop_note_record call in $hook"
 done
 
 grep --quiet --fixed-strings 'stop_note_take' "$HOOKS_DIR/replay-stop-notes.sh"

@@ -99,7 +99,7 @@ assert_silent "a sentence nothing else has written" \
 assert_silent "the repo root instructions, whose CLAUDE.md is a symlink to them" \
   "$(run_edit "$REPO/AGENTS.md" "" "$(sed -n '3,12p' "$REPO/AGENTS.md")")"
 assert_silent "an existing file rewritten whole with what it already says" \
-  "$(run_write "$REPO/agents/claude/skills/cockpit:ticket:2:tr/SKILL.md" "$(cat "$REPO/agents/claude/skills/cockpit:ticket:2:tr/SKILL.md")")"
+  "$(run_write "$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:2:tr/SKILL.md" "$(cat "$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:2:tr/SKILL.md")")"
 
 printf "\nTest group: files and tools the guard leaves alone\n"
 

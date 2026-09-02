@@ -2,7 +2,7 @@
 
 HOOKS="$(cd "$(dirname "$0")/.." && pwd)"
 GUARD="$HOOKS/note-unflagged-question.sh"
-RECORDER="$HOOKS/require-blocked-comment.sh"
+RECORDER="$(cd "$HOOKS/../../../marketplace/plugins/cockpit/scripts/hooks" && pwd)/require-blocked-comment.sh"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 

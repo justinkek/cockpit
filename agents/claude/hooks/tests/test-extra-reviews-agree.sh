@@ -2,8 +2,9 @@
 
 HOOKS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$CLAUDE_DIR/../../marketplace/plugins/cockpit" && pwd)"
 GATES="$CLAUDE_DIR/templates/status-machine-gates.md"
-READY="$CLAUDE_DIR/skills/cockpit:ticket:4:ready-for-cr/SKILL.md"
+READY="$PLUGIN_DIR/skills/cockpit:ticket:4:ready-for-cr/SKILL.md"
 SETTINGS="$CLAUDE_DIR/settings/base.settings.json"
 GUARD="$HOOKS_DIR/guard-gh-api.sh"
 REVIEWS="$CLAUDE_DIR/../shared/code-reviews"

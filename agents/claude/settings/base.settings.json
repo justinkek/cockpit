@@ -15,6 +15,8 @@
 			"Read($HOME/.claude-logs/**)",
 			"Read(~/.agents-shared/**)",
 			"Read($HOME/.agents-shared/**)",
+			"Read(~/.cockpit/**)",
+			"Read($HOME/.cockpit/**)",
 			"Read(~/.local/state/cockpit/**)",
 			"Read($HOME/.local/state/cockpit/**)",
 			"Read(~/.local/state/claude-ticket-sessions/**)",
@@ -26,60 +28,60 @@
 			"EnterWorktree",
 			"Bash(mkdir:*)",
 			"Bash(git:*)",
-			"Bash($HOME/.claude-shared/auto-rename:*)",
-			"Bash(\"$HOME/.claude-shared/auto-rename\":*)",
-			"Bash($HOME/.claude-shared/ticket-register:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-register\":*)",
-			"Bash($HOME/.claude-shared/ticket-register-source-ticket:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-register-source-ticket\":*)",
-			"Bash($HOME/.claude-shared/ticket-register-type:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-register-type\":*)",
-			"Bash($HOME/.claude-shared/ticket-register-column:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-register-column\":*)",
-			"Bash($HOME/.claude-shared/ticket-status-confirm:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-status-confirm\":*)",
-			"Bash($HOME/.claude-shared/ticket-watch-column:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-watch-column\":*)",
-			"Bash($HOME/.claude-shared/pr-watch-checks:*)",
-			"Bash(\"$HOME/.claude-shared/pr-watch-checks\":*)",
-			"Bash($HOME/.claude-shared/pr-catch-up-with-base)",
-			"Bash(\"$HOME/.claude-shared/pr-catch-up-with-base\")",
-			"Bash($HOME/.claude-shared/pr-catch-up-with-base:*)",
-			"Bash(\"$HOME/.claude-shared/pr-catch-up-with-base\":*)",
-			"Bash($HOME/.claude-shared/ticket-waiting-cards)",
-			"Bash(\"$HOME/.claude-shared/ticket-waiting-cards\")",
-			"Bash($HOME/.claude-shared/ticket-waiting-cards:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-waiting-cards\":*)",
-			"Bash($HOME/.claude-shared/ticket-claim-lock:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-claim-lock\":*)",
-			"Bash($HOME/.claude-shared/ticket-comment-line:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-comment-line\":*)",
-			"Bash($HOME/.claude-shared/ticket-comment-images:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-comment-images\":*)",
-			"Bash($HOME/.claude-shared/cockpit-board-claim:*)",
-			"Bash(\"$HOME/.claude-shared/cockpit-board-claim\":*)",
-			"Bash($HOME/.claude-shared/cockpit-board-id:*)",
-			"Bash(\"$HOME/.claude-shared/cockpit-board-id\":*)",
-			"Bash($HOME/.claude-shared/ticket-board-members)",
-			"Bash(\"$HOME/.claude-shared/ticket-board-members\")",
-			"Bash($HOME/.claude-shared/ticket-board-members:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-board-members\":*)",
-			"Bash($HOME/.claude-shared/ticket-watch-board)",
-			"Bash(\"$HOME/.claude-shared/ticket-watch-board\")",
-			"Bash($HOME/.claude-shared/ticket-watch-board:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-watch-board\":*)",
+			"Bash($HOME/.cockpit/scripts/auto-rename:*)",
+			"Bash(\"$HOME/.cockpit/scripts/auto-rename\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-register:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-register\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-register-source-ticket:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-register-source-ticket\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-register-type:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-register-type\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-register-column:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-register-column\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-status-confirm:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-status-confirm\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-watch-column:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-watch-column\":*)",
+			"Bash($HOME/.cockpit/scripts/pr-watch-checks:*)",
+			"Bash(\"$HOME/.cockpit/scripts/pr-watch-checks\":*)",
+			"Bash($HOME/.cockpit/scripts/pr-catch-up-with-base)",
+			"Bash(\"$HOME/.cockpit/scripts/pr-catch-up-with-base\")",
+			"Bash($HOME/.cockpit/scripts/pr-catch-up-with-base:*)",
+			"Bash(\"$HOME/.cockpit/scripts/pr-catch-up-with-base\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-waiting-cards)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-waiting-cards\")",
+			"Bash($HOME/.cockpit/scripts/ticket-waiting-cards:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-waiting-cards\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-claim-lock:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-claim-lock\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-comment-line:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-comment-line\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-comment-images:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-comment-images\":*)",
+			"Bash($HOME/.cockpit/scripts/cockpit-board-claim:*)",
+			"Bash(\"$HOME/.cockpit/scripts/cockpit-board-claim\":*)",
+			"Bash($HOME/.cockpit/scripts/cockpit-board-id:*)",
+			"Bash(\"$HOME/.cockpit/scripts/cockpit-board-id\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-board-members)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-board-members\")",
+			"Bash($HOME/.cockpit/scripts/ticket-board-members:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-board-members\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-watch-board)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-watch-board\")",
+			"Bash($HOME/.cockpit/scripts/ticket-watch-board:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-watch-board\":*)",
 			"Bash($HOME/.claude-shared/settings-scope-confirm:*)",
 			"Bash(\"$HOME/.claude-shared/settings-scope-confirm\":*)",
-			"Bash($HOME/.claude-shared/cockpit-cache-query:*)",
-			"Bash(\"$HOME/.claude-shared/cockpit-cache-query\":*)",
-			"Bash($HOME/.claude-shared/ticket-read:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-read\":*)",
-			"Bash($HOME/.claude-shared/cockpit-cache-refresh)",
-			"Bash(\"$HOME/.claude-shared/cockpit-cache-refresh\")",
-			"Bash($HOME/.claude-shared/cockpit-cache-refresh:*)",
-			"Bash(\"$HOME/.claude-shared/cockpit-cache-refresh\":*)",
-			"Bash($HOME/.claude-shared/ticket-done-usage:*)",
-			"Bash(\"$HOME/.claude-shared/ticket-done-usage\":*)",
+			"Bash($HOME/.cockpit/scripts/cockpit-cache-query:*)",
+			"Bash(\"$HOME/.cockpit/scripts/cockpit-cache-query\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-read:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-read\":*)",
+			"Bash($HOME/.cockpit/scripts/cockpit-cache-refresh)",
+			"Bash(\"$HOME/.cockpit/scripts/cockpit-cache-refresh\")",
+			"Bash($HOME/.cockpit/scripts/cockpit-cache-refresh:*)",
+			"Bash(\"$HOME/.cockpit/scripts/cockpit-cache-refresh\":*)",
+			"Bash($HOME/.cockpit/scripts/ticket-done-usage:*)",
+			"Bash(\"$HOME/.cockpit/scripts/ticket-done-usage\":*)",
 			"Bash($HOME/.claude-shared/sync.sh:*)",
 			"Bash(\"$HOME/.claude-shared/sync.sh\":*)",
 			"Bash($HOME/.scripts/shortcuts:*)",
@@ -96,6 +98,8 @@
 			"Bash(bash -n:*)",
 			"Bash(bash $HOME/.claude-shared/hooks/tests/*:*)",
 			"Bash(bash \"$HOME/.claude-shared/hooks/tests/*\":*)",
+			"Bash(bash $HOME/.cockpit/scripts/hooks/tests/*:*)",
+			"Bash(bash \"$HOME/.cockpit/scripts/hooks/tests/*\":*)",
 			"Bash(bash $HOME/.scripts/tests/*:*)",
 			"Bash($HOME/.scripts/run-tests:*)",
 			"Bash(\"$HOME/.scripts/run-tests\":*)",
@@ -181,8 +185,8 @@
 			"Bash(gh pr comment:*)",
 			"Bash(git push:*)",
 			"Bash(git * push:*)",
-			"Bash(\"$HOME/.claude-shared/worktree-give-back\":*)",
-			"Bash($HOME/.claude-shared/worktree-give-back:*)"
+			"Bash(\"$HOME/.cockpit/scripts/worktree-give-back\":*)",
+			"Bash($HOME/.cockpit/scripts/worktree-give-back:*)"
 		],
 		"deny": [
 			"Read(.env)",
@@ -273,11 +277,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/tab-status.sh working"
+						"command": "$HOME/.cockpit/scripts/hooks/tab-status.sh working"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/remind-back-from-column.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/remind-back-from-column.sh"
 					},
 					{
 						"type": "command",
@@ -295,7 +299,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/tab-status.sh done"
+						"command": "$HOME/.cockpit/scripts/hooks/tab-status.sh done"
 					},
 					{
 						"type": "command",
@@ -307,11 +311,11 @@
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/record-running-step.sh clear"
+						"command": "$HOME/.cockpit/scripts/hooks/record-running-step.sh clear"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/advance-after-dev.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/advance-after-dev.sh"
 					}
 				]
 			}
@@ -321,11 +325,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/refresh-cockpit-cache.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/refresh-cockpit-cache.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/pull-main.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/pull-main.sh"
 					}
 				]
 			}
@@ -335,7 +339,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/session-end-release-claims.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/session-end-release-claims.sh"
 					}
 				]
 			}
@@ -398,7 +402,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-dev-status.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-dev-status.sh"
 					}
 				]
 			},
@@ -434,7 +438,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/redirect-default-profile-reads.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/redirect-default-profile-reads.sh"
 					}
 				]
 			},
@@ -443,7 +447,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-rename.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-rename.sh"
 					}
 				]
 			},
@@ -452,7 +456,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-ticket.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-ticket.sh"
 					}
 				]
 			},
@@ -461,11 +465,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-rename.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-rename.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-ticket.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-ticket.sh"
 					}
 				]
 			},
@@ -474,11 +478,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-notion-content-revival.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/guard-notion-content-revival.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-tech-steps.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/guard-tech-steps.sh"
 					}
 				]
 			},
@@ -487,7 +491,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-ticket-comment-length.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/guard-ticket-comment-length.sh"
 					}
 				]
 			},
@@ -496,11 +500,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-emoji.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-emoji.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-ticket-type.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-ticket-type.sh"
 					}
 				]
 			},
@@ -537,7 +541,7 @@
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/redirect-state-to-read-write.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/redirect-state-to-read-write.sh"
 					}
 				]
 			},
@@ -546,7 +550,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/record-running-step.sh record"
+						"command": "$HOME/.cockpit/scripts/hooks/record-running-step.sh record"
 					},
 					{
 						"type": "command",
@@ -554,7 +558,7 @@
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/pull-main-before-refinement.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/pull-main-before-refinement.sh"
 					}
 				]
 			},
@@ -592,11 +596,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/remind-ticket-status.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/remind-ticket-status.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/auto-populate-pr.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/auto-populate-pr.sh"
 					}
 				]
 			},
@@ -605,19 +609,19 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/verify-notion-content-edit.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/verify-notion-content-edit.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/require-blocked-comment.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/require-blocked-comment.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/sprint-backlog-sync.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/sprint-backlog-sync.sh"
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/auto-populate-pr.sh"
+						"command": "$HOME/.cockpit/scripts/hooks/auto-populate-pr.sh"
 					}
 				]
 			}
@@ -632,7 +636,7 @@
 					},
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/tab-status.sh needs"
+						"command": "$HOME/.cockpit/scripts/hooks/tab-status.sh needs"
 					}
 				]
 			}
@@ -644,9 +648,7 @@
 	"awaySummaryEnabled": false,
 	"spinnerVerbs": {
 		"mode": "replace",
-		"verbs": [
-			"Working"
-		]
+		"verbs": ["Working"]
 	},
 	"enabledPlugins": {
 		"warp@claude-code-warp": true,

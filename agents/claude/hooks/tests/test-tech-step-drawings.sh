@@ -2,8 +2,9 @@
 
 HOOKS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$CLAUDE_DIR/../../marketplace/plugins/cockpit" && pwd)"
 REPO_DIR="$(cd "$CLAUDE_DIR/../.." && pwd)"
-TR="$CLAUDE_DIR/skills/cockpit:ticket:2:tr/SKILL.md"
+TR="$PLUGIN_DIR/skills/cockpit:ticket:2:tr/SKILL.md"
 CONVENTIONS="$REPO_DIR/CLAUDE.md"
 
 pass=0

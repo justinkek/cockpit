@@ -1,0 +1,210 @@
+{
+	"hooks": {
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/tab-status.sh working"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/remind-back-from-column.sh"
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/tab-status.sh done"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/record-running-step.sh clear"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/advance-after-dev.sh"
+					}
+				]
+			}
+		],
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/refresh-cockpit-cache.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/pull-main.sh"
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-end-release-claims.sh"
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "Edit|Write|Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-dev-status.sh"
+					}
+				]
+			},
+			{
+				"matcher": "Read|Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/redirect-default-profile-reads.sh"
+					}
+				]
+			},
+			{
+				"matcher": "Edit|Write|NotebookEdit|Bash|Agent",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-rename.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-ticket.sh"
+					}
+				]
+			},
+			{
+				"matcher": "mcp__plugin_Notion_notion__notion-create-pages|mcp__plugin_Notion_notion__notion-update-page|mcp__plugin_Notion_notion__notion-create-database|mcp__plugin_Notion_notion__notion-create-view|mcp__plugin_Notion_notion__notion-update-view|mcp__plugin_Notion_notion__notion-create-attachment|mcp__plugin_Notion_notion__notion-move-pages|mcp__plugin_Notion_notion__notion-create-comment",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-rename.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-ticket.sh"
+					}
+				]
+			},
+			{
+				"matcher": "mcp__plugin_Notion_notion__notion-update-page",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-notion-content-revival.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-tech-steps.sh"
+					}
+				]
+			},
+			{
+				"matcher": "mcp__plugin_Notion_notion__notion-create-comment",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-ticket-comment-length.sh"
+					}
+				]
+			},
+			{
+				"matcher": "mcp__plugin_Notion_notion__notion-create-pages",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-emoji.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-ticket-type.sh"
+					}
+				]
+			},
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/redirect-state-to-read-write.sh"
+					}
+				]
+			},
+			{
+				"matcher": "Skill",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/record-running-step.sh record"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/pull-main-before-refinement.sh"
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "Bash",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/remind-ticket-status.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto-populate-pr.sh"
+					}
+				]
+			},
+			{
+				"matcher": "mcp__plugin_Notion_notion__notion-update-page",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/verify-notion-content-edit.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-blocked-comment.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/sprint-backlog-sync.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto-populate-pr.sh"
+					}
+				]
+			}
+		],
+		"Notification": [
+			{
+				"matcher": "permission_prompt",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/tab-status.sh needs"
+					}
+				]
+			}
+		]
+	}
+}

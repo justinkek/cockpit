@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 REPO="$(cd "$(dirname "$0")" && cd "$(pwd -P)/../.." && pwd)"
-SCRIPT="$REPO/agents/claude/cockpit-board-id"
+SCRIPT="$REPO/marketplace/plugins/cockpit/scripts/cockpit-board-id"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 

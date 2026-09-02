@@ -7,7 +7,7 @@ Read this on the hop that lands the card on `Done` - and on a card found there, 
 Clear `Agent: Session Id` in the same `update_properties` call that sets the status (and on the source ticket when the session has one), and release the local lock:
 
 ```
-"$HOME/.claude-shared/ticket-claim-lock" release <page-id>
+"$HOME/.cockpit/scripts/ticket-claim-lock" release <page-id>
 ```
 
 Both: the lock stops two sessions on this machine taking the same card, the property tells a person and any session elsewhere that it is taken.
@@ -19,7 +19,7 @@ Both: the lock stops two sessions on this machine taking the same card, the prop
 Leave the worktree first when this session entered it (`ExitWorktree` with `action: "keep"` - a silent no-op in any other session), then:
 
 ```
-"$HOME/.claude-shared/worktree-give-back" <worktree-path> <branch>
+"$HOME/.cockpit/scripts/worktree-give-back" <worktree-path> <branch>
 ```
 
 It runs the checks and then removes both, so there is nothing to verify first and no raw `git worktree remove` or `git branch --delete --force` to reach for - both are denied. It refuses unless every one of these holds:
@@ -93,7 +93,7 @@ Safe to repeat: both totals are recomputed from the session usage files and over
 
 ```
 
-"$HOME/.claude-shared/ticket-done-usage" <ticket-url>
+"$HOME/.cockpit/scripts/ticket-done-usage" <ticket-url>
 
 ```
 

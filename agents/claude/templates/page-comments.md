@@ -16,7 +16,7 @@ When a comment contradicts the page body, the comment wins - it is the later sta
 
 The read above does not return the file itself. A comment whose whole content is a screenshot comes back with nothing to read.
 
-    "$HOME/.claude-shared/ticket-comment-images" "<page-id>"
+    "$HOME/.cockpit/scripts/ticket-comment-images" "<page-id>"
 
 prints one line per attachment - comment id, category, and a path on disk - and nothing at all when the page carries none. Open each path with the Read tool.
 

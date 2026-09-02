@@ -7,8 +7,9 @@ repo_root_through_symlink() {
 REPO="$(repo_root_through_symlink)"
 CORE="$REPO/agents/shared/base.AGENTS.md"
 TEMPLATES="$REPO/agents/claude/templates"
-SKILLS="$REPO/agents/claude/skills"
+SKILLS="$REPO/marketplace/plugins/cockpit/skills"
 AGENT_CONFIG="$REPO/agents"
+PLUGIN_CONFIG="$REPO/marketplace/plugins/cockpit"
 PROJECT="$REPO/AGENTS.md"
 SETTINGS="$REPO/agents/claude/settings/base.settings.json"
 TEMPLATE_PATH_PATTERN='templates/[A-Za-z0-9._-]+\.md'
@@ -51,7 +52,7 @@ printf "\nTest group: no reference is left with nobody loading it\n"
 unread=""
 for path in "$TEMPLATES"/*.md; do
   name="$(basename "$path")"
-  if ! grep --quiet --recursive --fixed-strings --exclude-dir=templates "templates/$name" "$AGENT_CONFIG"; then
+  if ! grep --quiet --recursive --fixed-strings --exclude-dir=templates "templates/$name" "$AGENT_CONFIG" "$PLUGIN_CONFIG"; then
     unread="$unread $name"
   fi
 done
@@ -75,7 +76,7 @@ lost=""
 restated=""
 for phrase in "${convention_phrases[@]}"; do
   grep --quiet --fixed-strings "$phrase" "$CONVENTION" || lost="$lost|$phrase"
-  ! grep --quiet --recursive --fixed-strings --exclude-dir=templates "$phrase" "$AGENT_CONFIG" || restated="$restated|$phrase"
+  ! grep --quiet --recursive --fixed-strings --exclude-dir=templates "$phrase" "$AGENT_CONFIG" "$PLUGIN_CONFIG" || restated="$restated|$phrase"
 done
 
 if [ -z "$lost" ]; then
@@ -104,7 +105,7 @@ summary_phrases=(
 
 restated=""
 for phrase in "${summary_phrases[@]}"; do
-  ! grep --quiet --recursive --fixed-strings --exclude-dir=templates "$phrase" "$AGENT_CONFIG" || restated="$restated|$phrase"
+  ! grep --quiet --recursive --fixed-strings --exclude-dir=templates "$phrase" "$AGENT_CONFIG" "$PLUGIN_CONFIG" || restated="$restated|$phrase"
 done
 
 if [ -z "$restated" ]; then
@@ -237,7 +238,7 @@ example_anchors=(
 
 duplicated=""
 for anchor in "${example_anchors[@]}"; do
-  holders="$(grep --recursive --files-with-matches --fixed-strings "$anchor" "$AGENT_CONFIG" | grep --count .)"
+  holders="$(grep --recursive --files-with-matches --fixed-strings "$anchor" "$AGENT_CONFIG" "$PLUGIN_CONFIG" | grep --count .)"
   [ "$holders" -eq 1 ] || duplicated="$duplicated|$anchor in $holders files"
 done
 
@@ -337,6 +338,8 @@ registered_commands() {
   grep --only-matching --extended-regexp 'hooks/[a-z0-9-]+\.sh' "$SETTINGS" | sed 's|hooks/||'
   grep --only-matching --extended-regexp '\.claude-shared/[a-z0-9-]+' "$SETTINGS" |
     sed 's|\.claude-shared/||' | grep --invert-match --line-regexp 'hooks'
+  grep --only-matching --extended-regexp '\.cockpit/scripts/[a-z0-9-]+' "$SETTINGS" |
+    sed 's|\.cockpit/scripts/||' | grep --invert-match --line-regexp 'hooks'
 }
 
 allowed_commands="$(printf '%s\n' "${repo_scoped_commands[@]}" "${not_yet_named[@]}")"

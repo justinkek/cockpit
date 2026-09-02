@@ -29,7 +29,7 @@ A source status no row matches leaves the cockpit card where it is. Say so rathe
 
 ## The source status a cockpit column mirrors
 
-The source board names its own columns, so this direction matches semantically against that board's `Status` options rather than against a fixed list. Read the options from `"$HOME/.claude-shared/cockpit-cache-query" project-boards`, keyed by the board's `collection://` url, and fetch the data source schema only when the cache has no entry.
+The source board names its own columns, so this direction matches semantically against that board's `Status` options rather than against a fixed list. Read the options from `"$HOME/.cockpit/scripts/cockpit-cache-query" project-boards`, keyed by the board's `collection://` url, and fetch the data source schema only when the cache has no entry.
 
 | Cockpit column          | Source status it mirrors                             |
 | ----------------------- | ---------------------------------------------------- |

@@ -76,7 +76,7 @@ fi
 
 printf "\nTest group: an executed script keeps its symlink path\n"
 
-if grep --quiet --fixed-strings '"$HOME/.claude-shared/cockpit-cache-query"' "$CORE"; then
+if grep --quiet --fixed-strings '"$HOME/.cockpit/scripts/cockpit-cache-query"' "$CORE"; then
   assert_ok "the pattern spares a script the allowlist matches by its literal command"
 else
   assert_ko "the pattern spares a script the allowlist matches by its literal command" "the core no longer runs cockpit-cache-query through the symlink"

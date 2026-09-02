@@ -2,8 +2,9 @@
 
 HOOKS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$CLAUDE_DIR/../../marketplace/plugins/cockpit" && pwd)"
 TEMPLATE="$CLAUDE_DIR/templates/page-comments.md"
-SKILLS_DIR="$CLAUDE_DIR/skills"
+SKILLS_DIR="$PLUGIN_DIR/skills"
 
 pass=0
 fail=0

@@ -28,7 +28,7 @@ A session holding neither a ticket nor an epic names the area the way the two ab
 
 ## Setting it
 
-    "$HOME/.claude-shared/auto-rename" "<the name>"
+    "$HOME/.cockpit/scripts/auto-rename" "<the name>"
 
 `require-rename.sh` intercepts the call, records the name, and unlocks the session. Naming is self-serve; ask the user only when nothing in the session gives a basis for a name.
 

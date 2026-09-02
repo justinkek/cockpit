@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 REPO="$(cd "$(dirname "$0")/../../../.." && pwd)"
-REGISTER="$REPO/agents/shared/skills/cockpit:ticket:0:register/SKILL.md"
-NEW="$REPO/agents/claude/skills/cockpit:ticket:0:new/SKILL.md"
+REGISTER="$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:0:register/SKILL.md"
+NEW="$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:0:new/SKILL.md"
 
 pass=0
 fail=0

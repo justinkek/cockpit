@@ -5,7 +5,7 @@ repo_root_through_symlink() {
 }
 
 REPO="$(repo_root_through_symlink)"
-SKILLS="$REPO/agents/claude/skills"
+SKILLS="$REPO/marketplace/plugins/cockpit/skills"
 
 pass=0
 fail=0

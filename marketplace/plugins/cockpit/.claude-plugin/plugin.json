@@ -1,0 +1,36 @@
+{
+	"name": "cockpit",
+	"version": "0.1.0",
+	"description": "The ticket board workflow: its hooks, its skills and the scripts they call.",
+	"author": {
+		"name": "Justin Kek",
+		"email": "justinkekjq@gmail.com"
+	},
+	"userConfig": {
+		"boardPage": {
+			"type": "string",
+			"title": "Board page",
+			"description": "URL of the cockpit board page."
+		},
+		"ticketsDataSource": {
+			"type": "string",
+			"title": "Tickets data source",
+			"description": "Data source URL of the Tickets database."
+		},
+		"epicsDataSource": {
+			"type": "string",
+			"title": "Epics data source",
+			"description": "Data source URL of the Epics database."
+		},
+		"projectsDataSource": {
+			"type": "string",
+			"title": "Projects data source",
+			"description": "Data source URL of the Projects database."
+		},
+		"sprintsView": {
+			"type": "string",
+			"title": "Sprints view",
+			"description": "URL of the Sprints database view."
+		}
+	}
+}

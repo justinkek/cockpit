@@ -21,10 +21,10 @@ chmod +x "$TMPDIR/bin/gh"
 export PATH="$TMPDIR/bin:$PATH"
 
 export HOME="$TMPDIR/home"
-mkdir -p "$HOME/.claude-shared"
-cp "$(cd "$(dirname "$0")/../.." && pwd)/agents/claude/worktree-give-back" \
-  "$HOME/.claude-shared/worktree-give-back"
-chmod +x "$HOME/.claude-shared/worktree-give-back"
+mkdir -p "$HOME/.claude-shared" "$HOME/.cockpit/scripts"
+cp "$(cd "$(dirname "$0")/../.." && pwd)/marketplace/plugins/cockpit/scripts/worktree-give-back" \
+  "$HOME/.cockpit/scripts/worktree-give-back"
+chmod +x "$HOME/.cockpit/scripts/worktree-give-back"
 
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
 export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 HOOKS="$(cd "$(dirname "$0")/.." && pwd)"
+PLUGIN_HOOKS="$(cd "$HOOKS/../../../marketplace/plugins/cockpit/scripts/hooks" && pwd)"
 SETTINGS="$(cd "$(dirname "$0")/../../settings" && pwd)/base.settings.json"
 
 pass=0
@@ -8,7 +9,7 @@ fail=0
 
 assert_executable() {
   local name="$1"
-  if [ -x "$HOOKS/$name" ]; then
+  if [ -x "$HOOKS/$name" ] || [ -x "$PLUGIN_HOOKS/$name" ]; then
     printf "  OK  %s\n" "$name"
     pass=$((pass + 1))
   else

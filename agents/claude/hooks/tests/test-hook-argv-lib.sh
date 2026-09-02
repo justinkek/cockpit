@@ -22,15 +22,15 @@ printf "Test group: a hook sources the library and gets these two calls\n"
 assert_equal "hook_argv_after prints one argument per line" \
   "ticket
 feature" \
-  "$(hook_argv_after '"$HOME/.claude-shared/ticket-register-type" ticket feature' ticket-register-type)"
+  "$(hook_argv_after '"$HOME/.cockpit/scripts/ticket-register-type" ticket feature' ticket-register-type)"
 
 assert_equal "hook_argv_after reads an unquoted argument too" \
   "feature" \
-  "$(hook_argv_after '$HOME/.claude-shared/ticket-register-type feature' ticket-register-type)"
+  "$(hook_argv_after '$HOME/.cockpit/scripts/ticket-register-type feature' ticket-register-type)"
 
 assert_equal "hook_argv_after starts at the command token, not a later mention" \
   "feature" \
-  "$(hook_argv_after '"$HOME/.claude-shared/ticket-register-type" feature' ticket-register-type)"
+  "$(hook_argv_after '"$HOME/.cockpit/scripts/ticket-register-type" feature' ticket-register-type)"
 
 assert_equal "hook_is_readonly_bash says yes to a command that only reads" \
   "yes" \

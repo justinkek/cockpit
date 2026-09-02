@@ -2,9 +2,9 @@
 
 AGENTS="$(cd "$(dirname "$0")/../../.." && pwd)"
 REPO="$(dirname "$AGENTS")"
-REGISTER="$REPO/agents/shared/skills/cockpit:ticket:0:register/SKILL.md"
-COPILOT="$REPO/agents/claude/skills/cockpit:ticket:0:copilot/SKILL.md"
-WATCHER="$REPO/agents/claude/ticket-watch-column"
+REGISTER="$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:0:register/SKILL.md"
+COPILOT="$REPO/marketplace/plugins/cockpit/skills/cockpit:ticket:0:copilot/SKILL.md"
+WATCHER="$REPO/marketplace/plugins/cockpit/scripts/ticket-watch-column"
 BR_SKILL="/cockpit:ticket:1:br"
 
 pass=0

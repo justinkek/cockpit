@@ -62,8 +62,8 @@ For each `~/.claude-shared/` script, add two variants to `agents/claude/settings
 For subdirectory scripts:
 
 ```json
-"Bash($HOME/.claude-shared/hooks/require-ticket.sh:*)",
-"Bash(\"$HOME/.claude-shared/hooks/require-ticket.sh\":*)"
+"Bash($HOME/.cockpit/scripts/hooks/require-ticket.sh:*)",
+"Bash(\"$HOME/.cockpit/scripts/hooks/require-ticket.sh\":*)"
 ```
 
 Never commit an entry that spells a home directory out.

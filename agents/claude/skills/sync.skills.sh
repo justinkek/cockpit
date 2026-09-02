@@ -29,6 +29,8 @@ SHARED_DIR="${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}"
 CLAUDE_SKILLS_DIR="$SHARED_DIR/skills"
 AGENTS_SHARED_DIR="${AGENTS_SHARED_DIR:-$HOME/.agents-shared}"
 SHARED_SKILLS_DIR="$AGENTS_SHARED_DIR/skills"
+COCKPIT_PLUGIN_DIR="${COCKPIT_PLUGIN_DIR:-$HOME/.cockpit}"
+COCKPIT_SKILLS_DIR="$COCKPIT_PLUGIN_DIR/skills"
 
 # Account taxonomy (ACCOUNTS + acct_dir) is centralized in accounts.sh, shared
 # by every concern's sync script.
@@ -48,6 +50,7 @@ done
 
 [ -d "$CLAUDE_SKILLS_DIR" ] || { echo "error: missing Claude skills dir: $CLAUDE_SKILLS_DIR" >&2; exit 3; }
 [ -d "$SHARED_SKILLS_DIR" ] || { echo "error: missing shared skills dir: $SHARED_SKILLS_DIR" >&2; exit 3; }
+[ -d "$COCKPIT_SKILLS_DIR" ] || { echo "error: missing cockpit plugin skills dir: $COCKPIT_SKILLS_DIR" >&2; exit 3; }
 
 # Colors — only when stdout is a terminal (keeps pipes / hooks / CI clean).
 if [ -t 1 ]; then
@@ -62,7 +65,7 @@ fi
 managed=()
 sources=()
 shopt -s nullglob
-for root in "$SHARED_SKILLS_DIR" "$CLAUDE_SKILLS_DIR"; do
+for root in "$SHARED_SKILLS_DIR" "$CLAUDE_SKILLS_DIR" "$COCKPIT_SKILLS_DIR"; do
   for d in "$root"/*/; do
     [ -f "$d/SKILL.md" ] || continue
     skill="$(basename "$d")"
@@ -142,7 +145,7 @@ for acct in "${ACCOUNTS[@]}"; do
     [ -e "$link" ] && continue
     target="$(readlink "$link")"
     case "$target" in
-      "$SHARED_SKILLS_DIR"/*|"$CLAUDE_SKILLS_DIR"/*) ;;
+      "$SHARED_SKILLS_DIR"/*|"$CLAUDE_SKILLS_DIR"/*|"$COCKPIT_SKILLS_DIR"/*) ;;
       *) continue ;;
     esac
 

@@ -7,11 +7,11 @@ repo_root_through_symlink() {
 REPO="$(repo_root_through_symlink)"
 SETTINGS="$REPO/agents/claude/settings/base.settings.json"
 CLOSE_OUT="$REPO/agents/claude/templates/status-done-close-out.md"
-GIVE_BACK="$REPO/agents/claude/worktree-give-back"
+GIVE_BACK="$REPO/marketplace/plugins/cockpit/scripts/worktree-give-back"
 
 ALLOWED_FORMS=(
-  'Bash($HOME/.claude-shared/worktree-give-back:*)'
-  'Bash("$HOME/.claude-shared/worktree-give-back":*)'
+  'Bash($HOME/.cockpit/scripts/worktree-give-back:*)'
+  'Bash("$HOME/.cockpit/scripts/worktree-give-back":*)'
 )
 
 RAW_FORMS=(
