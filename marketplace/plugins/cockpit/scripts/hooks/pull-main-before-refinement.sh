@@ -13,6 +13,6 @@ esac
 working_directory="$(printf '%s' "$input" | jq --raw-output '.cwd // empty')"
 [ -n "$working_directory" ] || exit 0
 
-SHARED_DIRECTORY="${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}"
+PLUGIN_DIRECTORY="${COCKPIT_PLUGIN_DIR:-$HOME/.cockpit}"
 
-"$SHARED_DIRECTORY/hooks/pull-main.sh" "$working_directory" </dev/null
+"$PLUGIN_DIRECTORY/scripts/hooks/pull-main.sh" "$working_directory" </dev/null

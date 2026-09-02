@@ -18,20 +18,20 @@ assert_eq() {
   fi
 }
 
-SHARED="$TMPDIR/shared"
+PLUGIN="$TMPDIR/plugin"
 CALLED="$TMPDIR/called"
 
-mkdir -p "$SHARED/hooks"
-cat > "$SHARED/hooks/pull-main.sh" <<STUB
+mkdir -p "$PLUGIN/scripts/hooks"
+cat > "$PLUGIN/scripts/hooks/pull-main.sh" <<STUB
 #!/usr/bin/env bash
 printf 'called with %s\n' "\$*" >> "$CALLED"
 exit 0
 STUB
-chmod +x "$SHARED/hooks/pull-main.sh"
+chmod +x "$PLUGIN/scripts/hooks/pull-main.sh"
 
 run_hook() {
   rm -f "$CALLED"
-  printf '%s' "$1" | CLAUDE_SHARED_DIR="$SHARED" bash "$HOOK" >/dev/null 2>&1
+  printf '%s' "$1" | COCKPIT_PLUGIN_DIR="$PLUGIN" bash "$HOOK" >/dev/null 2>&1
 }
 
 what_it_was_called_with() {
@@ -70,11 +70,11 @@ assert_eq "a payload that is not readable pulls nothing" "not called" "$(what_it
 printf "\nTest group: the hook never fails the tool call it runs in front of\n"
 
 printf '%s' "$(payload_for cockpit:ticket:2:tr /repositories/alpha)" \
-  | CLAUDE_SHARED_DIR="$SHARED" bash "$HOOK" >/dev/null 2>&1
+  | COCKPIT_PLUGIN_DIR="$PLUGIN" bash "$HOOK" >/dev/null 2>&1
 assert_eq "a refinement skill exits clean" "0" "$?"
 
 printf '%s' "$(payload_for cockpit:ticket:3:dev /repositories/alpha)" \
-  | CLAUDE_SHARED_DIR="$SHARED" bash "$HOOK" >/dev/null 2>&1
+  | COCKPIT_PLUGIN_DIR="$PLUGIN" bash "$HOOK" >/dev/null 2>&1
 assert_eq "a skill outside refinement exits clean" "0" "$?"
 
 printf "\n%s passed, %s failed\n" "$pass" "$fail"

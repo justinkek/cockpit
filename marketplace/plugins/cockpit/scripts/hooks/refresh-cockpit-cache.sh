@@ -2,7 +2,7 @@
 
 cat >/dev/null
 
-SHARED_DIRECTORY="${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}"
+PLUGIN_DIRECTORY="${COCKPIT_PLUGIN_DIR:-$HOME/.cockpit}"
 CACHE="${COCKPIT_CACHE:-$HOME/.local/state/cockpit/cache.json}"
 REFRESH_AFTER_HOURS="${COCKPIT_CACHE_REFRESH_AFTER_HOURS:-24}"
 
@@ -25,7 +25,7 @@ cache_is_older_than_threshold() {
 }
 
 if cache_is_older_than_threshold; then
-  "$SHARED_DIRECTORY/cockpit-cache-refresh" >/dev/null 2>&1 || true
+  "$PLUGIN_DIRECTORY/scripts/cockpit-cache-refresh" >/dev/null 2>&1 || true
 fi
 
 exit 0

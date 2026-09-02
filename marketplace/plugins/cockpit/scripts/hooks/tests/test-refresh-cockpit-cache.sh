@@ -18,19 +18,19 @@ assert_eq() {
   fi
 }
 
-SHARED="$TMPDIR/shared"
+PLUGIN="$TMPDIR/plugin"
 CACHE="$TMPDIR/cache.json"
 RAN="$TMPDIR/ran"
-mkdir -p "$SHARED"
+mkdir -p "$PLUGIN/scripts"
 
 install_stub() {
   local exit_code="$1"
-  cat > "$SHARED/cockpit-cache-refresh" <<STUB
+  cat > "$PLUGIN/scripts/cockpit-cache-refresh" <<STUB
 #!/usr/bin/env bash
 echo ran >> "$RAN"
 exit $exit_code
 STUB
-  chmod +x "$SHARED/cockpit-cache-refresh"
+  chmod +x "$PLUGIN/scripts/cockpit-cache-refresh"
 }
 
 write_cache() {
@@ -42,7 +42,7 @@ write_cache() {
 run_hook() {
   rm -f "$RAN"
   printf '{"session_id": "test"}' \
-    | COCKPIT_CACHE="$CACHE" CLAUDE_SHARED_DIR="$SHARED" bash "$HOOK" >/dev/null 2>&1
+    | COCKPIT_CACHE="$CACHE" COCKPIT_PLUGIN_DIR="$PLUGIN" bash "$HOOK" >/dev/null 2>&1
   printf '%s' "$?"
 }
 
@@ -87,7 +87,7 @@ write_cache 48
 assert_eq "the refresh failed — the hook still exits 0" "0" "$(run_hook)"
 assert_eq "the refresh was attempted" "1" "$(refresh_count)"
 
-rm -f "$SHARED/cockpit-cache-refresh"
+rm -f "$PLUGIN/scripts/cockpit-cache-refresh"
 write_cache 48
 assert_eq "the refresh is missing — the hook still exits 0" "0" "$(run_hook)"
 
@@ -97,7 +97,7 @@ install_stub 0
 write_cache 2
 rm -f "$RAN"
 printf '{"session_id": "test"}' \
-  | COCKPIT_CACHE="$CACHE" CLAUDE_SHARED_DIR="$SHARED" COCKPIT_CACHE_REFRESH_AFTER_HOURS=1 \
+  | COCKPIT_CACHE="$CACHE" COCKPIT_PLUGIN_DIR="$PLUGIN" COCKPIT_CACHE_REFRESH_AFTER_HOURS=1 \
     bash "$HOOK" >/dev/null 2>&1
 assert_eq "an hour threshold fires on a two hour old cache" "1" "$(refresh_count)"
 
