@@ -91,7 +91,6 @@ installed_for_one_repository() {
 }
 
 MANIFEST="${CLAUDE_PLUGINS_MANIFEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base.plugins.json}"
-MANIFEST_REPOSITORY="$(cd "$(dirname "$MANIFEST")/../../.." && pwd -P 2>/dev/null || true)"
 
 served_from_this_repository() {
   case "$1" in
@@ -101,11 +100,14 @@ served_from_this_repository() {
 }
 
 marketplace_source_path() {
-  if served_from_this_repository "$1"; then
-    printf '%s/%s' "$MANIFEST_REPOSITORY" "${1#./}"
-  else
+  local repository
+  if ! served_from_this_repository "$1"; then
     printf '%s' "$1"
+    return 0
   fi
+  repository="$(cd "$(dirname "$MANIFEST")/../../.." && pwd -P)" || return 1
+  [ -d "$repository/${1#./}" ] || return 1
+  printf '%s/%s' "$repository" "${1#./}"
 }
 
 locally_served_marketplaces() {
@@ -152,7 +154,9 @@ if [ "$MODE" = "apply" ]; then
       [ -n "$name" ] && [ -n "$source" ] || continue
       loc="$(jq -r --arg n "$name" '.[$n].installLocation // empty' "$dir/plugins/known_marketplaces.json" 2>/dev/null || true)"
       if [ -z "$loc" ]; then
-        if "$CLAUDE_BIN" plugin marketplace add "$(marketplace_source_path "$source")" </dev/null >/dev/null 2>&1; then
+        if ! source_path="$(marketplace_source_path "$source")"; then
+          echo "  ${C_RED}! marketplace $name source '$source' is not a directory under $(dirname "$MANIFEST")/../../..${C_RESET}"
+        elif "$CLAUDE_BIN" plugin marketplace add "$source_path" </dev/null >/dev/null 2>&1; then
           echo "  ${C_GREEN}+ marketplace $name added${C_RESET}"
         else
           echo "  ${C_RED}! marketplace $name add failed${C_RESET}"
