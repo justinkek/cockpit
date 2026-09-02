@@ -107,16 +107,37 @@ grep --quiet --fixed-strings 'marketplace/plugins/cockpit:$HOME/.cockpit' "$REPO
   assert_ok "install.sh maps the plugin directory onto ~/.cockpit" ||
   assert_ko "install.sh maps the plugin directory onto ~/.cockpit" "no such entry in its MAP"
 
-printf "\nTest group: the skills sync carries the plugin root until the plugin is enabled\n"
+printf "\nTest group: the plugin serves the board, and the settings no longer do\n"
 
+PLUGINS_MANIFEST="$REPO/agents/claude/plugins/base.plugins.json"
+DESKTOP_OVERRIDE="$REPO/agents/claude/settings/overrides/claude.settings.json"
 SKILLS_SYNC="$REPO/agents/claude/skills/sync.skills.sh"
-grep --quiet --fixed-strings 'COCKPIT_SKILLS_DIR="$COCKPIT_PLUGIN_DIR/skills"' "$SKILLS_SYNC" &&
-  assert_ok "sync.skills.sh reads the plugin's skills directory" ||
-  assert_ko "sync.skills.sh reads the plugin's skills directory" "no such root in the script"
 
-! grep --quiet --fixed-strings '"cockpit@cockpit"' "$REPO/agents/claude/plugins/base.plugins.json" &&
-  assert_ok "and no account enables the plugin yet" ||
-  assert_ko "and no account enables the plugin yet" "base.plugins.json declares it, so the third root is now a second source"
+assert_eq "base.settings.json declares no board hook" "" \
+  "$(jq --raw-output '.hooks | to_entries[] | .value[] | .hooks[] | .command | select(startswith("$HOME/.cockpit/"))' "$SETTINGS")"
+assert_eq "base.plugins.json serves the marketplace from this repository" "./marketplace" \
+  "$(jq --raw-output '.marketplaces.cockpit // ""' "$PLUGINS_MANIFEST")"
+assert_eq "and declares the plugin at user scope" "user" \
+  "$(jq --raw-output '.plugins["cockpit@cockpit"] // ""' "$PLUGINS_MANIFEST")"
+assert_eq "the base settings enable it" "true" \
+  "$(jq --raw-output '.enabledPlugins["cockpit@cockpit"] | tostring' "$SETTINGS")"
+assert_eq "the desktop account turns it back off" "false" \
+  "$(jq --raw-output '.enabledPlugins["cockpit@cockpit"] | tostring' "$DESKTOP_OVERRIDE")"
+assert_eq "sync.skills.sh no longer carries the plugin's skills directory" "" \
+  "$(grep --fixed-strings 'COCKPIT_SKILLS_DIR' "$SKILLS_SYNC" || true)"
+
+printf "\nTest group: a skill the plugin serves keeps the name it is invoked by\n"
+
+prefixed="$(find "$PLUGIN/skills" -mindepth 1 -maxdepth 1 -type d -name 'cockpit:*' -exec basename {} \;)"
+assert_eq "no skill directory repeats the plugin's own name" "" "$prefixed"
+
+mismatched=""
+for manifest in "$PLUGIN"/skills/*/SKILL.md; do
+  directory="$(basename "$(dirname "$manifest")")"
+  declared="$(awk '/^name: / { sub(/^name: /, ""); print; exit }' "$manifest")"
+  [ "$declared" = "$directory" ] || mismatched="$mismatched $directory (declares $declared)"
+done
+assert_eq "and each declares the name of its own directory" "" "$mismatched"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

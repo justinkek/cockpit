@@ -35,7 +35,7 @@ printf "Test group: each per-project section is read from one file\n"
 assert_names "the extra reviews list" \
   "$CLAUDE_DIR/templates/status-machine-gates.md" '`## Extra reviews` in its `./AGENTS.md`'
 assert_names "the columns a project skips" \
-  "$PLUGIN_DIR/skills/cockpit:ticket:x:status/SKILL.md" 'read `./AGENTS.md` for `## Ticket walk skip`'
+  "$PLUGIN_DIR/skills/ticket:x:status/SKILL.md" 'read `./AGENTS.md` for `## Ticket walk skip`'
 assert_names "the sprint opt-out that reads the same section" \
   "$CLAUDE_DIR/templates/sprint-auto-assign.md" '`## Ticket walk skip` section in `./AGENTS.md`'
 assert_names "the hook that greps the file rather than naming it in prose" \
@@ -44,9 +44,9 @@ assert_names "the hook that greps the file rather than naming it in prose" \
 printf "\nTest group: no repo opts out of the branch guard\n"
 
 assert_names "the commit skill says nothing turns it off" \
-  "$PLUGIN_DIR/skills/cockpit:ticket:4:commit/SKILL.md" 'No project opts out of this'
+  "$PLUGIN_DIR/skills/ticket:4:commit/SKILL.md" 'No project opts out of this'
 assert_names "and the pull request skill says the same" \
-  "$PLUGIN_DIR/skills/cockpit:ticket:4:ready-for-cr/SKILL.md" 'Nothing in a project'
+  "$PLUGIN_DIR/skills/ticket:4:ready-for-cr/SKILL.md" 'Nothing in a project'
 
 optout="$(grep --recursive --files-with-matches --fixed-strings '## Commit to main' "$AGENTS_DIR" "$(dirname "$AGENTS_DIR")/AGENTS.md" 2>/dev/null \
   | grep --invert-match --fixed-strings "$(basename "$0")")"

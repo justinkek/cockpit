@@ -12,6 +12,7 @@ AGENT_CONFIG="$REPO/agents"
 PLUGIN_CONFIG="$REPO/marketplace/plugins/cockpit"
 PROJECT="$REPO/AGENTS.md"
 SETTINGS="$REPO/agents/claude/settings/base.settings.json"
+PLUGIN_HOOKS="$REPO/marketplace/plugins/cockpit/hooks/hooks.json"
 TEMPLATE_PATH_PATTERN='templates/[A-Za-z0-9._-]+\.md'
 
 pass=0
@@ -335,7 +336,7 @@ not_yet_named=(
 )
 
 registered_commands() {
-  grep --only-matching --extended-regexp 'hooks/[a-z0-9-]+\.sh' "$SETTINGS" | sed 's|hooks/||'
+  grep --only-matching --extended-regexp 'hooks/[a-z0-9-]+\.sh' "$SETTINGS" "$PLUGIN_HOOKS" | sed 's|^.*hooks/||'
   grep --only-matching --extended-regexp '\.claude-shared/[a-z0-9-]+' "$SETTINGS" |
     sed 's|\.claude-shared/||' | grep --invert-match --line-regexp 'hooks'
   grep --only-matching --extended-regexp '\.cockpit/scripts/[a-z0-9-]+' "$SETTINGS" |

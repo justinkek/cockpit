@@ -46,16 +46,16 @@ done
 
 printf "\nTest group: the phrase name resolution would miss is still there\n"
 
-assert_carries "cockpit:ticket:x:destock" "save my work"
-assert_carries "cockpit:ticket:x:destock" "de-stock"
+assert_carries "ticket:x:destock" "save my work"
+assert_carries "ticket:x:destock" "de-stock"
 
 printf "\nTest group: the half that fires a skill unprompted is still there\n"
 
-assert_carries "cockpit:ticket:1:br" "when a ticket enters BR by AI"
-assert_carries "cockpit:ticket:2:tr" "when a ticket enters TR by AI"
-assert_carries "cockpit:epic:1:fd" "when an epic enters FD by AI"
-assert_carries "cockpit:ticket:3:dev" "when the require-dev-status hook blocks an edit"
-assert_carries "cockpit:ticket:4:ready-for-cr" "Fires on clean gates"
+assert_carries "ticket:1:br" "when a ticket enters BR by AI"
+assert_carries "ticket:2:tr" "when a ticket enters TR by AI"
+assert_carries "epic:1:fd" "when an epic enters FD by AI"
+assert_carries "ticket:3:dev" "when the require-dev-status hook blocks an edit"
+assert_carries "ticket:4:ready-for-cr" "Fires on clean gates"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
