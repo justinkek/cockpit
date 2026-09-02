@@ -20,6 +20,7 @@ cp "$REPO/agents/claude/sync.sh" "$SHARED/sync.sh"
 cp "$REPO/agents/claude/settings/sync.settings.sh" "$SHARED/settings/sync.settings.sh"
 cp "$REPO/agents/shared/prompts.sh" "$TMPDIR/agents-shared/prompts.sh"
 
+cp "$REPO/agents/claude/board-accounts.sh" "$SHARED/board-accounts.sh"
 cat > "$SHARED/accounts.sh" <<'ACCOUNTS'
 ACCOUNTS=(first second)
 acct_dir() { printf '%s' "$HOME/.claude-$1"; }

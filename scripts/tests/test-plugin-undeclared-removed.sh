@@ -16,6 +16,7 @@ mkdir -p "$ACCOUNT_DIR/plugins" "$ACCOUNT_DIR/cache/notion" "$TMPDIR/shared" "$T
 : > "$CLAUDE_LOG"
 printf 'plugin payload\n' > "$ACCOUNT_DIR/cache/notion/plugin.json"
 
+cp "$REPO/agents/claude/board-accounts.sh" "$TMPDIR/shared/board-accounts.sh"
 cat > "$TMPDIR/shared/accounts.sh" <<SHARED
 ACCOUNTS=(probe)
 acct_dir() { printf '%s' "$ACCOUNT_DIR"; }

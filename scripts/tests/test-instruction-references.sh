@@ -6,6 +6,7 @@ repo_root_through_symlink() {
 
 REPO="$(repo_root_through_symlink)"
 CORE="$REPO/agents/shared/base.AGENTS.md"
+BOARD_CORE="$REPO/agents/shared/board.AGENTS.md"
 TEMPLATES="$REPO/agents/claude/templates"
 SKILLS="$REPO/marketplace/plugins/cockpit/skills"
 AGENT_CONFIG="$REPO/agents"
@@ -32,7 +33,7 @@ assert_ko() {
 
 printf "Test group: every reference a loader names exists\n"
 
-named_templates="$(grep --only-matching --recursive --extended-regexp "$TEMPLATE_PATH_PATTERN" "$CORE" "$SKILLS" | sed 's/^.*://' | sort --unique)"
+named_templates="$(grep --only-matching --recursive --extended-regexp "$TEMPLATE_PATH_PATTERN" "$CORE" "$BOARD_CORE" "$SKILLS" | sed 's/^.*://' | sort --unique)"
 
 if [ -z "$named_templates" ]; then
   assert_ko "the core and the skills name at least one reference" "no templates path found"
@@ -136,7 +137,7 @@ lost=""
 duplicated=""
 for sentence in "${moved_sentences[@]}"; do
   grep --quiet --recursive --fixed-strings "$sentence" "$TEMPLATES" || lost="$lost|$sentence"
-  ! grep --quiet --fixed-strings "$sentence" "$CORE" || duplicated="$duplicated|$sentence"
+  ! grep --quiet --fixed-strings "$sentence" "$CORE" "$BOARD_CORE" || duplicated="$duplicated|$sentence"
 done
 
 if [ -z "$lost" ]; then
@@ -219,7 +220,7 @@ fi
 unnamed=""
 for reference in "${named_references[@]}"; do
   grep --quiet --fixed-strings "$reference" "$PROJECT" && continue
-  grep --quiet --fixed-strings "$reference" "$CORE" && continue
+  grep --quiet --fixed-strings "$reference" "$CORE" "$BOARD_CORE" && continue
   unnamed="$unnamed $reference"
 done
 
@@ -347,7 +348,7 @@ allowed_commands="$(printf '%s\n' "${repo_scoped_commands[@]}" "${not_yet_named[
 
 unnamed=""
 for command_name in $(registered_commands | sort --unique); do
-  grep --quiet --fixed-strings "$command_name" "$CORE" && continue
+  grep --quiet --fixed-strings "$command_name" "$CORE" "$BOARD_CORE" && continue
   printf '%s\n' "$allowed_commands" | grep --quiet --line-regexp --fixed-strings "$command_name" && continue
   unnamed="$unnamed $command_name"
 done
@@ -366,7 +367,7 @@ for command_name in "${repo_scoped_commands[@]}" "${not_yet_named[@]}"; do
     stale="$stale $command_name (not registered)"
 done
 for command_name in "${not_yet_named[@]}"; do
-  ! grep --quiet --fixed-strings "$command_name" "$CORE" || stale="$stale $command_name (now named in the core)"
+  ! grep --quiet --fixed-strings "$command_name" "$CORE" "$BOARD_CORE" || stale="$stale $command_name (now named in the core)"
 done
 
 if [ -z "$stale" ]; then

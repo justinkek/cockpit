@@ -35,6 +35,10 @@ Key mappings:
 
 A skill the plugin serves is invoked under the plugin's own name, so `skills/ticket:3:dev` is reached as `/cockpit:ticket:3:dev` and its directory carries no `cockpit:` of its own. `daily-mail` is the one whose name changes, to `/cockpit:daily-mail`.
 
+A plugin cannot carry always-on instructions, so the board's rules stay in the memory sync: `agents/shared/board.AGENTS.md` holds them and `sync.claude-md.sh` appends it to an account that works the board. The Claude adapter had no board section to move, so there is no `board.adapter.CLAUDE.md`; `sync.claude-md.sh` appends one if it ever appears.
+
+`agents/claude/board-accounts.sh` is the one statement of which accounts those are, and both the settings sync and the memory sync read it. It sits beside `accounts.sh` rather than inside it because a test stubs `accounts.sh` to control the account list, and a stubbed-away answer here would quietly take the board off every account.
+
 Three libraries are shared with hooks that stay in `agents/claude/hooks/` - `hook-argv-lib.sh`, `hook-stop-note-lib.sh` and `session-name-lib.sh`. A moved hook reads each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home.
 
 ## Sync concerns
@@ -111,6 +115,6 @@ For format rules, checklist, and diagnostics, invoke `/fewest-permission-prompts
 
 ## Which instruction file a section belongs in
 
-A section describing something that fires outside this repo goes in `agents/shared/base.AGENTS.md`. This repo's own layout, tests and sync stay here.
+A section describing something that fires outside this repo goes in `agents/shared/base.AGENTS.md` when every client needs it, and in `agents/shared/board.AGENTS.md` when only an account that works the ticket board does. This repo's own layout, tests and sync stay here.
 
 A hook or script whose behaviour is confined to this checkout is exempt, and the check names it alongside the ones documented in neither file.

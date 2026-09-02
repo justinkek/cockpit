@@ -50,6 +50,8 @@ OVR_DIR="$CM_DIR/overrides"
 # The Claude adapter: Claude-specific sections split out of the agnostic base,
 # appended for the base account (between the base and its override).
 ADAPTER="$CM_DIR/adapter.CLAUDE.md"
+BOARD_BASE="$AGENTS_SHARED_DIR/board.AGENTS.md"
+BOARD_ADAPTER="$CM_DIR/board.adapter.CLAUDE.md"
 
 # The base account owns the full rules; ~/.claude is the hardcoded global memory
 # path Claude Code always reads (and Claude Desktop reads too).
@@ -67,6 +69,7 @@ KEEP_BACKUPS=5
 # Account taxonomy (ACCOUNTS + acct_dir) is centralized in accounts.sh, shared
 # by every concern's sync script.
 source "$SHARED_DIR/accounts.sh"
+source "$SHARED_DIR/board-accounts.sh"
 
 # Keep only the newest KEEP_BACKUPS backups for a target file; delete the
 # rest. Backup names end in YYYYMMDD-HHMMSS, so a plain sort is chronological.
@@ -93,6 +96,7 @@ for arg in "$@"; do
 done
 
 [ -f "$BASE" ] || { echo "error: missing base file: $BASE" >&2; exit 3; }
+[ -f "$BOARD_BASE" ] || { echo "error: missing board file: $BOARD_BASE" >&2; exit 3; }
 
 # Colors — only when stdout is a terminal (keeps pipes / hooks / CI clean).
 if [ -t 1 ]; then
@@ -120,6 +124,12 @@ for acct in "${ACCOUNTS[@]}"; do
     [ -s "$ADAPTER" ] && final="$final"$'\n\n'"$(cat "$ADAPTER")"
   else
     final="$PROFILE_POINTER"
+  fi
+  if account_works_the_ticket_board "$acct"; then
+    final="$final"$'\n\n'"$(cat "$BOARD_BASE")"
+    if [ -s "$BOARD_ADAPTER" ]; then
+      final="$final"$'\n\n'"$(cat "$BOARD_ADAPTER")"
+    fi
   fi
   [ -s "$ovr" ] && final="$final"$'\n\n'"$(cat "$ovr")"
 

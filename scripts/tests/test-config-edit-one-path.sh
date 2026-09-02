@@ -6,6 +6,7 @@ repo_root_through_symlink() {
 
 REPO="$(repo_root_through_symlink)"
 CORE="$REPO/agents/shared/base.AGENTS.md"
+BOARD_CORE="$REPO/agents/shared/board.AGENTS.md"
 ADAPTER="$REPO/agents/claude/claude-md/adapter.CLAUDE.md"
 PROJECT_RULE="$REPO/AGENTS.md"
 CONFIG_FILES='base\.AGENTS\.md|base\.settings\.json|base\.plugins\.json|adapter\.CLAUDE\.md'
@@ -42,7 +43,7 @@ assert_ko() {
 
 printf "Test group: the always-loaded rules name no config file by a path\n"
 
-named="$(grep --only-matching --extended-regexp "$EDIT_TARGET_PATTERN" "$CORE" "$ADAPTER" | sort --unique)"
+named="$(grep --only-matching --extended-regexp "$EDIT_TARGET_PATTERN" "$CORE" "$BOARD_CORE" "$ADAPTER" | sort --unique)"
 
 if [ -z "$named" ]; then
   assert_ok "neither the core nor the adapter reaches a config file through a symlink"
@@ -76,10 +77,10 @@ fi
 
 printf "\nTest group: an executed script keeps its symlink path\n"
 
-if grep --quiet --fixed-strings '"$HOME/.cockpit/scripts/cockpit-cache-query"' "$CORE"; then
+if grep --quiet --fixed-strings '"$HOME/.cockpit/scripts/cockpit-cache-query"' "$BOARD_CORE"; then
   assert_ok "the pattern spares a script the allowlist matches by its literal command"
 else
-  assert_ko "the pattern spares a script the allowlist matches by its literal command" "the core no longer runs cockpit-cache-query through the symlink"
+  assert_ko "the pattern spares a script the allowlist matches by its literal command" "the board rules no longer run cockpit-cache-query through the symlink"
 fi
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"

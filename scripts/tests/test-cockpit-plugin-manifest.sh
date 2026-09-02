@@ -101,7 +101,8 @@ grep --quiet --fixed-strings 'marketplace/plugins/cockpit:$HOME/.cockpit' "$REPO
 printf "\nTest group: the plugin serves the board, and the settings no longer do\n"
 
 PLUGINS_MANIFEST="$REPO/agents/claude/plugins/base.plugins.json"
-DESKTOP_OVERRIDE="$REPO/agents/claude/settings/overrides/claude.settings.json"
+SETTINGS_SYNC="$REPO/agents/claude/settings/sync.settings.sh"
+MEMORY_SYNC="$REPO/agents/claude/claude-md/sync.claude-md.sh"
 SKILLS_SYNC="$REPO/agents/claude/skills/sync.skills.sh"
 
 assert_eq "base.settings.json declares no board hook" "" \
@@ -112,8 +113,19 @@ assert_eq "and declares the plugin at user scope" "user" \
   "$(jq --raw-output '.plugins["cockpit@cockpit"] // ""' "$PLUGINS_MANIFEST")"
 assert_eq "the base settings enable it" "true" \
   "$(jq --raw-output '.enabledPlugins["cockpit@cockpit"] | tostring' "$SETTINGS")"
-assert_eq "the desktop account turns it back off" "false" \
-  "$(jq --raw-output '.enabledPlugins["cockpit@cockpit"] | tostring' "$DESKTOP_OVERRIDE")"
+source "$REPO/agents/claude/board-accounts.sh"
+assert_eq "the account an unwrapped launch lands in does not work the board" "no" \
+  "$(account_works_the_ticket_board claude && printf yes || printf no)"
+assert_eq "an account reached through a wrapper does" "yes" \
+  "$(account_works_the_ticket_board cockpit && printf yes || printf no)"
+
+grep --quiet --fixed-strings 'account_works_the_ticket_board "$acct"' "$SETTINGS_SYNC" &&
+  assert_ok "the settings sync turns the plugin off for an account that does not" ||
+  assert_ko "the settings sync turns the plugin off for an account that does not" "no such branch in $SETTINGS_SYNC"
+
+grep --quiet --fixed-strings 'account_works_the_ticket_board "$acct"' "$MEMORY_SYNC" &&
+  assert_ok "and the memory sync gives the board rules only to one that does" ||
+  assert_ko "and the memory sync gives the board rules only to one that does" "no such branch in $MEMORY_SYNC"
 assert_eq "sync.skills.sh no longer carries the plugin's skills directory" "" \
   "$(grep --fixed-strings 'COCKPIT_SKILLS_DIR' "$SKILLS_SYNC" || true)"
 
