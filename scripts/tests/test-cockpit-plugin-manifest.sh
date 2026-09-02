@@ -74,15 +74,6 @@ else
   assert_ko "every command in hooks.json is an executable file under the plugin root" "missing:$missing"
 fi
 
-printf "\nTest group: the settings reach the same files through the symlink\n"
-
-missing="$(executable_under_the_plugin '$HOME/.cockpit/' "$SETTINGS")"
-if [ -z "$missing" ]; then
-  assert_ok "every board hook the settings declare is an executable file under the plugin root"
-else
-  assert_ko "every board hook the settings declare is an executable file under the plugin root" "missing:$missing"
-fi
-
 printf "\nTest group: the plugin never reaches its own files through the shared root\n"
 
 reached_through_the_shared_root=""

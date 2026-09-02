@@ -92,7 +92,7 @@ installed_for_one_repository() {
 
 MANIFEST="${CLAUDE_PLUGINS_MANIFEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base.plugins.json}"
 
-served_from_this_repository() {
+source_is_repository_relative() {
   case "$1" in
     ./*) return 0 ;;
     *) return 1 ;;
@@ -101,7 +101,7 @@ served_from_this_repository() {
 
 marketplace_source_path() {
   local repository
-  if ! served_from_this_repository "$1"; then
+  if ! source_is_repository_relative "$1"; then
     printf '%s' "$1"
     return 0
   fi
