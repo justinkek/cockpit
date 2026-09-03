@@ -129,6 +129,13 @@ grep --quiet --fixed-strings 'account_works_the_ticket_board "$acct"' "$MEMORY_S
 assert_eq "sync.skills.sh no longer carries the plugin's skills directory" "" \
   "$(grep --fixed-strings 'COCKPIT_SKILLS_DIR' "$SKILLS_SYNC" || true)"
 
+printf "\nTest group: a marketplace registration is the plugin apply's to write\n"
+
+assert_eq "base.settings.json manages no marketplace registration" "false" \
+  "$(jq 'has("extraKnownMarketplaces")' "$SETTINGS")"
+assert_eq "and the one it used to seed is declared where the apply reads it" "warpdotdev/claude-code-warp" \
+  "$(jq --raw-output '.marketplaces["claude-code-warp"] // ""' "$PLUGINS_MANIFEST")"
+
 printf "\nTest group: the plugin reads the shared root and nothing reads back\n"
 
 reads_the_plugin="$(grep --recursive --line-number --extended-regexp \

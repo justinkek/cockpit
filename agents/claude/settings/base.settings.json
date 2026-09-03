@@ -482,14 +482,6 @@
 		"slack@claude-plugins-official": false,
 		"cockpit@cockpit": true
 	},
-	"extraKnownMarketplaces": {
-		"claude-code-warp": {
-			"source": {
-				"source": "github",
-				"repo": "warpdotdev/claude-code-warp"
-			}
-		}
-	},
 	"skillOverrides": {
 		"artifact-design": "off",
 		"artifact-capabilities": "off",

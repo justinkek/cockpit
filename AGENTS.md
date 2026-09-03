@@ -31,7 +31,9 @@ Key mappings:
 
 `base.plugins.json` declares the marketplace as `./marketplace` and the plugin at user scope, and `sync.plugins.sh` resolves that leading `./` against the repository its own manifest sits in. A marketplace served that way is registered from a path outside the account directory, so the install-health check does not report it as a foreign store.
 
-`base.settings.json` enables the plugin for every account; `settings/overrides/claude.settings.json` turns it back off for the one the desktop app reads. Installed and not enabled is what leaves a desktop chat the skills without the hooks.
+`base.settings.json` enables the plugin for every account, and the settings sync turns it back off for one that does not work the board. Installed and not enabled is what leaves a desktop chat the skills without the hooks.
+
+A marketplace registration is not a managed setting. `claude plugin marketplace add` writes `extraKnownMarketplaces` into an account's `settings.json` with a path only that machine has, so `base.settings.json` declares none: managing the key would make each sync strip what the other had just written. `base.plugins.json` is where a marketplace is declared, and the plugin apply is what registers it.
 
 A skill the plugin serves is invoked under the plugin's own name, so `skills/ticket:3:dev` is reached as `/cockpit:ticket:3:dev` and its directory carries no `cockpit:` of its own. `daily-mail` is the one whose name changes, to `/cockpit:daily-mail`.
 
