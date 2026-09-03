@@ -27,6 +27,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 AGENTS_SHARED_DIR="${AGENTS_SHARED_DIR:-$HOME/.agents-shared}"
 BASE="$AGENTS_SHARED_DIR/base.AGENTS.md"
+BOARD_BASE="$AGENTS_SHARED_DIR/board.AGENTS.md"
+source "$DIR/../homes.sh"
 
 OVR="$DIR/adapter.CODEX.md"                         # optional Codex-only additions
 TARGET="${CODEX_HOME:-$HOME/.codex}/AGENTS.md"
@@ -48,6 +50,7 @@ for arg in "$@"; do
 done
 
 [ -f "$BASE" ] || { echo "error: missing base file: $BASE" >&2; exit 3; }
+[ -f "$BOARD_BASE" ] || { echo "error: missing board file: $BOARD_BASE" >&2; exit 3; }
 
 # Colors — only when stdout is a terminal (keeps pipes / hooks / CI clean).
 if [ -t 1 ]; then
@@ -72,6 +75,9 @@ prune_backups() {
 # final = base, plus the override appended below a blank line (if non-empty).
 # $(cat ...) strips trailing newlines, so comparison is newline-agnostic.
 final="$(cat "$BASE")"
+if codex_home_works_the_ticket_board "${CODEX_HOME_NAME:-codex}"; then
+  final="$final"$'\n\n'"$(cat "$BOARD_BASE")"
+fi
 [ -s "$OVR" ] && final="$final"$'\n\n'"$(cat "$OVR")"
 
 cur=''; [ -f "$TARGET" ] && cur="$(cat "$TARGET")"

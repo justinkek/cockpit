@@ -40,6 +40,9 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 AGENTS_SHARED_DIR="${AGENTS_SHARED_DIR:-$HOME/.agents-shared}"
+source "$DIR/../homes.sh"
+TMPDIR_SYNC="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_SYNC"' EXIT
 
 # Whole-file source:target pairs (target relative to CODEX_HOME).
 PAIRS=(
@@ -160,10 +163,25 @@ sync_config_profile() {
 }
 
 # Merge the hooks profile into config.toml via the targeted helper.
+compose_hooks_profile() {
+  local composed="$1" base="$DIR/base.hooks-profile.toml" board="$DIR/board.hooks-profile.toml"
+  if codex_home_works_the_ticket_board "${CODEX_HOME_NAME:-codex}"; then
+    awk -v board="$board" '
+      /^# <<< dotfiles-codex-hooks <<</ { while ((getline line < board) > 0) print line; print "" }
+      { print }
+    ' "$base" > "$composed"
+  else
+    cp "$base" "$composed"
+  fi
+}
+
 sync_hooks_profile() {
-  local src="$DIR/base.hooks-profile.toml" target="$CODEX_HOME/config.toml"
+  local target="$CODEX_HOME/config.toml"
   local helper="$DIR/merge-hooks-profile"
-  [ -f "$src" ] || { echo "error: missing source: $src" >&2; exit 3; }
+  local src="$TMPDIR_SYNC/hooks-profile.toml"
+  [ -f "$DIR/base.hooks-profile.toml" ] || { echo "error: missing source: $DIR/base.hooks-profile.toml" >&2; exit 3; }
+  [ -f "$DIR/board.hooks-profile.toml" ] || { echo "error: missing source: $DIR/board.hooks-profile.toml" >&2; exit 3; }
+  compose_hooks_profile "$src"
 
   local diff_out rc
   if diff_out="$(python3 "$helper" --source "$src" --target "$target" --check 2>&1)"; then

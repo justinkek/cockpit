@@ -23,17 +23,6 @@
 
 # >>> dotfiles-codex-hooks (managed by agents/codex/settings) >>>
 
-# require-ticket.sh — PreToolUse poka-yoke. Denies Edit/Write/Bash until the
-# session registers a cockpit ticket. Uses JSON stdout protocol
-# (hookSpecificOutput with permissionDecision). NotebookEdit dropped (Codex has
-# no equivalent tool).
-[[hooks.PreToolUse]]
-matcher = "Edit|Write|Bash"
-
-[[hooks.PreToolUse.hooks]]
-type = "command"
-command = "$HOME/.cockpit/scripts/hooks/require-ticket.sh"
-
 # guard-bash-secret-read.sh — PreToolUse guard for Bash. Blocks shell commands
 # that would read secret files (cat .env, head id_rsa, etc.) — defense-in-depth
 # behind the permission profile's deny rules, which gate the agent's reader but

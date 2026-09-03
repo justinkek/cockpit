@@ -51,12 +51,17 @@ else
   C_RESET=''; C_HDR=''
 fi
 
+source "$DIR/homes.sh"
+
 status=0
 first=1
-for action in "${actions[@]}"; do
-  [ "$first" -eq 1 ] && first=0 || echo
-  name="$(basename "$(dirname "$action")")"
-  echo "${C_HDR}=== $name ===${C_RESET}"
-  bash "$action" "${args[@]+"${args[@]}"}" || status=$?
+for home in "${CODEX_HOMES[@]}"; do
+  for action in "${actions[@]}"; do
+    [ "$first" -eq 1 ] && first=0 || echo
+    name="$(basename "$(dirname "$action")")"
+    echo "${C_HDR}=== $name ($home) ===${C_RESET}"
+    CODEX_HOME="$(codex_home_dir "$home")" CODEX_HOME_NAME="$home" \
+      bash "$action" "${args[@]+"${args[@]}"}" || status=$?
+  done
 done
 exit "$status"

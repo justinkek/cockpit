@@ -1,0 +1,10 @@
+# require-ticket.sh — PreToolUse poka-yoke. Denies Edit/Write/Bash until the
+# session registers a cockpit ticket. Uses JSON stdout protocol
+# (hookSpecificOutput with permissionDecision). NotebookEdit dropped (Codex has
+# no equivalent tool). Merged only into a home reached through a wrapper.
+[[hooks.PreToolUse]]
+matcher = "Edit|Write|Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "$HOME/.cockpit/scripts/hooks/require-ticket.sh"
