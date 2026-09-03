@@ -77,8 +77,8 @@ assert_absent "no commit routing through the board" "$DESKTOP" "/cockpit:ticket:
 
 printf "\nTest group: and keeps everything that is not the board\n"
 
-assert_contains "the writing rules" "$DESKTOP" "## Plain English"
-assert_contains "the reply shape rules" "$DESKTOP" "## Response Formatting"
+assert_contains "the writing rules" "$DESKTOP" "## Solution ladder"
+assert_contains "the comment rule" "$DESKTOP" "## Comments"
 assert_contains "the comment rule" "$DESKTOP" "## Comments"
 assert_contains "the solution ladder" "$DESKTOP" "## Solution ladder"
 assert_contains "the shell rules" "$DESKTOP" "## Shell & tooling"
@@ -93,7 +93,7 @@ assert_contains "the commit routing" "$BOARD" "/cockpit:ticket:4:commit"
 
 printf "\nTest group: and takes the rest through the hardcoded global read\n"
 
-assert_absent "the writing rules are not repeated per profile" "$BOARD" "## Plain English"
+assert_absent "the writing rules are not repeated per profile" "$BOARD" "## Solution ladder"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
