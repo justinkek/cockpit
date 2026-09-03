@@ -37,6 +37,8 @@ A skill the plugin serves is invoked under the plugin's own name, so `skills/tic
 
 A plugin cannot carry always-on instructions, so the board's rules stay in the memory sync: `agents/shared/board.AGENTS.md` holds them and `sync.claude-md.sh` appends it to an account that works the board. The Claude adapter had no board section to move, so there is no `board.adapter.CLAUDE.md`; `sync.claude-md.sh` appends one if it ever appears.
 
+Codex has the same shape one level up: `agents/codex/homes.sh` names the two homes, `agents/codex/sync.sh` runs every concern once per home with `CODEX_HOME` and `CODEX_HOME_NAME` set, and `~/.codex` gets neither the board rules nor `board.hooks-profile.toml` while `~/.codex-cockpit` gets both. The shell wrapper that points `CODEX_HOME` at the second one lives in the dotfiles repository, not this one.
+
 `agents/claude/board-accounts.sh` is the one statement of which accounts those are, and both the settings sync and the memory sync read it. It sits beside `accounts.sh` rather than inside it because a test stubs `accounts.sh` to control the account list, and a stubbed-away answer here would quietly take the board off every account.
 
 The plugin reads the shared root and nothing reads back. Four libraries stay in `agents/claude/` because a hook or script that is not the board's own also reads them - `hook-argv-lib.sh`, `hook-stop-note-lib.sh`, `session-name-lib.sh` and `ticket-state-lib.sh` - and the plugin reaches each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home. `test-cockpit-plugin-manifest.sh` refuses an arrow in the other direction: a cycle would mean neither directory could be reasoned about alone.
