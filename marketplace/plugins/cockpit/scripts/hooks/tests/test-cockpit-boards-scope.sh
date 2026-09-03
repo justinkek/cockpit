@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-LIB="$(cd "$(dirname "$0")/../.." && pwd)/ticket-state-lib.sh"
+LIB="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)/ticket-state-lib.sh"
 TMPDIR="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TMPDIR"' EXIT
 

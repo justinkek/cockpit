@@ -9,7 +9,7 @@
 #
 set -euo pipefail
 
-source "$(dirname "$0")/ticket-state-lib.sh"
+source "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/ticket-state-lib.sh"
 
 column="${1:-}"
 if [ -z "$column" ]; then

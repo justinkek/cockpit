@@ -36,6 +36,7 @@ KEEP_BACKUPS=5
 # Account taxonomy (ACCOUNTS + acct_dir) is centralized in accounts.sh, shared
 # by every concern's sync script.
 source "$SHARED_DIR/accounts.sh"
+source "$SHARED_DIR/board-accounts.sh"
 
 # Keep only the newest KEEP_BACKUPS backups for a settings file; delete the
 # rest. Backup names end in YYYYMMDD-HHMMSS, so a plain sort is chronological.
@@ -102,6 +103,9 @@ for acct in "${ACCOUNTS[@]}"; do
   committed_base_json="$(cat "$BASE")"
   base_local_json='{}'; [ -f "$BASE_LOCAL" ] && base_local_json="$(cat "$BASE_LOCAL")"
   ovr_json='{}'; [ -f "$ovr" ]      && ovr_json="$(cat "$ovr")"
+  if ! account_works_the_ticket_board "$acct"; then
+    ovr_json="$(printf '%s' "$ovr_json" | jq '.enabledPlugins["cockpit@cockpit"] = false')"
+  fi
   cur_json='{}'; [ -f "$settings" ] && cur_json="$(cat "$settings")"
 
   base_json="$(jq -n \

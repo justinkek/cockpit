@@ -25,7 +25,7 @@ set -euo pipefail
 action="${1:-}"
 page="${2:-}"
 
-source "$(dirname "$0")/ticket-state-lib.sh"
+source "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/ticket-state-lib.sh"
 
 LOCK_DIR="${TICKET_CLAIM_LOCK_DIR:-$HOME/.local/state/claude-ticket-claims}"
 me="$(session_id)"

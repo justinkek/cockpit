@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 CLAIM="$(cd "$(dirname "$0")/../.." && pwd)/cockpit-board-claim"
-LIB_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+LIB_DIR="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
