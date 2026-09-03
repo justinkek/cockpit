@@ -1,5 +1,5 @@
 <a href="https://www.tldraw.com/f/mCZJU9e8_Bk_Y3N-Dxj1c?d=v-10235.-4373.21287.12349.page">
-  <img width="14414" height="6190" alt="image" src="https://github.com/user-attachments/assets/91082d1d-392b-431c-99ee-8db966fe7527" />
+  <img width="14414" height="6190" alt="image" src="https://github.com/user-attachments/assets/0685c77f-1cb9-4cf6-8754-f87353ac3a41" />
 </a>
 
 ## Install
