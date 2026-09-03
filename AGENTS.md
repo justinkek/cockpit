@@ -49,13 +49,13 @@ The marketplace source is a path inside this repository, so the plugin is only e
 
 ## The unsolicited-text plugin
 
-How a reply reads is not this repository's any more. Response formatting, plain english, the pre-send checklist and the line ceiling live in the `unsolicited-text` repository, a sibling checkout, and arrive as a plugin installed from `../unsolicited-text/harness-adapters/claude-code`. Its own session start hook prints its `AGENTS.md` into every session, so an edit to any of those four rules lands in that repository and not in `agents/shared/base.AGENTS.md`.
+How a reply reads is not this repository's any more. Response formatting, plain english, the pre-send checklist and the line ceiling live in the `unsolicited-text` repository, and arrive as a plugin installed from `justinkek/unsolicited-text`. Its own session start hook prints its `AGENTS.md` into every session, so an edit to any of those four rules lands in that repository and not in `agents/shared/base.AGENTS.md`.
 
 `note-long-reply.sh` and `remind-response-length.sh` went with them. `replay-stop-notes.sh`, `hook-stop-note-lib.sh` and `hook-transcript-lib.sh` stayed, because `note-unflagged-question.sh` and `advance-after-dev.sh` still record through them. The plugin carries its own copies of all three and writes to a notes directory of its own, so the two sets never drain each other.
 
 The clauses of those four rules that name the board stayed too, under `## Writing a reply about the board` in `board.AGENTS.md`. That plugin must not know a ticket board exists, and a test in its own repository refuses a board word anywhere in it.
 
-`../unsolicited-text/...` is the first marketplace source outside this repository. `sync.plugins.sh` resolves a source starting `../` as well as one starting `./`. The two checkouts being siblings is a convention between them rather than a machine's own path, so it stays in the committed manifest.
+`justinkek/unsolicited-text` is the first marketplace source outside this repository, and the first one nobody has to clone first. The manifest it is read from sits at that repository's root, which is where `claude plugin marketplace add` looks: an owner and repository shorthand names a repository and never a directory inside one.
 
 ## Sync concerns
 

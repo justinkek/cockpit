@@ -4,7 +4,7 @@
 		"claude-code-warp": "warpdotdev/claude-code-warp",
 		"claude-plugins-official": "anthropics/claude-plugins-official",
 		"cockpit": "./marketplace",
-		"unsolicited-text": "../unsolicited-text/harness-adapters/claude-code"
+		"unsolicited-text": "justinkek/unsolicited-text"
 	},
 	"plugins": {
 		"cockpit@cockpit": "user",
