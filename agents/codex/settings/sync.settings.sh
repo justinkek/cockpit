@@ -178,9 +178,10 @@ compose_hooks_profile() {
 sync_hooks_profile() {
   local target="$CODEX_HOME/config.toml"
   local helper="$DIR/merge-hooks-profile"
-  local src="$TMPDIR_SYNC/hooks-profile.toml"
-  [ -f "$DIR/base.hooks-profile.toml" ] || { echo "error: missing source: $DIR/base.hooks-profile.toml" >&2; exit 3; }
-  [ -f "$DIR/board.hooks-profile.toml" ] || { echo "error: missing source: $DIR/board.hooks-profile.toml" >&2; exit 3; }
+  local src="$TMPDIR_SYNC/composed.hooks-profile.toml"
+  local base="$DIR/base.hooks-profile.toml" board="$DIR/board.hooks-profile.toml"
+  [ -f "$base" ] || { echo "error: missing source: $base" >&2; exit 3; }
+  [ -f "$board" ] || { echo "error: missing source: $board" >&2; exit 3; }
   compose_hooks_profile "$src"
 
   local diff_out rc
