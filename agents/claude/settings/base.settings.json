@@ -277,10 +277,6 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/remind-response-length.sh"
-					},
-					{
-						"type": "command",
 						"command": "$HOME/.claude-shared/hooks/replay-stop-notes.sh"
 					}
 				]
@@ -289,10 +285,6 @@
 		"Stop": [
 			{
 				"hooks": [
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/note-long-reply.sh"
-					},
 					{
 						"type": "command",
 						"command": "$HOME/.claude-shared/hooks/note-unflagged-question.sh"
@@ -470,9 +462,7 @@
 	"awaySummaryEnabled": false,
 	"spinnerVerbs": {
 		"mode": "replace",
-		"verbs": [
-			"Working"
-		]
+		"verbs": ["Working"]
 	},
 	"enabledPlugins": {
 		"warp@claude-code-warp": true,
@@ -480,7 +470,8 @@
 		"notion@claude-plugins-official": true,
 		"github@claude-plugins-official": false,
 		"slack@claude-plugins-official": false,
-		"cockpit@cockpit": true
+		"cockpit@cockpit": true,
+		"unsolicited-text@unsolicited-text": true
 	},
 	"skillOverrides": {
 		"artifact-design": "off",

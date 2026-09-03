@@ -314,7 +314,6 @@ not_yet_named=(
   "redirect-state-to-read-write.sh"
   "refresh-cockpit-cache.sh"
   "remind-back-from-column.sh"
-  "remind-response-length.sh"
   "require-blocked-comment.sh"
   "require-emoji.sh"
   "require-rename.sh"

@@ -57,14 +57,14 @@ printf "Test group: the home an unwrapped launch lands in loses the board\n"
 
 assert_absent "no ticket registration rule" "$UNWRAPPED" "Cockpit URL-first"
 assert_absent "no claim lock rule" "$UNWRAPPED" "## Claim locks"
-assert_contains "and keeps the writing rules" "$UNWRAPPED" "## Plain English"
+assert_contains "and keeps the writing rules" "$UNWRAPPED" "## Solution ladder"
 assert_contains "and the solution ladder" "$UNWRAPPED" "## Solution ladder"
 
 printf "\nTest group: the home a wrapper points at gets the board\n"
 
 assert_contains "the ticket registration rule" "$WRAPPED" "Cockpit URL-first"
 assert_contains "the claim lock rule" "$WRAPPED" "## Claim locks"
-assert_contains "and the writing rules too" "$WRAPPED" "## Plain English"
+assert_contains "and the writing rules too" "$WRAPPED" "## Solution ladder"
 
 printf "\nTest group: the ticket gate is in the board hooks profile alone\n"
 

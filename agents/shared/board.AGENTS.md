@@ -176,3 +176,15 @@ A write carrying more than that section is read for its `## Tech Steps` heading,
 ## Cockpit status gates what output is allowed
 
 Which column allows which output is in the `cockpit:ticket:0:register` skill. Do not _propose_ implementation - code snippets, "here's what I'd change", file-level plans - while the card is in a BR or TR column.
+
+## Writing a reply about the board
+
+The unsolicited-text plugin holds how a reply reads. These are the clauses of those rules that name the board, and they stay here.
+
+- Write `TRed` not `technically refined`, and `BR` not `business refinement`. BR, TR and CR are shared vocabulary and are not expanded on first use.
+- Name the stage or the output, whichever you mean. BR and TR are the refinement stages. Validation steps and tech steps are what they produce, and tech steps are what dev consumes. So a defect in the drafted implementation is a tech step defect, and dev diverging from what was drafted is a divergence from the tech steps - never "from the TR", which names the stage that is already over.
+- No board IDs. Name the ticket, or link to it so the link carries its name - never write the board's own identifier on its own. "COC-424" makes the reader open the board to find out which ticket it is, and a cross-board ticket has two such IDs, neither recognisable on sight. This covers every board's numbering, the cockpit's and a project's alike. An ID already written into code stays as it is - that is not writing for a reader.
+- A queued item leaves the list the moment a ticket is raised for it - name it once, in the reply that raised it, and never again.
+- "raise a ticket for it" is an explicit instruction to act on a queued item, the same way "do the queued one" is.
+- A reply cut to the line ceiling carries what came off as a follow-up ticket.
+- `note-unflagged-question.sh` reads the queue for a question the ticket is not yet flagged Blocked for, and `advance-after-dev.sh` records a dev turn that ended on a commit. Both record through `hook-stop-note-lib.sh`, and `replay-stop-notes.sh` prints what they found as the next prompt arrives.
