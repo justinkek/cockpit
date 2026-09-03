@@ -105,7 +105,7 @@ marketplace_source_path() {
     printf '%s' "$1"
     return 0
   fi
-  repository="$(cd "$(dirname "$MANIFEST")/../../.." && pwd -P)" || return 1
+  repository="$(cd "$(dirname "$MANIFEST")" && cd "$(pwd -P)/../../.." && pwd -P)" || return 1
   [ -d "$repository/${1#./}" ] || return 1
   printf '%s/%s' "$repository" "${1#./}"
 }
@@ -155,7 +155,7 @@ if [ "$MODE" = "apply" ]; then
       loc="$(jq -r --arg n "$name" '.[$n].installLocation // empty' "$dir/plugins/known_marketplaces.json" 2>/dev/null || true)"
       if [ -z "$loc" ]; then
         if ! source_path="$(marketplace_source_path "$source")"; then
-          echo "  ${C_RED}! marketplace $name source '$source' is not a directory under $(dirname "$MANIFEST")/../../..${C_RESET}"
+          echo "  ${C_RED}! marketplace $name source '$source' is not a directory in the repository holding $MANIFEST${C_RESET}"
         elif "$CLAUDE_BIN" plugin marketplace add "$source_path" </dev/null >/dev/null 2>&1; then
           echo "  ${C_GREEN}+ marketplace $name added${C_RESET}"
         else
