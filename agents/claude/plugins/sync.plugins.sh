@@ -94,7 +94,7 @@ MANIFEST="${CLAUDE_PLUGINS_MANIFEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pw
 
 source_is_repository_relative() {
   case "$1" in
-    ./*) return 0 ;;
+    ./* | ../*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -106,12 +106,12 @@ marketplace_source_path() {
     return 0
   fi
   repository="$(cd "$(dirname "$MANIFEST")" && cd "$(pwd -P)/../../.." && pwd -P)" || return 1
-  [ -d "$repository/${1#./}" ] || return 1
-  printf '%s/%s' "$repository" "${1#./}"
+  [ -d "$repository/$1" ] || return 1
+  (cd "$repository/$1" && pwd -P) || return 1
 }
 
 locally_served_marketplaces() {
-  jq --raw-output '.marketplaces | to_entries[] | select(.value | startswith("./")) | .key' "$MANIFEST" 2>/dev/null || true
+  jq --raw-output '.marketplaces | to_entries[] | select(.value | startswith("./") or startswith("../")) | .key' "$MANIFEST" 2>/dev/null || true
 }
 
 LOCALLY_SERVED=" $(locally_served_marketplaces | tr '\n' ' ') "
