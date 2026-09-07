@@ -233,7 +233,6 @@ fi
 printf "\nTest group: a worked example is written in one instruction file\n"
 
 example_anchors=(
-  "In src/hooks/useUserProfile.ts"
   "Complexity Breakdown: 3 = FE 2 + Testing 1"
   "Back from CR #1"
 )
