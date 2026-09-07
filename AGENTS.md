@@ -76,9 +76,17 @@ A script that records session state writes its sidecar under the id the shell re
 
 `bash ~/.claude-shared/hooks/tests/test-ticket-state-confirm.sh` covers what each of them confirms.
 
+## The tech-ref plugin
+
+How an implementation step is written is not this repository's any more. The file tree, the sequence flow, the layer and concern tables, the format rules, the five opening verbs and the layer-sum arithmetic live in the `tech-ref` repository, and arrive as a plugin installed from `justinkek/tech-ref`. An edit to any of them lands there and not in the `cockpit:ticket:2:tr` skill.
+
+`guard-tech-steps.sh` and its test went with them. What stayed is everything a card needs: reading a section, writing the page, the section order, the content gates, the reference work a complexity figure is compared against, and the split threshold. The `Board` layer stayed too - the plugin must not know a ticket board exists, and a test in its own repository refuses a board word anywhere in it.
+
+The plugin registers its guard on file edits alone, so `spawn-plugin-guard.sh` is what reaches it from a page write. That script is the only place a page tool and a plugin guard are named together.
+
 ## The drawings that open the tech steps
 
-A file tree in a `diff` block and, when the change spans more than one call, a sequence flow in a `mermaid` block sit above the first layer toggle. The markers, the joins, the headings, the sentence column and the shading are all in the `cockpit:ticket:2:tr` skill.
+A file tree in a `diff` block and, when the change spans more than one call, a sequence flow in a `mermaid` block sit above the first layer toggle. The markers, the joins, the headings, the sentence column and the shading are all in `rules/tech-steps.md`, which the tech-ref plugin carries.
 
 ## Core instructions and on-demand references
 

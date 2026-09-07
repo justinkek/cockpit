@@ -169,7 +169,7 @@ The routing rule is above, and `cockpit-cache-query` itself carries the key list
 
 ## What a tech steps write is held to
 
-`guard-tech-steps.sh` reads a write to `## Tech Steps` and refuses it on every line breaking a rule it can check: the opening verb of a summary, a `so ...` clause, a tree line's marker, a file line joined to no folder above it, a heading's width, the sentence column, a path written twice in one tree, a flow missing `title` or `autonumber`, and a shading colour outside the two allowed. Every rule it holds is stated in the `cockpit:ticket:2:tr` skill; the guard states none of them itself.
+The tech-ref plugin carries the guard, and `rules/tech-steps.md` in it carries every rule the guard holds. The board owns only how it is reached: `spawn-plugin-guard.sh` is registered on the page-write tool, finds the plugin's guard under the account's plugin directory, and hands it the write. The plugin registers on file edits alone and never learns which page tool this board uses.
 
 A write carrying more than that section is read for its `## Tech Steps` heading, and every line under another heading passes unread - a whole-page write is held to the rules over its tech steps alone. A heading inside a fenced code block is code rather than a heading, and switches nothing off. A write carrying no heading at all is read whole, which is what a write of the tech steps on their own is.
 
