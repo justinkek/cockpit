@@ -110,7 +110,7 @@
 					},
 					{
 						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-tech-steps.sh"
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/spawn-plugin-guard.sh guard-tech-steps.sh"
 					}
 				]
 			},
