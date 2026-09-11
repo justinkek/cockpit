@@ -1,21 +1,14 @@
 # Per-user Codex home overlay. Copy this to homes.local.sh (same directory) and
 # list the Codex homes you run. homes.local.sh is untracked.
-#
-# Naming convention (from homes.sh): a home <name> -> ~/.<name>. So usually you
-# only set CODEX_HOMES:
 CODEX_HOMES=(codex-cockpit)
 
-# `codex` is the home a launch outside the codex-<name> wrappers lands in, which
-# is the desktop app. Add it only if you want the shared rules and settings there
-# too; it still gets no board rules and no board hooks profile:
+# `codex` is the desktop app's home. Add it to get the shared rules and settings
+# there too; it still gets none of the board:
 #
 # CODEX_HOMES=(codex codex-cockpit)
 
-# `codex-vanilla` is the wrapper that runs with none of this, so it is refused
-# here.
-#
 # If one of your homes doesn't follow the ~/.<name> pattern, redefine
-# codex_home_dir too, e.g.:
+# codex_home_dir too:
 #
 # codex_home_dir() {
 #   case "$1" in

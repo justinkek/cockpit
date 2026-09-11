@@ -45,8 +45,8 @@ cp "$REPO/agents/shared/base.AGENTS.md" "$AGENTS_SHARED/base.AGENTS.md"
 cp "$REPO/agents/shared/board.AGENTS.md" "$AGENTS_SHARED/board.AGENTS.md"
 cp "$REPO/agents/shared/prompts.sh" "$AGENTS_SHARED/prompts.sh"
 
-# The overlay is untracked and lives beside homes.sh, so a run that needs one
-# gets its own copy of agents/codex rather than writing into the checkout.
+# The overlay lives beside homes.sh, so a run that needs one gets its own copy
+# of agents/codex rather than writing into the checkout.
 codex_tree_with_overlay() {
   local dest="$1" overlay="$2"
   cp -R "$REPO/agents/codex" "$dest"
@@ -54,7 +54,6 @@ codex_tree_with_overlay() {
   printf '%s' "$dest"
 }
 
-# Runs the AGENTS.md concern against a private HOME and echoes that HOME.
 run_agents_md() {
   local codex_dir="$1" probe_home="$2"
   mkdir -p "$probe_home"

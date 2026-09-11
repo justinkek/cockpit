@@ -3,17 +3,12 @@
 # homes.sh — single source of truth for the Codex home taxonomy.
 #
 # Sourced (not executed) by agents/codex/sync.sh and by every concern's
-# sync.*.sh, so the home list lives in exactly one place instead of being
-# copy-pasted into each. Defines:
+# sync.*.sh. Defines:
 #   CODEX_HOMES      — ordered, deterministic list of home names to sync.
 #   codex_home_dir() — maps a home name to its Codex config dir.
 
-# Default list — overridden by homes.local.sh if present.
 CODEX_HOMES=(codex-cockpit)
 
-# Naming convention: a home <name> maps to ~/.<name>. `codex` is the one a
-# launch outside the codex-<name> wrappers lands in, which is the Codex desktop
-# app, so it is not in the default list and stays as the app ships it.
 codex_home_dir() {
   printf '%s' "$HOME/.$1"
 }
@@ -26,9 +21,6 @@ codex_home_works_the_ticket_board() {
   ! codex_home_reached_without_a_wrapper "$1"
 }
 
-# The orchestrator sets CODEX_HOME and CODEX_HOME_NAME once per home. A worker
-# reached any other way has no home to sync, and a fallback here would write
-# whichever home the shell happens to point at.
 codex_home_from_environment() {
   if [ -n "${CODEX_HOME:-}" ] && [ -n "${CODEX_HOME_NAME:-}" ]; then
     return 0
@@ -37,10 +29,6 @@ codex_home_from_environment() {
   exit 1
 }
 
-# Per-user overlay (untracked): may reassign CODEX_HOMES and/or redefine
-# codex_home_dir. Locating it needs BASH_SOURCE (bash-only). If this file is
-# ever sourced from a non-bash shell, fail loudly rather than silently skip the
-# overlay and run with the wrong home list.
 if [ -z "${BASH_SOURCE:-}" ]; then
   echo "homes.sh: must be sourced from bash (per-user overlay would be skipped)" >&2
   return 1 2>/dev/null || exit 1

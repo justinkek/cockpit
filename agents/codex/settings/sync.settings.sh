@@ -26,8 +26,7 @@
 #
 # NOT synced (deferred): MCP servers, env.
 #
-# One home per run: agents/codex/sync.sh loops over homes.sh and sets CODEX_HOME
-# and CODEX_HOME_NAME for each, so this script never picks a home of its own.
+# One home per run: agents/codex/sync.sh sets CODEX_HOME and CODEX_HOME_NAME.
 #
 # Usage: sync.settings.sh [--check|--apply] [--yes]
 #   (default) --apply : interactive — show diff, prompt y/N, back up, write
