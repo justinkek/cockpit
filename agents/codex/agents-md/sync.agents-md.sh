@@ -29,9 +29,10 @@ AGENTS_SHARED_DIR="${AGENTS_SHARED_DIR:-$HOME/.agents-shared}"
 BASE="$AGENTS_SHARED_DIR/base.AGENTS.md"
 BOARD_BASE="$AGENTS_SHARED_DIR/board.AGENTS.md"
 source "$DIR/../homes.sh"
+codex_home_from_environment
 
 OVR="$DIR/adapter.CODEX.md"                         # optional Codex-only additions
-TARGET="${CODEX_HOME:-$HOME/.codex}/AGENTS.md"
+TARGET="$CODEX_HOME/AGENTS.md"
 
 # How many timestamped AGENTS.md.bak-* files to keep. Older ones are pruned
 # lazily each time a new backup is written on apply.
@@ -75,7 +76,7 @@ prune_backups() {
 # final = base, plus the override appended below a blank line (if non-empty).
 # $(cat ...) strips trailing newlines, so comparison is newline-agnostic.
 final="$(cat "$BASE")"
-if codex_home_works_the_ticket_board "${CODEX_HOME_NAME:-codex}"; then
+if codex_home_works_the_ticket_board "$CODEX_HOME_NAME"; then
   final="$final"$'\n\n'"$(cat "$BOARD_BASE")"
 fi
 [ -s "$OVR" ] && final="$final"$'\n\n'"$(cat "$OVR")"

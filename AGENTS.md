@@ -39,7 +39,13 @@ A skill the plugin serves is invoked under the plugin's own name, so `skills/tic
 
 A plugin cannot carry always-on instructions, so the board's rules stay in the memory sync: `agents/shared/board.AGENTS.md` holds them and `sync.claude-md.sh` appends it to an account that works the board. The Claude adapter had no board section to move, so there is no `board.adapter.CLAUDE.md`; `sync.claude-md.sh` appends one if it ever appears.
 
-Codex has the same shape one level up: `agents/codex/homes.sh` names the two homes, `agents/codex/sync.sh` runs every concern once per home with `CODEX_HOME` and `CODEX_HOME_NAME` set, and `~/.codex` gets neither the board rules nor `board.hooks-profile.toml` while `~/.codex-cockpit` gets both. The shell wrapper that points `CODEX_HOME` at the second one lives in the dotfiles repository, not this one.
+Codex has the same shape one level up: `agents/codex/homes.sh` names the homes, `agents/codex/sync.sh` runs every concern once per home with `CODEX_HOME` and `CODEX_HOME_NAME` set, and a home that works the board gets the board rules and `board.hooks-profile.toml` on top of the shared ones. The shell wrapper that points `CODEX_HOME` at `~/.codex-cockpit` lives in the dotfiles repository, not this one.
+
+A launch that reaches no wrapper lands in `~/.codex`, which is the desktop app, so `homes.sh` defaults to `~/.codex-cockpit` alone and `homes.local.sh` is where a machine adds anything else. `agents/claude/accounts.sh` splits the two the same way, with `~/.claude` in `accounts.local.sh` rather than the default list. Adding the unwrapped home back is a per-machine call and still gets it none of the board, because `codex_home_reached_without_a_wrapper` answers on the name rather than on the list.
+
+A worker reached outside `sync.sh` has no home to sync, so `codex_home_from_environment` refuses it. Defaulting `CODEX_HOME` to `~/.codex` is what wrote the desktop app's own config from a script nobody meant to point there.
+
+`codex-vanilla` names the wrapper that runs with none of this, so `homes.sh` refuses it as a sync target. `agents/claude/accounts.sh` refuses `vanilla` for the same reason.
 
 `agents/claude/board-accounts.sh` is the one statement of which accounts those are, and both the settings sync and the memory sync read it. It sits beside `accounts.sh` rather than inside it because a test stubs `accounts.sh` to control the account list, and a stubbed-away answer here would quietly take the board off every account.
 
