@@ -81,6 +81,9 @@ def merge(target_text, status_line):
             body.pop()
         body.extend([MARK_START, status_line, MARK_END])
 
+    while body and not body[-1].strip():
+        body.pop()
+
     suffix = lines[end:]
     if suffix:
         body.append("")
