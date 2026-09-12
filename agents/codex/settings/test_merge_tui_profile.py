@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 
-SETTINGS_DIR = Path(__file__).parent
+SETTINGS_DIR = Path(__file__).resolve().parent
+CODEX_DIR = SETTINGS_DIR.parent
+REPO = CODEX_DIR.parent.parent
 MERGER = SETTINGS_DIR / "merge-tui-profile"
 SOURCE = SETTINGS_DIR / "base.tui-profile.toml"
-SYNC = SETTINGS_DIR / "sync.settings.sh"
 
 
 class MergeTuiProfileTest(unittest.TestCase):
@@ -72,6 +74,49 @@ class MergeTuiProfileTest(unittest.TestCase):
                 target.read_text(),
             )
 
+    def test_stays_byte_identical_when_a_table_follows_tui(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "config.toml"
+            target.write_text(
+                '[tui]\n'
+                '# >>> dotfiles-codex-status-line (managed by agents/codex/settings) >>>\n'
+                'status_line = ["current-dir"]\n'
+                '# <<< dotfiles-codex-status-line <<<\n\n'
+                '[marketplaces.example]\n'
+                'source_type = "local"\n'
+            )
+
+            first = subprocess.run(
+                [MERGER, "--source", SOURCE, "--target", target, "--apply"],
+                capture_output=True,
+                text=True,
+            )
+            after_first = target.read_text()
+            second = subprocess.run(
+                [MERGER, "--source", SOURCE, "--target", target, "--apply"],
+                capture_output=True,
+                text=True,
+            )
+            checked = subprocess.run(
+                [MERGER, "--source", SOURCE, "--target", target, "--check"],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertEqual(target.read_text(), after_first)
+            self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+            self.assertEqual(
+                after_first,
+                '[tui]\n'
+                '# >>> dotfiles-codex-status-line (managed by agents/codex/settings) >>>\n'
+                'status_line = ["model-with-reasoning", "used-tokens", "five-hour-limit", "thread-title"]\n'
+                '# <<< dotfiles-codex-status-line <<<\n\n'
+                '[marketplaces.example]\n'
+                'source_type = "local"\n',
+            )
+
     def test_creates_tui_table_without_changing_other_tables(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "config.toml"
@@ -118,19 +163,39 @@ class MergeTuiProfileTest(unittest.TestCase):
 
     def test_sync_check_reports_status_line_drift(self):
         with tempfile.TemporaryDirectory() as tmp:
-            codex_home = Path(tmp) / ".codex"
-            codex_home.mkdir()
+            probe_home = Path(tmp) / "home"
+            codex_home = probe_home / ".codex-cockpit"
+            codex_home.mkdir(parents=True)
             (codex_home / "config.toml").write_text('[tui]\nanimations = false\n')
 
+            agents_shared = Path(tmp) / "agents-shared"
+            agents_shared.mkdir()
+            shutil.copy(REPO / "agents/shared/prompts.sh", agents_shared / "prompts.sh")
+
             result = subprocess.run(
-                [SYNC, "--check"],
-                env={**os.environ, "CODEX_HOME": str(codex_home)},
+                [CODEX_DIR / "sync.sh", "settings", "--check"],
+                env={
+                    "PATH": os.environ["PATH"],
+                    "HOME": str(probe_home),
+                    "AGENTS_SHARED_DIR": str(agents_shared),
+                },
                 capture_output=True,
                 text=True,
             )
 
-            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
             self.assertIn("config.toml  status line DRIFT", result.stdout)
+
+    def test_worker_run_outside_the_orchestrator_is_refused(self):
+        result = subprocess.run(
+            ["bash", SETTINGS_DIR / "sync.settings.sh", "--check"],
+            env={"PATH": os.environ["PATH"], "HOME": "/nonexistent"},
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("sync.sh", result.stderr)
 
 
 if __name__ == "__main__":
