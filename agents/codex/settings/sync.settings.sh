@@ -26,8 +26,7 @@
 #
 # NOT synced (deferred): MCP servers, env.
 #
-# Single target: one global Codex home, so no per-account loop yet (add a
-# codex/accounts.sh twin when you run more than one CODEX_HOME).
+# One home per run: agents/codex/sync.sh sets CODEX_HOME and CODEX_HOME_NAME.
 #
 # Usage: sync.settings.sh [--check|--apply] [--yes]
 #   (default) --apply : interactive — show diff, prompt y/N, back up, write
@@ -38,9 +37,9 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 AGENTS_SHARED_DIR="${AGENTS_SHARED_DIR:-$HOME/.agents-shared}"
 source "$DIR/../homes.sh"
+codex_home_from_environment
 TMPDIR_SYNC="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_SYNC"' EXIT
 
@@ -165,7 +164,7 @@ sync_config_profile() {
 # Merge the hooks profile into config.toml via the targeted helper.
 compose_hooks_profile() {
   local composed="$1" base="$DIR/base.hooks-profile.toml" board="$DIR/board.hooks-profile.toml"
-  if codex_home_works_the_ticket_board "${CODEX_HOME_NAME:-codex}"; then
+  if codex_home_works_the_ticket_board "$CODEX_HOME_NAME"; then
     awk -v board="$board" '
       /^# <<< dotfiles-codex-hooks <<</ { while ((getline line < board) > 0) print line; print "" }
       { print }

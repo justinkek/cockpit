@@ -1,0 +1,18 @@
+# Per-user Codex home overlay. Copy this to homes.local.sh (same directory) and
+# list the Codex homes you run. homes.local.sh is untracked.
+CODEX_HOMES=(codex-cockpit)
+
+# `codex` is the desktop app's home. Add it to get the shared rules and settings
+# there too; it still gets none of the board:
+#
+# CODEX_HOMES=(codex codex-cockpit)
+
+# If one of your homes doesn't follow the ~/.<name> pattern, redefine
+# codex_home_dir too:
+#
+# codex_home_dir() {
+#   case "$1" in
+#     codex-work) printf '%s' "$HOME/.config/codex-work" ;;
+#     *)          printf '%s' "$HOME/.$1" ;;
+#   esac
+# }
