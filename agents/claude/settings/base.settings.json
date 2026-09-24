@@ -413,15 +413,6 @@
 						"command": "$HOME/.claude-shared/hooks/require-skill-guidance.sh record"
 					}
 				]
-			},
-			{
-				"matcher": "Edit|Write|Bash",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/challenge-code-comment.sh"
-					}
-				]
 			}
 		],
 		"PostToolUse": [
@@ -472,7 +463,8 @@
 		"slack@claude-plugins-official": false,
 		"cockpit@cockpit": true,
 		"tech-ref@tech-ref": true,
-		"unsolicited-text@unsolicited-text": true
+		"unsolicited-text@unsolicited-text": true,
+		"unsolicited-comments@unsolicited-comments": true
 	},
 	"skillOverrides": {
 		"artifact-design": "off",

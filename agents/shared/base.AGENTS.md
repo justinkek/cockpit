@@ -61,20 +61,6 @@ Treat each code-review comment as a defect, applying the same root-cause/fix/pre
 
 Read `~/.claude-shared/templates/coding-conventions.md` before writing or changing code.
 
-## Comments
-
-Write no comment by default. A comment earns its place only when it states something the code cannot: a non-obvious constraint, a library behaviour that forced the shape, or a decision and the boundary it holds within.
-
-Never restate the identifier the comment sits on, or the line below it. If it reads as a paraphrase of the name, delete it and fix the name instead.
-
-An edit that adds a comment is refused outright, and there is no escape hatch: a yes in chat does not unlock it. When something genuinely needs saying, carry it one of these ways instead - assert the invariant at runtime using a value the code already has; name the function or variable so the constraint reads off the code; write a test whose failure teaches it; write it up in the repo's own docs, separate from the code. Only when none of those can carry it, say what you would write and where, and leave it for the user to add by hand.
-
-A comment sitting in code you are changing is part of that change. Work out what it is holding, carry it one of the ways above, and delete it in the same edit. Leaving it is not neutral - the change may have already made it false.
-
-The boundary is the code you are already changing: not every comment in a file you opened, and never a sweep of the repo. When nothing above can hold what the comment says, it stays where it is and you say so.
-
-A comment describing what a call does or returns must be checked against the code that implements it, and should name that function. Prefer a name that makes the comment unnecessary.
-
 ## Notion page formatting
 
 Read `~/.claude-shared/templates/notion-writing.md` before writing to a Notion page.

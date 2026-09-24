@@ -5,11 +5,13 @@
 		"claude-plugins-official": "anthropics/claude-plugins-official",
 		"cockpit": "./marketplace",
 		"tech-ref": "justinkek/tech-ref",
+		"unsolicited-comments": "justinkek/unsolicited-comments",
 		"unsolicited-text": "justinkek/unsolicited-text"
 	},
 	"plugins": {
 		"cockpit@cockpit": "user",
 		"tech-ref@tech-ref": "user",
+		"unsolicited-comments@unsolicited-comments": "user",
 		"unsolicited-text@unsolicited-text": "user",
 		"warp@claude-code-warp": "user",
 		"notion@claude-plugins-official": "user",

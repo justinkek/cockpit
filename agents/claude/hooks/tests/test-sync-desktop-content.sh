@@ -78,8 +78,6 @@ assert_absent "no commit routing through the board" "$DESKTOP" "/cockpit:ticket:
 printf "\nTest group: and keeps everything that is not the board\n"
 
 assert_contains "the writing rules" "$DESKTOP" "## Solution ladder"
-assert_contains "the comment rule" "$DESKTOP" "## Comments"
-assert_contains "the comment rule" "$DESKTOP" "## Comments"
 assert_contains "the solution ladder" "$DESKTOP" "## Solution ladder"
 assert_contains "the shell rules" "$DESKTOP" "## Shell & tooling"
 assert_contains "the Claude adapter" "$DESKTOP" "## Claude directories"
