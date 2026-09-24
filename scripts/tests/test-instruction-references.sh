@@ -299,7 +299,6 @@ not_yet_named=(
   "cockpit-board-claim"
   "cockpit-board-id"
   "cockpit-cache-refresh"
-  "confine-to-repo.sh"
   "guard-bash-secret-read.sh"
   "guard-env-var-leak.sh"
   "guard-gh-api.sh"
