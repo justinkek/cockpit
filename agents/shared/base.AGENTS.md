@@ -92,8 +92,6 @@ Don't `cd` to the working directory - you're already there. Use absolute paths f
 
 Don't prefix Bash commands with `set -euo pipefail` - the flags prevent allowlist matching.
 
-Name every shell variable with the whole word - `encoded` not `enc`, `command` not `cmd`. Write every command option in its long form - `git --message` not `git -m`, `jq --raw-output` not `jq -r`. Both apply to shell you write into a file and to one-off commands you run. Where a tool offers no long form for an option, the short one stands: much of the base Unix toolset has none, and a shell test like `[ -n "$value" ]` never had one. The `guard-shell-readability.sh` hook refuses an edit or a command that breaks either rule, counting only what is newly added.
-
 For any GitHub data pull, use a single `gh api <endpoint> --jq '<expr>'` and let `jq` do any grouping/formatting. Don't pipe to `python3`/`node` for post-processing - the arbitrary-code segment forces a permission prompt and can't be allowlisted.
 
 ## Artifacts
