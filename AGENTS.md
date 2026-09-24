@@ -63,6 +63,12 @@ The clauses of those four rules that name the board stayed too, under `## Writin
 
 `justinkek/unsolicited-text` is the first marketplace source outside this repository, and the first one nobody has to clone first. The manifest it is read from sits at that repository's root, which is where `claude plugin marketplace add` looks: an owner and repository shorthand names a repository and never a directory inside one.
 
+## The unsolicited-comments plugin
+
+Whether code may carry a comment is not this repository's any more. The rules and the hook that refuses an edit adding a comment line live in the `unsolicited-comments` repository, and arrive as a plugin installed from `justinkek/unsolicited-comments`. An edit to either lands there and not in `agents/shared/base.AGENTS.md` or `agents/claude/hooks/`.
+
+The plugin's session start hook prints its rules, so a Codex home, which installs no plugin, no longer reads them.
+
 ## Sync concerns
 
 A concern is a folder holding a `sync.*.sh`. The orchestrator (`agents/*/sync.sh`) globs them, so a new folder is picked up with no registration step.

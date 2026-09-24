@@ -294,7 +294,6 @@ not_yet_named=(
   "auto-sync-config.sh"
   "block-user-claudemd.sh"
   "block-user-settings.sh"
-  "challenge-code-comment.sh"
   "challenge-memory-write.sh"
   "challenge-settings-scope.sh"
   "cockpit-board-claim"
