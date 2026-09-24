@@ -4,11 +4,13 @@
 		"claude-code-warp": "warpdotdev/claude-code-warp",
 		"claude-plugins-official": "anthropics/claude-plugins-official",
 		"cockpit": "./marketplace",
+		"readable-shell": "justinkek/readable-shell",
 		"tech-ref": "justinkek/tech-ref",
 		"unsolicited-text": "justinkek/unsolicited-text"
 	},
 	"plugins": {
 		"cockpit@cockpit": "user",
+		"readable-shell@readable-shell": "user",
 		"tech-ref@tech-ref": "user",
 		"unsolicited-text@unsolicited-text": "user",
 		"warp@claude-code-warp": "user",

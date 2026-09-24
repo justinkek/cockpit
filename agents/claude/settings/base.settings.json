@@ -299,10 +299,6 @@
 					{
 						"type": "command",
 						"command": "$HOME/.claude-shared/hooks/challenge-memory-write.sh"
-					},
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-shell-readability.sh"
 					}
 				]
 			},
@@ -471,6 +467,7 @@
 		"github@claude-plugins-official": false,
 		"slack@claude-plugins-official": false,
 		"cockpit@cockpit": true,
+		"readable-shell@readable-shell": true,
 		"tech-ref@tech-ref": true,
 		"unsolicited-text@unsolicited-text": true
 	},

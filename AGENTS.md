@@ -90,6 +90,14 @@ How an implementation step is written is not this repository's any more. The fil
 
 The plugin registers its guard on file edits alone, so `spawn-plugin-guard.sh` is what reaches it from a page write. That script is the only place a page tool and a plugin guard are named together.
 
+## The readable-shell plugin
+
+Whole-word variable names and long-form options are not this repository's any more. The rule text, the guard, its command list and its abbreviation list live in the `readable-shell` repository, and arrive as a plugin installed from `justinkek/readable-shell`. An edit to either rule, or to what it refuses, lands there and not in `agents/shared/base.AGENTS.md`.
+
+The rest of `## Shell & tooling` stayed - the `cd` rule, the `set -euo pipefail` rule and the `gh api --jq` rule belong to no plugin.
+
+A project narrows or widens the lists in its own `.readable-shell/settings`, so a change this repository alone wants goes there rather than into the plugin.
+
 ## The drawings that open the tech steps
 
 A file tree in a `diff` block and, when the change spans more than one call, a sequence flow in a `mermaid` block sit above the first layer toggle. The markers, the joins, the headings, the sentence column and the shading are all in `rules/tech-steps.md`, which the tech-ref plugin carries.
