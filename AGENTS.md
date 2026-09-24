@@ -69,6 +69,14 @@ Whether code may carry a comment is not this repository's any more. The rules an
 
 The plugin's session start hook prints its rules, so a Codex home, which installs no plugin, no longer reads them.
 
+## The guard-secrets plugin
+
+Which credentials a tool call may reach is not this repository's any more. The env file refusal, the gitignore ask, the credential store and secret file refusals and the environment variable refusal live in the `guard-secrets` repository, and arrive as a plugin installed from `justinkek/guard-secrets`. An edit to any of them lands there and not in `agents/claude/hooks/` or `agents/shared/hooks/`.
+
+`redirect-session-id-echo.sh` stayed: it corrects a variable name and guards no secret.
+
+A Codex home installs no plugin, so its hooks profile no longer carries a secret guard of its own.
+
 ## Sync concerns
 
 A concern is a folder holding a `sync.*.sh`. The orchestrator (`agents/*/sync.sh`) globs them, so a new folder is picked up with no registration step.

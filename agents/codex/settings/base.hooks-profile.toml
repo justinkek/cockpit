@@ -8,8 +8,8 @@
 # codex-rs/hooks/src/events/pre_tool_use.rs).
 #
 # Only hooks whose tool_input format is compatible are ported here. Hooks that
-# parse tool_input.file_path (block-user-claudemd, guard-secrets-gitignore,
-# confine-to-repo) need adaptation for Codex's apply_patch format (which sends
+# parse tool_input.file_path (block-user-claudemd, confine-to-repo) need
+# adaptation for Codex's apply_patch format (which sends
 # {"command": "<patch>"} instead of {"file_path": "..."}) — deferred to a
 # follow-up ticket.
 #
@@ -22,16 +22,5 @@
 # the hooks when prompted — they stay trusted until the command text changes.
 
 # >>> dotfiles-codex-hooks (managed by agents/codex/settings) >>>
-
-# guard-bash-secret-read.sh — PreToolUse guard for Bash. Blocks shell commands
-# that would read secret files (cat .env, head id_rsa, etc.) — defense-in-depth
-# behind the permission profile's deny rules, which gate the agent's reader but
-# not arbitrary shell commands.
-[[hooks.PreToolUse]]
-matcher = "Bash"
-
-[[hooks.PreToolUse.hooks]]
-type = "command"
-command = "$HOME/.claude-shared/hooks/guard-bash-secret-read.sh"
 
 # <<< dotfiles-codex-hooks <<<

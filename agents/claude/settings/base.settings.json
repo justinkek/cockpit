@@ -346,15 +346,6 @@
 				]
 			},
 			{
-				"matcher": "Read|Edit|Write",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-secrets-gitignore.sh"
-					}
-				]
-			},
-			{
 				"matcher": "Write",
 				"hooks": [
 					{
@@ -375,14 +366,6 @@
 			{
 				"matcher": "Bash",
 				"hooks": [
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-bash-secret-read.sh"
-					},
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/guard-env-var-leak.sh"
-					},
 					{
 						"type": "command",
 						"command": "$HOME/.claude-shared/hooks/redirect-session-id-echo.sh"
@@ -464,7 +447,8 @@
 		"cockpit@cockpit": true,
 		"tech-ref@tech-ref": true,
 		"unsolicited-text@unsolicited-text": true,
-		"unsolicited-comments@unsolicited-comments": true
+		"unsolicited-comments@unsolicited-comments": true,
+		"guard-secrets@guard-secrets": true
 	},
 	"skillOverrides": {
 		"artifact-design": "off",

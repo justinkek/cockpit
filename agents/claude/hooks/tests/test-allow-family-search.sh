@@ -58,12 +58,5 @@ assert_verdict "a path outside the family" "defer" \
 assert_verdict "a command that is not a search" "defer" \
   "$(verdict "$(through allow-family-search.sh 'cat marketplace/plugins/cockpit/scripts/hooks/tab-status.sh')")"
 
-printf "\nTest group: a secret stays refused, whatever this hook would have said about it\n"
-
-assert_verdict "this hook would allow a search of a secret inside the family" "allow" \
-  "$(verdict "$(through allow-family-search.sh 'grep --recursive TOKEN agents/.env')")"
-assert_verdict "and the secret guard denies the very same command" "deny" \
-  "$(verdict "$(through guard-bash-secret-read.sh 'grep --recursive TOKEN agents/.env')")"
-
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

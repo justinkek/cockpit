@@ -154,8 +154,6 @@ assert_absent "the shared profile does not require a ticket" \
   "$REPO/agents/codex/settings/base.hooks-profile.toml" "require-ticket.sh"
 assert_contains "the board profile does" \
   "$REPO/agents/codex/settings/board.hooks-profile.toml" "require-ticket.sh"
-assert_contains "and the shared profile keeps the secret guard" \
-  "$REPO/agents/codex/settings/base.hooks-profile.toml" "guard-bash-secret-read.sh"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
