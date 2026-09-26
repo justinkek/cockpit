@@ -69,6 +69,14 @@ Whether code may carry a comment is not this repository's any more. The rules an
 
 The plugin's session start hook prints its rules, so a Codex home, which installs no plugin, no longer reads them.
 
+## The repository-confinement plugin
+
+Which paths an agent may read and write outside its worktree is decided by the `repository-confinement` plugin, installed from `justinkek/repository-confinement`. A change to that decision lands there and not in `agents/claude/hooks/` or `agents/shared/hooks/`.
+
+The plugin names no directory of this repository's. The board's state directories and this repository's config symlinks reach it as `REPOSITORY_CONFINEMENT_STATE_PATHS` and `REPOSITORY_CONFINEMENT_CONFIG_PATHS`, under `env` in `base.settings.json`, so a new one is added there.
+
+A Codex home installs no plugin, so it runs no confinement, as it ran none before.
+
 ## Sync concerns
 
 A concern is a folder holding a `sync.*.sh`. The orchestrator (`agents/*/sync.sh`) globs them, so a new folder is picked up with no registration step.
@@ -150,7 +158,7 @@ Every new script, hook, or skill that the agent invokes must have a matching all
 
 When a feature reads or writes files outside the repo (e.g. `~/.local/state/`), two things must ship in the same commit:
 
-1. A `confine-to-repo-policy.sh` exemption for the path (otherwise the hook hard-denies writes and prompts for reads).
+1. The path in `REPOSITORY_CONFINEMENT_STATE_PATHS`, under `env` in `base.settings.json` (otherwise the repository-confinement plugin hard-denies writes and prompts for reads).
 2. A `Read(path/**)` entry in the settings allowlist (otherwise Claude Code's permission system prompts independently of the hook).
 
 Write the pattern the way the command is written - nothing is expanded on either side, so a pattern saying `$HOME` matches a command saying `$HOME` and a spelled-out path matches a spelled-out path. Skills invoke their scripts as `"$HOME/.claude-shared/<script>"`, so every script needs two committed entries: the `$HOME` form, quoted and unquoted. The settings sync writes each one out a second time with the home directory it runs under spelled out, so a path spelled out in this file is one machine's and matches on no other. Hooks that auto-approve a script hide a missing entry, so a pattern that has never been exercised without its hook is not known to work.

@@ -8,8 +8,8 @@
 # codex-rs/hooks/src/events/pre_tool_use.rs).
 #
 # Only hooks whose tool_input format is compatible are ported here. Hooks that
-# parse tool_input.file_path (block-user-claudemd, guard-secrets-gitignore,
-# confine-to-repo) need adaptation for Codex's apply_patch format (which sends
+# parse tool_input.file_path (block-user-claudemd, guard-secrets-gitignore)
+# need adaptation for Codex's apply_patch format (which sends
 # {"command": "<patch>"} instead of {"file_path": "..."}) — deferred to a
 # follow-up ticket.
 #

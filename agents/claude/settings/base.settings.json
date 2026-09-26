@@ -269,7 +269,9 @@
 	},
 	"env": {
 		"CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
-		"CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS": "0"
+		"CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS": "0",
+		"REPOSITORY_CONFINEMENT_STATE_PATHS": "~/.local/state/cockpit:~/.local/state/claude-ticket-sessions",
+		"REPOSITORY_CONFINEMENT_CONFIG_PATHS": "~/.claude:~/.claude-*:~/.agents-shared:~/.cockpit"
 	},
 	"hooks": {
 		"UserPromptSubmit": [
@@ -356,15 +358,6 @@
 					{
 						"type": "command",
 						"command": "$HOME/.claude-shared/hooks/redirect-artifacts.sh"
-					}
-				]
-			},
-			{
-				"matcher": "Read|Edit|Write|Grep|Glob",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "$HOME/.claude-shared/hooks/confine-to-repo.sh"
 					}
 				]
 			},
@@ -461,7 +454,8 @@
 		"readable-shell@readable-shell": true,
 		"tech-ref@tech-ref": true,
 		"unsolicited-text@unsolicited-text": true,
-		"unsolicited-comments@unsolicited-comments": true
+		"unsolicited-comments@unsolicited-comments": true,
+		"repository-confinement@repository-confinement": true
 	},
 	"skillOverrides": {
 		"artifact-design": "off",
