@@ -113,10 +113,6 @@ The third thing the status line shows beside the work item type and the board co
 
 The turn ending is what clears it, because nothing fires when a skill returns. So a step that finishes early keeps showing until the agent stops, and a step that invoked another is not named again on the way back out.
 
-## Collecting the worktrees left behind
-
-`git worktrees-clean` walks every worktree and hands each one to `worktree-give-back`, so a session that ended before its card reached Done is collected on the next run. It decides nothing itself beyond skipping a worktree a running session holds a lock on, and each survivor is reported with the give-back's own refusal as its reason.
-
 ## What a Warp tab is called
 
 The title is the session's name with the bracketed epic dropped. The glyph in front of it is the state `tab-status.sh` was called with, and neither half reads the other.
@@ -141,7 +137,7 @@ A landing in `In Dev` names `/cockpit:ticket:3:dev`, alongside the two refinemen
 
 ## Giving the worktree back unattended
 
-`worktree-give-back` is the only way an agent ends a worktree: it takes the path and the branch, runs every check, and calls git itself. Both raw commands are denied, so there is no second route to keep in step with it and no command string for a guard to re-parse. The checks it runs are listed in `agents/claude/templates/status-done-close-out.md`, and each exit code names the one that refused.
+`git worktrees-clean <worktree-path>` is the only way an agent ends a worktree: it decides whether the work reached the default branch, calls git itself, and says why when it keeps one. It is installed separately, with `brew install justinkek/tap/git-worktrees-clean`, and run with no path it checks every worktree of the repository, so a session that ended before its card reached Done is collected on the next run. Both raw commands, `git worktree remove` and `git branch --delete --force`, stay denied, so there is no second route to keep in step with it. The exit codes are listed in `agents/claude/templates/status-done-close-out.md`.
 
 ## A pull request's checks
 

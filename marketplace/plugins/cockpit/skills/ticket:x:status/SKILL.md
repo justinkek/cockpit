@@ -130,7 +130,7 @@ A walk starting anywhere but `In Dev` reads nothing and removes nothing here —
      When more than one of these is in the walk path, only the first match writes `Model: CR` (the value is the same agent).
 
    - If the landed column is date-stamped (list above), **poll** its `Date:` field until it prints, before the next hop, with `"$HOME/.cockpit/scripts/ticket-read" <ticket-url> "Date: <landed column>"` — an unstamped field prints nothing, so any output is the stamp having landed. Never the SQL query tool. The stamp is eventual (~seconds), not synchronous — so **space the polls out and cap them** (e.g. up to ~3 tries, several seconds apart). Tight back-to-back reads trip Notion's rate limiter, which the read reports as exit 6 with the wait in its message: wait that long before the next call, and never count the refused read against the cap. If the stamp still hasn't landed after the cap, note it and continue — don't spin.
-   - **On `Done` only** — whether this run moved the card there or found it there, follow `~/.claude-shared/templates/status-done-close-out.md`. It owns the claim release, the worktree give-back, the main checkout pull, the apply that makes it live, and the usage figures.
+   - **On `Done` only** — whether this run moved the card there or found it there, follow `~/.claude-shared/templates/status-done-close-out.md`. It owns the claim release, giving the worktree back, the main checkout pull, the apply that makes it live, and the usage figures.
 
    - **Record column** — after each hop, update the local column state so the status line reflects the current board position:
      ```

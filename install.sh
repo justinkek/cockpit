@@ -118,6 +118,12 @@ for entry in "${SCAFFOLD[@]}"; do
   echo "    ${C_GREEN}scaffolded${C_RESET} $dst ← $src  ${C_DIM}(edit in your per-user values)${C_RESET}"
 done
 
+if command -v git-worktrees-clean >/dev/null 2>&1; then
+  echo "${C_GREEN}✓ git-worktrees-clean${C_RESET}  on PATH"
+else
+  echo "${C_YELLOW}△ git-worktrees-clean${C_RESET}  not on PATH  ${C_DIM}(run: brew install justinkek/tap/git-worktrees-clean)${C_RESET}"
+fi
+
 if [ "$APPLY" -eq 0 ]; then
   echo
   if [ "$changes" -eq 1 ]; then
