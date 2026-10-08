@@ -60,7 +60,7 @@ for form in "${RAW_FORMS[@]}"; do
   fi
 done
 
-if grep --quiet --fixed-strings "git worktrees-clean <worktree-path>" "$CLOSE_OUT"; then
+if grep --quiet --fixed-strings "git worktrees-clean --include-locked <worktree-path>" "$CLOSE_OUT"; then
   assert_ok "the close-out reaches for git worktrees-clean"
 else
   assert_ko "the close-out reaches for git worktrees-clean" "no line names it in $CLOSE_OUT"

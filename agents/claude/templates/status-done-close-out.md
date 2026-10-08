@@ -19,14 +19,15 @@ Both: the lock stops two sessions on this machine taking the same card, the prop
 Leave the worktree first when this session entered it (`ExitWorktree` with `action: "keep"` - a silent no-op in any other session), then:
 
 ```
-git worktrees-clean <worktree-path>
+git worktrees-clean --include-locked <worktree-path>
 ```
 
-It decides whether the worktree's work has reached the default branch and removes the worktree and its branch when it has, so there is nothing to verify first and no raw `git worktree remove` or `git branch --delete --force` to reach for - both are denied. `git-worktrees-clean` is installed separately, with `brew install justinkek/tap/git-worktrees-clean`.
+It decides whether the worktree's work has reached the default branch and removes the worktree and its branch when it has, so there is nothing to verify first and no raw `git worktree remove` or `git branch --delete --force` to reach for - both are denied. `--include-locked` gets past the lock Claude Code holds on a running session's worktree, and every other check still applies. `git-worktrees-clean` is installed separately, with `brew install justinkek/tap/git-worktrees-clean`.
 
 - **Exit 0** - it removed the worktree and its branch.
 - **Exit 1** - it kept both, and printed why. Report that reason as it stands. Never `discard_changes`: a card reaching Done is not a licence to throw away work nobody has looked at.
 - **Exit 2** - a usage error, or a path that is not a worktree of this repository. Say what it printed.
+- **Exit 3** - not in a git repository, no `origin` default branch, or git older than 2.38. Say what it printed.
 
 ## Bring the main checkout forward
 
