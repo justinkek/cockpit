@@ -86,8 +86,6 @@
 			"Bash(\"$HOME/.claude-shared/sync.sh\":*)",
 			"Bash($HOME/.scripts/shortcuts:*)",
 			"Bash(\"$HOME/.scripts/shortcuts\":*)",
-			"Bash($HOME/.scripts/git-worktrees-clean:*)",
-			"Bash(\"$HOME/.scripts/git-worktrees-clean\":*)",
 			"Bash(mise ls:*)",
 			"Bash(mise current:*)",
 			"Bash(mise which:*)",
@@ -185,8 +183,8 @@
 			"Bash(gh pr comment:*)",
 			"Bash(git push:*)",
 			"Bash(git * push:*)",
-			"Bash(\"$HOME/.cockpit/scripts/worktree-give-back\":*)",
-			"Bash($HOME/.cockpit/scripts/worktree-give-back:*)"
+			"Bash(git worktrees-clean)",
+			"Bash(git worktrees-clean:*)"
 		],
 		"deny": [
 			"Read(.env)",

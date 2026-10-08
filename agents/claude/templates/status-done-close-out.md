@@ -19,23 +19,19 @@ Both: the lock stops two sessions on this machine taking the same card, the prop
 Leave the worktree first when this session entered it (`ExitWorktree` with `action: "keep"` - a silent no-op in any other session), then:
 
 ```
-"$HOME/.cockpit/scripts/worktree-give-back" <worktree-path> <branch>
+git worktrees-clean --include-locked <worktree-path>
 ```
 
-It runs the checks and then removes both, so there is nothing to verify first and no raw `git worktree remove` or `git branch --delete --force` to reach for - both are denied. It refuses unless every one of these holds:
+It decides whether the worktree's work has reached the default branch and removes the worktree and its branch when it has, so there is nothing to verify first and no raw `git worktree remove` or `git branch --delete --force` to reach for - both are denied. `--include-locked` gets past the lock Claude Code holds on a running session's worktree, and every other check still applies. `git-worktrees-clean` is installed separately, with `brew install justinkek/tap/git-worktrees-clean`.
 
-- the path is a worktree this repository knows, and is not the main checkout;
-- `git -C <worktree-path> status --porcelain` prints nothing on exit 0;
-- the branch is neither the default branch nor checked out in another worktree;
-- the branch is an ancestor of `origin/<default-branch>`, **or** its pull request is `MERGED` and its `headRefOid` still matches `git rev-parse <branch>`.
-
-That last pair is why comparing content is not one of them. A squash merge lands the work as one new commit, so `git branch --merged origin/<default-branch>` never lists the branch and `ExitWorktree` with `action: "remove"` refuses on the commit count - and the moment a later commit touches the same files, the diff against main is non-empty even though the work is on main.
-
-**Refused** - the worktree and the branch stay, and the exit line names the check that failed. Never `discard_changes`: a card reaching Done is not a licence to throw away work nobody has looked at.
+- **Exit 0** - it removed the worktree and its branch.
+- **Exit 1** - it kept both, and printed why. Report that reason as it stands. Never `discard_changes`: a card reaching Done is not a licence to throw away work nobody has looked at.
+- **Exit 2** - a usage error, or a path that is not a worktree of this repository. Say what it printed.
+- **Exit 3** - not in a git repository, no `origin` default branch, or git older than 2.38. Say what it printed.
 
 ## Bring the main checkout forward
 
-Merging into the default branch happens on GitHub, so nothing here merges: the checkout only takes what the remote already holds. The checkout is not necessarily the directory the session is in, so resolve it before the removal above - a session launched inside the worktree has none to run from afterwards:
+Merging into the default branch happens on GitHub, so nothing here merges: the checkout only takes what the remote already holds. The checkout is not necessarily the directory the session is in, so resolve it before the cleanup above - a session launched inside the worktree has none to run from afterwards:
 
 ```
 
@@ -62,7 +58,7 @@ git -C <main-checkout> pull --ff-only
 - **Nothing printed** - the checkout is on no branch at all, which the command reports by saying nothing and succeeding. Say so and leave it; empty output is never a reason to carry on to the pull.
 - **Not on the default branch** - say which branch it is on and leave it there. Checking one out moves a working tree nobody asked you to touch.
 - **The pull refuses** - say what it printed. Only a non-fast-forward reading means the checkout carries commits that never reached the remote; a dirty working tree, a branch with no upstream and a failed fetch each refuse for their own reason, and reporting any of them as unpushed commits is a false statement about the user's repo. Never `--force`, and never a merge to reconcile the two.
-- **Say where it landed** - name the branch and the commit it moved to, in the same run report as the give-back.
+- **Say where it landed** - name the branch and the commit it moved to, in the same run report as the worktree cleanup.
 
 ## Make it live
 

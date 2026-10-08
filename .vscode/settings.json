@@ -2,7 +2,6 @@
 	"files.associations": {
 		"agents/claude/claude-*": "shellscript",
 		"agents/claude/settings-scope-confirm": "shellscript",
-		"agents/claude/git-worktrees-clean": "shellscript",
 		"marketplace/plugins/cockpit/scripts/*": "shellscript",
 		"scripts/*": "shellscript",
 		"agents/codex/settings/merge-*": "python"
