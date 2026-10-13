@@ -10,7 +10,13 @@ That section is the only switch. Never add a second one to configure the same th
 
 ## Assigning
 
-1. Stop when the `Sprints` relation is already populated - never overwrite an existing value.
-2. Read the Sprints view - its id comes from `"$HOME/.cockpit/scripts/cockpit-board-id" get sprints-view`, see `~/.claude-shared/templates/board-ids.md` - with `notion-query-database-view`, and take the row whose `Start Date` <= today <= `End Date`. The database holds a handful of rows, so no filter is needed. Never `notion-fetch` on the data source instead: it returns the schema only and never the rows, so it cannot answer this.
-3. Exactly one row matches - set `Sprints` to its URL and `Due` to its `End Date` via `notion-update-page` (`update_properties`).
-4. Zero rows or more than one match - leave `Sprints` and `Due` unset and raise it on the ticket, following `~/.claude-shared/templates/raise-a-decision.md`. An unassigned sprint is visible on the board; a stopped walk is not.
+1. Stop when the card's `Sprint` is already set - read it with `"$HOME/.cockpit/scripts/board-card" show <id> Sprint` - never overwrite an existing value.
+2. List the sprint records with `"$HOME/.cockpit/scripts/board-card" list --kind sprint --json`, and take the one whose `start` <= today <= `end`. There are a handful of them, so no filter is needed.
+3. Exactly one record matches - set the card's sprint to its id and `Due` to its `end`:
+
+   ```
+   "$HOME/.cockpit/scripts/board-card" set <id> sprint SPR-<n>
+   "$HOME/.cockpit/scripts/board-card" set <id> due <YYYY-MM-DD>
+   ```
+
+4. Zero records or more than one match - leave `Sprint` and `Due` unset and raise it on the ticket, following `~/.claude-shared/templates/raise-a-decision.md`. An unassigned sprint is visible on the board; a stopped walk is not.

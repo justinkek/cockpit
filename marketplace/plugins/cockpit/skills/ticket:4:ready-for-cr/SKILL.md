@@ -11,17 +11,13 @@ The card is already at `In CR by AI` by the time this runs - finishing dev puts 
 
 Read `~/.claude-shared/templates/pull-request-to-ticket.md` before opening the pull request.
 
-## Board constants
-
-- Board ids - read with `"$HOME/.cockpit/scripts/cockpit-board-id" get <key>`, following `~/.claude-shared/templates/board-ids.md`. This skill needs `tickets-data-source`.
-
 ## Workflow
 
 ### 1. Guard: valid source status
 
-Read the session marker at `~/.local/state/claude-ticket-sessions/$CLAUDE_SESSION_ID.ticket` to get the ticket URL.
+Read the session marker at `~/.local/state/claude-ticket-sessions/$CLAUDE_SESSION_ID.ticket` to get the card id.
 
-Read the ticket's current `Status` with `"$HOME/.cockpit/scripts/ticket-read" <ticket-url> Status`, falling back to `notion-fetch` on a non-zero exit. Only proceed if the ticket is at `In Dev` or `In CR by AI`. If it is at an earlier column, block and name the current status. If it is already at `Ready for CR` or later, report that and stop.
+Read the ticket's current `Status` with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. Only proceed if the ticket is at `In Dev` or `In CR by AI`. If it is at an earlier column, block and name the current status. If it is already at `Ready for CR` or later, report that and stop.
 
 `In CR by AI` is the expected one - finishing dev advances the card and runs the gates. `In Dev` is accepted so a card that never got advanced is not stranded: walk it to `In CR by AI` with the `cockpit:ticket:x:status` skill first, which runs the gates. Carry on to step 2 only when every finding they named is fixed - a finding still open leaves the card at `In CR by AI` and stops this skill, the same as step 6 does.
 
@@ -63,7 +59,7 @@ Title it and write its body as `~/.claude-shared/templates/pull-request-to-ticke
 
 ### 4.5. Post the open findings on the PR
 
-Read the `Machine gates` toggle under the ticket's `## Details` and take every line opening with `unfixed -`. Each carries the `path/to/file.ext:123` the review reported, so it goes beside the line it is about rather than into the conversation tab - one call per finding:
+Read the `### Machine gates` subsection under the ticket's `## Details`, from `"$HOME/.cockpit/scripts/board-card" show <id> --section "Machine gates"`, and take every line opening with `unfixed -`. Each carries the `path/to/file.ext:123` the review reported, so it goes beside the line it is about rather than into the conversation tab - one call per finding:
 
 ```sh
 gh api repos/<owner>/<repo>/pulls/<number>/comments --method POST \

@@ -11,27 +11,21 @@ TD is the epic-level counterpart to TR: it answers "what is the right technical 
 
 This skill maps to the Epic Tech Strategy standard.
 
-Read the epic's open comments before drafting, following `~/.claude-shared/templates/page-comments.md`.
+The epic is a local record, `EPIC-n`, and `<epic-id>` below is its id. Before drafting, read its open comments with `"$HOME/.cockpit/scripts/board-card" comments <epic-id>`, following `~/.claude-shared/templates/page-comments.md`.
 
 Read `~/.claude-shared/templates/cockpit-operating-contract.md` first.
-
-Read `~/.claude-shared/templates/notion-writing.md` before writing to the page.
-
-## Board constants
-
-- Board ids - read with `"$HOME/.cockpit/scripts/cockpit-board-id" get <key>`, following `~/.claude-shared/templates/board-ids.md`. This skill needs `epics-data-source`.
 
 ## Prerequisites
 
 Before writing TD, verify all three. Block and name any that fail.
 
-1. **Epic scope.** The page must be an epic (parent-data-source matches the Epics data source above), not a ticket. If invoked on a ticket, say TD only works on epics and stop.
+1. **Epic scope.** TD runs on an `EPIC-` id, never a ticket's. If invoked on a ticket, say TD only works on epics and stop.
 2. **FD content.** The epic body must contain FD output: `## Flow Diagram` and `## Edge Cases`. If either is missing, list what FD content is needed and stop. FD defines the user flows that TD must support technically.
 3. **Problem and goal.** The epic body must contain a problem statement and a goal. If the body is missing either, list what's needed and stop.
 
 ## Output
 
-TD writes exactly four sections on the epic page, after the FD sections:
+TD writes exactly four sections on the epic, after the FD sections:
 
 ```
 ## Strategy Options
@@ -44,37 +38,32 @@ No `## Tech Steps`, `## Implementation Plan`, `## Tickets`, or any other heading
 
 ### Strategy Options
 
-At least two technical strategies evaluated against quality metrics. Each strategy is presented in a toggle with a consistent structure:
+At least two technical strategies evaluated against quality metrics. Each strategy is a `###` subsection with a consistent structure:
 
 ```
 ## Strategy Options
+
 **Recommended: Option A - [name]**
 [One-line rationale for the recommendation]
 
-<details>
-<summary>Option A - [name]</summary>
-	**Description:** What this strategy achieves (the technical outcome, not
-	implementation steps)
+### Option A - [name]
 
-	**Evaluation:**
-	<table>
-	<colgroup>
-	<col width="200">
-	<col width="500">
-	</colgroup>
-	<tr><td>Safe Software</td><td>[How this strategy addresses user safety]</td></tr>
-	<tr><td>Quality</td><td>[How this strategy supports software quality]</td></tr>
-	<tr><td>Minimal Costs</td><td>[Cost implications - scope, time, infrastructure]</td></tr>
-	<tr><td>Maintainability</td><td>[Long-term maintenance burden]</td></tr>
-	</table>
+**Description:** What this strategy achieves (the technical outcome, not implementation steps)
 
-	**Trade-offs:** [Key trade-offs vs other options]
-</details>
+**Evaluation:**
 
-<details>
-<summary>Option B - [name]</summary>
-	[Same structure as above]
-</details>
+| Metric          | Assessment                                         |
+| --------------- | -------------------------------------------------- |
+| Safe Software   | [How this strategy addresses user safety]          |
+| Quality         | [How this strategy supports software quality]      |
+| Minimal Costs   | [Cost implications - scope, time, infrastructure]  |
+| Maintainability | [Long-term maintenance burden]                     |
+
+**Trade-offs:** [Key trade-offs vs other options]
+
+### Option B - [name]
+
+[Same structure as above]
 ```
 
 #### Quality metrics
@@ -108,7 +97,7 @@ A visual diagram showing the technical outcome of the recommended strategy. The 
 
 Write the output in two parts:
 
-1. **Visual diagram** - use the `generate-web-diagram` skill to produce an HTML diagram. Upload the resulting file to the epic page via `notion-create-attachment`. Place the image at the top of the `## Solution Diagram` section.
+1. **Visual diagram** - use the `generate-web-diagram` skill to produce an HTML diagram. Copy it onto the board with `"$HOME/.cockpit/scripts/board-card" attach <epic-id> <file>` and link the path it prints at the top of the `## Solution Diagram` section.
 
 2. **Diagram description** - a brief textual description below the visual, naming the key components and their relationships. This serves as alt-text and makes the diagram searchable.
 
@@ -167,32 +156,32 @@ Base the estimate on:
 1. **Strategy complexity** - how many components does the strategy touch?
 2. **Integration points** - how many external systems or APIs?
 3. **Uncertainty count** - how many blockers remain?
-4. **Comparison** - how does this compare to completed epics on the board?
+4. **Comparison** - how does this compare to completed epics on the board? `"$HOME/.cockpit/scripts/board-card" list --kind epic --status "Epic Done"` lists them.
 
 When other epics exist on the board with known durations, reference one as a comparison point. If no comparable epics exist, estimate on the characteristics alone.
 
 ## Workflow
 
-1. **Read the epic** - fetch the page, confirm it's an epic (check parent-data-source against the Epics data source).
+1. **Read the epic** - `"$HOME/.cockpit/scripts/board-card" show <epic-id> --json` gives its status and content; confirm it is an epic.
 2. **Check prerequisites** - verify FD content present and problem/goal present.
 3. **Understand the system** - read the FD flow diagram and edge cases. If the epic references a codebase, read the relevant architecture, existing patterns, and constraints.
 4. **Identify strategies** - from the FD flows and the current system, identify at least two technical approaches to deliver the epic's outcome. Consider the trade-offs against the quality metrics.
 5. **Evaluate and recommend** - evaluate each strategy against the quality metrics. Recommend the strongest option with a rationale.
-6. **Generate the solution diagram** - invoke `generate-web-diagram` to produce a visual of the recommended strategy's architecture/data flow/ER. Upload to the epic page.
+6. **Generate the solution diagram** - invoke `generate-web-diagram` to produce a visual of the recommended strategy's architecture/data flow/ER, and attach it to the epic.
 7. **Identify and resolve uncertainties** - work through the uncertainty methodology. Investigate each unknown; resolve what you can, flag what you can't.
 8. **Estimate** - compare the epic's scope against other epics on the board. Assign a T-shirt size with rationale.
-9. **Write to the epic page** - insert `## Strategy Options`, `## Solution Diagram`, `## Uncertainties`, and `## Epic Estimate` after the FD sections. If these sections already exist, update them (use `update_content` not `insert_content`) to avoid duplication.
-10. **Auto-advance epic status** - after all self-checks pass, if the epic's `Status` (from the step 1 fetch) is `Ready for TD by AI`, advance it to `Ready for TD` via `notion-update-page` (`update_properties`). If the status is anything else, skip.
+9. **Write to the epic** - write `## Strategy Options`, `## Solution Diagram`, `## Uncertainties`, and `## Epic Estimate` with `"$HOME/.cockpit/scripts/board-card" section <epic-id> "<heading>" --after "<previous heading>"`, the first after `Macro Estimate` and each next after the one before it. Each one already on the epic is rewritten where it stands rather than added twice.
+10. **Auto-advance epic status** - after all self-checks pass, if the epic's `Status` (from the step 1 read) is `Ready for TD by AI` or `In TD by AI`, advance it with `"$HOME/.cockpit/scripts/board-card" walk <epic-id> "Ready for TD"`. If the status is anything else, skip.
 
 ## Self-check
 
-After writing TD content to the epic page, verify:
+After writing TD content to the epic, verify:
 
 1. **Sections** - only the four allowed sections exist as new `##` headings added by TD: Strategy Options, Solution Diagram, Uncertainties, Epic Estimate. No ad-hoc headings.
 2. **Strategy count** - at least two strategies are presented with evaluations.
 3. **Quality metrics** - each strategy is evaluated against all four metrics (Safe Software, Quality, Minimal Costs, Maintainability).
 4. **Recommendation** - a recommended option is named with a rationale.
-5. **Visual present** - a rendered diagram is attached to the page (not just a text description).
+5. **Visual present** - a rendered diagram is attached to the epic and linked from `## Solution Diagram` (not just a text description).
 6. **Diagram type** - the diagram type matches what the epic changes (architecture for system boundaries, sequence for data flow, ER for data model).
 7. **Uncertainties addressed** - every uncertainty has a status (Resolved or Blocker). No uncertainty is left without a status.
 8. **Estimate present** - T-shirt size with rationale and comparison point.

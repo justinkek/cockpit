@@ -1,6 +1,6 @@
 ---
 name: ticket:x:back-from-column
-description: Handle a ticket defect (bounce-back from a gate). Owns the full flow - infer structured summary from session context, increment counter, write nested toggle to ticket page, post short comment, set status. Invoked by cockpit:ticket:x:status on backward moves.
+description: Handle a ticket defect (bounce-back from a gate). Owns the full flow - infer structured summary from session context, increment counter, write a nested subsection to the card, post short comment, set status. Invoked by cockpit:ticket:x:status on backward moves.
 ---
 
 # back-from-column
@@ -9,24 +9,22 @@ Source of truth for ticket regressions. When a ticket bounces back from a gate (
 
 1. Infer the structured summary from session context
 2. Increment the Back from counter
-3. Write a nested toggle to the ticket page under `## Details`
-4. Post a short Notion comment
+3. Write a nested subsection to the card under `## Details`
+4. Post a short comment on the card
 5. Set the ticket status directly (no intermediate walk)
-
-Read `~/.claude-shared/templates/notion-writing.md` before writing to the page.
 
 ## Inputs
 
 The skill expects these values from the calling context (either `cockpit:ticket:x:status` delegation or direct invocation):
 
-- **ticket URL** - the session's registered ticket
+- **card id** - the session's registered ticket, e.g. `FEAT-123`
 - **source column** - the gate being bounced from (e.g. `In CR`)
 - **target column** - where the ticket is regressing to (e.g. `In Dev`). May equal the source column - see "In-place bounce" below.
 - **reason** - short summary of why (inferred from session context)
 
 ### In-place bounce
 
-A rejection raised in chat is a real bounce-back, but the card does not move: the user says the work is wrong, the agent fixes it, and the ticket stays in `In Dev` (or any BR or TR column, `In CR`, `In FR`, `Ready for Validation`) throughout. Target column equals source column in that case, and the flow still runs - the counter and the toggle are the whole point.
+A rejection raised in chat is a real bounce-back, but the card does not move: the user says the work is wrong, the agent fixes it, and the ticket stays in `In Dev` (or any BR or TR column, `In CR`, `In FR`, `Ready for Validation`) throughout. Target column equals source column in that case, and the flow still runs - the counter and the subsection are the whole point.
 
 Only the status write differs; see step 6.
 
@@ -53,11 +51,10 @@ Only the status write differs; see step 6.
 
 ### 1. Read current state
 
-Fetch the ticket page to get:
+Read the card with `"$HOME/.cockpit/scripts/board-card" show <id> --json` to get:
 
-- Current counter value for the relevant `Back from` property
-- Current page content (to locate or create `## Details`)
-- Ticket `Type` (Feature or Timebox)
+- Current page content, `.body` (to locate or create `## Details`)
+- Ticket `Type`, `.type` (Feature, Bug or Timebox)
 
 Read the ticket's open comments here too, following `~/.claude-shared/templates/page-comments.md`.
 
@@ -77,76 +74,77 @@ Do not ask the user for these fields. Infer them from the session's work. If a f
 
 ### 3. Increment the counter
 
-Read the current counter value and increment by 1 via `notion-update-page` (`update_properties`). The new count is used in the toggle title.
+```
+"$HOME/.cockpit/scripts/board-card" bounce <id> <BR|TR|Dev|CR|FR|Validation>
+```
 
-### 4. Write the structured toggle to the ticket page
+It adds 1 to the counter and prints the new count, which is used in the subsection title.
 
-On a cross-board session the content goes to the source ticket, not the cockpit stub, which carries status and cost but no content. Read the source ticket URL from `~/.local/state/claude-ticket-sessions/<session_id>.source-ticket` and write there when the file exists; write to the cockpit ticket when it does not.
+### 4. Write the structured subsection to the card
 
-The summary is written as nested toggles under `## Details`:
+The summary is written as nested subsections under `## Details`:
 
 ```
 ## Details
-<details>
-<summary>Back from CR</summary>
-	<details>
-	<summary>Back from CR #1</summary>
-		**Evidence:** [screenshot/image or "N/A — no visual component"]
-		`[problem]` Root cause description
-		`[fix]` What was done
-		`[earlier detection]` How to catch sooner
-		`[prevention]` How to prevent recurrence
-		**Blocked on:** [blocker or "Nothing — fix applied"]
-		Follow-up tickets: [link] (or "None")
-	</details>
-</details>
+
+### Back from CR
+
+#### Back from CR #1
+
+**Evidence:** [screenshot/image or "N/A — no visual component"]
+
+- `[problem]` Root cause description
+- `[fix]` What was done
+- `[earlier detection]` How to catch sooner
+- `[prevention]` How to prevent recurrence
+
+**Blocked on:** [blocker or "Nothing — fix applied"]
+
+Follow-up tickets: [card id or link] (or "None")
 ```
 
-**Inserting `## Details`** - if the section does not exist yet, insert it at the correct position based on ticket type:
+An image for **Evidence:** goes onto the board first with `"$HOME/.cockpit/scripts/board-card" attach <id> <file>`, and the path it prints is linked from the entry.
 
-- **Feature:** after `## Tech Steps` (or after `## Validation Steps` if no Tech Steps yet, or after `## Context` as last resort)
-- **Timebox:** after `## Context`
+**Appending to an existing gate subsection** - if a `### Back from CR` subsection already exists (from a previous bounce), the new numbered `#### Back from CR #2` entry goes after the last one inside it: read the subsection with `board-card show <id> --section "Back from CR"`, leave out its heading line and the `[comment]` lines that read prints, and write it back with the new entry at its end.
 
-**Appending to existing gate toggle** - if a `Back from CR` toggle already exists (from a previous bounce), append the new numbered entry inside it:
+Write it as "Writing under `## Details`" below says.
+
+## Writing under `## Details`
+
+Every subsection of `## Details` - this skill's, and the ones other skills send here - is one call:
 
 ```
-<details>
-<summary>Back from CR</summary>
-	<details>
-	<summary>Back from CR #1</summary>
-		...existing...
-	</details>
-	<details>
-	<summary>Back from CR #2</summary>
-		...new entry...
-	</details>
-</details>
+"$HOME/.cockpit/scripts/board-card" section <id> "<subsection heading>" --under Details <<'CONTENT'
+<the subsection's content, without its heading line>
+CONTENT
 ```
 
-**Appending to existing `## Details`** - if the section exists but has no toggle for this gate yet, add a new gate toggle inside it.
-
-Use `update_content` (search-and-replace) to insert precisely. If the page structure does not match expectations, fall back to `insert_content` at the end.
+It replaces a subsection of that heading where it stands, or adds it at the end of `## Details`, and adds `## Details` at the end of the card when the card has none. Every other subsection is left as it was.
 
 ### 5. Post the short comment
 
-Create a Notion comment via `notion-create-comment`:
-
 ```
+"$HOME/.cockpit/scripts/board-card" comment <id> <<'CONTENT'
 🔙 Back from <column> (#<new_count>): <reason>
+CONTENT
 ```
 
 The reason is the one-line summary (same as the `[problem]` field, condensed).
 
 ### 6. Set the ticket status
 
-**In-place bounce (target == source)** - skip this step entirely. Do not write `Status` and do not run `ticket-register-column`: the card is already in that column, so the write is a no-op that only risks disturbing the date stamp.
+**In-place bounce (target == source)** - skip this step entirely. Do not move the card and do not run `ticket-register-column`: the card is already in that column, so the move is a no-op.
 
-**Otherwise** - set `Status` directly to the target column via `notion-update-page` (`update_properties`). Regressions do NOT walk backward through intermediate columns (that would create spurious date stamps). One `update_properties` call.
-
-When the **source** column is `In BR by AI` or `In TR by AI`, clear `Agent: Session Id` in that same call (and on the source ticket when the session has one), and release the local lock:
+**Otherwise** - move the card directly to the target column. Regressions do NOT walk backward through intermediate columns (that would create spurious date stamps), and `board-card walk` refuses a backward target anyway. One move:
 
 ```
-"$HOME/.cockpit/scripts/ticket-claim-lock" release <page-id>
+"$HOME/.cockpit/scripts/board-card" move <id> "<target-column>"
+```
+
+When the **source** column is `In BR by AI` or `In TR by AI`, release the claim too - it clears `Agent: Session Id` and the local lock together:
+
+```
+"$HOME/.cockpit/scripts/board-card" release <id>
 ```
 
 This skill bypasses the walk, so it does not inherit the walk's release step - and a card bounced out of a by-AI column while still locked or still marked as claimed is a card `cockpit:ticket:0:copilot` will never offer again.

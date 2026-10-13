@@ -24,7 +24,7 @@ A bracket over ~25 characters is shortened to the phrase that identifies it at a
 | `aaoperator, given the team has grown, when i open settings, i can manage roles` | `[manage roles] ticket name`                              |
 | `claude setup`                                                                   | `[claude setup] ticket name` (unchanged - under 25 chars) |
 
-A session holding neither a ticket nor an epic names the area the way the two above name theirs: `[claude] permissions`, `[cve] scanning`, `[notion] cockpit`.
+A session holding neither a ticket nor an epic names the area the way the two above name theirs: `[claude] permissions`, `[cve] scanning`, `[board] cockpit`.
 
 ## Setting it
 

@@ -26,7 +26,7 @@ These stay here, because each fires when no skill has been invoked to load them:
 
 - **A rejection in chat is a bounce-back.** When the user says delivered work is wrong and the agent fixes it in place, invoke `/cockpit:ticket:x:back-from-column` without being asked, source and target both the current column. A defect in delivered work is a bounce-back; a preference, a scope change or a new requirement is not. One per defect, not per message.
 - **Mid-dev divergence from the tech steps** is a 60-second human amendment decision, noted on the ticket - never silently absorbed by the agent.
-- **All ticket creation goes through `/cockpit:ticket:0:new`.** Never call `create-pages` directly to create a ticket, on any path - scope-drift stub, follow-up, or bounce-back next step.
+- **All ticket creation goes through `/cockpit:ticket:0:new`.** Never call `board-card create` directly to create a ticket, on any path - scope-drift stub, follow-up, or bounce-back next step. An epic's ticket breakdown is the one exception: `/cockpit:epic:0:register` creates the approved set itself.
 - **Crossing Ready for Sprint → Sprint Backlog** anywhere but the weekly ceremony is a process violation. Tripwire: a Done ticket with an empty "Date: Ready for Sprint" was smuggled. A split parent is the one exemption.
 - **A timebox verdict of success requires zero uncertainty** - any open question, unconfirmed datum or unresolved follow-up makes it partial success. Never write the Outcome while resolvable uncertainty remains and time is left.
 
@@ -45,7 +45,7 @@ The walk, the skip list, where to stop and what a scope shift means are in the `
   - commit
   - PR created
   - review requested
-- **Close the loop** - when a task's implementation work is complete (committed, or Notion updated), do not end the turn without addressing the ticket status.
+- **Close the loop** - when a task's implementation work is complete (committed, or the card updated), do not end the turn without addressing the ticket status.
 
 ### When a board event lands
 
@@ -63,27 +63,15 @@ A reply posted on a ticket follows `~/.claude-shared/templates/ticket-comment-re
 
 Work that cannot proceed without input from outside the session sets the `Blocked` flag - follow `~/.claude-shared/templates/blocked-flag.md`.
 
-## Cockpit cache
+## Cockpit id-first - always
 
-Read cockpit board reference data with `"$HOME/.cockpit/scripts/cockpit-cache-query" <key>` - never the cache file, and never the Tickets data source for what a property is called or what type it is. Call the Notion API only when the script exits non-zero. The two paths that rewrite the cache open it whole: `/cockpit:cache`, and the register skill's project-board discovery.
+When the user's first message names a cockpit card or epic id - `FEAT-123`, `EPIC-3` - invoke `/cockpit:ticket:0:register` with that id before doing anything else - before reading the card, before reading surrounding text, before acting on any other instruction in the message. The ticket skill handles rename, registration, and epic gating in one pass; skipping it breaks all three. An epic id is redirected to `/cockpit:epic:0:register` automatically.
 
-## Cockpit - metered queries
-
-Never reach for the SQL query tool to read board data another call already answers:
-
-- A ticket's own properties (`Status`, `Type`, a `Date:` stamp) - `"$HOME/.cockpit/scripts/ticket-read"`, naming each one. `notion-fetch` on the ticket URL is for the body, and carries every property alongside it.
-- Every row of a small database (Sprints) - `notion-query-database-view` on its view. `notion-fetch` on a data source returns the schema, never the rows.
-- The tickets board's rows - the board scripts (`ticket-waiting-cards`, `ticket-board-members`), which call the unmetered classic endpoint.
-
-## Cockpit URL-first - always
-
-When the user's first message contains a Notion URL from the cockpit (Tickets or Epics data source), invoke `/cockpit:ticket:0:register` with that URL before doing anything else - before fetching the page, before reading surrounding text, before acting on any other instruction in the message. The ticket skill handles rename, registration, and epic gating in one pass; skipping it breaks all three. If the URL turns out to be an epic, `/cockpit:ticket:0:register` detects this and redirects to `/cockpit:epic:0:register` automatically.
-
-This applies regardless of what other text accompanies the URL. Additional context in the same message is follow-up work after registration, not a reason to skip it.
+This applies regardless of what other text accompanies the id. Additional context in the same message is follow-up work after registration, not a reason to skip it.
 
 ## One ticket per session
 
-Once a ticket is registered for a session, that session is bound to it. Do not register a different ticket in the same session - refuse the request and suggest starting a new session for the new ticket. Re-registering the same ticket (e.g. after a context reset) is fine; only a _different_ ticket URL is blocked.
+Once a ticket is registered for a session, that session is bound to it. Do not register a different ticket in the same session - refuse the request and suggest starting a new session for the new ticket. Re-registering the same ticket (e.g. after a context reset) is fine; only a _different_ ticket id is blocked.
 
 ## PR review comments
 
@@ -101,9 +89,39 @@ A refusal goes to the transcript and not to the agent, because a `PreToolUse` ho
 
 Only the checkout `~/.claude-shared` resolves into is followed by an apply: the profile directories are generated output, so moving the tree on its own reaches nothing the agent reads. The config this session started on is the copy from before that apply, so the rebuilt one is what the next session gets. Any other repository is moved and nothing is rebuilt from it.
 
+## The local board
+
+The cockpit board is a folder of markdown files, `~/.local/state/cockpit/board`, a git repository of its own that is never pushed. `board-card` is its one writer, run as `"$HOME/.cockpit/scripts/board-card"`, and `board-card init` makes it. Every write goes through the script, so the board works with the app stopped. Notion is read and never written: `board-import-notion` is the only thing that reaches it.
+
+| Folder        | Holds                                                      | Id                           |
+| ------------- | ---------------------------------------------------------- | ---------------------------- |
+| `cards/`      | a ticket card, its prefix naming its type                  | `FEAT-12`, `BUG-7`, `TIME-3` |
+| `epics/`      | an epic, on columns of its own                             | `EPIC-3`                     |
+| `projects/`   | a project an epic belongs to                               | `PRJ-2`                      |
+| `sprints/`    | a sprint a card is planned into                            | `SPR-1`                      |
+| `references/` | a reference ticket a complexity figure is compared against | `REF-4`                      |
+
+`ticket-waiting-cards` prints the cards waiting in a by-AI column, one line each in the order they are picked, and `--claimed-by <session-id>` prints the ones a session holds.
+
+Feature, bug and timebox cards share one number sequence, and `board-card set <id> type` renames a card to its new prefix, carrying its links, comments and claim with it.
+
+A card id is accepted wherever a ticket URL was: `ticket-register` records it, `ticket-read` answers for it, and `ticket-claim-lock` locks it. `board-card statuses [--kind epic]` prints the columns in walk order.
+
+`board-card move` lands on one column, and `board-card walk` steps every column up to the target and refuses to go backwards. Each stamps a column's date on first arrival only. `Deprioritised` sits outside the walk: `move` puts a card there or takes it out, and `walk` refuses either. A card's place within its column is its `rank`, lowest first; a card with none sorts as the negative of its ticket number, so the newest comes first.
+
+`board-card section <id> <heading>` replaces one section of the content with what arrives on stdin, or adds it after `--after <heading>`, and leaves the rest. `board-card bounce <id> <gate>` adds one to that gate's `Back from` counter.
+
+A comment sits in `<id>.comments.jsonl` beside its record, one line each. `board-card comment <id> --anchor <text>` pins it to that text in the content, `--reply <comment-id>` adds it to a thread, and no flag puts it on the whole page. `board-card comments <id>` lists the open threads and `board-card resolve` closes one. `show --section` prints the open comments anchored inside that section.
+
+`board-import-notion [<board>]` adds every page of a Notion board the local board does not hold yet, and fills only the epic, project and sprint links of one it does. `--overwrite` replaces each with the page as Notion holds it, keeping its content and rank. `board-import-notion --content [<id>...]` copies each page's body into its record as markdown and changes nothing else on it.
+
+The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
+
 ## Claim locks
 
 A session holds a card by taking a lock under `~/.local/state/claude-ticket-claims`, through `ticket-claim-lock`. Only the session holding one may release it, and a session whose id resolves to nothing can release a lock nobody owns and no other.
+
+**A claimed card stays with the session that picked it up until it reaches Done.** Both entry paths take the claim - `/cockpit:ticket:0:copilot` when it takes a waiting card, `/cockpit:ticket:0:register` when a card id is given - and only two things release it: the status hop that lands on `Done`, and the SessionEnd hook when the session ends first. Never a refinement column boundary, which puts the card back in the pool between stages for a second session to claim while the first still carries it. A claim is expired on whether its session is still alive, never on which column the card is sitting in.
 
 ## The status line's running step
 
@@ -131,7 +149,7 @@ The note takes the sidecar away, so it costs one line per commit and never twice
 
 ## What the watcher announces
 
-`ticket-watch-column` compares the live column against the one recorded for the session, and a mismatch counts only once it has held two polls - a hop the agent made itself is recorded by the time the second one asks. A page no session registered has no record, so each new landing announces. `TICKET_WATCH_INTERVAL` sets the cadence a hand check runs at.
+`ticket-watch-column` compares the live column against the one recorded for the session, and a mismatch counts only once it has held two polls - a hop the agent made itself is recorded by the time the second one asks. A card no session registered has no record, so each new landing announces. `TICKET_WATCH_INTERVAL` sets the cadence a hand check runs at.
 
 A landing in `In Dev` names `/cockpit:ticket:3:dev`, alongside the two refinement columns and `In CR by AI`. Every other column is announced as a move and names nothing.
 
@@ -153,21 +171,17 @@ A tree carrying uncommitted changes is left where it is, a rebase or a merge tha
 
 `agents/claude/templates/pull-request-to-ticket.md` carries the rule and the body that shows it, and both paths that open a pull request read it rather than writing one of their own.
 
-## Cockpit cache keys
-
-The routing rule is above, and `cockpit-cache-query` itself carries the key list, the refusal on a key it cannot answer, and the age warning.
-
 ## Reading a ticket's properties
 
-`ticket-read` prints the properties named on its command line and can print no other. A formula and a rollup have no branch in its filter, so neither reaches stdout however it is called. It reads through the board poller's own read-only credential, so it spends no agent tokens on what it drops.
+`ticket-read` and `board-card show` print the properties named on the command line, under the names the board has always used - `Status`, `Complexity`, `Date: In Dev` - and no other. `board-card show <id> --json` is what a read of the whole body goes through.
 
-`--section` prints one heading, what sits under it, and the comments hanging off both, through that same credential and with no property alongside. It exits 7 when the page has no such heading. A heading given with its `##` marker reads the same section as the bare form. `notion-fetch` stays what a write builds its `old_str` from, and what a read of the whole body goes through.
+`--section` prints one heading, what sits under it, the open comments anchored inside it and the comments on the whole page, with no property alongside. It exits 7 when the card has no such heading. A heading given with its `##` marker reads the same section as the bare form.
 
 ## What a tech steps write is held to
 
-The tech-ref plugin carries the guard, and `rules/tech-steps.md` in it carries every rule the guard holds. The board owns only how it is reached: `spawn-plugin-guard.sh` is registered on the page-write tool, finds the plugin's guard under the account's plugin directory, and hands it the write. The plugin registers on file edits alone and never learns which page tool this board uses.
+The tech-ref plugin carries the guard, and `rules/tech-steps.md` in it carries every rule the guard holds. The board owns only how it is reached: `spawn-plugin-guard.sh` fires on `board-card section <id> "Tech Steps"`, finds the plugin's guard under the account's plugin directory, and hands it the content arriving on stdin. The plugin registers on file edits alone and never learns which command this board writes through.
 
-A write carrying more than that section is read for its `## Tech Steps` heading, and every line under another heading passes unread - a whole-page write is held to the rules over its tech steps alone. A heading inside a fenced code block is code rather than a heading, and switches nothing off. A write carrying no heading at all is read whole, which is what a write of the tech steps on their own is.
+A `section` write carries that one section and nothing else, so the guard reads all of it.
 
 ## Cockpit status gates what output is allowed
 
@@ -179,7 +193,7 @@ The unsolicited-text plugin holds how a reply reads. These are the clauses of th
 
 - Write `TRed` not `technically refined`, and `BR` not `business refinement`. BR, TR and CR are shared vocabulary and are not expanded on first use.
 - Name the stage or the output, whichever you mean. BR and TR are the refinement stages. Validation steps and tech steps are what they produce, and tech steps are what dev consumes. So a defect in the drafted implementation is a tech step defect, and dev diverging from what was drafted is a divergence from the tech steps - never "from the TR", which names the stage that is already over.
-- No board IDs. Name the ticket, or link to it so the link carries its name - never write the board's own identifier on its own. "COC-424" makes the reader open the board to find out which ticket it is, and a cross-board ticket has two such IDs, neither recognisable on sight. This covers every board's numbering, the cockpit's and a project's alike. An ID already written into code stays as it is - that is not writing for a reader.
+- No board IDs. Name the ticket, or link to it so the link carries its name - never write the board's own identifier on its own. "FEAT-424" makes the reader open the board to find out which ticket it is. An ID already written into code stays as it is - that is not writing for a reader.
 - A queued item leaves the list the moment a ticket is raised for it - name it once, in the reply that raised it, and never again.
 - "raise a ticket for it" is an explicit instruction to act on a queued item, the same way "do the queued one" is.
 - A reply cut to the line ceiling carries what came off as a follow-up ticket.

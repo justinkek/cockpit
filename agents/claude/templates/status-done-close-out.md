@@ -4,13 +4,13 @@ Read this on the hop that lands the card on `Done` - and on a card found there, 
 
 ## Release the claim
 
-Clear `Agent: Session Id` in the same `update_properties` call that sets the status (and on the source ticket when the session has one), and release the local lock:
+One call clears `Agent: Session Id` on the card and releases the local lock:
 
 ```
-"$HOME/.cockpit/scripts/ticket-claim-lock" release <page-id>
+"$HOME/.cockpit/scripts/board-card" release <id>
 ```
 
-Both: the lock stops two sessions on this machine taking the same card, the property tells a person and any session elsewhere that it is taken.
+Both go together: the lock stops two sessions on this machine taking the same card, the field tells a person and the board that it is taken.
 
 `Done` is the only hop that ends the claim - never a refinement column boundary. The other end is the session itself: the SessionEnd hook releases whatever it was still holding.
 
@@ -34,25 +34,19 @@ It decides whether the worktree's work has reached the default branch and remove
 Merging into the default branch happens on GitHub, so nothing here merges: the checkout only takes what the remote already holds. The checkout is not necessarily the directory the session is in, so resolve it before the cleanup above - a session launched inside the worktree has none to run from afterwards:
 
 ```
-
 git rev-parse --path-format=absolute --git-common-dir
-
 ```
 
 That names the main checkout's `.git`; its parent is the checkout. Reading the session's own directory instead is how a walk that kept the worktree reports on the ticket branch and pulls nothing.
 
 ```
-
 git -C <main-checkout> branch --show-current
-
 ```
 
 Only when that answers with the default branch:
 
 ```
-
 git -C <main-checkout> pull --ff-only
-
 ```
 
 - **Nothing printed** - the checkout is on no branch at all, which the command reports by saying nothing and succeeding. Say so and leave it; empty output is never a reason to carry on to the pull.
@@ -65,17 +59,13 @@ git -C <main-checkout> pull --ff-only
 A checkout that generates the live config has moved on disk without coming into effect, so the pull is only half the hop. Skip this when the pull moved nothing. Otherwise ask whether this is that kind of checkout:
 
 ```
-
 git -C "$HOME/.claude-shared" rev-parse --path-format=absolute --git-common-dir
-
 ```
 
 The same answer as the main checkout's own `--git-common-dir` above means this repo generates the live profiles. A different answer, or a failure, means it generates nothing - say nothing and carry on.
 
 ```
-
 "$HOME/.claude-shared/sync.sh" --apply
-
 ```
 
 No check pass first and no question: the pull already moved, and the apply names the concerns it found in sync alongside the ones it wrote. It needs no assume-yes flag either - its own prompt answers itself when there is no terminal, which is every agent session.
@@ -88,18 +78,7 @@ No check pass first and no question: the pull already moved, and the apply names
 Safe to repeat: both totals are recomputed from the session usage files and overwritten, so a second run writes the same numbers.
 
 ```
-
-"$HOME/.cockpit/scripts/ticket-done-usage" <ticket-url>
-
+"$HOME/.cockpit/scripts/board-card" usage <id>
 ```
 
-Parse the JSON output (`cost_usd`, `tokens_k`) and update the ticket via `notion-update-page` (`update_properties`):
-
-- `Session Cost (USD)` ← `cost_usd` (if not null)
-- `Session Tokens (k)` ← `tokens_k`
-
-If `cost_usd` is `null`, do not set `Session Cost (USD)` - leave the property blank to signal that cost data was unavailable.
-
-```
-
-```
+It writes `cost_usd` and `tokens_k` onto the card and prints them. A `cost_usd` of `null` stays blank on the card, which signals that cost data was unavailable.

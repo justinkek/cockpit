@@ -11,9 +11,7 @@ Read `~/.claude-shared/templates/cockpit-dev-gates.md` before the first edit.
 
 Read `~/.claude-shared/templates/coding-conventions.md` before the first edit.
 
-Read `~/.claude-shared/templates/cockpit-cross-board.md` when a source ticket is registered alongside the stub.
-
-Read the ticket's open comments before the first edit, following `~/.claude-shared/templates/page-comments.md`.
+Read the card's open comments before the first edit with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`. `<id>` is the registered card's id, e.g. `FEAT-123`.
 
 ## Prerequisite
 
@@ -23,7 +21,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 ## Workflow
 
-1. **Check current status.** Fetch the registered ticket. If the status is already `In Dev` or later in the board walk, skip step 3 — there is nothing to walk — and go straight to step 4. Never stop here: a card claimed by `/cockpit:ticket:0:copilot` arrives already at `In Dev`, and so does one a person dragged there by hand, so stopping would leave file edits locked for the whole session.
+1. **Check current status.** Read it with `"$HOME/.cockpit/scripts/board-card" show <id> Status "Dependent on"`. If the status is already `In Dev` or later in the board walk, skip step 3 — there is nothing to walk — and go straight to step 4. Never stop here: a card claimed by `/cockpit:ticket:0:copilot` arrives already at `In Dev`, and so does one a person dragged there by hand, so stopping would leave file edits locked for the whole session.
 
 2. **Refuse on a split parent.** If the ticket's `Dependent on` relation is populated, it has no Tech Steps and Complexity 0 - there is nothing here to build. Name why, list the sub-tickets, and tell the user to open a new session registered on the one they want. One ticket per session, so cost attributes to the part actually being built. Stop.
 
@@ -69,7 +67,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
    Anything listed is missing from the worktree. Say so and let the user decide whether to push it first - never rebase or cherry-pick it in yourself.
 
-6. **Read the tech steps off the ticket.** Fetch the ticket page and read `## Tech Steps` from that response. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the card lands In Dev, and the amendment exists only on the page. When the fetched steps differ from the drafted ones, say what changed before writing any code.
+6. **Read the tech steps off the ticket.** Read them with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"`, which prints the open comments anchored in them too. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the card lands In Dev, and the amendment exists only on the card. When the steps read back differ from the drafted ones, say what changed before writing any code.
 
 7. **Report.** Confirm dev is active and file edits are unlocked.
 
@@ -77,7 +75,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 9. **Advance when the tech steps are built and committed.** Invoke the `cockpit:ticket:x:status` skill with target `In CR by AI`. Landing there runs the machine gates against the branch as it stands on the machine, so a finding is fixed before anything is published. Do not wait to be asked - a session that stops at `In Dev` leaves a reviewed-by-nobody branch behind.
 
-   Go through that skill, never a direct `Status` write: landing on the column is what fires its step 7, and that step is the only thing that runs the review. A card moved by hand or by a property update arrives in the column with nothing run, and the session cannot tell the difference afterwards.
+   Go through that skill, never a bare `board-card move` or `walk`: landing on the column through the skill is what fires its step 7, and that step is the only thing that runs the review. A card moved by hand or by a bare `board-card` call arrives in the column with nothing run, and the session cannot tell the difference afterwards.
 
    The review is `/code-review low`, which this session runs itself. Name the level every time - left off, it reuses whatever a person last typed. The billed cloud form (`/code-review ultra`) is the user's to launch and is never a next step handed back to them.
 

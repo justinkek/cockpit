@@ -10,12 +10,6 @@ The board watcher armed at registration reports every column the card lands in, 
     [ticket-watch] Ticket moved to In CR.
     [ticket-watch] Ticket dragged back to Ready for TR by AI from Ready for TR - invoke /cockpit:ticket:x:back-from-column, then /cockpit:ticket:2:tr.
 
-A cross-board session watches two cards, so its lines say which one moved - `Cockpit card` or `Project board card` in place of `Ticket`. The project board's line also says which card the status is read from:
-
-    [ticket-watch] Project board card moved to Ready for CR - the project board owns status.
-
-A move to a later column is mirrored: walk the cockpit card to the column that matches, through `/cockpit:ticket:x:status` and the map in `~/.claude-shared/templates/mirror-source-status.md` - never a guess about which of the two cards is right, and never a write back onto the project board. A move to an earlier column is not mirrored: say it happened and leave the cockpit card where it is. Which of the two it was is the agent's read - the watcher cannot order the project board's own columns.
-
 The first shape means a human moved the card into a column an agent works. The watcher never fires on the agent's own walk, so treat it as a real instruction: invoke the named skill and let that skill say where the card stops. A refinement column leaves the card in the matching human-review column (`Ready for BR` / `Ready for TR`) and never carries it past that gate. `In Dev` runs to `In CR by AI`, which is where `/cockpit:ticket:3:dev` already stops.
 
 The second shape is a report, not an instruction. Take it into account and carry on - there is no skill to invoke and nothing to reply to.
@@ -39,6 +33,6 @@ A session with no ticket can arm a second watcher - the board listener - via `/c
 
     [ticket-listen] 2 ticket(s) waiting for an agent - invoke /cockpit:ticket:0:copilot to take one.
 
-It names a count, never a card. Which card gets taken is decided by the skill, in the board's own column order, so do not try to infer the ticket from the line. Invoke the named skill and let it pick.
+It names a count, never a card. Which card gets taken is decided by the skill, so do not try to infer the ticket from the line. Invoke the named skill and let it pick.
 
 The same three rules apply as for `[ticket-watch]`: it is not a user message, the active thread finishes first, and the user's steer beats the event. One difference: the listener ends itself at that line, so there is no disarm message to expect and nothing to stop.

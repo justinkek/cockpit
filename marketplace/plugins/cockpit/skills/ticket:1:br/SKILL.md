@@ -5,17 +5,13 @@ description: Write BR (business refinement) output for a cockpit ticket - Valida
 
 # BR
 
-Write the business refinement output for the registered cockpit ticket. BR captures _what and why_ (user-facing outcome), never _how_ (implementation).
+Write the business refinement output for the registered cockpit ticket. BR captures _what and why_ (user-facing outcome), never _how_ (implementation). `<id>` below is the registered card's id, e.g. `FEAT-123`.
 
 Read `~/.claude-shared/templates/ticket-page.md` before writing.
 
 Read `~/.claude-shared/templates/cockpit-operating-contract.md` first.
 
-Read `~/.claude-shared/templates/cockpit-cross-board.md` when the registered ticket carries a source ticket on another board.
-
-Read `~/.claude-shared/templates/notion-writing.md` before writing to the page.
-
-Read the ticket's open comments before drafting, following `~/.claude-shared/templates/page-comments.md`.
+Read the ticket's open comments before drafting with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`.
 
 Check the outcome is not already delivered before drafting, following `~/.claude-shared/templates/already-done-check.md`. A hit stops the draft.
 
@@ -23,7 +19,7 @@ A decision the draft cannot settle is raised on the ticket, beside the line it c
 
 ## Pre-existing content guard
 
-Before writing BR output, read the target section with `"$HOME/.cockpit/scripts/ticket-read" <ticket-url> --section "<heading>"` and check whether it already has content. Exit 7 is the section being absent:
+Before writing BR output, read the target section with `"$HOME/.cockpit/scripts/board-card" show <id> --section "<heading>"` and check whether it already has content. Exit 7 is the section being absent:
 
 - Feature: `## Validation Steps` with at least one checklist item.
 - Bug: `## Replication/Validation Steps` with at least one checklist item.
@@ -31,18 +27,27 @@ Before writing BR output, read the target section with `"$HOME/.cockpit/scripts/
 
 If the section exists and has content, the guard's job is to stop the agent rewording someone else's text unasked - never to re-ask a change they have already asked for.
 
-**A standing instruction stands the guard down.** When the person's own words - a comment on the page, or an instruction in this session - already say what changes in that section, make the change, report what was written, and ask nothing. There is no question, so the ticket is not flagged Blocked either.
+**A standing instruction stands the guard down.** When the person's own words - a comment on the card, or an instruction in this session - already say what changes in that section, make the change, report what was written, and ask nothing. There is no question, so the ticket is not flagged Blocked either.
 
 An instruction covers the change when acting on it has one reading. "Raise the second scenario as its own ticket" says that scenario leaves the page, so removing it is covered. "Have a look at the second scenario" names no change, so it is not - and a change the instruction is silent on stays behind the guard even when the same comment covered another one.
 
 Otherwise the guard stands:
 
-1. Do **not** write to the ticket page - leave the original content unchanged.
+1. Do **not** write to the card - leave the original content unchanged.
 2. Draft the suggested BR content following all the rules below (ticket type, golden path, exclusion list, formatting).
 3. Raise the redraft on the ticket, following `~/.claude-shared/templates/raise-a-decision.md`, with the drafted content in the comment itself - that comment is the only copy a reader gets, so a redraft summarised rather than quoted is a redraft nobody can accept.
 4. Keep the original. Overwriting what a person wrote is theirs to ask for.
 
-If the section is absent or empty, write directly as before.
+If the section is absent or empty, write it directly:
+
+```sh
+"$HOME/.cockpit/scripts/board-card" section <id> "<heading>" <<'EOF'
+- [ ] AaUser
+...
+EOF
+```
+
+The BR section is the first `##` heading on the card. When the heading is missing and the card already holds another section, add `--before "<first heading on the card>"` to the `section` call so it lands ahead of it.
 
 ## Output by ticket type
 
@@ -113,7 +118,7 @@ A timebox page runs Expected Outcome, Outcome, Context, Details - the shape is i
 
 The session was named after the ticket's title as it stood at registration. When the title rule above gives the ticket a different title, do both in the same pass:
 
-1. Set the ticket's `Name` property via `notion-update-page` (`update_properties`).
+1. Set the card's name with `"$HOME/.cockpit/scripts/board-card" set <id> name "<title>"`.
 2. Rename the session under `~/.claude-shared/templates/session-name.md`, which holds the retitle rule: the bracket stays, the description becomes the new title.
 
 Never leave out the second step - the session and the card then read as two different pieces of work for the rest of the session.
@@ -189,7 +194,7 @@ The wrong example splits three paths into three scenarios on one ticket. The rig
 
 ## Self-check
 
-After writing BR content to the ticket page, verify:
+After writing BR content to the card, verify:
 
 1. **Sections** - only the allowed sections for this ticket type exist as top-level `##` headings (plus `## Context` if background is needed). No ad-hoc headings. Verify `## User Story` is absent - it is never written.
 2. **Validation Steps** (features) - one scenario, golden path only, first person (`I`), `AaUser` on its own line. Scan each clause for anything from the exclusion list. If edge cases exist, they become separate tickets.

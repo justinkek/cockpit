@@ -54,15 +54,13 @@ assert_names "and dev reads them before it edits anything" \
 printf "\nTest group: one read, taken once, at the start\n"
 
 assert_names "the template takes one read" \
-  "$TEMPLATE" 'One read sees everything open: `notion-get-comments`'
-assert_names "and asks it for every block" \
-  "$TEMPLATE" 'the `page_id` and `include_all_blocks: true`'
-assert_absent "and leaves the resolved threads out" \
-  "$TEMPLATE" 'include_resolved'
-assert_names "and says an anchor inside a code block comes back too" \
-  "$TEMPLATE" 'an anchor on a line inside a code block among them'
-assert_names "and refuses the fetch summary as a second read" \
-  "$TEMPLATE" 'is not a second read'
+  "$TEMPLATE" 'One read sees everything open:'
+assert_names "and that read is the board's own" \
+  "$TEMPLATE" 'board-card" comments <card-id>'
+assert_names "and page and line-anchored comments come back alike" \
+  "$TEMPLATE" 'Page comments and line-anchored ones come back alike'
+assert_names "and leaves the resolved threads out" \
+  "$TEMPLATE" 'so `--all` is never passed here'
 assert_absent "and takes no further read before a write" \
   "$TEMPLATE" 'immediately before the write'
 

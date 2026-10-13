@@ -77,10 +77,10 @@ fi
 
 printf "\nTest group: an executed script keeps its symlink path\n"
 
-if grep --quiet --fixed-strings '"$HOME/.cockpit/scripts/cockpit-cache-query"' "$BOARD_CORE"; then
+if grep --quiet --fixed-strings '"$HOME/.cockpit/scripts/board-card"' "$BOARD_CORE"; then
   assert_ok "the pattern spares a script the allowlist matches by its literal command"
 else
-  assert_ko "the pattern spares a script the allowlist matches by its literal command" "the board rules no longer run cockpit-cache-query through the symlink"
+  assert_ko "the pattern spares a script the allowlist matches by its literal command" "the board rules no longer run board-card through the symlink"
 fi
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"

@@ -124,8 +124,6 @@ moved_sentences=(
   "is the last section on every ticket"
   "needs to be created, insert it after"
   "Subsequent bounces from the same gate"
-  "Notion parses"
-  "reports success when"
   "watcher never fires on the agent's own walk"
   "One comment per finding, posted when it surfaces"
   "Open with the agent marker"
@@ -195,7 +193,7 @@ retired_sentences=(
 )
 
 named_references=(
-  "cockpit-cache-query"
+  "board-card"
   "base.AGENTS.md"
   "guard-instruction-register.sh"
   "templates/raise-a-decision.md"
@@ -255,7 +253,6 @@ CONTRACT="$TEMPLATES/cockpit-operating-contract.md"
 
 staged_sentences=(
   "Split threshold"
-  "owns status: a change is written there first"
   "Reviewing is the first job"
 )
 
@@ -296,40 +293,28 @@ not_yet_named=(
   "block-user-settings.sh"
   "challenge-memory-write.sh"
   "challenge-settings-scope.sh"
-  "cockpit-board-claim"
-  "cockpit-board-id"
-  "cockpit-cache-refresh"
+  "deny-notion-writes.sh"
   "guard-bash-secret-read.sh"
   "guard-env-var-leak.sh"
   "guard-gh-api.sh"
-  "guard-notion-content-revival.sh"
   "guard-secrets-gitignore.sh"
   "guard-ticket-comment-length.sh"
   "redirect-artifacts.sh"
   "redirect-default-profile-reads.sh"
   "redirect-session-id-echo.sh"
   "redirect-state-to-read-write.sh"
-  "refresh-cockpit-cache.sh"
   "remind-back-from-column.sh"
   "require-blocked-comment.sh"
-  "require-emoji.sh"
   "require-rename.sh"
-  "require-ticket-type.sh"
   "require-ticket.sh"
   "session-end-release-claims.sh"
   "settings-scope-confirm"
-  "sprint-backlog-sync.sh"
   "statusline-command"
-  "ticket-comment-images"
-  "ticket-comment-line"
   "ticket-done-usage"
-  "ticket-register"
   "ticket-register-column"
-  "ticket-register-source-ticket"
   "ticket-register-type"
   "ticket-status-confirm"
   "ticket-watch-board"
-  "verify-notion-content-edit.sh"
 )
 
 registered_commands() {

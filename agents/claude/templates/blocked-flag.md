@@ -6,10 +6,16 @@ When work on a ticket cannot proceed without external input - a colleague's answ
 
 **Setting the flag:**
 
-1. Set the ticket's `Blocked` property to `"Blocked"` via `notion-update-page` (`update_properties`).
-2. Create a Notion comment via `notion-create-comment` on the ticket. The comment opens with the agent marker and the reason on one line:
+1. Set the card's `blocked` field to the reason, in one statement:
 
+       "$HOME/.cockpit/scripts/board-card" set <card-id> blocked "<reason>"
+
+2. Comment on the card. The comment opens with the agent marker and the reason on one line:
+
+       "$HOME/.cockpit/scripts/board-card" comment <card-id> <<'EOF'
        🤖 🚧 **Blocked** - [reason, in one statement]
+       ...
+       EOF
 
    and then names:
    - What is needed (the specific input or decision).
@@ -20,8 +26,8 @@ When work on a ticket cannot proceed without external input - a colleague's answ
 
 When the blocking input arrives and the agent resumes work:
 
-1. Clear the `Blocked` property (set to `null`) via `notion-update-page`.
-2. Create a Notion comment confirming the unblock.
+1. Clear the field with `board-card set <card-id> blocked ""`.
+2. Comment on the card confirming the unblock.
 
 **Judgement call:** "cannot proceed" means no useful work on this ticket is possible without the input. If the agent can work around the dependency or tackle other parts of the ticket, it is not blocked - continue and note the pending dependency in the ticket body instead.
 
