@@ -20,14 +20,14 @@
 #
 # Exit codes:
 #   0  imported
-#   2  usage, or a board without a tickets database id
+#   2  usage, or a board boards.json gives no tickets database id
 #   3  no credential
 #   4  Notion refused a query
 #
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-BOARD_ID="${COCKPIT_BOARD_ID:-$here/cockpit-board-id}"
+BOARDS_FILE="${COCKPIT_BOARDS_FILE:-$HOME/.local/state/cockpit/boards.json}"
 BOARD_CARD="${BOARD_CARD:-$here/board-card}"
 
 content=false
@@ -192,9 +192,13 @@ if [ "$content" = true ]; then
 fi
 
 board="${1:-Cockpit}"
-database_of() { "$BOARD_ID" get "$1" "$board" 2>/dev/null || true; }
+[ -f "$BOARDS_FILE" ] || { echo "[board-import-notion] no Notion board ids at $BOARDS_FILE" >&2; exit 2; }
+database_of() {
+  jq --raw-output --arg board "$board" --arg key "$1" '.boards[] | select(.name == $board) | .ids[$key] // empty' "$BOARDS_FILE"
+}
 
-tickets_database="$("$BOARD_ID" get tickets-database "$board")" || exit 2
+tickets_database="$(database_of tickets-database)"
+[ -n "$tickets_database" ] || { echo "[board-import-notion] $BOARDS_FILE names no tickets-database for '$board'" >&2; exit 2; }
 epics_database="$(database_of epics-database)"
 projects_database="$(database_of projects-database)"
 reference_database="$(database_of reference-tickets-database)"
