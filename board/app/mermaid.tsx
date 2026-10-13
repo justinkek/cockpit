@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useId, useState } from "react";
+import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
 async function drawn(id: string, source: string, dark: boolean): Promise<Error | string> {
 	const { default: mermaid } = await import("mermaid");
@@ -19,14 +19,17 @@ async function drawn(id: string, source: string, dark: boolean): Promise<Error |
 
 export function Mermaid({ source, style }: { source: string; style?: CSSProperties }) {
 	const id = `mermaid-${useId().replace(/[^A-Za-z0-9]/g, "")}`;
+	const drawCount = useRef(0);
 	const [svg, setSvg] = useState<string | null>(null);
 	useEffect(() => {
 		let live = true;
 		const scheme = window.matchMedia("(prefers-color-scheme: dark)");
-		const draw = () =>
-			drawn(id, source, scheme.matches).then((result) => {
+		const draw = () => {
+			drawCount.current += 1;
+			return drawn(`${id}-${drawCount.current}`, source, scheme.matches).then((result) => {
 				if (live) setSvg(result instanceof Error ? null : result);
 			});
+		};
 		draw();
 		scheme.addEventListener("change", draw);
 		return () => {
