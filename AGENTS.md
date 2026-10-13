@@ -110,7 +110,7 @@ Whole-word variable names and long-form options are not this repository's any mo
 
 The rest of `## Shell & tooling` stayed - the `cd` rule, the `set -euo pipefail` rule and the `gh api --jq` rule belong to no plugin.
 
-A project narrows or widens the lists in its own `.readable-shell/settings`, so a change this repository alone wants goes there rather than into the plugin.
+A project turns items on the lists on or off in its own `.readable-shell/settings.json`, so a change this repository alone wants goes there rather than into the plugin.
 
 ## The drawings that open the tech steps
 
