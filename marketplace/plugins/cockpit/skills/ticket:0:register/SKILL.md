@@ -27,7 +27,7 @@ Once the card is registered, the column it sits in decides what kind of output i
 If no input was supplied, ask which card the user is working on. Otherwise resolve the argument as one of:
 
 1. **Card id** (`FEAT-n`, `BUG-n` or `TIME-n`) — read it once with `"$HOME/.cockpit/scripts/board-card" show <card-id> --json`, confirm its name and continue to the epic gate. Exit 3 means no such card: say so and stop. An `EPIC-n` id is an epic, not a card - inform the user and invoke the `/cockpit:epic:0:register` skill with the id instead of continuing the ticket flow. Stop this skill's execution.
-2. **A Notion URL** — the board no longer lives in Notion, so this is an import question, not a registration. Tell the user to bring the page across with `"$HOME/.cockpit/scripts/board-import-notion"` or to give the card id it was already imported as, and stop.
+2. **A Notion URL** — the board no longer lives in Notion. Ask for the card id and stop.
 3. **Title, free text or any other URL** — delegate card creation to `/cockpit:ticket:0:new`, passing: title (from the text, or the page a URL names), type (from step 2.5), and epic (from step 2). A URL is reference material: it goes in the card's `## Context`, and nothing reads or writes the page it names.
 
 Handle epic ambiguity only in the epic gate; do not ask twice.

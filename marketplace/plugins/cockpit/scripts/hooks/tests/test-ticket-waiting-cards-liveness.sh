@@ -45,9 +45,8 @@ card() {
   local status="$1" name="$2" session="$3" claimed_at="$4" id
   id="$("$BOARD_CARD" create --name "$name" --status "$status")"
   if [ -n "$session" ]; then
-    jq --null-input --compact-output --arg id "$id" --arg name "$name" --arg session "$session" --arg at "$claimed_at" \
-      '{id: $id, name: $name, session: $session, claimed_at: $at}' \
-      | "$BOARD_CARD" import --fields session,claimed_at >/dev/null
+    "$BOARD_CARD" set "$id" session "$session" >/dev/null
+    perl -pi -e "s/^claimed_at: .*/claimed_at: \"$claimed_at\"/" "$("$BOARD_CARD" path "$id")"
   fi
   printf '%s\n' "$id"
 }

@@ -23,7 +23,6 @@
 #   board-card resolve <id> <comment-id>
 #   board-card attach <id> <file>
 #   board-card usage <id>
-#   board-card import [--fields <field>,...] < <record-json>
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -957,35 +956,6 @@ command_usage() {
   printf '%s\n' "$usage"
 }
 
-import_locked() {
-  local id="$1" json="$2" fields="$3" existing
-  if [ ! -f "$(record_file "$id")" ]; then
-    printf '%s' "$json" | write_record "$id"
-    return 0
-  fi
-  existing="$(read_record "$id")"
-  if [ -n "$fields" ]; then
-    printf '%s' "$existing" | jq --argjson incoming "$json" --arg fields "$fields" '
-      reduce ($fields | split(",")[]) as $field (.; .[$field] = $incoming[$field])' | write_record "$id"
-  else
-    printf '%s' "$json" | jq --argjson existing "$existing" '
-      (if (.body // "") == "" then .body = $existing.body else . end)
-      | (if has("rank") | not then .rank = $existing.rank else . end)
-      | with_entries(select(.key != "rank" or .value != null))' | write_record "$id"
-  fi
-}
-
-command_import() {
-  local json id fields=""
-  if [ "${1:-}" = "--fields" ]; then fields="${2:-}"; fi
-  require_board
-  json="$(cat)"
-  id="$(normalise_id "$(printf '%s' "$json" | jq --raw-output '.id // empty')")"
-  printf '%s' "$json" | jq --exit-status '.name' >/dev/null || die 2 "import: $id needs a name"
-  with_lock import_locked "$id" "$(printf '%s' "$json" | jq --arg id "$id" '.id = $id | .body = (.body // "")')" "$fields"
-  printf '%s\n' "$id"
-}
-
 command_path() {
   if [ -n "${1:-}" ]; then
     record_file "$(normalise_id "$1")"
@@ -1019,7 +989,6 @@ case "$action" in
   resolve) command_resolve "$@" ;;
   attach) command_attach "$@" ;;
   usage) command_usage "$@" ;;
-  import) command_import "$@" ;;
   path) command_path "$@" ;;
-  *) sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

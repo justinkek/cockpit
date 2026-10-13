@@ -50,8 +50,6 @@
 			"Bash(\"$HOME/.cockpit/scripts/ticket-waiting-cards\")",
 			"Bash($HOME/.cockpit/scripts/ticket-waiting-cards:*)",
 			"Bash(\"$HOME/.cockpit/scripts/ticket-waiting-cards\":*)",
-			"Bash($HOME/.cockpit/scripts/board-import-notion:*)",
-			"Bash(\"$HOME/.cockpit/scripts/board-import-notion\":*)",
 			"Bash($HOME/.cockpit/scripts/board-card:*)",
 			"Bash(\"$HOME/.cockpit/scripts/board-card\":*)",
 			"Bash($HOME/.cockpit/scripts/ticket-claim-lock:*)",

@@ -77,7 +77,6 @@ export type Card = {
 	models?: Record<string, string>;
 	back_from?: Record<string, number>;
 	dates?: Record<string, string>;
-	notion_url?: string | null;
 	body: string;
 };
 

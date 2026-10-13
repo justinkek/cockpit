@@ -91,7 +91,7 @@ Only the checkout `~/.claude-shared` resolves into is followed by an apply: the 
 
 ## The local board
 
-The cockpit board is a folder of markdown files, `~/.local/state/cockpit/board`, a git repository of its own that is never pushed. `board-card` is its one writer, run as `"$HOME/.cockpit/scripts/board-card"`, and `board-card init` makes it. Every write goes through the script, so the board works with the app stopped. Notion is read and never written: `board-import-notion` is the only thing that reaches it.
+The cockpit board is a folder of markdown files, `~/.local/state/cockpit/board`, a git repository of its own that is never pushed. `board-card` is its one writer, run as `"$HOME/.cockpit/scripts/board-card"`, and `board-card init` makes it. Every write goes through the script, so the board works with the app stopped. Nothing reaches Notion.
 
 | Folder        | Holds                                                      | Id                           |
 | ------------- | ---------------------------------------------------------- | ---------------------------- |
@@ -112,8 +112,6 @@ A card id is accepted wherever a ticket URL was: `ticket-register` records it, `
 `board-card section <id> <heading>` replaces one section of the content with what arrives on stdin, or adds it after `--after <heading>`, and leaves the rest. `board-card bounce <id> <gate>` adds one to that gate's `Back from` counter.
 
 A comment sits in `<id>.comments.jsonl` beside its record, one line each. `board-card comment <id> --anchor <text>` pins it to that text in the content, `--reply <comment-id>` adds it to a thread, and no flag puts it on the whole page. `board-card comments <id>` lists the open threads and `board-card resolve` closes one. `show --section` prints the open comments anchored inside that section.
-
-`board-import-notion [<board>]` adds every page of a Notion board the local board does not hold yet, and fills only the epic, project and sprint links of one it does. `--overwrite` replaces each with the page as Notion holds it, keeping its content and rank. `board-import-notion --content [<id>...]` copies each page's body into its record as markdown and changes nothing else on it.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 
