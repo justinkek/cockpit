@@ -46,7 +46,7 @@ assert_eq "an edit with no ticket registered still beats" "yes" "$(beat_written)
 run_hook "$(printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"rm -rf build"}}' "$SESSION")"
 assert_eq "a mutating shell command beats" "yes" "$(beat_written)"
 
-printf '%s\n' "https://app.notion.com/p/abc" > "$STATE_DIR/$SESSION.ticket"
+printf '%s\n' "FEAT-31" > "$STATE_DIR/$SESSION.ticket"
 run_hook "$(printf '{"session_id":"%s","tool_name":"Edit","tool_input":{}}' "$SESSION")"
 assert_eq "an edit the gate allows beats too" "yes" "$(beat_written)"
 rm -f "$STATE_DIR/$SESSION.ticket"

@@ -54,10 +54,9 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
 
   # Which script is invoked? Matched anywhere in the command, not just as the
   # first token, so a chained invocation is still recognised. Longest name
-  # first: the -source-ticket / -column / -type variants must win over the
+  # first: the -column / -type variants must win over the
   # bare ticket-register prefix they all share.
   case "$cmd" in
-    *.cockpit/scripts/ticket-register-source-ticket*) _script=source-ticket ;;
     *.cockpit/scripts/ticket-register-column*)        _script=column ;;
     *.cockpit/scripts/ticket-register-type*)          _script=type ;;
     *.cockpit/scripts/ticket-register*)               _script=ticket ;;
@@ -71,11 +70,6 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
   # token. Absent arguments come back empty, so emptiness is the only guard
   # each branch needs.
   case "$_script" in
-    source-ticket)
-      _rurl="$(hook_argv_after "$cmd" ticket-register-source-ticket | sed -n 1p)"
-      case "$_rurl" in https://*) printf '%s\n' "$_rurl" > "$STATE_DIR/$session_id.source-ticket" ;; esac
-      reason="ticket-register-source-ticket (source ticket registration) — allowed"
-      ;;
     column)
       _rcol="$(hook_argv_after "$cmd" ticket-register-column | sed -n 1p)"
       if [ -n "$_rcol" ]; then
@@ -96,7 +90,10 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
       ;;
     ticket)
       _rurl="$(hook_argv_after "$cmd" ticket-register | sed -n 1p)"
-      case "$_rurl" in https://*) printf '%s\n' "$_rurl" > "$marker" ;; esac
+      case "$_rurl" in
+        https://*) printf '%s\n' "$_rurl" > "$marker" ;;
+        *) printf '%s' "$_rurl" | grep --quiet --extended-regexp '^[A-Z][A-Z0-9]*-[0-9]+$' && printf '%s\n' "$_rurl" > "$marker" ;;
+      esac
       reason="ticket-register (session registration) — allowed"
       ;;
   esac
@@ -117,13 +114,22 @@ fi
 
 # Cross-allow: let the copilot skill work out which ticket to register. Every
 # one of these runs before a ticket exists, because they are how it is chosen.
-# Two of them write — ticket-claim-lock takes a lock, and cockpit-board-claim
-# records which board serves this checkout — but each writes one known thing,
-# which is why they are named here one by one rather than by a pattern that
-# would let anything through.
-if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-board-members|ticket-claim-lock|ticket-waiting-cards|cockpit-board-claim|cockpit-board-id|cockpit-cache-query'; then
+# ticket-claim-lock and board-card claim write one known thing each, which is
+# why they are named here one by one rather than by a pattern that would let
+# anything through.
+if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-claim-lock|ticket-waiting-cards'; then
   first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
-  case "$first" in *.cockpit/scripts/ticket-board-members|*.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards|*.cockpit/scripts/cockpit-board-claim|*.cockpit/scripts/cockpit-board-id|*.cockpit/scripts/cockpit-cache-query) exit 0 ;; esac
+  case "$first" in *.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards) exit 0 ;; esac
+fi
+
+if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'board-card'; then
+  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
+  subcommand="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $2}' | tr -d '"'"'")"
+  case "$first" in
+    *.cockpit/scripts/board-card)
+      case "$subcommand" in show|list|statuses|path|claim|create) exit 0 ;; esac
+      ;;
+  esac
 fi
 
 # Cross-allow: let auto-rename through without writing the ticket marker.
@@ -134,45 +140,6 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'auto-rename'; then
   case "$first" in *.cockpit/scripts/auto-rename) exit 0 ;; esac
 fi
 
-# Cross-allow: let the copilot skill claim a waiting card. The claim is what
-# decides which ticket this session registers, so it cannot wait for
-# registration.
-if [ "$tool" = "mcp__plugin_Notion_notion__notion-update-page" ] && hook_is_cockpit_claim "$input"; then
-  reason="notion-update-page writing only the cockpit ticket claim — allowed"
-  if command -v jq >/dev/null 2>&1; then
-    jq -nc --arg r "$reason" \
-      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
-  else
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s"}}\n' "$reason"
-  fi
-  exit 0
-fi
-
-# Cross-allow: let notion-create-pages through when targeting cockpit data
-# sources (Tickets, Epics, Projects). The ticket skill needs this to create
-# stubs and epics before registration — the only pre-registration writes.
-if [ "$tool" = "mcp__plugin_Notion_notion__notion-create-pages" ]; then
-  if command -v jq >/dev/null 2>&1; then
-    ds_id="$(printf '%s' "$input" | jq -r '.tool_input.parent.data_source_id // empty')"
-  else
-    ds_id="$(printf '%s' "$input" | sed -n 's/.*"data_source_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  fi
-  case "$ds_id" in
-    a758f377-6f4f-83c6-ba20-07fdca79919b|a758f3776f4f83c6ba2007fdca79919b|\
-    3928f377-6f4f-8044-85bf-000b726df449|3928f3776f4f804485bf000b726df449|\
-    3928f377-6f4f-80c8-8605-000b567bbdeb|3928f3776f4f80c88605000b567bbdeb)
-      reason="notion-create-pages targeting cockpit data source — allowed"
-      if command -v jq >/dev/null 2>&1; then
-        jq -nc --arg r "$reason" \
-          '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
-      else
-        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s"}}\n' "$reason"
-      fi
-      exit 0
-      ;;
-  esac
-fi
-
 # A command that only reads is not a mutation. exit 0 is "no opinion": the
 # normal allowlist or permission prompt still decides.
 if [ "$tool" = "Bash" ] && hook_is_readonly_bash "$cmd"; then
@@ -181,7 +148,7 @@ fi
 
 [ -f "$marker" ] && exit 0
 
-reason="No cockpit ticket registered for this session — Edit/Write/Agent, shell commands that change something, and Notion MCP write tools are DENIED until one is. Commands that only read are free. Assistant: do not reply to the user, retry this command, or work around the block — invoke the ticket skill NOW to register (use /cockpit:ticket:0:register in Claude or \$ticket in Codex; it resolves or creates the ticket stub, links or raises an epic if missing, then unlocks the session). Registration is the only door; there is no override."
+reason="No cockpit ticket registered for this session — Edit/Write/Agent and shell commands that change something are DENIED until one is. Commands that only read are free. Assistant: do not reply to the user, retry this command, or work around the block — invoke the ticket skill NOW to register (use /cockpit:ticket:0:register in Claude or \$ticket in Codex; it resolves or creates the ticket stub, links or raises an epic if missing, then unlocks the session). Registration is the only door; there is no override."
 if command -v jq >/dev/null 2>&1; then
   jq -nc --arg r "$reason" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'

@@ -61,13 +61,22 @@ fi
 
 # Cross-allow: let the copilot skill work out which ticket to take. The name
 # comes from that ticket, so every one of these necessarily runs before the
-# session has a name. Two of them write — ticket-claim-lock takes a lock, and
-# cockpit-board-claim records which board serves this checkout — but each writes
-# one known thing, which is why they are named here one by one rather than by a
+# session has a name. ticket-claim-lock and board-card claim write one known
+# thing each, which is why they are named here one by one rather than by a
 # pattern that would let anything through.
-if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-board-members|ticket-claim-lock|ticket-waiting-cards|cockpit-board-claim|cockpit-board-id|cockpit-cache-query'; then
+if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-claim-lock|ticket-waiting-cards'; then
   first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
-  case "$first" in *.cockpit/scripts/ticket-board-members|*.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards|*.cockpit/scripts/cockpit-board-claim|*.cockpit/scripts/cockpit-board-id|*.cockpit/scripts/cockpit-cache-query) exit 0 ;; esac
+  case "$first" in *.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards) exit 0 ;; esac
+fi
+
+if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'board-card'; then
+  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
+  subcommand="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $2}' | tr -d '"'"'")"
+  case "$first" in
+    *.cockpit/scripts/board-card)
+      case "$subcommand" in show|list|statuses|path|claim|create) exit 0 ;; esac
+      ;;
+  esac
 fi
 
 # Cross-allow: let ticket-register through without writing the rename marker.
@@ -76,46 +85,7 @@ fi
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
   first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
   case "$first" in
-    *.cockpit/scripts/ticket-register|*.cockpit/scripts/ticket-register-source-ticket|*.cockpit/scripts/ticket-register-type) exit 0 ;;
-  esac
-fi
-
-# Cross-allow: let the copilot skill claim a waiting card before the session is
-# named. The name is built from the claimed ticket, so requiring a name first
-# forces a throwaway one — which is exactly the workaround this prevents.
-if [ "$tool" = "mcp__plugin_Notion_notion__notion-update-page" ] && hook_is_cockpit_claim "$input"; then
-  reason="notion-update-page writing only the cockpit ticket claim — allowed"
-  if command -v jq >/dev/null 2>&1; then
-    jq -nc --arg r "$reason" \
-      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
-  else
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s"}}\n' "$reason"
-  fi
-  exit 0
-fi
-
-# Cross-allow: let notion-create-pages through when targeting cockpit data
-# sources (Tickets, Epics, Projects). The ticket skill needs this to create
-# stubs and epics before the session is named.
-if [ "$tool" = "mcp__plugin_Notion_notion__notion-create-pages" ]; then
-  if command -v jq >/dev/null 2>&1; then
-    ds_id="$(printf '%s' "$input" | jq -r '.tool_input.parent.data_source_id // empty')"
-  else
-    ds_id="$(printf '%s' "$input" | sed -n 's/.*"data_source_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  fi
-  case "$ds_id" in
-    a758f377-6f4f-83c6-ba20-07fdca79919b|a758f3776f4f83c6ba2007fdca79919b|\
-    3928f377-6f4f-8044-85bf-000b726df449|3928f3776f4f804485bf000b726df449|\
-    3928f377-6f4f-80c8-8605-000b567bbdeb|3928f3776f4f80c88605000b567bbdeb)
-      reason="notion-create-pages targeting cockpit data source — allowed"
-      if command -v jq >/dev/null 2>&1; then
-        jq -nc --arg r "$reason" \
-          '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
-      else
-        printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s"}}\n' "$reason"
-      fi
-      exit 0
-      ;;
+    *.cockpit/scripts/ticket-register|*.cockpit/scripts/ticket-register-type) exit 0 ;;
   esac
 fi
 
@@ -132,7 +102,7 @@ if [ -n "$transcript" ] && [ -f "$transcript" ] && grep -q '"type":"custom-title
   exit 0
 fi
 
-reason="This session has no name yet — Edit/Write/Agent, shell commands that change something, and Notion MCP write tools are DENIED until it is named. Commands that only read are free. Assistant: do not reply to the user, retry this tool call, or work around the block — derive a name and run \$HOME/.cockpit/scripts/auto-rename NOW, passing the name as its single quoted argument. Read \$HOME/.claude-shared/templates/session-name.md for the name to pass — it is the one place the convention is stated, and reading is free while the session is unnamed. This hook intercepts that call, records the name, and unlocks the session; naming is self-serve. Ask the user for a name only when nothing in the session gives you a basis for one."
+reason="This session has no name yet — Edit/Write/Agent and shell commands that change something are DENIED until it is named. Commands that only read are free. Assistant: do not reply to the user, retry this tool call, or work around the block — derive a name and run \$HOME/.cockpit/scripts/auto-rename NOW, passing the name as its single quoted argument. Read \$HOME/.claude-shared/templates/session-name.md for the name to pass — it is the one place the convention is stated, and reading is free while the session is unnamed. This hook intercepts that call, records the name, and unlocks the session; naming is self-serve. Ask the user for a name only when nothing in the session gives you a basis for one."
 if command -v jq >/dev/null 2>&1; then
   jq -nc --arg r "$reason" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'

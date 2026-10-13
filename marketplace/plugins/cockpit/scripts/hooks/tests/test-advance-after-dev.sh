@@ -15,9 +15,7 @@ STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
 
 SESSION="test-advance-after-dev-$$"
-PAGE="3b68f3776f4f8115ac0fd6bbfbea6973"
-
-printf 'https://app.notion.com/p/%s\n' "$PAGE" > "$STATE_DIR/$SESSION.ticket"
+printf 'FEAT-31\n' > "$STATE_DIR/$SESSION.ticket"
 
 run_guard() {
   local session_id="${1:-$SESSION}" active="${2:-false}" sent notes_file

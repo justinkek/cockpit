@@ -4,12 +4,19 @@ input="$(cat)"
 
 command -v jq >/dev/null 2>&1 || exit 0
 
-body="$(printf '%s' "$input" | jq --raw-output '.tool_input.markdown // empty')"
+. "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/hooks/hook-argv-lib.sh"
+
+[ "$(printf '%s' "$input" | jq --raw-output '.tool_name // empty')" = "Bash" ] || exit 0
+cmd="$(printf '%s' "$input" | jq --raw-output '.tool_input.command // empty')"
+printf '%s' "$cmd" | grep --quiet 'board-card' || exit 0
+[ "$(hook_argv_after "$cmd" board-card | sed -n 1p)" = "comment" ] || exit 0
+
+body="$(hook_heredoc_body "$cmd")"
 [ -n "$body" ] || exit 0
 
 opening="$(printf '%s\n' "$body" | grep --max-count 1 '[^[:space:]]')"
 case "$opening" in
-  *'**Blocked**'*|*'Back from '*|*'**On:**'*) exit 0 ;;
+  *'**Blocked**'*|*'Back from '*|*'**On:**'*|'**[suggestion]**'*) exit 0 ;;
 esac
 
 CHARACTER_CEILING=200

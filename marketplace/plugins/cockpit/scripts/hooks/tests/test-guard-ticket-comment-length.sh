@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 
+export CLAUDE_SHARED_DIR="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)"
+
 HOOK="$(cd "$(dirname "$0")/.." && pwd)/guard-ticket-comment-length.sh"
 
 pass=0
 fail=0
 
-run_hook() {
-  jq --null-input --compact-output --arg m "$1" \
-    '{hook_event_name:"PreToolUse",tool_name:"mcp__plugin_Notion_notion__notion-create-comment",tool_input:{page_id:"abc",markdown:$m}}' \
+run_command() {
+  jq --null-input --compact-output --arg command "$1" \
+    '{hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$command}}' \
     | bash "$HOOK" 2>/dev/null
+}
+
+run_hook() {
+  run_command "$(printf '%s\n' "\"\$HOME/.cockpit/scripts/board-card\" comment FEAT-12 <<'EOF'" "$1" 'EOF')"
 }
 
 assert_denies() {
@@ -52,15 +58,21 @@ assert_passes "a bounce-back summary" \
   "$(run_hook "$(printf '\360\237\224\231 Back from CR (#2): %s\n' "$(characters_of 300)")")"
 assert_passes "a raised decision quoting the line it concerns" \
   "$(run_hook "$(printf '**On:** Then I see a summary card for each subscription\n**[suggestion]** %s\n' "$(characters_of 300)")")"
+assert_passes "an anchored decision opening on its suggestion" \
+  "$(run_hook "$(printf '**[suggestion]** %s\n' "$(characters_of 300)")")"
+assert_denies "a suggestion marker mid-line does not exempt it" \
+  "$(run_hook "$(printf 'preamble **[suggestion]** %s\n' "$(characters_of 300)")")"
 assert_denies "a marker further down does not exempt the comment" \
   "$(run_hook "$(printf 'some preamble first\n\360\237\224\231 Back from CR (#2): %s\n' "$(characters_of 300)")")"
 
 printf "\nTest group: the guards\n"
 
-assert_passes "a comment sent as rich text carries no markdown to measure" \
-  "$(jq --null-input --compact-output \
-    '{hook_event_name:"PreToolUse",tool_input:{page_id:"abc",rich_text:[{text:{content:"hi"}}]}}' \
-    | bash "$HOOK" 2>/dev/null)"
+assert_passes "a comment fed from a file carries no text to measure here" \
+  "$(run_command '"$HOME/.cockpit/scripts/board-card" comment FEAT-12 < /tmp/comment.md')"
+assert_passes "another board-card command is none of its business" \
+  "$(run_command "$(printf '%s\n' "\"\$HOME/.cockpit/scripts/board-card\" section FEAT-12 Context <<'EOF'" "$(characters_of 300)" 'EOF')")"
+assert_denies "a long here-string is measured too" \
+  "$(run_command "\"\$HOME/.cockpit/scripts/board-card\" comment FEAT-12 <<< '$(characters_of 250)'")"
 assert_passes "no tool input at all" \
   "$(jq --null-input --compact-output '{hook_event_name:"PreToolUse"}' | bash "$HOOK" 2>/dev/null)"
 

@@ -50,7 +50,7 @@ run_rename_hook() {
 SESSION="test-argv-$$"
 STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
-printf 'https://app.notion.com/p/abc123\n' > "$STATE_DIR/$SESSION.ticket"
+printf 'FEAT-31\n' > "$STATE_DIR/$SESSION.ticket"
 
 printf "Test group: an unquoted argument is still read\n"
 
@@ -60,9 +60,9 @@ assert_content "unquoted ticket type lands in the sidecar" "type=ticket
 name=a session name
 ticket_type=feature" "$STATE_DIR/$SESSION.type"
 
-rm -f "$STATE_DIR/$SESSION.source-ticket"
-run_ticket_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register-source-ticket" https://app.notion.com/p/unquoted1'
-assert_content "unquoted source-ticket URL is recorded" "https://app.notion.com/p/unquoted1" "$STATE_DIR/$SESSION.source-ticket"
+rm -f "$STATE_DIR/$SESSION.ticket"
+run_ticket_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register" FEAT-12'
+assert_content "an unquoted card id is recorded" "FEAT-12" "$STATE_DIR/$SESSION.ticket"
 
 printf "\nTest group: a session name echoing the script name does not hijack the match\n"
 
