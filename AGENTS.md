@@ -5,7 +5,7 @@
 This repo IS the source of truth that `~/.claude-shared`, `~/.agents-shared` and `~/.cockpit` symlink into. Both paths reach the same file, so which one to use depends on the verb:
 
 - **Reading or editing a file** → repo path, e.g. `agents/claude/settings/base.settings.json`. This keeps `git diff` clean and avoids confusion about which repo the edit lands in.
-- **Executing a script** → the `~/` symlink path, e.g. `"$HOME/.cockpit/scripts/cockpit-cache-query"`. Permission patterns match the literal command string and never resolve symlinks, so the repo path misses the allowlist and prompts on every call.
+- **Executing a script** → the `~/` symlink path, e.g. `"$HOME/.cockpit/scripts/board-card"`. Permission patterns match the literal command string and never resolve symlinks, so the repo path misses the allowlist and prompts on every call.
 
 Which symlink depends on what the file is: the Claude configuration executes via `~/.claude-shared/`, the shared agent rules and the cross-agent skills are read via `~/.agents-shared/`, and everything the ticket board owns - its hooks, its skills and the scripts they call - executes via `~/.cockpit/`.
 
@@ -170,3 +170,7 @@ For format rules, checklist, and diagnostics, invoke `/fewest-permission-prompts
 A section describing something that fires outside this repo goes in `agents/shared/base.AGENTS.md` when every client needs it, and in `agents/shared/board.AGENTS.md` when only an account that works the ticket board does. This repo's own layout, tests and sync stay here.
 
 A hook or script whose behaviour is confined to this checkout is exempt, and the check names it alongside the ones documented in neither file.
+
+## The board app
+
+`board/` holds the Next.js app that renders the local board. It sits at the repository root rather than in the cockpit plugin, so an install of the plugin never carries its `node_modules`. It finds `board-card` through this checkout's own `marketplace/` path, or through `BOARD_CARD` when that is set.

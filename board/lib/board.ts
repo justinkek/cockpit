@@ -1,0 +1,77 @@
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { promisify } from "node:util";
+import { type Card, type CommentThread, type Kind, walkColumns } from "./shared";
+
+export * from "./shared";
+
+const run = promisify(execFile);
+
+const script =
+	process.env.BOARD_CARD ??
+	path.join(process.cwd(), "..", "marketplace", "plugins", "cockpit", "scripts", "board-card");
+
+export class BoardError extends Error {}
+
+async function boardCard(args: string[], input?: string): Promise<string> {
+	try {
+		const pending = run(script, args, {
+			env: { ...process.env, COCKPIT_AUTHOR: process.env.COCKPIT_AUTHOR ?? process.env.USER },
+			maxBuffer: 256 * 1024 * 1024,
+		});
+		pending.child.stdin?.end(input ?? "");
+		const { stdout } = await pending;
+		return stdout;
+	} catch (error) {
+		const stderr = (error as { stderr?: string }).stderr?.trim();
+		throw new BoardError(stderr?.replace(/^\[board-card\] /, "") || String(error));
+	}
+}
+
+export async function listRecords(kind: Kind | "project" | "sprint"): Promise<Card[]> {
+	const records: Card[] = JSON.parse(await boardCard(["list", "--kind", kind, "--json"]));
+	return records.map((record) => ({ ...record, body: "" }));
+}
+
+export async function readRecord(id: string): Promise<Card> {
+	return JSON.parse(await boardCard(["show", id, "--json"]));
+}
+
+export async function boardDirectory(): Promise<string> {
+	return (await boardCard(["path"])).trim();
+}
+
+function kindOf(id: string): Kind {
+	return id.startsWith("EPIC-") ? "epic" : "card";
+}
+
+export async function changeStatus(record: Card, column: string): Promise<void> {
+	const columns = walkColumns(kindOf(record.id));
+	const from = columns.indexOf(record.status);
+	const to = columns.indexOf(column);
+	const forward = from >= 0 && to > from;
+	await boardCard([forward ? "walk" : "move", record.id, column]);
+}
+
+export async function setField(id: string, field: string, value: string): Promise<void> {
+	await boardCard(["set", id, field, value]);
+}
+
+export async function link(parent: string, child: string, linked: boolean): Promise<void> {
+	await boardCard([linked ? "link" : "unlink", parent, child]);
+}
+
+export async function readComments(id: string): Promise<CommentThread[]> {
+	return JSON.parse(await boardCard(["comments", id, "--json"]));
+}
+
+export async function addComment(id: string, text: string, anchor?: string, reply?: string): Promise<void> {
+	const args = ["comment", id];
+	if (anchor) args.push("--anchor", anchor);
+	if (reply) args.push("--reply", reply);
+	await boardCard(args, text);
+}
+
+export async function resolveComment(id: string, thread: string): Promise<void> {
+	await boardCard(["resolve", id, thread]);
+}
