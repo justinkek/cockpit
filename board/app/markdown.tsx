@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Mermaid } from "@/app/mermaid";
 
 type Anchor = { text: string; thread: string };
 
@@ -90,10 +91,15 @@ export function Markdown({
 		const style = depth > 0 ? { marginLeft: `${depth * 18}px` } : undefined;
 
 		if (line.startsWith("```")) {
+			const language = line.slice(3).trim();
 			const code: string[] = [];
 			i++;
 			while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++]);
 			i++;
+			if (language === "mermaid") {
+				blocks.push(<Mermaid key={key} source={code.join("\n")} style={style} />);
+				continue;
+			}
 			blocks.push(
 				<pre key={key} className="md-code" style={style}>
 					{code.join("\n")}

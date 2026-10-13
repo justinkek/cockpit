@@ -990,6 +990,22 @@
 		overflow-x: auto;
 	}
 
+	.md-diagram {
+		margin: 4px 0;
+		overflow-x: auto;
+
+		& svg {
+			display: block;
+			margin: 0 auto;
+		}
+
+		@media (prefers-color-scheme: dark) {
+			& rect.rect {
+				fill-opacity: 0.3;
+			}
+		}
+	}
+
 	.md-table {
 		overflow-x: auto;
 		margin: 4px 0;
