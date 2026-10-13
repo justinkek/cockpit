@@ -23,18 +23,18 @@ export function Mermaid({ source, style }: { source: string; style?: CSSProperti
 	const [svg, setSvg] = useState<string | null>(null);
 	useEffect(() => {
 		let live = true;
-		const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+		const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
 		const draw = () => {
 			drawCount.current += 1;
-			return drawn(`${id}-${drawCount.current}`, source, scheme.matches).then((result) => {
+			return drawn(`${id}-${drawCount.current}`, source, darkScheme.matches).then((result) => {
 				if (live) setSvg(result instanceof Error ? null : result);
 			});
 		};
 		draw();
-		scheme.addEventListener("change", draw);
+		darkScheme.addEventListener("change", draw);
 		return () => {
 			live = false;
-			scheme.removeEventListener("change", draw);
+			darkScheme.removeEventListener("change", draw);
 		};
 	}, [id, source]);
 	if (svg === null)
