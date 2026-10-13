@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
-async function drawn(id: string, source: string, dark: boolean): Promise<Error | string> {
+async function drawn(id: string, source: string, dark: boolean): Promise<string | null> {
 	const { default: mermaid } = await import("mermaid");
 	mermaid.initialize({
 		startOnLoad: false,
@@ -12,8 +12,8 @@ async function drawn(id: string, source: string, dark: boolean): Promise<Error |
 	});
 	try {
 		return (await mermaid.render(id, source)).svg;
-	} catch (failure) {
-		return failure instanceof Error ? failure : new Error(String(failure));
+	} catch {
+		return null;
 	}
 }
 
@@ -27,7 +27,7 @@ export function Mermaid({ source, style }: { source: string; style?: CSSProperti
 		const draw = () => {
 			drawCount.current += 1;
 			return drawn(`${id}-${drawCount.current}`, source, darkScheme.matches).then((result) => {
-				if (live) setSvg(result instanceof Error ? null : result);
+				if (live) setSvg(result);
 			});
 		};
 		draw();
