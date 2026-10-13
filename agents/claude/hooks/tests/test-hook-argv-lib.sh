@@ -61,5 +61,22 @@ assert_equal "hook_argv_segments keeps a quoted operator inside its invocation" 
   "gh api graphql --raw-field query=query{viewer{login}}" \
   "$(hook_argv_segments "gh api graphql --raw-field query='query{viewer{login}}'")"
 
+assert_equal "hook_heredoc_body prints what a here-document feeds the command" \
+  "first line
+  second line" \
+  "$(hook_heredoc_body "$(printf '%s\n' "board-card comment FEAT-1 <<'EOF'" 'first line' '  second line' 'EOF' 'echo after')")"
+
+assert_equal "hook_heredoc_body strips the tabs a <<- here-document drops" \
+  "indented" \
+  "$(hook_heredoc_body "$(printf '%s\n' 'board-card comment FEAT-1 <<-EOF' '		indented' '	EOF')")"
+
+assert_equal "hook_heredoc_body reads a here-string" \
+  "short text" \
+  "$(hook_heredoc_body "board-card comment FEAT-1 <<< 'short text'")"
+
+assert_equal "hook_heredoc_body prints nothing for a command with no stdin" \
+  "" \
+  "$(hook_heredoc_body 'board-card show FEAT-1 Status')"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

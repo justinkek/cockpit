@@ -16,82 +16,38 @@ session_id() {
   printf '%s\n' "${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
 }
 
-# The boards the agent reads for refinement work. Four scripts need this list
-# and none of them may disagree with the others, so it is parsed here once
-# rather than in each of them.
-COCKPIT_BOARDS_FILE="${COCKPIT_BOARDS_FILE:-$HOME/.local/state/cockpit/boards.json}"
-
-cockpit_main_checkout() {
-  if [ -n "${COCKPIT_REPO:-}" ]; then
-    printf '%s\n' "$COCKPIT_REPO"
-    return 0
-  fi
-
-  local common_git_directory
-  if common_git_directory="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
-    dirname "$common_git_directory"
-  else
-    pwd -P
-  fi
-}
-
-# One tab-separated line per board: name, database id, view id. The view id is
-# empty when the board has no view — see boards.json for what that means
-# to a caller.
-#
-# When no board claims the checkout this returns nothing and exits 3, which the
-# copilot skill turns into a question. There is deliberately no default board:
-# answering silently is how a session ends up offered another project's cards,
-# and the one thing nobody can guess is which project this checkout belongs to.
-#
-# Exit codes, so a caller can say which of the three happened:
-#   3  no board claims this checkout — ask
-#   4  COCKPIT_BOARD names a board the file does not have
-#   5  the file configures no boards at all
-no_boards_recorded_yet() { [ ! -f "$COCKPIT_BOARDS_FILE" ]; }
-
-cockpit_boards() {
-  local out
-  if no_boards_recorded_yet; then
-    echo "[boards] no boards configured — check $COCKPIT_BOARDS_FILE" >&2
-    return 5
-  fi
-  out="$(jq -r --arg checkout "$(cockpit_main_checkout)" --arg home "$HOME" --arg named "${COCKPIT_BOARD:-}" '
-    [ .boards[] | .checkouts = ((.checkouts // .repos // []) | map(sub("^~"; $home))) ] as $all
-    | (if $named == "" then [ $all[] | select(.checkouts | index($checkout)) ]
-       else [ $all[] | select(.name == $named) ] end)
-    | .[] | [.name, (.ids["tickets-database"] // error("[boards] \(.name) has no tickets-database id: cockpit-board-id set tickets-database <value> \(.name)")), (.view_id // "")] | @tsv
-  ' "$COCKPIT_BOARDS_FILE")" || return 1
-
-  if [ -z "$out" ]; then
-    if [ "$(jq -r '.boards | length' "$COCKPIT_BOARDS_FILE" 2>/dev/null || echo 0)" -eq 0 ]; then
-      echo "[boards] no boards configured — check $COCKPIT_BOARDS_FILE" >&2
-      return 5
-    fi
-    if [ -n "${COCKPIT_BOARD:-}" ]; then
-      echo "[boards] no board named '$COCKPIT_BOARD' in $COCKPIT_BOARDS_FILE" >&2
-      return 4
-    fi
-    return 3
-  fi
-
-  printf '%s\n' "$out"
-}
-
-# The line a caller prints when cockpit_boards came back empty. Shared so the
-# three scripts cannot drift into three different ways of saying the same thing.
-cockpit_boards_explain() {
-  local status="$1" tag="$2"
-  [ "$status" -eq 3 ] || return 0
-  echo "[$tag] no board claims $(cockpit_main_checkout) — run /copilot to pick one" >&2
-}
-
 # Seconds since a file was last modified, on both BSD (macOS) and GNU stat.
 _ticket_state_age() {
   local f="$1" mtime
   mtime="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null)"
   [ -n "$mtime" ] || return 1
   echo $(( $(date +%s) - mtime ))
+}
+
+# Seconds a session may go without a heartbeat before its claim is expirable,
+# and the floor under every claim regardless. Both have to be exceeded: the
+# heartbeat is written on this machine only, so the floor is what stops a claim
+# held by a session elsewhere being taken over on sight.
+TICKET_CLAIM_BEAT_WINDOW=1800
+TICKET_CLAIM_FLOOR=3600
+
+# Epoch seconds for an iso formatted datetime, read as UTC because that is how a
+# claim is written. Prints nothing when it cannot be parsed.
+ticket_claim_epoch() {
+  local ts="${1%%.*}"
+  ts="${ts%Z}"
+  ts="${ts%%+*}"
+  TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$ts" +%s 2>/dev/null \
+    || date -u -d "$1" +%s 2>/dev/null
+}
+
+ticket_claim_is_stale() {
+  local sid="$1" claimed="$2" age
+  if [ -f "$TICKET_STATE_DIR/$sid.alive" ]; then
+    age="$(_ticket_state_age "$TICKET_STATE_DIR/$sid.alive" 2>/dev/null || true)"
+    [ -n "$age" ] && [ "$age" -le "$TICKET_CLAIM_BEAT_WINDOW" ] && return 1
+  fi
+  [ -n "$claimed" ] && [ "$(( $(date +%s) - claimed ))" -ge "$TICKET_CLAIM_FLOOR" ]
 }
 
 _ticket_state_matches() {

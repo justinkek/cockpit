@@ -90,26 +90,41 @@ hook_is_readonly_bash() {
     }'
 }
 
-# hook_is_cockpit_claim <hook-input-json>
-#
-# True when the tool call is the cockpit ticket claim: an `update_properties`
-# call on notion-update-page writing nothing but `Agent: Session Id` and
-# `Assignee`. That write is how `cockpit:ticket:0:copilot` takes a waiting card,
-# and it necessarily happens before the session has a ticket or a name — the
-# whole point is to find out which ticket this session is on. Both gates
-# therefore have to let it through, in the same narrow way they already let
-# notion-create-pages bootstrap a stub.
-#
-# Narrow is the safeguard: any other property in the same call, or any other
-# command, falls through to the normal deny. jq is required to read the
-# property map; without it the claim is simply not recognised and the gate
-# holds, which is the safe direction.
-hook_is_cockpit_claim() {
-  command -v jq >/dev/null 2>&1 || return 1
-  printf '%s' "$1" | jq -e '
-    .tool_input.command == "update_properties"
-    and (.tool_input.properties | type) == "object"
-    and (.tool_input.properties | keys - ["Agent: Session Id", "Assignee"] | length) == 0
-    and (.tool_input.properties | length) > 0
-  ' >/dev/null 2>&1
+hook_heredoc_body() {
+  printf '%s\n' "$1" | awk '
+    !opened && /<<-?[[:space:]]*[\047"]?[A-Za-z_][A-Za-z_0-9]*[\047"]?/ && !/<<</ {
+      line = $0
+      sub(/^.*<</, "", line)
+      strip = (substr(line, 1, 1) == "-")
+      if (strip) line = substr(line, 2)
+      sub(/^[[:space:]]*/, "", line)
+      match(line, /^[\047"]?[A-Za-z_][A-Za-z_0-9]*/)
+      delimiter = substr(line, RSTART, RLENGTH)
+      gsub(/[\047"]/, "", delimiter)
+      opened = 1
+      next
+    }
+    opened && !closed {
+      body = $0
+      if (strip) sub(/^\t+/, "", body)
+      if (body == delimiter) { closed = 1; next }
+      print body
+      found = 1
+    }
+    !opened && !herestring && /<<</ {
+      line = $0
+      sub(/^.*<<<[[:space:]]*/, "", line)
+      herestring = line
+    }
+    END {
+      if (!found && herestring != "") {
+        quote = substr(herestring, 1, 1)
+        if (quote == "\047" || quote == "\"") {
+          herestring = substr(herestring, 2)
+          end = index(herestring, quote)
+          if (end > 0) herestring = substr(herestring, 1, end - 1)
+        }
+        print herestring
+      }
+    }'
 }

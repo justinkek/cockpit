@@ -15,7 +15,12 @@ if [ -z "$url" ]; then
 fi
 case "$url" in
   https://*) ;;
-  *) echo "ticket-register: expected an https ticket URL, got: $url" >&2; exit 1 ;;
+  *)
+    if ! printf '%s' "$url" | grep --quiet --extended-regexp '^[A-Z][A-Z0-9]*-[0-9]+$'; then
+      echo "ticket-register: expected an https ticket URL or a local stub id, got: $url" >&2
+      exit 1
+    fi
+    ;;
 esac
 
 session="$(session_id)"

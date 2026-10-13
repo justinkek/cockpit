@@ -2,65 +2,35 @@
 #
 # ticket-watch-column — emit an event when a watched card changes column.
 #
-#   usage: ticket-watch-column <notion-page-id>...
+#   usage: ticket-watch-column <card-id>...
 #
 # Polls each card's Status and prints one line every time it lands somewhere new.
 # The flow is one-directional without it: an agent already working a ticket
 # pushes its status onto the board, but moving a card by hand goes unnoticed.
 # Polling costs no agent tokens while idle and only spends when something moved.
 #
-# More than one id, because a cross-board session has two cards for one piece of
-# work: the cockpit stub and the source ticket. A person moves whichever is in
-# front of them, so watching only the stub misses half the moves.
-#
-# Setup (once per machine) — the poller needs its own read-only Notion
-# credential so it never spends agent tokens:
-#
-#   1. Create a Notion internal integration named `cockpit-watch`, read
-#      capability only, and share the Tickets database with it
-#      (the Tickets data source id `cockpit-board-id get tickets-data-source` prints). The API returns 404
-#      on pages the integration has not been shared with.
-#   2. Store the token in the macOS Keychain — never on disk, never in the
-#      environment:
-#
-#        security add-generic-password -a "$USER" -s cockpit-notion-token -w
-#
-#      Pass -w with no value: it prompts, so the token never lands in shell
-#      history. `security` warns against the inline `-w '<token>'` form itself.
-#
 set -euo pipefail
 
 source "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/ticket-state-lib.sh"
 
 if [ "$#" -eq 0 ]; then
-  echo "usage: ticket-watch-column <notion-page-id>..." >&2
+  echo "usage: ticket-watch-column <card-id>..." >&2
   exit 1
 fi
 page_ids=( "$@" )
 
 where_to_read="Follow ~/.claude-shared/templates/board-event.md."
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "[ticket-watch] jq is required to parse the board response" >&2
-  exit 1
-fi
-
-# A missing credential must be loud: silence would look exactly like "nothing
-# moved", and the watcher would sit there proving nothing.
-token="$(security find-generic-password -a "$USER" -s cockpit-notion-token -w 2>/dev/null || true)"
-if [ -z "$token" ]; then
-  echo "[ticket-watch] no credential — store one with: security add-generic-password -a \"\$USER\" -s cockpit-notion-token -w '<token>'" >&2
-  exit 1
-fi
+board_card="${COCKPIT_BOARD_CARD:-$(dirname "$0")/board-card}"
 
 interval="${TICKET_WATCH_INTERVAL:-60}"
 
 session_from_markers() {
-  local page f
-  page="$(printf '%s' "$1" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+  local card f
+  card="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
   for f in "$TICKET_STATE_DIR"/*.ticket; do
     [ -f "$f" ] || continue
-    if tr -d '-' < "$f" | grep -qi "$page"; then
+    if [ "$(tr '[:lower:]' '[:upper:]' < "$f" | tr -d '[:space:]')" = "$card" ]; then
       basename "$f" .ticket
       return 0
     fi
@@ -83,18 +53,10 @@ skill_for_column() {
 }
 
 card_label() {
-  if [ "${#page_ids[@]}" -eq 1 ]; then
+  if [ "$1" -eq 0 ]; then
     echo "Ticket"
-  elif [ "$1" -eq 0 ]; then
-    echo "Cockpit card"
   else
-    echo "Project board card"
-  fi
-}
-
-note_that_this_card_owns_status() {
-  if [ "${#page_ids[@]}" -gt 1 ] && [ "$1" -gt 0 ]; then
-    echo " - the project board owns status"
+    echo "Card ${page_ids[$1]}"
   fi
 }
 
@@ -151,26 +113,7 @@ while :; do
   for (( i = 0; i < ${#page_ids[@]}; i++ )); do
     id="${page_ids[$i]}"
 
-    # Options go in on stdin, never in argv: a token passed as an argument is
-    # readable in `ps` by anything running as this user for the life of the
-    # request. --config - keeps it out of the process list without writing it to
-    # a file either.
-    response="$(printf '%s\n' \
-      "header = \"Authorization: Bearer $token\"" \
-      'header = "Notion-Version: 2022-06-28"' \
-      "url = \"https://api.notion.com/v1/pages/$id\"" \
-      'silent' \
-      | curl --config - || true)"
-    # A rejected token never recovers, so it must not hide inside the generic
-    # failure count — five minutes of "poll failing" reads like a network blip,
-    # and the token carries a 30-day expiry that will one day fire silently.
-    api_code="$(printf '%s' "$response" | jq -r 'select(.object == "error") | .code // empty' 2>/dev/null || true)"
-    if [ "$api_code" = "unauthorized" ]; then
-      echo "[ticket-watch] token rejected — expired or revoked. Replace it with: security add-generic-password -U -a \"\$USER\" -s cockpit-notion-token -w" >&2
-      exit 1
-    fi
-
-    live="$(printf '%s' "$response" | jq -r '.properties.Status.status.name // empty' 2>/dev/null || true)"
+    live="$("$board_card" show "$id" Status 2>/dev/null | cut -f2 || true)"
 
     if [ -z "$live" ]; then
       # A card that could not be read has not been proven settled either.
@@ -185,11 +128,8 @@ while :; do
     skill="$(skill_for_column "$live" || true)"
 
     # The first id is the session's registered ticket, and the recorded column
-    # below speaks for it. Nothing records the others: the two cards of a
-    # cross-board session sit in different columns by design — the stub in
-    # `In BR by AI` while the source is still in `Ready for BR by AI` — so for
-    # those, the status at arming is the baseline rather than an event. Without
-    # this the source card announces a move nobody made, on the first poll.
+    # below speaks for it. Nothing records the others, so for those the status
+    # at arming is the baseline rather than an event.
     if [ "$seeded" -eq 0 ] && [ "$i" -gt 0 ]; then
       announced_column[$i]="$live"
       continue
@@ -220,16 +160,15 @@ while :; do
       fi
 
       label="$(card_label "$i")"
-      mirror="$(note_that_this_card_owns_status "$i")"
 
       if [ -n "$dragged_back" ] && [ -n "$skill" ]; then
         echo "[ticket-watch] $label dragged back to $live from $recorded - invoke /cockpit:ticket:x:back-from-column, then $skill. $where_to_read"
       elif [ -n "$dragged_back" ]; then
         echo "[ticket-watch] $label dragged back to $live from $recorded - invoke /cockpit:ticket:x:back-from-column. $where_to_read"
       elif [ -n "$skill" ]; then
-        echo "[ticket-watch] $label moved to $live$mirror - invoke $skill now. $where_to_read"
+        echo "[ticket-watch] $label moved to $live - invoke $skill now. $where_to_read"
       else
-        echo "[ticket-watch] $label moved to $live$mirror. $where_to_read"
+        echo "[ticket-watch] $label moved to $live. $where_to_read"
       fi
       announced_column[$i]="$live"
       if [ "$id" = "${page_ids[0]}" ] && [ -n "$session" ]; then
@@ -254,8 +193,7 @@ while :; do
 
   seeded=1
 
-  # Every watched card has to be Done, not just the first to settle: the stub
-  # reaches Done while the source card is still in review.
+  # Every watched card has to be Done, not just the first to settle.
   if [ "$any_read" -eq 1 ] && [ "$all_done" -eq 1 ]; then
     if [ "$(cat "$column_file" 2>/dev/null || true)" = "Done" ]; then
       echo "[ticket-watch] ticket done - watcher disarmed. $where_to_read"

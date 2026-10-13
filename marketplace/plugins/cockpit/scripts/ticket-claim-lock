@@ -2,23 +2,15 @@
 #
 # ticket-claim-lock — take, release or inspect the local lock on a cockpit card.
 #
-#   ticket-claim-lock take        <page-id>   # exit 0 = won it, 1 = someone else has it
-#   ticket-claim-lock release     <page-id>   # release a lock this session holds
-#   ticket-claim-lock owner       <page-id>   # print the holding session id, if any
+#   ticket-claim-lock take        <card-id>   # exit 0 = won it, 1 = someone else has it
+#   ticket-claim-lock release     <card-id>   # release a lock this session holds
+#   ticket-claim-lock owner       <card-id>   # print the holding session id, if any
 #   ticket-claim-lock release-all             # release every lock this session holds
 #
 # Two sessions on this machine can reach for the same waiting ticket at the same
-# moment. The Notion `Agent: Session Id` property cannot arbitrate that: Notion
-# has no compare-and-set, so both sessions write, both read back their own value,
-# and both proceed — observed twice. `mkdir` can: it is atomic, so exactly one
-# caller creates the directory and the other is told no.
-#
-# The Notion property stays, for a different job — showing a person, and any
-# session on another machine, that a card is taken. This lock is the arbiter;
-# that property is the signal.
-#
-# Scope: this machine only. A session elsewhere sees nothing here and races on
-# the Notion property alone.
+# moment. `mkdir` arbitrates that: it is atomic, so exactly one caller creates
+# the directory and the other is told no. A holder that is stale by the rule
+# ticket-waiting-cards reports is taken over rather than waited on.
 #
 set -euo pipefail
 
@@ -52,10 +44,14 @@ fi
 
 # Page ids arrive both dashed and bare depending on the caller; normalise so the
 # same card is the same lock either way.
-page="$(printf '%s' "$page" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
-case "$page" in
-  *[!0-9a-f]*|"") echo "ticket-claim-lock: not a page id: $2" >&2; exit 2 ;;
-esac
+if printf '%s' "$page" | grep --quiet --extended-regexp '^[A-Za-z][A-Za-z0-9]*-[0-9]+$'; then
+  page="$(printf '%s' "$page" | tr '[:lower:]' '[:upper:]')"
+else
+  page="$(printf '%s' "$page" | tr -d '-' | tr '[:upper:]' '[:lower:]')"
+  case "$page" in
+    *[!0-9a-f]*|"") echo "ticket-claim-lock: not a page id: $2" >&2; exit 2 ;;
+  esac
+fi
 
 lock="$LOCK_DIR/$page"
 owner_file="$lock/session"
@@ -80,6 +76,19 @@ case "$action" in
     if [ -f "$owner_file" ] && [ "$(cat "$owner_file")" = "$me" ]; then
       echo "already yours: $page"
       exit 0
+    fi
+    holder="$(cat "$owner_file" 2>/dev/null || true)"
+    held_for="$(_ticket_state_age "$owner_file" 2>/dev/null || true)"
+    if [ -n "$holder" ] && [ -n "$held_for" ] \
+      && ticket_claim_is_stale "$holder" "$(( $(date +%s) - held_for ))" \
+      && mkdir "$lock.takeover" 2>/dev/null; then
+      if [ "$(cat "$owner_file" 2>/dev/null || true)" = "$holder" ]; then
+        printf '%s\n' "$me" > "$owner_file"
+        rmdir "$lock.takeover"
+        echo "took $page from stale session $holder"
+        exit 0
+      fi
+      rmdir "$lock.takeover"
     fi
     echo "held by $(cat "$owner_file" 2>/dev/null || echo 'another session'): $page" >&2
     exit 1
