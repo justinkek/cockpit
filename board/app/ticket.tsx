@@ -28,7 +28,7 @@ import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
 import { ProgressMeter } from "@/app/progress";
-import { Stages } from "@/app/stages";
+import { Stages, stampText } from "@/app/stages";
 import { tableOrder } from "@/app/table";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
@@ -408,8 +408,16 @@ export function Ticket({
 						</dd>
 					</>
 				)}
-				<dt>Created</dt>
-				<dd>{record.created}</dd>
+				{!kind && record.created && (
+					<>
+						<dt>Created</dt>
+						<dd>
+							<time dateTime={record.created} suppressHydrationWarning>
+								{stampText(record.created)}
+							</time>
+						</dd>
+					</>
+				)}
 				{attachments.length > 0 && (
 					<>
 						<dt>Attachments</dt>
