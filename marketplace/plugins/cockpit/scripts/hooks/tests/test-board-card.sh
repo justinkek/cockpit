@@ -8,6 +8,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 export TICKET_CLAIM_LOCK_DIR="$TMPDIR/claims"
+export COCKPIT_COMMIT_DELAY=0
 export TICKET_STATE_DIR="$TMPDIR/state"
 export CLAUDE_SESSION_ID="session-one"
 export GIT_CONFIG_GLOBAL=/dev/null

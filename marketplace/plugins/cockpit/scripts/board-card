@@ -33,6 +33,7 @@
 #   board-card duplicate <id> [--name <name>] [--status <column>]
 #   board-card history <id>
 #   board-card undo <id> [--since <commit> [--until <commit>]]
+#   board-card flush [--now]
 #   board-card revision
 #   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
 #   board-card path [<id>]
@@ -56,6 +57,8 @@ source "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/ticket-state-lib.sh"
 BOARD_DIR="${COCKPIT_BOARD_DIR:-$HOME/.local/state/cockpit/board}"
 CLAIM_LOCK="${TICKET_CLAIM_LOCK:-$here/ticket-claim-lock}"
 DONE_USAGE="${TICKET_DONE_USAGE:-$here/ticket-done-usage}"
+COMMIT_DELAY="${COCKPIT_COMMIT_DELAY:-3}"
+flush_now=false
 
 CARD_COLUMNS=(
   "Backlog"
@@ -244,8 +247,29 @@ commit_board() {
     commit --quiet --no-verify --message "$subject${ids:+ $ids}" >/dev/null
 }
 
+pending_file() { printf '%s/.git/board-card-pending\n' "$BOARD_DIR"; }
+
+flush_pending() {
+  local pending last actions
+  pending="$(pending_file)"
+  [ -s "$pending" ] || return 0
+  last="$(tail -n 1 "$pending" | cut -f1)"
+  if [ "$flush_now" != true ] && [ "$COMMIT_DELAY" != 0 ] && [ $(($(date +%s) - ${last:-0})) -lt "$COMMIT_DELAY" ]; then
+    return 2
+  fi
+  actions="$(cut -f2 "$pending" | awk '!seen[$0]++' | paste -sd ',' - | sed 's/,/, /g')"
+  commit_board "$actions" || return 1
+  rm -f "$pending"
+}
+
+hold_commit() {
+  [ -n "$(board_git status --porcelain 2>/dev/null)" ] || return 0
+  printf '%s\t%s\n' "$(date +%s)" "$action" >> "$(pending_file)"
+  ( sleep "$COMMIT_DELAY"; exec bash "$here/$(basename "$0")" flush ) </dev/null >/dev/null 2>&1 &
+}
+
 with_lock() {
-  local lock="$BOARD_DIR/.lock" tries=0
+  local lock="$BOARD_DIR/.lock" tries=0 held=0
   until mkdir "$lock" 2>/dev/null; do
     tries=$((tries + 1))
     if [ "$tries" -ge 50 ]; then
@@ -258,8 +282,11 @@ with_lock() {
     sleep 0.1
   done
   trap 'rm -rf "$BOARD_DIR/.lock"' EXIT
-  if [ -d "$BOARD_DIR/.git" ] && [ -n "$(board_git status --porcelain 2>/dev/null)" ]; then
-    commit_board unrecorded 2>/dev/null || true
+  if [ -d "$BOARD_DIR/.git" ]; then
+    flush_pending 2>/dev/null || held=$?
+    if [ "$held" -ne 2 ] && [ -n "$(board_git status --porcelain 2>/dev/null)" ]; then
+      commit_board unrecorded 2>/dev/null || true
+    fi
   fi
   local status=0
   set +e
@@ -269,8 +296,12 @@ with_lock() {
   )
   status=$?
   set -e
-  if [ "$status" -eq 0 ]; then
-    commit_board "$action" || die 6 "wrote to $BOARD_DIR but could not commit it"
+  if [ "$status" -eq 0 ] && [ -d "$BOARD_DIR/.git" ]; then
+    if [ "$COMMIT_DELAY" = 0 ] || [ "$flush_now" = true ]; then
+      commit_board "$action" || die 6 "wrote to $BOARD_DIR but could not commit it"
+    elif [ "$action" != flush ]; then
+      hold_commit
+    fi
   fi
   rm -rf "$lock"
   trap - EXIT
@@ -1543,6 +1574,10 @@ command_history() {
   local id paths=() path log
   id="$(normalise_id "${1:-}")"
   require_history
+  if [ -s "$(pending_file)" ]; then
+    flush_now=true
+    with_lock true
+  fi
   while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
   log="$(TZ=UTC board_git log --format='%h%x09%ad%x09%s' --date=format-local:'%Y-%m-%dT%H:%M:%SZ' -- "${paths[@]}" 2>/dev/null || true)"
   [ -n "$log" ] || die 3 "no history for $id"
@@ -1674,6 +1709,7 @@ command_undo() {
   done
   [ -z "$until" ] || [ -n "$since" ] || die 2 "--until goes with --since"
   require_history
+  flush_now=true
   if [ ! -f "$(record_file "$id")" ] && [ -f "$(archive_file "$id")" ]; then
     parse_file "$(archive_file "$id")" >/dev/null
   else
@@ -1682,18 +1718,20 @@ command_undo() {
   with_lock undo_locked "$id" "$since" "$until"
 }
 
+command_flush() {
+  case "${1:-}" in
+    "") ;;
+    --now) flush_now=true ;;
+    *) die 2 "flush takes nothing but --now, not '$1'" ;;
+  esac
+  [ -d "$BOARD_DIR/.git" ] && [ -s "$(pending_file)" ] || return 0
+  with_lock true
+}
+
 command_revision() {
   require_board
-  if [ -d "$BOARD_DIR/.git" ]; then
-    {
-      board_git rev-parse --verify --quiet HEAD || true
-      board_git diff HEAD --no-ext-diff --binary 2>/dev/null || true
-      board_git ls-files --others --exclude-standard 2>/dev/null || true
-    } | cksum | cut -d' ' -f1
-  else
-    find "$BOARD_DIR" \( -name .lock -o -name '.*.??????' \) -prune -o -type f -exec cksum {} + \
-      | LC_ALL=C sort | cksum | cut -d' ' -f1
-  fi
+  find "$BOARD_DIR" \( -name .git -o -name .lock -o -name '.*.??????' \) -prune -o -type f -exec cksum {} + \
+    | LC_ALL=C sort | cksum | cut -d' ' -f1
 }
 
 inbox_read_locked() {
@@ -1813,6 +1851,7 @@ case "$action" in
   duplicate) command_duplicate "$@" ;;
   history) command_history "$@" ;;
   undo) command_undo "$@" ;;
+  flush) command_flush "$@" ;;
   revision) command_revision ;;
   inbox) command_inbox "$@" ;;
   path) command_path "$@" ;;

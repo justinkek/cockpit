@@ -93,7 +93,7 @@ Only the checkout `~/.claude-shared` resolves into is followed by an apply: the 
 
 The cockpit board is a folder of markdown files, `~/.local/state/cockpit/board`, a git repository of its own that is never pushed. `board-card` is its one writer, run as `"$HOME/.cockpit/scripts/board-card"`, and `board-card init` makes it. Every write goes through the script, so the board works with the app stopped. Nothing reaches Notion.
 
-Every write `board-card` makes is committed to that repository. Writes that land close together are held and go in as one commit a few seconds after the last of them, as `COCKPIT_COMMIT_DELAY` in `board-card` sets, and `history` and `undo` commit whatever is still held before they read. Exit 6 means the write is on disk but the repository refused the commit: never repeat the write, say what it printed, and leave it - the next write commits what was left over.
+Every write `board-card` makes is committed to that repository. Writes that land close together are held and go in as one commit a few seconds after the last of them, as `COCKPIT_COMMIT_DELAY` in `board-card` sets, and `history`, `undo` and `board-card flush --now` commit whatever is still held before they read. Exit 6 means the write is on disk but the repository refused the commit: never repeat the write, say what it printed, and leave it - the next write commits what was left over.
 
 | Folder        | Holds                                                      | Id                           |
 | ------------- | ---------------------------------------------------------- | ---------------------------- |
