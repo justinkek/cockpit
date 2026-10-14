@@ -70,7 +70,7 @@ assert_eq "a column the board does not have is refused" "2" "$?"
 stub walk FEAT-1 "In Dev" --skip "Sprint Backlog" >/dev/null
 assert_eq "walk lands on the target" "In Dev" "$(field FEAT-1 .status)"
 assert_eq "a whole walk is one commit" "walk FEAT-1" "$(last_commit %s)"
-assert_eq "walk stamps every stamped column it passes" "Ready for BR In BR Ready for TR In TR Ready for Sprint In Dev" \
+assert_eq "walk stamps every stamped column it passes" "Ready for BR In BR Ready for TR by AI Ready for TR In TR Ready for Sprint In Dev" \
   "$(field FEAT-1 '.dates | keys_unsorted | join(" ")')"
 stub walk FEAT-1 "In BR" >/dev/null 2>&1
 assert_eq "a walk backwards is refused" "4" "$?"
@@ -600,6 +600,10 @@ assert_eq "list carries the same values" "27 true" \
 assert_eq "and none of it is written to the record" "" "$(grep --extended-regexp '^(days_in_column|overrunning):' "$COCKPIT_BOARD_DIR/cards/FEAT-901.md")"
 assert_eq "an epic carries neither" "false" "$(stub show EPIC-1 --json | jq 'has("overrunning")')"
 rm "$COCKPIT_BOARD_DIR"/cards/FEAT-90[1-6].md "$COCKPIT_BOARD_DIR"/cards/TIME-90[45].md
+timed="$(stub create --name "Waiting for TR by AI")"
+COCKPIT_NOW=2026-10-05T10:00:00Z stub move "$timed" "Ready for TR by AI" >/dev/null
+assert_eq "a move into Ready for TR by AI stamps it, so its days count" "2026-10-05T10:00:00Z 6" \
+  "$(field "$timed" '.dates["Ready for TR by AI"]') $(COCKPIT_NOW=2026-10-13T10:00:00Z stub show "$timed" --json | jq '.days_in_column')"
 
 printf "\nTest group: a record whose file does not parse is never written over\n"
 

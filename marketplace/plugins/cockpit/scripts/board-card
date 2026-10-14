@@ -65,7 +65,7 @@ CARD_COLUMNS=(
 CARD_PARKED=("Deprioritised")
 
 CARD_STAMPED=(
-  "Ready for BR" "In BR" "Ready for TR" "In TR" "Ready for Sprint" "In Dev"
+  "Ready for BR" "In BR" "Ready for TR by AI" "Ready for TR" "In TR" "Ready for Sprint" "In Dev"
   "Ready for CR" "In CR" "Ready for FR" "In FR" "Ready for Validation" "Done"
 )
 
