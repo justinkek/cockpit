@@ -121,7 +121,7 @@ export function BurndownChart({
 							<span className="crosshair" style={{ left: `${(shown / steps) * 100}%` }} />
 							{burndown.remaining[shown] != null && (
 								<span
-									className="marker"
+									className="chart-marker"
 									style={{
 										left: `${(shown / steps) * 100}%`,
 										top: `${(y(burndown.remaining[shown] ?? 0) / HEIGHT) * 100}%`,

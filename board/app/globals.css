@@ -3304,7 +3304,7 @@
 		pointer-events: none;
 	}
 
-	.marker {
+	.chart-marker {
 		position: absolute;
 		width: 9px;
 		height: 9px;
