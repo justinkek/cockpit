@@ -1062,6 +1062,14 @@
 		box-shadow: var(--shadow-lift);
 	}
 
+	.thread.drafting {
+		position: absolute;
+		left: 0;
+		right: 0;
+		z-index: 5;
+		box-shadow: var(--shadow-lift);
+	}
+
 	.threads {
 		display: grid;
 		gap: 10px;

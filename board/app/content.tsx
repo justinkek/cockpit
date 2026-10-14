@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { checkTodo, editCard, loadBody, loadComments, postComment, resolveThread } from "@/app/actions";
 import { Markdown } from "@/app/markdown";
+import { anchorFor } from "@/lib/anchor";
 import type { Card, CommentThread } from "@/lib/shared";
+
+type Picked = { text: string; top: number; bottom: number; left: number };
 
 function when(stamp: string) {
 	const date = new Date(stamp);
@@ -72,13 +75,14 @@ export function Content({
 	const [body, setBody] = useState(given ?? "");
 	const [threads, setThreads] = useState<CommentThread[]>([]);
 	const [error, setError] = useState("");
-	const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null);
-	const [drafting, setDrafting] = useState<string | null>(null);
+	const [selection, setSelection] = useState<Picked | null>(null);
+	const [drafting, setDrafting] = useState<Picked | null>(null);
 	const [focused, setFocused] = useState<string | null>(null);
 	const [replying, setReplying] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
 	const [, startTransition] = useTransition();
 	const area = useRef<HTMLDivElement>(null);
+	const list = useRef<HTMLElement>(null);
 	const checking = useRef(0);
 	const bodyGiven = given !== undefined;
 
@@ -157,18 +161,60 @@ export function Content({
 		});
 	}
 
-	function onMouseUp() {
-		const picked = window.getSelection();
-		const text = picked?.toString().trim() ?? "";
-		if (!picked || !text || !area.current || picked.rangeCount === 0) {
-			setSelection(null);
+	useEffect(() => {
+		let timer = 0;
+		function read() {
+			const picked = window.getSelection();
+			const text = picked?.toString().trim() ?? "";
+			const frame = area.current;
+			if (!picked || !text || !frame || picked.rangeCount === 0) {
+				setSelection(null);
+				return;
+			}
+			const range = picked.getRangeAt(0);
+			if (!frame.contains(range.commonAncestorContainer)) {
+				setSelection(null);
+				return;
+			}
+			const box = range.getBoundingClientRect();
+			const bounds = frame.getBoundingClientRect();
+			const below = window.matchMedia("(pointer: coarse)").matches;
+			setSelection({
+				text,
+				top: (below ? box.bottom + 8 : box.top - 34) - bounds.top,
+				bottom: box.bottom - bounds.top,
+				left: Math.min(Math.max(0, box.left - bounds.left), Math.max(0, bounds.width - 90)),
+			});
+		}
+		function onChange() {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(read, 180);
+		}
+		document.addEventListener("selectionchange", onChange);
+		return () => {
+			window.clearTimeout(timer);
+			document.removeEventListener("selectionchange", onChange);
+		};
+	}, []);
+
+	function startDraft() {
+		if (!selection) return;
+		const anchor = anchorFor(selection.text, body);
+		setSelection(null);
+		if (!anchor) {
+			setError("Select text within one line to comment on it.");
 			return;
 		}
-		const range = picked.getRangeAt(0);
-		if (!area.current.contains(range.commonAncestorContainer)) return;
-		const box = range.getBoundingClientRect();
-		const frame = area.current.getBoundingClientRect();
-		setSelection({ text, top: box.top - frame.top - 34, left: Math.max(0, box.left - frame.left) });
+		setError("");
+		setDrafting({ ...selection, text: anchor });
+		window.getSelection()?.removeAllRanges();
+	}
+
+	function reveal(thread: string) {
+		setFocused(thread);
+		list.current
+			?.querySelector(`[data-thread="${CSS.escape(thread)}"]`)
+			?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 	}
 
 	const anchored = threads.filter((thread) => thread.anchor);
@@ -215,9 +261,9 @@ export function Content({
 					</span>
 				</form>
 			)}
-			<div className="content-body" ref={area} onMouseUp={onMouseUp} hidden={editing !== null}>
+			<div className="content-body" ref={area} hidden={editing !== null}>
 				{body ? (
-					<Markdown source={body} anchors={anchors} onAnchor={setFocused} onCheck={check} />
+					<Markdown source={body} anchors={anchors} onAnchor={reveal} onCheck={check} />
 				) : (
 					<p className="empty">No content.</p>
 				)}
@@ -226,44 +272,37 @@ export function Content({
 						type="button"
 						className="selection-comment"
 						style={{ top: selection.top, left: selection.left }}
+						onPointerDown={(event) => event.preventDefault()}
 						onMouseDown={(event) => event.preventDefault()}
-						onClick={() => {
-							if (!body.includes(selection.text)) {
-								setError("Select text within one line to comment on it.");
-								setSelection(null);
-								return;
-							}
-							setDrafting(selection.text);
-							setSelection(null);
-						}}
+						onClick={startDraft}
 					>
 						Comment
 					</button>
+				)}
+				{drafting && (
+					<div className="thread drafting" style={{ top: drafting.bottom + 8 }}>
+						<blockquote className="quoted">{drafting.text}</blockquote>
+						<Composer
+							placeholder="Add a comment…"
+							autoFocus
+							onCancel={() => setDrafting(null)}
+							onSubmit={(text) => {
+								apply(postComment(id, text, drafting.text));
+								setDrafting(null);
+							}}
+						/>
+					</div>
 				)}
 			</div>
 
 			{error && <p className="notice error">{error}</p>}
 
-			{drafting && (
-				<div className="thread drafting">
-					<blockquote className="quoted">{drafting}</blockquote>
-					<Composer
-						placeholder="Add a comment…"
-						autoFocus
-						onCancel={() => setDrafting(null)}
-						onSubmit={(text) => {
-							apply(postComment(id, text, drafting));
-							setDrafting(null);
-						}}
-					/>
-				</div>
-			)}
-
-			<section className="threads">
+			<section className="threads" ref={list}>
 				<h3>Comments {threads.length > 0 && <span className="count">{threads.length}</span>}</h3>
 				{threads.map((thread) => (
 					<article
 						key={thread.thread}
+						data-thread={thread.thread}
 						className={`thread${focused === thread.thread ? " focused" : ""}`}
 						onMouseEnter={() => setFocused(thread.thread)}
 						onMouseLeave={() => setFocused(null)}
