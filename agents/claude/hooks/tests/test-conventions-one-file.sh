@@ -38,6 +38,8 @@ assert_names "the columns a project skips" \
   "$PLUGIN_DIR/skills/ticket:x:status/SKILL.md" 'read `./AGENTS.md` for `## Ticket walk skip`'
 assert_names "the sprint opt-out that reads the same section" \
   "$CLAUDE_DIR/templates/sprint-auto-assign.md" '`## Ticket walk skip` section in `./AGENTS.md`'
+assert_names "the smuggling tripwire that exempts a column the same section skips" \
+  "$AGENTS_DIR/shared/board.AGENTS.md" '`./AGENTS.md` lists it under `## Ticket walk skip`'
 assert_names "the hook that greps the file rather than naming it in prose" \
   "$PLUGIN_DIR/scripts/hooks/remind-ticket-status.sh" 'conventions_file="./AGENTS.md"'
 
