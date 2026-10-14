@@ -884,9 +884,8 @@ export function Board({
 
 	useEffect(() => {
 		if (!focusedId) return;
-		document
-			.querySelector(`[data-card="${CSS.escape(focusedId)}"]`)
-			?.scrollIntoView({ block: "nearest", inline: "nearest" });
+		const target = document.querySelector(`[data-card="${CSS.escape(focusedId)}"]`);
+		(target?.closest("tbody tr") ?? target)?.scrollIntoView({ block: "nearest", inline: "nearest" });
 	}, [focusedId]);
 
 	function show(id: string | null) {
