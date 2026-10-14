@@ -135,6 +135,8 @@ A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domai
 
 Undoing a rename gives the card its old id back, and every record naming it follows. Undoing an archive or an unarchive moves the record back to where it lay, and is refused while another record names it. A link the undone version held at a card's old id is read at the id that card holds now, so an undo never leaves a record pointing at an id that is gone, and an undo that would change nothing is refused.
 
+`board-card search <text> [--kind epic]` prints the ids of the records whose content, everything below the front matter, holds the text, matched as a fixed string whatever its case. The board app uses it so its search reaches what a card says as well as its name.
+
 `show --json` and `list --json` give each card two values worked out at read time and never stored, counting working time as 09:30 to 18:00 UTC on weekdays: `days_in_column`, the whole working days since it last reached its current column, which a column's date stamp alone cannot say because a stamp keeps its first arrival (0 in a column Notion never timed: `Backlog`, `Sprint Backlog`, `Daily Plan`, `Deprioritised`, `Done` and every by-AI column but `Ready for TR by AI`), and `overrunning`, true once its working minutes from `In Dev` to `Ready for CR` (or now) plus the time since it came back to `In Dev` when it is there again after `Ready for CR`, pass its `timebox_mins` when it is a timebox, or 102 for each point of complexity otherwise.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.

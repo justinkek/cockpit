@@ -760,5 +760,17 @@ assert_eq "and the write it held up is committed on its own first" "set FEAT-1|u
   "$(git -C "$COCKPIT_BOARD_DIR" log -2 --format=%s | paste -sd '|' -)"
 assert_eq "leaving nothing uncommitted" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 
+printf "\nTest group: search finds the cards whose content holds the text\n"
+
+found_one="$(printf 'Unblocked by the Wiring Fix\n' | stub create --name "Searched for" --body - | tail -1)"
+found_two="$(printf -- '---\nwiring fix, written lower\n' | stub create --name "Second hit" --body - | tail -1)"
+stub create --name "Wiring fix in the name alone" >/dev/null
+assert_eq "a fixed string matches whatever its case, in id order" "$found_one $found_two" "$(stub search "WIRING FIX" | paste -sd ' ' -)"
+assert_eq "the name and the other fields are not content" "" "$(stub search "Backlog")"
+assert_eq "a pattern is read as plain text" "" "$(stub search "W.ring")"
+assert_eq "an epic is searched with --kind epic" "" "$(stub search "wiring" --kind epic)"
+stub search >/dev/null 2>&1
+assert_eq "and a search for nothing is refused" "2" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

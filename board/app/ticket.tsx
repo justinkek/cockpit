@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
-import { dropCard, editCard, linkCards, type Span, undoChange } from "@/app/actions";
+import { dropCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
@@ -43,7 +43,26 @@ export function Ticket({
 		if (kindOfRecord) setView(loadView(kindOfRecord));
 	}, [initial.id]);
 
-	const neighbours = useMemo(() => neighboursIn(column, initial.id, view), [column, initial.id, view]);
+	const [inContent, setInContent] = useState<Set<string> | undefined>(undefined);
+
+	useEffect(() => {
+		const query = view?.query.trim() ?? "";
+		const kindOfRecord = kindOf(initial.id);
+		if (query.length < 2 || !kindOfRecord) return;
+		let live = true;
+		findInContent(kindOfRecord, query).then((result) => {
+			if (live && "ids" in result) setInContent(new Set(result.ids));
+		});
+		return () => {
+			live = false;
+		};
+	}, [view, initial.id]);
+
+	const epicNames = useMemo(() => Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.name])), [lists.epics]);
+	const neighbours = useMemo(
+		() => neighboursIn(column, initial.id, view, { names: epicNames, inContent }),
+		[column, initial.id, view, epicNames, inContent],
+	);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);

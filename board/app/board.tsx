@@ -19,7 +19,17 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { type Bulk, bulkChange, createCard, dropCard, editCard, linkCards, type Span, undoChange } from "@/app/actions";
+import {
+	type Bulk,
+	bulkChange,
+	createCard,
+	dropCard,
+	editCard,
+	findInContent,
+	linkCards,
+	type Span,
+	undoChange,
+} from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
@@ -29,6 +39,7 @@ import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toa
 import {
 	COLLAPSED,
 	DEFAULT_VIEW,
+	type Found,
 	type Layout,
 	loadView,
 	matches,
@@ -618,6 +629,7 @@ export function Board({
 	const [helpOpen, setHelpOpen] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [inContent, setInContent] = useState<{ query: string; ids: Set<string> } | null>(null);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
@@ -659,8 +671,30 @@ export function Board({
 	);
 
 	const names = useMemo(() => Object.fromEntries(epics.map((epic) => [epic.id, epic.name])), [epics]);
+	const query = view.query.trim();
+	const found = useMemo<Found>(
+		() => ({ names, inContent: inContent?.query === query ? inContent.ids : undefined }),
+		[names, inContent, query],
+	);
+
+	useEffect(() => {
+		if (query.length < 2) return;
+		let live = true;
+		const timer = window.setTimeout(async () => {
+			const result = await findInContent(kind, query);
+			if (live && "ids" in result) setInContent({ query, ids: new Set(result.ids) });
+		}, 200);
+		return () => {
+			live = false;
+			window.clearTimeout(timer);
+		};
+	}, [query, kind, initial]);
+
 	const columnsOfKind = boardColumns(kind);
-	const visible = useMemo(() => stubs.filter((stub) => matches(stub, view)).sort(sorter(view.sort)), [stubs, view]);
+	const visible = useMemo(
+		() => stubs.filter((stub) => matches(stub, view, found)).sort(sorter(view.sort)),
+		[stubs, view, found],
+	);
 	const columns = useMemo(() => {
 		const extra = [...new Set(stubs.map((stub) => stub.status))].filter((status) => !columnsOfKind.includes(status));
 		const all = [...columnsOfKind, ...extra];

@@ -18,6 +18,7 @@ import {
 	readComments,
 	readRecord,
 	resolveComment,
+	searchContent,
 	setField,
 	undoSince,
 } from "@/lib/board";
@@ -140,6 +141,15 @@ export async function loadBody(id: string): Promise<Failure & { body?: string }>
 		return { body: (await readRecord(id)).body };
 	} catch (error) {
 		return failed(id, error);
+	}
+}
+
+export async function findInContent(kind: Kind, query: string): Promise<{ ids: string[] } | { error: string }> {
+	try {
+		return { ids: await searchContent(kind, query) };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
 	}
 }
 

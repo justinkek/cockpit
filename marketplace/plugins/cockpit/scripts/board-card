@@ -8,6 +8,7 @@
 #                     [--start <date>] [--end <date>] [--dev-days <n>] [--speed <n>] [--priority <n>] [--repo <url>]
 #   board-card show <id> [--json | --section <heading> | <property>...]
 #   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
+#   board-card search <text> [--kind card|epic|project|sprint|reference]
 #   board-card statuses [--kind card|epic]
 #   board-card set <id> <field> <value>
 #   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
@@ -611,6 +612,35 @@ command_list() {
       else
         jq --raw-output '.[] | [.id, (.status // "-"), (.session // "-"), .name] | @tsv'
       fi
+}
+
+command_search() {
+  local text="${1:-}" kind=card directory
+  [ -n "$text" ] || die 2 "usage: board-card search <text> [--kind card|epic|project|sprint|reference]"
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --kind) kind="${2:-}"; shift 2 ;;
+      *) die 2 "search: unknown option '$1'" ;;
+    esac
+  done
+  prefix_of_kind "$kind" >/dev/null
+  require_board
+  directory="$(directory_of_kind "$kind")"
+  local files=() file
+  while IFS= read -r file; do files+=("$file"); done < <(grep --files-with-matches --ignore-case --fixed-strings -- "$text" "$directory"/*.md 2>/dev/null || true)
+  [ "${#files[@]}" -gt 0 ] || return 0
+  WANTED="$text" awk '
+    BEGIN { wanted = tolower(ENVIRON["WANTED"]) }
+    FNR == 1 { inside = ($0 == "---"); if (inside) next }
+    inside { if ($0 == "---") inside = 0; next }
+    index(tolower($0), wanted) {
+      id = FILENAME
+      sub(/^.*\//, "", id)
+      sub(/\.md$/, "", id)
+      print id
+      nextfile
+    }' "${files[@]}" | sort -t- -k1,1 -k2,2n
 }
 
 command_statuses() {
@@ -1584,6 +1614,7 @@ case "$action" in
   create) command_create "$@" ;;
   show) command_show "$@" ;;
   list) command_list "$@" ;;
+  search) command_search "$@" ;;
   statuses) command_statuses "$@" ;;
   set) command_set "$@" ;;
   section) command_section "$@" ;;

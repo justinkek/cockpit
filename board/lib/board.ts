@@ -37,6 +37,10 @@ export async function readRecord(id: string): Promise<Card> {
 	return JSON.parse(await boardCard(["show", id, "--json"]));
 }
 
+export async function searchContent(kind: Kind, text: string): Promise<string[]> {
+	return (await boardCard(["search", text, "--kind", kind])).split("\n").filter(Boolean);
+}
+
 export async function boardDirectory(): Promise<string> {
 	return (await boardCard(["path"])).trim();
 }

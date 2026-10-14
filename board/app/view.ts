@@ -81,9 +81,13 @@ export function sorter(sort: Sort) {
 	}
 }
 
-export function matches(stub: Stub, view: View) {
+export type Found = { names?: Record<string, string>; inContent?: Set<string> };
+
+export function matches(stub: Stub, view: View, found: Found = {}) {
 	const query = view.query.trim().toLowerCase();
-	if (query && !`${stub.id} ${stub.name} ${stub.epic ?? ""}`.toLowerCase().includes(query)) return false;
+	const epic = stub.epic ? `${stub.epic} ${found.names?.[stub.epic] ?? ""}` : "";
+	if (query && !`${stub.id} ${stub.name} ${epic}`.toLowerCase().includes(query) && !found.inContent?.has(stub.id))
+		return false;
 	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
 	if (view.epic && (stub.epic ?? "") !== view.epic) return false;
 	if (view.blocked && !stub.blocked) return false;
@@ -95,9 +99,9 @@ export type Near = { id: string; name: string } | null;
 
 export type Neighbours = { previous: Near; next: Near; position: number; total: number } | null;
 
-export function neighboursIn(column: Stub[], id: string, view: View | null): Neighbours {
+export function neighboursIn(column: Stub[], id: string, view: View | null, found: Found = {}): Neighbours {
 	const sorted = [...column].sort(sorter(view?.sort ?? "manual"));
-	const filtered = view ? sorted.filter((stub) => matches(stub, view)) : sorted;
+	const filtered = view ? sorted.filter((stub) => matches(stub, view, found)) : sorted;
 	const lane = filtered.some((stub) => stub.id === id) ? filtered : sorted;
 	const index = lane.findIndex((stub) => stub.id === id);
 	if (index < 0) return null;
