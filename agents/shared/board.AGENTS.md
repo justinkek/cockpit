@@ -113,6 +113,8 @@ A card id is accepted wherever a ticket URL was: `ticket-register` records it, `
 
 A comment sits in `<id>.comments.jsonl` beside its record, one line each. `board-card comment <id> --anchor <text>` pins it to that text in the content, `--reply <comment-id>` adds it to a thread, and no flag puts it on the whole page. `board-card comments <id>` lists the open threads and `board-card resolve` closes one. `show --section` prints the open comments anchored inside that section.
 
+Every write stamps `updated` on the record it changes, a comment or an attachment included, and a write that changes nothing leaves the stamp as it was.
+
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 
 ## Claim locks

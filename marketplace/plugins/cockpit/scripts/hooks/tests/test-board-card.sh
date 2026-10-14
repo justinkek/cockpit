@@ -269,11 +269,26 @@ stub unlink FEAT-1 FEAT-3 >/dev/null
 stub create --name Bad --assignee me >/dev/null 2>&1
 assert_eq "a card has no assignee" "2" "$?"
 
+printf "\nTest group: a record says when it last changed\n"
+
+COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null
+assert_eq "a write stamps the time it changed the record" "2026-10-14T09:00:00Z" "$(field BUG-2 .updated)"
+assert_eq "the stamp sits after the creation and move times in the file" "updated" \
+  "$(sed -n '/^moved:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/BUG-2.md" | cut -d: -f1)"
+COCKPIT_NOW=2026-10-14T10:00:00Z stub set BUG-2 name "Stamped" >/dev/null
+assert_eq "a write that changes nothing leaves the stamp alone" "2026-10-14T09:00:00Z" "$(field BUG-2 .updated)"
+printf 'a note' | COCKPIT_NOW=2026-10-14T11:00:00Z stub comment BUG-2 >/dev/null
+assert_eq "a comment counts as a change to its record" "2026-10-14T11:00:00Z" "$(field BUG-2 .updated)"
+COCKPIT_NOW=2026-10-14T12:00:00Z stub resolve BUG-2 "$(stub comments BUG-2 --json | jq --raw-output '.[-1].thread')" >/dev/null
+assert_eq "and so does resolving one" "2026-10-14T12:00:00Z" "$(field BUG-2 .updated)"
+fresh="$(COCKPIT_NOW=2026-10-14T13:00:00Z stub create --name Fresh)"
+assert_eq "a new record is stamped when it is made" "2026-10-14T13:00:00Z 2026-10-14T13:00:00Z" "$(field "$fresh" '"\(.created) \(.updated)"')"
+
 printf "\nTest group: every write is a commit in the board's own repository\n"
 
 stub set BUG-2 epic EPIC-1 >/dev/null
-assert_eq "one field change is one changed line" '-epic: null
-+epic: "EPIC-1"' "$(git -C "$COCKPIT_BOARD_DIR" show --unified=0 --format= HEAD | grep '^[-+][a-z]')"
+assert_eq "one field change is one changed line beside the stamp of when it changed" '-epic: null
++epic: "EPIC-1"' "$(git -C "$COCKPIT_BOARD_DIR" show --unified=0 --format= HEAD | grep '^[-+][a-z]' | grep --invert-match '^[-+]updated:')"
 assert_eq "nothing is left uncommitted, and the lock never reaches git" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 stub move BUG-2 "$(field BUG-2 .status)" >/dev/null

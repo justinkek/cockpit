@@ -80,7 +80,7 @@ die() {
   exit "$status"
 }
 
-now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+now() { printf '%s\n' "${COCKPIT_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"; }
 
 prefix_of_type() {
   case "$1" in
@@ -263,7 +263,7 @@ parse_program='
 render_program='
   ["id", "name", "type", "status", "epic", "project", "sprint", "due", "blocked",
    "dependent_on", "dependency_for", "complexity", "session", "claimed_at", "prs", "cost_usd", "tokens_k",
-   "created", "moved", "rank", "models", "back_from", "reference", "dates"] as $order
+   "created", "moved", "updated", "rank", "models", "back_from", "reference", "dates"] as $order
   | . as $record
   | ($order + ((keys - $order - ["body"]) | sort)) as $keys
   | ["---"]
@@ -281,14 +281,20 @@ read_record() {
 }
 
 write_record() {
-  local id="$1" json file tmp
+  local id="$1" touch="${2:-}" json file tmp
   json="$(cat)"
   file="$(record_file "$id")"
+  if [ -z "$touch" ] && [ -f "$file" ] \
+    && { read_record "$id"; printf '%s' "$json"; } | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
+    return 0
+  fi
   mkdir -p "$(dirname "$file")"
   tmp="$(mktemp "$(dirname "$file")/.$id.XXXXXX")"
-  printf '%s' "$json" | jq --raw-output "$render_program" > "$tmp"
+  printf '%s' "$json" | jq --raw-output --arg stamp "$(now)" ".updated = \$stamp | $render_program" > "$tmp"
   mv "$tmp" "$file"
 }
+
+touch_record() { read_record "$1" | write_record "$1" touch; }
 
 update_record() {
   local id="$1"
@@ -911,6 +917,7 @@ comment_locked() {
     '{id: $id, thread: $thread, anchor: (if $anchor == "" then null else $anchor end),
       author: $author, at: $at, text: $text, resolved: false}')"
   printf '%s\n' "$line" >> "$file"
+  touch_record "$id"
   printf '%s\n' "$comment_id"
 }
 
@@ -976,6 +983,7 @@ resolve_locked() {
   tmp="$(mktemp "$(dirname "$file")/.$id.comments.XXXXXX")"
   jq --compact-output --arg comment "$comment_id" 'if .id == $comment then .resolved = true else . end' "$file" > "$tmp"
   mv "$tmp" "$file"
+  touch_record "$id"
 }
 
 command_resolve() {
@@ -988,9 +996,10 @@ command_resolve() {
 }
 
 attach_locked() {
-  local directory="$1" source="$2" name="$3"
-  mkdir -p "$directory"
-  cp "$source" "$directory/$name"
+  local id="$1" source="$2" name="$3"
+  mkdir -p "$BOARD_DIR/attachments/$id"
+  cp "$source" "$BOARD_DIR/attachments/$id/$name"
+  touch_record "$id"
 }
 
 command_attach() {
@@ -999,7 +1008,7 @@ command_attach() {
   [ -f "$source" ] || die 2 "usage: board-card attach <id> <file> - no file at '$source'"
   require_record "$id"
   name="$(basename "$source")"
-  with_lock attach_locked "$BOARD_DIR/attachments/$id" "$source" "$name"
+  with_lock attach_locked "$id" "$source" "$name"
   printf 'attachments/%s/%s\n' "$id" "$name"
 }
 
