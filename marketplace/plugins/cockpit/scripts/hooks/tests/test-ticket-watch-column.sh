@@ -208,12 +208,26 @@ assert_eq "a card sitting where it was recorded leaves the record alone" "In Dev
 
 printf "\nTest group: the watcher disarms itself once the ticket is Done\n"
 
-output="$(run_watch "In CR" "Done")"
+output="$(run_watch "In CR" "Done" "Done")"
 assert_contains "announces the disarm" "watcher disarmed" "$output"
 assert_contains "names Done as the end" "ticket done" "$output"
 assert_contains "asks for the close-out nobody ran" "/cockpit:ticket:7:done" "$output"
+assert_eq "records Done for the status line" "Done" "$(cat "$STATE_DIR/$SESSION.column")"
 
-output="$(run_watch "Done" "Done")"
+output="$(run_watch "In CR" "Done")"
+assert_eq "one poll reading Done does not disarm it" "0" \
+  "$(printf '%s' "$output" | grep -cF "watcher disarmed" | tr -d ' ')"
+
+output="$(run_watch "In CR" "Done" "Done|Done")"
+assert_contains "the agent's walk recorded on the second poll still disarms it" "watcher disarmed" "$output"
+assert_eq "and asks for no close-out, because the walk ran it" "0" \
+  "$(printf '%s' "$output" | grep --count --fixed-strings "/cockpit:ticket:7:done" | tr -d ' ')"
+
+output="$(run_watch "In CR" "Done" "In CR" "Done")"
+assert_eq "Done read on two polls that are not consecutive does not disarm it" "0" \
+  "$(printf '%s' "$output" | grep -cF "watcher disarmed" | tr -d ' ')"
+
+output="$(run_watch "Done" "Done" "Done")"
 assert_eq "the agent's own walk to Done asks for nothing" "0" \
   "$(printf '%s' "$output" | grep --count --fixed-strings "/cockpit:ticket:7:done" | tr -d ' ')"
 

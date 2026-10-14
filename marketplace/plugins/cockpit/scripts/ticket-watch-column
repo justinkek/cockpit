@@ -105,6 +105,8 @@ pending=()
 announced_column=()
 failures=0
 seeded=0
+done_polls=0
+watcher_recorded_done=""
 
 while :; do
   all_done=1
@@ -173,6 +175,9 @@ while :; do
       announced_column[$i]="$live"
       if [ "$id" = "${page_ids[0]}" ] && [ -n "$session" ]; then
         printf '%s\n' "$live" > "$column_file"
+        if [ "$live" = "Done" ]; then
+          watcher_recorded_done=1
+        fi
       fi
       pending[$i]=""
     else
@@ -195,7 +200,13 @@ while :; do
 
   # Every watched card has to be Done, not just the first to settle.
   if [ "$any_read" -eq 1 ] && [ "$all_done" -eq 1 ]; then
-    if [ "$(cat "$column_file" 2>/dev/null || true)" = "Done" ]; then
+    done_polls=$((done_polls + 1))
+  else
+    done_polls=0
+  fi
+
+  if [ "$done_polls" -ge 2 ]; then
+    if [ -z "$watcher_recorded_done" ] && [ "$(cat "$column_file" 2>/dev/null || true)" = "Done" ]; then
       echo "[ticket-watch] ticket done - watcher disarmed. $where_to_read"
     else
       echo "[ticket-watch] ticket done - watcher disarmed. Invoke /cockpit:ticket:7:done now to close it out. $where_to_read"
