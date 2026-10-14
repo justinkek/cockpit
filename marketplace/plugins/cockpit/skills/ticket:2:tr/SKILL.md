@@ -62,14 +62,18 @@ It carries no concern level - the layer is already the division.
 
 **Complexity** - Fibonacci estimate with rationale and reference comparison.
 
-Output format - a `###` subsection whose heading carries the arithmetic, one line per layer under it:
+Output format - a `###` subsection under the fixed heading `Complexity Breakdown`, the arithmetic on its first line and one line per layer below it:
 
 ```
-### Complexity Breakdown: 3 = FE 2 + Testing 1
+### Complexity Breakdown
+
+3 = FE 2 + Testing 1
 
 - **FE 2** - matches [reference ticket name]: [why]
 - **Testing 1** - matches [reference ticket name]: [why]
 ```
+
+The figure stays out of the heading: a redraft that changes it writes to the same heading and replaces the subsection in place, rather than adding a second one beside the old.
 
 Estimation procedure:
 
@@ -85,12 +89,13 @@ Propose splitting the ticket before finalizing tech steps when the summed Comple
 
 ## Workflow
 
-1. **Read the ticket** - read the BR section with `"$HOME/.cockpit/scripts/board-card" show <id> --section "<heading>"`, and confirm it is present. Exit 7 is the block named under Prerequisite.
-2. **Understand the codebase** - read the files and patterns relevant to the implementation. Grep callers of functions you plan to touch. When the steps introduce a shared procedure, grep the other skills for the concept too and make every call site its own step - a procedure wired into one caller and missed on another is the defect, not the missing caller.
-3. **Draft tech steps** - write the nested checklist covering every scenario from `## Validation Steps` (features) or `## Replication/Validation Steps` (bugs).
-4. **Estimate complexity** - price each layer against the reference database, then sum.
-5. **Write the tree, then the sequence flow** - both are code blocks this step writes itself. The drafted steps are the input to both, so this runs before the write below, not after it. A change touching one call skips the sequence flow.
-6. **Write to the ticket** - write `## Tech Steps` and `## Details` with `board-card section`, which keeps canonical section order (BR section → Tech Steps → Context → Details):
+1. **Move the card into In TR by AI** - when its status is `Ready for TR by AI`, invoke `/cockpit:ticket:x:status` targeting `In TR by AI`, so the walk's Record model step writes `models.TR`. A card in any other column stays where it is.
+2. **Read the ticket** - read the BR section with `"$HOME/.cockpit/scripts/board-card" show <id> --section "<heading>"`, and confirm it is present. Exit 7 is the block named under Prerequisite.
+3. **Understand the codebase** - read the files and patterns relevant to the implementation. Grep callers of functions you plan to touch. When the steps introduce a shared procedure, grep the other skills for the concept too and make every call site its own step - a procedure wired into one caller and missed on another is the defect, not the missing caller.
+4. **Draft tech steps** - write the nested toggles covering every scenario from `## Validation Steps` (features) or `## Replication/Validation Steps` (bugs).
+5. **Estimate complexity** - price each layer against the reference database, then sum.
+6. **Write the tree, then the sequence flow** - both are code blocks this step writes itself. The drafted steps are the input to both, so this runs before the write below, not after it. A change touching one call skips the sequence flow.
+7. **Write to the ticket** - write `## Tech Steps` and `## Details` with `board-card section`, which keeps canonical section order (BR section → Tech Steps → Context → Details):
 
    - **Tech Steps**: placed straight after the BR section:
 
@@ -100,11 +105,11 @@ Propose splitting the ticket before finalizing tech steps when the summed Comple
      EOF
      ```
 
-   - **Details**: the Complexity subsection is written the way `~/.cockpit/skills/ticket:x:back-from-column/SKILL.md` says under "Writing under `## Details`", which leaves every other subsection there as it was.
+   - **Details**: the `Complexity Breakdown` subsection is written the way `~/.cockpit/skills/ticket:x:back-from-column/SKILL.md` says under "Writing under `## Details`", which leaves every other subsection there as it was.
 
-7. **Set the Complexity field** - `"$HOME/.cockpit/scripts/board-card" set <id> complexity <n>`, the same Fibonacci number written to the body.
-8. **Self-check** - verify the output (see below).
-9. **Advance** - invoke `/cockpit:ticket:x:status` targeting Ready for TR. This advances the ticket out of In TR by AI so the board reflects that TR drafting is complete and the card is ready for human review.
+8. **Set the Complexity field** - `"$HOME/.cockpit/scripts/board-card" set <id> complexity <n>`, the same Fibonacci number written to the body.
+9. **Self-check** - verify the output (see below).
+10. **Advance** - invoke `/cockpit:ticket:x:status` targeting Ready for TR. This advances the ticket out of In TR by AI so the board reflects that TR drafting is complete and the card is ready for human review.
 
 ## Self-check
 
@@ -112,8 +117,8 @@ After writing TR content to the card, verify:
 
 1. **Sections** - only the allowed sections for the ticket type exist as top-level `##` headings: Validation Steps (feature) or Replication/Validation Steps (bug), Tech Steps, Context (optional), Details. No ad-hoc headings. Verify `## User Story` is absent.
 2. **Section order** - `##` headings appear in canonical order: BR section → Tech Steps → Context → Details (per the ticket page template). If any section is out of order, fix it before proceeding.
-3. **Tech steps format** - nested toggles organized by layer and concern. No flat lists, no empty layer toggles, no numbered sub-items. Every change carries its own toggle with one code block inside; a block stacking several changes, an item describing its change in prose, or more than five change toggles sitting flat under one path, fails this check. Every top-level layer summary ends with a bold point figure in round brackets, and no nested toggle carries one. Read every step and change summary on its own: it says what the change achieves. One naming the defect the step removes fails this check. The tree is the first thing under the heading and is a diff code block, every file it shows is a file an `In <path>` toggle names, and each is marked `+`, `-` or `!` then carries the sentence that toggle's step summary already states. The sequence flow below it is there only when the change spans more than one call, and every lane it draws is a file the tree already shows. Every thing the ticket does has its own tree under its own heading centred in a 120 character rule of `=`, one line per file, and every sentence in a tree starting at the same column. Every tree is in one `diff` block and each flow in its own `mermaid` block below, in the order the trees are in. Every summary opens on one of the five verbs, names the thing it acts on, and carries no `so` clause.
-4. **Complexity** - inside `## Details`, not a standalone section. The figure equals the sum of the layer points.
+3. **Tech steps format** - nested toggles organized by layer and concern. No flat lists, no empty layer toggles, no numbered sub-items. Every change that can be shown as code carries its own toggle with one code block inside; a block stacking several changes, a showable change described in prose, or more than five change toggles sitting flat under one path, fails this check. A change that cannot be shown as code, such as a generated lockfile, is a plain bullet under the toggles and passes. Every top-level layer summary ends with a bold point figure in round brackets, and no nested toggle carries one. Read every step and change summary on its own: it says what the change achieves. One naming the defect the step removes fails this check. The tree is the first thing under the heading and is a diff code block, every file it shows is named by an `In <path>` toggle or by a bullet for a change that cannot be shown as code, and each is marked `+`, `-` or `!` then carries the sentence its step's summary already states. The sequence flow below it is there only when the change spans more than one call, and every lane named for a file is a file the tree already shows. Every thing the ticket does has its own tree under its own heading centred in a 120 character rule of `=`, one line per file, and every sentence in a tree starting at the same column. Every tree is in one `diff` block and each flow in its own `mermaid` block below, in the order the trees are in. Every summary opens on one of the five verbs, names the thing it acts on, and carries no `so` clause.
+4. **Complexity** - inside `## Details`, not a standalone section, and `## Details` holds exactly one `### Complexity Breakdown`. The figure on its first line equals the sum of the layer points.
 5. **Coverage** - every scenario from the BR section (`## Validation Steps` or `## Replication/Validation Steps`) is addressed by at least one tech step.
 6. **BR untouched** - the BR section is identical to before TR ran.
 

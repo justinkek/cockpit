@@ -4,7 +4,7 @@ Operating contract for humans and AI agents working the cockpit. Agents drafting
 
 ## How the boards work
 
-1. **Column pattern (refinement stages):** _Backlog_ - captured, not yet committed to refinement; only a human pull moves a card out → _Ready for X by AI_ - the agent drafts, entry is automatic → _Ready for X_ - draft attached, waiting for a human pull → _In X_ - group refinement session decides. Session membership rotates. Nobody nurses a by-AI column; cards pass through in minutes.
+1. **Column pattern (refinement stages):** _Backlog_ - captured, not yet committed to refinement; only a human pull moves a card out → _Ready for X by AI_ - the entry column, where an agent picks the card up automatically → _In X by AI_ - the agent is drafting → _Ready for X_ - draft attached, waiting for a human pull → _In X_ - group refinement session decides. Session membership rotates. Nobody nurses a by-AI column; cards pass through in minutes.
 2. **Statuses are the gates.** Moving a card out of an In-X column _is_ the approval. Moving a ticket into Ready for Sprint asserts the Definition of Ready: TR approved, validation steps executable, Complexity ≤ 5 (within daily speed).
 3. **Breakdown:** accepting the AI-proposed ticket set - and creating the tickets - _is_ the breakdown approval; the epic then moves straight to Tickets In Dev.
 4. **Sprint planning is the only way onto the Sprint Board.** Ticket Kanban and Sprint Board are two views of the same cards, split by status. At the weekly ceremony, tickets are dragged by hand from Ready for Sprint into Sprint Backlog, pulled against last sprint's completed Complexity points. Never automated, and never outside the ceremony.

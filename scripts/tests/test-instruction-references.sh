@@ -119,7 +119,7 @@ fi
 printf "\nTest group: a moved body landed in a reference and left the core\n"
 
 moved_sentences=(
-  "the agent drafts, entry is automatic"
+  "where an agent picks the card up automatically"
   "Fibonacci scale (1, 2, 3, 5, 8, 13)"
   "is the last section on every ticket"
   "needs to be created, insert it after"
@@ -231,7 +231,7 @@ fi
 printf "\nTest group: a worked example is written in one instruction file\n"
 
 example_anchors=(
-  "Complexity Breakdown: 3 = FE 2 + Testing 1"
+  "3 = FE 2 + Testing 1"
   "Back from CR #1"
 )
 
