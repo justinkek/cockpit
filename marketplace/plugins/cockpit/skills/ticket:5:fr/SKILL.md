@@ -7,6 +7,8 @@ description: Move the session's cockpit ticket to Ready for FR.
 
 Move the registered cockpit ticket to `Ready for FR`. User-triggered only - never invoke automatically.
 
+Before the walk, read what is still open on the card with `"$HOME/.cockpit/scripts/board-card" comments <id>` and act on it as `~/.claude-shared/templates/page-comments.md` says. A comment that leaves open is named in the report, and the move still goes ahead - the person asked for it.
+
 ## Workflow
 
 ### 1. Guard: valid source status

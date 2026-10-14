@@ -52,6 +52,9 @@ for skill in \
   "ticket:1:br" \
   "ticket:2:tr" \
   "ticket:3:dev" \
+  "ticket:5:fr" \
+  "ticket:6:validation" \
+  "ticket:7:done" \
   "ticket:x:back-from-column" \
   "epic:1:fd" \
   "epic:2:td"; do

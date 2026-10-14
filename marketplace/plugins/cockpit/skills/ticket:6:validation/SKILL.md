@@ -7,6 +7,8 @@ description: Move the session's cockpit ticket to Ready for Validation, and tick
 
 Move the registered cockpit ticket to the `Ready for Validation` column, and record on its validation steps what the build was seen to do. This is a user-triggered action - never invoke it automatically.
 
+Read the card's open comments before step 3 records anything, with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md` - a comment on a validation step can change what that step has to show.
+
 ## Workflow
 
 ### 1. Guard: valid source status

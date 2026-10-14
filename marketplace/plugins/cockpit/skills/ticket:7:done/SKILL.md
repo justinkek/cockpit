@@ -7,6 +7,8 @@ description: Move the session's cockpit ticket to Done.
 
 Move the registered cockpit ticket to the `Done` column. Two things trigger it: the user, and the watcher's line when a person dragged the card to Done. In the second case the card is already there, so the status skill runs the close-out without moving anything.
 
+Read the card's open comments before step 3 walks it, with `"$HOME/.cockpit/scripts/board-card" comments <id>`, by `~/.claude-shared/templates/page-comments.md`. Every gate is behind a card on its way to `Done`, so a decision a session raised and nobody answered is resolved there. Any other comment still open is feedback the closed card would carry unread: name it and ask the person whether to close the card out anyway, as step 2 asks about work that has not merged.
+
 ## Workflow
 
 ### 1. Guard: valid source status
