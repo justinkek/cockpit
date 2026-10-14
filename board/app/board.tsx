@@ -25,6 +25,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
 import {
 	boardColumns,
+	dueState,
 	fieldName,
 	type Kind,
 	kindOf,
@@ -211,6 +212,16 @@ function EpicPill({ epic }: { epic?: string | null }) {
 	return <span className="pill epic">{names[epic] ?? epic}</span>;
 }
 
+function DueChip({ stub }: { stub: Stub }) {
+	const due = dueState(stub);
+	if (!due) return null;
+	return (
+		<span className={`pill due due-${due.tone}`} title={due.title} suppressHydrationWarning>
+			{due.label}
+		</span>
+	);
+}
+
 function CardBody({ stub }: { stub: Stub }) {
 	return (
 		<>
@@ -223,6 +234,7 @@ function CardBody({ stub }: { stub: Stub }) {
 				{stub.type && <TypeMark type={stub.type} />}
 				{stub.complexity != null && <span className="pill">{stub.complexity}</span>}
 				{stub.blocked && <span className="pill blocked">Blocked</span>}
+				<DueChip stub={stub} />
 				<EpicPill epic={stub.epic} />
 			</span>
 		</>
@@ -326,6 +338,7 @@ function ListRow({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOp
 				<span className="name">{stub.name}</span>
 				<span className="row-meta">
 					{stub.blocked && <span className="pill blocked">Blocked</span>}
+					<DueChip stub={stub} />
 					<EpicPill epic={stub.epic} />
 					{stub.type && <TypeMark type={stub.type} />}
 					<span className="points">{stub.complexity ?? ""}</span>

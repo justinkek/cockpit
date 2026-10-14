@@ -123,3 +123,25 @@ const FIELD_NAMES: Record<string, string> = { timebox_mins: "timebox", prs: "PRs
 export function fieldName(field: string) {
 	return FIELD_NAMES[field] ?? field;
 }
+
+export type DueState = { tone: "overdue" | "soon" | "later"; label: string; title: string };
+
+function localDay(date: Date) {
+	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
+}
+
+export function dueState(record: Pick<Card, "due" | "status">, now = new Date()): DueState | null {
+	const day = record.due?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	if (!day) return null;
+	const due = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
+	const days = localDay(due) - localDay(now);
+	const finished = phaseOf(record.status) === "done" || record.status === "Deprioritised";
+	const date = due.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+	const title = `Due ${due.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
+	if (finished) return { tone: "later", label: date, title };
+	if (days < 0) return { tone: "overdue", label: days === -1 ? "Overdue 1 day" : `Overdue ${-days} days`, title };
+	if (days === 0) return { tone: "soon", label: "Due today", title };
+	if (days === 1) return { tone: "soon", label: "Due tomorrow", title };
+	if (days <= 3) return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title };
+	return { tone: "later", label: `Due ${date}`, title };
+}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { submitCard } from "@/app/actions";
-import { boardColumns, type Card, FIBONACCI, kindOf, type Named, type Sprint, TYPES } from "@/lib/shared";
+import { boardColumns, type Card, dueState, FIBONACCI, kindOf, type Named, type Sprint, TYPES } from "@/lib/shared";
 
 export type Picked = Named & { status: string };
 
@@ -362,6 +362,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 		name: sprint.start ? `${sprint.name} (${sprint.start} to ${sprint.end ?? "?"})` : sprint.name,
 	}));
 	const urls = pullRequests(record.prs ?? "");
+	const due = dueState(record);
 	const id = record.id;
 
 	return (
@@ -495,7 +496,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 			{kind === "card" && (
 				<>
 					<dt>Due</dt>
-					<dd>
+					<dd className="with-link">
 						<Fallback id={id} op="set" field="due">
 							<TextField
 								type="date"
@@ -504,6 +505,11 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 								onCommit={(due) => onEdit("due", due, { due: due || null })}
 							/>
 						</Fallback>
+						{due && due.tone !== "later" && (
+							<span className={`pill due due-${due.tone}`} title={due.title} suppressHydrationWarning>
+								{due.label}
+							</span>
+						)}
 					</dd>
 					<dt>Blocked</dt>
 					<dd>
