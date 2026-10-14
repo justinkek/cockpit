@@ -149,7 +149,7 @@ export function BurndownChart({
 				</div>
 				<span className="axis-x">
 					{burndown.days.map((day, index) =>
-						index % labelEvery === labelEvery - 1 || index === steps - 1 ? (
+						(steps - 1 - index) % labelEvery === 0 ? (
 							<span key={day} style={{ left: `${((index + 1) / steps) * 100}%` }}>
 								{dayLabel(day)}
 							</span>

@@ -2902,6 +2902,7 @@
 		max-width: 1080px;
 		padding: 16px;
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 14px;
 		align-content: start;
 		overflow-y: auto;
@@ -2919,6 +2920,8 @@
 
 		& select {
 			max-width: 100%;
+			min-width: 0;
+			text-overflow: ellipsis;
 		}
 	}
 
@@ -3505,6 +3508,10 @@
 
 		.week-label {
 			font-size: 10px;
+			white-space: normal;
+			text-align: center;
+			line-height: 1.15;
+			min-height: 2.3em;
 		}
 	}
 }
