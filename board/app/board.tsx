@@ -83,6 +83,10 @@ import {
 
 const HEADER_SORT = "header";
 
+const AGING_AFTER = 3;
+
+const AGED_AFTER = 5;
+
 const Names = createContext<Record<string, string>>({});
 
 const Progresses = createContext<Record<string, Progress>>({});
@@ -150,8 +154,14 @@ const collisions: CollisionDetection = (args) => {
 };
 
 function filterCount(view: View) {
-	return [view.query.trim() !== "", view.types.length > 0, view.epic !== "", view.blocked, view.claimed].filter(Boolean)
-		.length;
+	return [
+		view.query.trim() !== "",
+		view.types.length > 0,
+		view.epic !== "",
+		view.blocked,
+		view.claimed,
+		view.overrunning,
+	].filter(Boolean).length;
 }
 
 function StatusDot({ status }: { status: string }) {
@@ -191,6 +201,20 @@ function Complexity({ stub }: { stub: Stub }) {
 	);
 }
 
+function DaysInColumn({ stub }: { stub: Stub }) {
+	const days = stub.days_in_column ?? 0;
+	if (days < 1) return null;
+	const tone = days >= AGED_AFTER ? " aged" : days >= AGING_AFTER ? " aging" : "";
+	return (
+		<span
+			className={`pill days${tone}`}
+			title={`${days} working ${days === 1 ? "day" : "days"} in ${stub.status}`}
+		>
+			{days}d
+		</span>
+	);
+}
+
 function Signals({ stub }: { stub: Stub }) {
 	const back = bounces(stub);
 	const total = back.reduce((sum, [, count]) => sum + count, 0);
@@ -208,6 +232,7 @@ function Signals({ stub }: { stub: Stub }) {
 					Overrunning
 				</span>
 			)}
+			<DaysInColumn stub={stub} />
 			{(stub.comments ?? 0) > 0 && (
 				<span
 					className="pill comments"
@@ -1135,7 +1160,7 @@ export function Board({
 	}
 
 	function clearFilters() {
-		update({ query: "", types: [], epic: "", blocked: false, claimed: false });
+		update({ query: "", types: [], epic: "", blocked: false, claimed: false, overrunning: false });
 	}
 
 	useKeys((event) => {
@@ -1614,6 +1639,7 @@ export function Board({
 						<option value="oldest">Oldest</option>
 						{kind === "card" && <option value="complexity">Complexity</option>}
 						<option value="moved">Last moved</option>
+						{kind === "card" && <option value="days">Longest in column</option>}
 					</select>
 					<button
 						type="button"

@@ -3263,3 +3263,19 @@
 		}
 	}
 }
+
+@layer components {
+	.pill.days {
+		font-variant-numeric: tabular-nums;
+
+		&.aging {
+			color: var(--phase-dev);
+			border-color: color-mix(in srgb, var(--phase-dev) 45%, transparent);
+		}
+
+		&.aged {
+			color: var(--danger);
+			border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+		}
+	}
+}

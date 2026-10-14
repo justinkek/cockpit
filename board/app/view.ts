@@ -1,6 +1,6 @@
-import { inPreset, type Kind, manualRank, type Card as Stub } from "@/lib/shared";
+import { inPreset, type Kind, manualRank, showsOverrun, type Card as Stub } from "@/lib/shared";
 
-export type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved";
+export type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved" | "days";
 export type Layout = "board" | "list" | "table";
 
 export const LAYOUTS: [Layout, string][] = [
@@ -16,6 +16,7 @@ export type View = {
 	epic: string;
 	blocked: boolean;
 	claimed: boolean;
+	overrunning: boolean;
 	hideEmpty: boolean;
 	sort: Sort;
 	tableSort: string;
@@ -30,6 +31,7 @@ export const DEFAULT_VIEW: View = {
 	epic: "",
 	blocked: false,
 	claimed: false,
+	overrunning: false,
 	hideEmpty: false,
 	sort: "manual",
 	tableSort: "",
@@ -41,6 +43,7 @@ export const COLLAPSED: Record<Kind, string[]> = { card: ["Done", "Deprioritised
 export const TOGGLES = [
 	["blocked", "Blocked"],
 	["claimed", "Claimed"],
+	["overrunning", "Overrunning"],
 ] as const;
 
 export const NO_EPIC = "none";
@@ -101,6 +104,9 @@ export function sorter(sort: Sort) {
 			return (a: Stub, b: Stub) => ticketNumber(a) - ticketNumber(b);
 		case "complexity":
 			return (a: Stub, b: Stub) => (b.complexity ?? -1) - (a.complexity ?? -1) || ticketNumber(b) - ticketNumber(a);
+		case "days":
+			return (a: Stub, b: Stub) =>
+				(b.days_in_column ?? 0) - (a.days_in_column ?? 0) || lastMoved(a).localeCompare(lastMoved(b));
 		case "moved":
 			return (a: Stub, b: Stub) => lastMoved(b).localeCompare(lastMoved(a));
 		case "manual":
@@ -122,6 +128,7 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 	if (!inPreset(stub, view.preset)) return false;
 	if (view.blocked && !stub.blocked) return false;
 	if (view.claimed && !stub.session) return false;
+	if (view.overrunning && !showsOverrun(stub)) return false;
 	return true;
 }
 

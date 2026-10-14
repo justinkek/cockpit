@@ -102,4 +102,25 @@ assert_eq "all but one epic keeps the cards of others and of none" \
   "FEAT-1 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-12" "$(kept "$CARDS" '{"epic":"!EPIC-1"}')"
 assert_eq "the epic filter stacks on a view" "FEAT-3" "$(kept "$CARDS" '{"preset":"sprint","epic":"none"}')"
 
+printf "Test group: the Overrunning toggle and the days in column sort\n"
+
+OVERRUN='[
+  {"id":"FEAT-20","name":"a","status":"In Dev","overrunning":true,"days_in_column":4},
+  {"id":"FEAT-21","name":"b","status":"Backlog","overrunning":true},
+  {"id":"FEAT-22","name":"c","status":"In CR","overrunning":false,"days_in_column":9},
+  {"id":"FEAT-23","name":"d","status":"Ready for Validation","overrunning":true,"days_in_column":1}
+]'
+assert_eq "Overrunning keeps the cards overrunning in dev, review or validation" \
+  "FEAT-20 FEAT-23" "$(kept "$OVERRUN" '{"overrunning":true}')"
+
+sorted_by() {
+  node --input-type=module -e '
+import { sorter } from "'"$WORK"'/view.mjs";
+const cards = JSON.parse(process.argv[1]);
+process.stdout.write(cards.map((card) => ({ created: "", body: "", ...card })).sort(sorter(process.argv[2])).map((card) => card.id).join(" "));
+' "$1" "$2"
+}
+assert_eq "Longest in column puts the card in its column longest first" \
+  "FEAT-22 FEAT-20 FEAT-23 FEAT-21" "$(sorted_by "$OVERRUN" days)"
+
 finish
