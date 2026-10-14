@@ -19,7 +19,7 @@ Generate a copy-pasteable daily status email in the team's standardised format b
 "$HOME/.cockpit/scripts/board-card" list --json
 ```
 
-Keep the cards whose `status` is one of the sprint statuses listed above, and read `name`, `status`, `blocked`, `due`, `overrunning` and `type` off each.
+Keep the cards whose `status` is one of the sprint statuses listed above, and read `name`, `status`, `blocked`, `due`, `overrunning`, `days_in_column` and `type` off each. `board-card` works out `overrunning` and `days_in_column` as it reads, so take them as it gives them and never work either out from the card's dates.
 
 Group cards by `status`.
 
@@ -37,7 +37,7 @@ Use these heuristics on the sprint board state:
 - **🟠 Off track** — no blocked cards, but any card is `overrunning` or has a `due` date before today.
 - **🟢 On track** — neither of the above.
 
-Include a one-line explanation after the traffic light emoji.
+Include a one-line explanation after the traffic light emoji. For 🟠, it names each card that put the light there, with its `days_in_column` in working days for a card that is `overrunning`, or its `due` date for one that is past it.
 
 ### 4. Format output
 
