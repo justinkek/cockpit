@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type Change = { id: string; since: string; until: string };
 
@@ -51,11 +51,17 @@ export function UndoToast({
 	const latest = useRef({ toast, busy, onUndo, onDismiss });
 	latest.current = { toast, busy, onUndo, onDismiss };
 
+	const [held, setHeld] = useState(false);
+
 	useEffect(() => {
-		if (!toast || busy) return;
-		const timer = window.setTimeout(() => latest.current.onDismiss(), 10000);
+		if (!toast || busy || held) return;
+		const timer = window.setTimeout(() => latest.current.onDismiss(), toast.changes.length > 0 ? 20000 : 8000);
 		return () => window.clearTimeout(timer);
-	}, [toast, busy]);
+	}, [toast, busy, held]);
+
+	useEffect(() => {
+		if (!toast) setHeld(false);
+	}, [toast]);
 
 	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
@@ -72,10 +78,25 @@ export function UndoToast({
 
 	if (!toast) return null;
 	return (
-		<div className="toast" role="status">
+		<div
+			className="toast"
+			role="status"
+			onPointerEnter={() => setHeld(true)}
+			onPointerLeave={() => setHeld(false)}
+			onFocus={() => setHeld(true)}
+			onBlur={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false);
+			}}
+		>
 			<span className="toast-text">{busy ? "Undoing…" : toast.text}</span>
 			{toast.changes.length > 0 && (
-				<button type="button" className="toast-undo" disabled={busy} onClick={() => onUndo(toast)} title="Undo (Cmd/Ctrl+Z)">
+				<button
+					type="button"
+					className="toast-undo"
+					disabled={busy}
+					onClick={() => onUndo(toast)}
+					title="Undo (Cmd/Ctrl+Z)"
+				>
 					Undo
 				</button>
 			)}
