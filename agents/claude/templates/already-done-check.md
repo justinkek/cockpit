@@ -17,10 +17,12 @@ Grep for the behaviour and read what the grep hits. Search the words the behavio
 ## What you found
 
 - Nothing - say so in one line and carry on.
-- The whole outcome - name the files and lines that hold it, quote the part that answers the Then, and stop. No refinement output, no edit.
+- The whole outcome - name the files and lines that hold it, quote the part that delivers the outcome, and stop. No refinement output, no edit.
 - Part of it - name what is there and what is missing, and stop the same way. A partial hit narrows the ticket, and narrowing is not yours.
 
-Stopping means asking what to do - close the ticket, narrow it, or carry on because what is there is not enough. Where that question goes depends on whether anyone is reading the chat:
+Stopping means asking what to do - close the ticket, narrow it, or carry on because what is there is not enough. The ticket waits on that answer, so set `Blocked` and comment the finding and the three options on the card, following `~/.claude-shared/templates/blocked-flag.md`. Then:
 
-- In a by-AI column (BR, TR), nobody is. Post the finding and the three options on the ticket, following `~/.claude-shared/templates/raise-a-decision.md`. The default is no refinement output and the card left in its column. End the run there.
-- In an attended session (dev), report the finding and wait.
+- Nobody reads the chat of BR or TR, which run in a by-AI column, or of any session `/cockpit:ticket:0:copilot` started - dev on a card it claimed in `In Dev` included. Leave the card in its column and end the run.
+- A person reads the chat of a dev session they started. Ask the same question there and wait.
+
+A finding the card already carries is not posted again. With no answer under it, go straight to the step after the comment. An answer settles the question: act on it, and clear the flag as `~/.claude-shared/templates/blocked-flag.md` says.
