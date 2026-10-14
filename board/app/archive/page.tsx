@@ -45,8 +45,8 @@ export default async function ArchivePage({ searchParams }: Props) {
 				<span className="count">{total}</span>
 			</header>
 			<p className="report-note">
-				Archiving takes a record off the board without losing it, and is how anything is deleted here. Bring one back and it
-				returns to the column it was in.
+				Archiving takes a record off the board without losing it, and is how anything is deleted here. Bring one back
+				and it returns to the column it was in.
 			</p>
 			{typeof error === "string" && (
 				<p className="notice error" role="alert">

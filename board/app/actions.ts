@@ -57,7 +57,10 @@ async function failed(id: string, error: unknown): Promise<Failure> {
 	if (!(error instanceof BoardError)) throw error;
 	const archived = error.message.match(/^(\S+) is archived - run: /)?.[1];
 	if (archived === id) {
-		return { error: `${id} was archived elsewhere, so this change was not saved - bring it back to change it`, archived: true };
+		return {
+			error: `${id} was archived elsewhere, so this change was not saved - bring it back to change it`,
+			archived: true,
+		};
 	}
 	if (archived) return { error: `${archived} is archived - bring it back from its page first` };
 	const missing = error.message.match(/^no record (\S+) in /)?.[1];
@@ -116,12 +119,7 @@ export async function dropCard(id: string, column: string, rank?: number): Promi
 	});
 }
 
-export async function createCard(
-	kind: Kind,
-	name: string,
-	status: string,
-	options: NewOptions = {},
-): Promise<Result> {
+export async function createCard(kind: Kind, name: string, status: string, options: NewOptions = {}): Promise<Result> {
 	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
 	if (!typed) return { error: `a new ${kind} needs a name` };
 	let id = "";
@@ -190,8 +188,11 @@ export async function submitNew(form: FormData): Promise<void> {
 		body: typeof form.get("body") === "string" ? String(form.get("body")).replace(/\r\n/g, "\n") : undefined,
 	});
 	const made = result.record?.id ?? result.moved;
-	if (made) redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
-	redirect(`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kind}: ${result.error}`)}`);
+	if (made)
+		redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
+	redirect(
+		`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kind}: ${result.error}`)}`,
+	);
 }
 
 const CREATED_WITH = ["icon", "start", "end", "dev_days", "speed", "priority", "repo"];
@@ -204,7 +205,9 @@ export async function submitRecord(_previous: string | null, form: FormData): Pr
 	const name = text(form, "name").replace(/\s*[\r\n]+\s*/g, " ");
 	const refused = (error: string) => `Could not create the ${kind}: ${error}`;
 	if (!name) return refused(`a new ${kind} needs a name`);
-	const fields = Object.fromEntries(CREATED_WITH.map((field) => [field, text(form, field)]).filter(([, value]) => value));
+	const fields = Object.fromEntries(
+		CREATED_WITH.map((field) => [field, text(form, field)]).filter(([, value]) => value),
+	);
 	let id = "";
 	let failure = "";
 	try {
@@ -249,11 +252,7 @@ export async function checkTodo(id: string, line: number, expected: string, done
 	});
 }
 
-export async function saveBody(
-	id: string,
-	expected: string,
-	text: string,
-): Promise<Result & { body?: string }> {
+export async function saveBody(id: string, expected: string, text: string): Promise<Result & { body?: string }> {
 	let latest: string | undefined;
 	const result = await report(id, async () => {
 		const current = (await readRecord(id)).body;

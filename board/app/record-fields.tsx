@@ -86,7 +86,13 @@ function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 				</Fallback>
 			</dd>
 			<IconField record={record} onEdit={onEdit} />
-			<NumberField record={record} field="priority" label="Priority" placeholder="No priority - 1 comes first" onEdit={onEdit} />
+			<NumberField
+				record={record}
+				field="priority"
+				label="Priority"
+				placeholder="No priority - 1 comes first"
+				onEdit={onEdit}
+			/>
 			<dt>Repo</dt>
 			<dd className="stack">
 				<Fallback id={id} op="set" field="repo">
@@ -272,7 +278,14 @@ function SprintFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 			<dd>
 				<DateField record={record} field="end" onEdit={onEdit} />
 			</dd>
-			<NumberField record={record} field="dev_days" label="Dev days" placeholder="Working days in it" step="any" onEdit={onEdit} />
+			<NumberField
+				record={record}
+				field="dev_days"
+				label="Dev days"
+				placeholder="Working days in it"
+				step="any"
+				onEdit={onEdit}
+			/>
 			<NumberField record={record} field="speed" label="Speed" placeholder="Points a day" step="any" onEdit={onEdit} />
 			<IconField record={record} onEdit={onEdit} />
 		</>

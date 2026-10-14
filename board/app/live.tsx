@@ -86,12 +86,7 @@ export function LiveUpdates() {
 				? "Paused while this tab is hidden"
 				: "Changes made anywhere on the board show here within a few seconds";
 	return (
-		<button
-			type="button"
-			className={`live ${state.tone}`}
-			title={title}
-			onClick={() => checkNow.current()}
-		>
+		<button type="button" className={`live ${state.tone}`} title={title} onClick={() => checkNow.current()}>
 			<span className="live-dot" aria-hidden="true" />
 			<span className="live-label">{label}</span>
 		</button>

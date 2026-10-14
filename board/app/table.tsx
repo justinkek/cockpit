@@ -189,14 +189,12 @@ const COLUMNS: Column[] = [
 				.map(([gate, count]) => `${gate} ${count}`)
 				.join(", "),
 	},
-	...MODEL_STAGES.map(
-		(stage): Column => ({
-			key: `model:${stage}`,
-			label: `${stage} model`,
-			kinds: ["card"],
-			value: (record) => record.models?.[stage] ?? null,
-		}),
-	),
+	...MODEL_STAGES.map((stage): Column => ({
+		key: `model:${stage}`,
+		label: `${stage} model`,
+		kinds: ["card"],
+		value: (record) => record.models?.[stage] ?? null,
+	})),
 	{
 		key: "days",
 		label: "Days in column",
@@ -223,7 +221,12 @@ const COLUMNS: Column[] = [
 			return cycle != null && <span suppressHydrationWarning>{span(cycle)}</span>;
 		},
 	},
-	{ key: "created", label: "Created", value: (record) => record.created, cell: (record) => <Stamp stamp={record.created} /> },
+	{
+		key: "created",
+		label: "Created",
+		value: (record) => record.created,
+		cell: (record) => <Stamp stamp={record.created} />,
+	},
 	{
 		key: "moved",
 		label: "Last moved",
@@ -393,7 +396,9 @@ export function Table({
 								return (
 									<td
 										key={column.key}
-										className={[column.numeric && "numeric", column.wide && "wide"].filter(Boolean).join(" ") || undefined}
+										className={
+											[column.numeric && "numeric", column.wide && "wide"].filter(Boolean).join(" ") || undefined
+										}
 										title={column.wide && typeof text === "string" ? text : undefined}
 									>
 										{shown}

@@ -3,8 +3,25 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { archiveOne, dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
-import { cardCommands, type Edits, epicPage, iconCommand, movePage, recordCommands, themeCommands } from "@/app/commands";
+import {
+	archiveOne,
+	dropCard,
+	duplicateCard,
+	editCard,
+	findInContent,
+	linkCards,
+	type Span,
+	undoChange,
+} from "@/app/actions";
+import {
+	cardCommands,
+	type Edits,
+	epicPage,
+	iconCommand,
+	movePage,
+	recordCommands,
+	themeCommands,
+} from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
@@ -16,7 +33,16 @@ import { tableOrder } from "@/app/table";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import type { Progress } from "@/lib/metrics";
-import { type Card, contentSearchFailed, fieldName, homeOf, kindOf, movedTo, phaseOf, recordKindOf } from "@/lib/shared";
+import {
+	type Card,
+	contentSearchFailed,
+	fieldName,
+	homeOf,
+	kindOf,
+	movedTo,
+	phaseOf,
+	recordKindOf,
+} from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span };
 
@@ -347,7 +373,8 @@ export function Ticket({
 			{members.length > 0 && (
 				<section className="timeline members">
 					<h3>
-						{recordKindOf(record.id) === "project" ? "Epics and cards" : "Cards"} <span className="count">{members.length}</span>
+						{recordKindOf(record.id) === "project" ? "Epics and cards" : "Cards"}{" "}
+						<span className="count">{members.length}</span>
 					</h3>
 					<ol>
 						{members.map((member) => (

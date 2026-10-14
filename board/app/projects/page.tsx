@@ -45,7 +45,10 @@ export default async function ProjectsPage({ searchParams }: Props) {
 		else count.open += 1;
 	}
 
-	const groups = [...ORDER, ...new Set(projects.map((project) => project.status).filter((status) => !ORDER.includes(status)))]
+	const groups = [
+		...ORDER,
+		...new Set(projects.map((project) => project.status).filter((status) => !ORDER.includes(status))),
+	]
 		.map((status) => ({
 			status,
 			projects: projects

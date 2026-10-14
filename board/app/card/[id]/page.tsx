@@ -70,7 +70,9 @@ export default async function CardPage({ params, searchParams }: Props) {
 		kind === "project"
 			? [
 					...epics.filter((epic) => epicsInProject.has(epic.id)),
-					...cards.filter((card) => card.project === record.id || (!card.project && card.epic && epicsInProject.has(card.epic))),
+					...cards.filter(
+						(card) => card.project === record.id || (!card.project && card.epic && epicsInProject.has(card.epic)),
+					),
 				]
 			: kind === "sprint"
 				? cards.filter((card) => card.sprint === record.id)

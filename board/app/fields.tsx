@@ -384,7 +384,9 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 	}));
 	const urls = pullRequests(record.prs ?? "");
 	const epicProject = record.epic ? lists.epics.find((epic) => epic.id === record.epic)?.project : null;
-	const inherited = epicProject ? (lists.projects.find((project) => project.id === epicProject)?.name ?? epicProject) : null;
+	const inherited = epicProject
+		? (lists.projects.find((project) => project.id === epicProject)?.name ?? epicProject)
+		: null;
 	const back = bounces(record);
 	const days = record.days_in_column ?? 0;
 	const overrunning = showsOverrun(record);
@@ -592,7 +594,11 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<dt>Back from</dt>
 							<dd>
 								{back.map(([gate, count]) => (
-									<span key={gate} className="pill rework" title={`Sent back from ${gate} ${count === 1 ? "once" : `${count} times`}`}>
+									<span
+										key={gate}
+										className="pill rework"
+										title={`Sent back from ${gate} ${count === 1 ? "once" : `${count} times`}`}
+									>
 										{gate} ×{count}
 									</span>
 								))}

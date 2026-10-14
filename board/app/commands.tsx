@@ -145,7 +145,11 @@ export function recordCommands(
 				keywords: "minutes budget time",
 				next: () =>
 					choicePage(`Set the timebox of ${edits.label}`, [
-						{ id: "timebox:none", label: "No timebox", run: () => edits.edit("timebox_mins", "", { timebox_mins: null }) },
+						{
+							id: "timebox:none",
+							label: "No timebox",
+							run: () => edits.edit("timebox_mins", "", { timebox_mins: null }),
+						},
 						...TIMEBOXES.map((minutes) => ({
 							id: `timebox:${minutes}`,
 							label: timeboxText(minutes),

@@ -46,7 +46,11 @@ export function ShortcutHelp({ shortcuts, onClose }: { shortcuts: Shortcut[]; on
 		panel.current?.focus();
 	}, []);
 	return (
-		<div className="overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+		<div
+			className="overlay"
+			role="presentation"
+			onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+		>
 			<div
 				className="dialog shortcuts"
 				role="dialog"

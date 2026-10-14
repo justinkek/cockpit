@@ -58,7 +58,11 @@ export function Palette({ start, onClose }: { start: Page; onClose: () => void }
 
 	let group: string | undefined;
 	return (
-		<div className="overlay" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+		<div
+			className="overlay"
+			role="presentation"
+			onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+		>
 			<div className="dialog palette" role="dialog" aria-modal="true" aria-label={page.title}>
 				<div className="palette-head">
 					{!page.root && <span className="palette-crumb">{page.title}</span>}

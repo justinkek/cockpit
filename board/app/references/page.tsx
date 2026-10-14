@@ -21,10 +21,14 @@ export default async function ReferencesPage({ searchParams }: Props) {
 		.map((domain) => ({
 			domain,
 			references: references
-				.filter((reference) => (reference.domain ?? "") === domain || (domain === "" && !domains.includes(reference.domain ?? "")))
+				.filter(
+					(reference) =>
+						(reference.domain ?? "") === domain || (domain === "" && !domains.includes(reference.domain ?? "")),
+				)
 				.sort(
 					(a, b) =>
-						(a.points ?? Number.POSITIVE_INFINITY) - (b.points ?? Number.POSITIVE_INFINITY) || a.name.localeCompare(b.name),
+						(a.points ?? Number.POSITIVE_INFINITY) - (b.points ?? Number.POSITIVE_INFINITY) ||
+						a.name.localeCompare(b.name),
 				),
 		}))
 		.filter((group) => group.references.length > 0);

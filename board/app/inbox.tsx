@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { markInboxRead } from "@/app/actions";
-import {
-	INBOX_READ,
-	itemHref,
-	itemKey,
-	NOTIFY_CHANGED,
-	type NotifyState,
-	notifyState,
-	setNotify,
-} from "@/app/notify";
+import { INBOX_READ, itemHref, itemKey, NOTIFY_CHANGED, type NotifyState, notifyState, setNotify } from "@/app/notify";
 import { ago, type Inbox, type InboxItem } from "@/lib/shared";
 
 type Filter = "all" | InboxItem["kind"];
@@ -95,9 +87,7 @@ export function InboxList({ inbox }: { inbox: Inbox }) {
 	return (
 		<section className="inbox">
 			<header className="inbox-head">
-				<h1>
-					Inbox {unread > 0 && <span className="count">{unread} unread</span>}
-				</h1>
+				<h1>Inbox {unread > 0 && <span className="count">{unread} unread</span>}</h1>
 				<span className="inbox-actions">
 					<button
 						type="button"

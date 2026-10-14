@@ -28,8 +28,8 @@ export function ArchivedRecord({ record, failure }: { record: Card; failure?: st
 			)}
 			<p className="notice archived-notice">
 				<span>
-					{record.id} is archived, so it is off the board and nothing can change it. Bring it back to work on it again, or
-					see everything archived on the <Link href="/archive">Archive</Link> page.
+					{record.id} is archived, so it is off the board and nothing can change it. Bring it back to work on it again,
+					or see everything archived on the <Link href="/archive">Archive</Link> page.
 				</span>
 				<RestoreButton id={record.id} />
 			</p>

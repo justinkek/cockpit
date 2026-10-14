@@ -58,7 +58,9 @@ export function NewRecord({
 	}, [open, empty, onOpenChange]);
 
 	const epicProject = epic ? lists.epics.find((other) => other.id === epic)?.project : null;
-	const inherited = epicProject ? (lists.projects.find((other) => other.id === epicProject)?.name ?? epicProject) : null;
+	const inherited = epicProject
+		? (lists.projects.find((other) => other.id === epicProject)?.name ?? epicProject)
+		: null;
 
 	function close() {
 		onOpenChange(false);
@@ -193,12 +195,7 @@ export function NewRecord({
 							))}
 						</select>
 					)}
-					<select
-						name="project"
-						aria-label="Project"
-						value={project}
-						onChange={changed(setProject)}
-					>
+					<select name="project" aria-label="Project" value={project} onChange={changed(setProject)}>
 						<option value="">{inherited ? `${inherited} (from the epic)` : "No project"}</option>
 						{lists.projects.map((option) => (
 							<option key={option.id} value={option.id}>

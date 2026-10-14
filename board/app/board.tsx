@@ -196,7 +196,11 @@ function Complexity({ stub }: { stub: Stub }) {
 	return (
 		<span
 			className={`pill${split ? " split" : ""}`}
-			title={split ? `${stub.complexity} points, above the ${SPLIT_ABOVE} a day holds - split it?` : `${stub.complexity} points`}
+			title={
+				split
+					? `${stub.complexity} points, above the ${SPLIT_ABOVE} a day holds - split it?`
+					: `${stub.complexity} points`
+			}
 		>
 			{stub.complexity}
 		</span>
@@ -208,10 +212,7 @@ function DaysInColumn({ stub }: { stub: Stub }) {
 	if (days < 1) return null;
 	const tone = days >= AGED_AFTER ? " aged" : days >= AGING_AFTER ? " aging" : "";
 	return (
-		<span
-			className={`pill days${tone}`}
-			title={`${days} working ${days === 1 ? "day" : "days"} in ${stub.status}`}
-		>
+		<span className={`pill days${tone}`} title={`${days} working ${days === 1 ? "day" : "days"} in ${stub.status}`}>
 			{days}d
 		</span>
 	);
@@ -506,7 +507,9 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 					{stub.type && <TypeMark type={stub.type} />}
 					<span
 						className={`points${(stub.complexity ?? 0) > SPLIT_ABOVE ? " split" : ""}`}
-						title={(stub.complexity ?? 0) > SPLIT_ABOVE ? `Above the ${SPLIT_ABOVE} a day holds - split it?` : undefined}
+						title={
+							(stub.complexity ?? 0) > SPLIT_ABOVE ? `Above the ${SPLIT_ABOVE} a day holds - split it?` : undefined
+						}
 					>
 						{stub.complexity ?? ""}
 					</span>
@@ -928,9 +931,7 @@ export function Board({
 	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
 	const progresses = useMemo(
 		() =>
-			kind === "epic"
-				? Object.fromEntries(stubs.map((stub) => [stub.id, progressOf(children[stub.id] ?? [])]))
-				: {},
+			kind === "epic" ? Object.fromEntries(stubs.map((stub) => [stub.id, progressOf(children[stub.id] ?? [])])) : {},
 		[kind, stubs, children],
 	);
 	const tableContext = useMemo(() => contextOf(kind, lists, progresses), [kind, lists, progresses]);
@@ -1535,253 +1536,259 @@ export function Board({
 	return (
 		<Names.Provider value={names}>
 			<Progresses.Provider value={progresses}>
-			<MentionContext.Provider value={mentions}>
-			<div className={`board${open ? " peeking" : ""}`}>
-				<div className="toolbar">
-					<NewRecord
-						kind={kind}
-						lists={lists}
-						open={composing}
-						defaults={{
-							status: columnsOfKind[0],
-							type: kind === "card" && view.types.length === 1 ? view.types[0] : undefined,
-							epic: kind === "card" ? onlyEpic(view) : undefined,
-						}}
-						onOpenChange={setComposing}
-						onCreate={compose}
-					/>
-					{kind === "card" && (
-						<select
-							className="view-pick"
-							value={preset.id}
-							onChange={(event) => update({ preset: event.target.value })}
-							aria-label="View"
-							title={preset.title}
-						>
-							{PRESETS.map((choice) => (
-								<option key={choice.id} value={choice.id} title={choice.title}>
-									{choice.label}
-								</option>
-							))}
-						</select>
-					)}
-					<div className="segmented" role="group" aria-label="Layout">
-						{LAYOUTS.map(([layout, label]) => (
-							<button
-								key={layout}
-								type="button"
-								className={view.layout === layout ? "on" : undefined}
-								aria-pressed={view.layout === layout}
-								onClick={() => update({ layout })}
-							>
-								{label}
-							</button>
-						))}
-					</div>
-					<input
-						ref={search}
-						type="search"
-						className="search"
-						placeholder="Search  /"
-						value={view.query}
-						onChange={(event) => update({ query: event.target.value })}
-					/>
-					<button
-						type="button"
-						className={`chip-toggle filters-toggle${filtersOpen ? " on" : ""}`}
-						aria-expanded={filtersOpen}
-						onClick={() => setFiltersOpen(!filtersOpen)}
-					>
-						Filters{count > 0 ? ` ${count}` : ""}
-					</button>
-					<div className={`filters${filtersOpen ? " open" : ""}`}>
-						{kind === "card" && (
-							<div className="chips" role="group" aria-label="Type">
-								{TYPES.map((type) => (
-									<button
-										key={type}
-										type="button"
-										className={`chip-toggle${view.types.includes(type) ? " on" : ""}`}
-										aria-pressed={view.types.includes(type)}
-										onClick={() => toggleType(type)}
-									>
-										{type}
-									</button>
-								))}
-							</div>
-						)}
-						{kind === "card" && (
-							<select value={view.epic} onChange={(event) => update({ epic: event.target.value })} aria-label="Epic">
-								<option value="">All epics</option>
-								<option value={NO_EPIC}>No epic</option>
-								<optgroup label="Only">
-									{epics.map((epic) => (
-										<option key={epic.id} value={epic.id}>
-											{epic.name}
+				<MentionContext.Provider value={mentions}>
+					<div className={`board${open ? " peeking" : ""}`}>
+						<div className="toolbar">
+							<NewRecord
+								kind={kind}
+								lists={lists}
+								open={composing}
+								defaults={{
+									status: columnsOfKind[0],
+									type: kind === "card" && view.types.length === 1 ? view.types[0] : undefined,
+									epic: kind === "card" ? onlyEpic(view) : undefined,
+								}}
+								onOpenChange={setComposing}
+								onCreate={compose}
+							/>
+							{kind === "card" && (
+								<select
+									className="view-pick"
+									value={preset.id}
+									onChange={(event) => update({ preset: event.target.value })}
+									aria-label="View"
+									title={preset.title}
+								>
+									{PRESETS.map((choice) => (
+										<option key={choice.id} value={choice.id} title={choice.title}>
+											{choice.label}
 										</option>
 									))}
-								</optgroup>
-								<optgroup label="All but">
-									{epics.map((epic) => (
-										<option key={epic.id} value={exceptEpic(epic.id)}>
-											Not {epic.name}
-										</option>
-									))}
-								</optgroup>
-							</select>
-						)}
-						{kind === "card" && (
-							<div className="chips">
-								{TOGGLES.map(([key, label]) => (
+								</select>
+							)}
+							<div className="segmented" role="group" aria-label="Layout">
+								{LAYOUTS.map(([layout, label]) => (
 									<button
-										key={key}
+										key={layout}
 										type="button"
-										className={`chip-toggle${view[key] ? " on" : ""}`}
-										aria-pressed={view[key]}
-										onClick={() => update({ [key]: !view[key] })}
+										className={view.layout === layout ? "on" : undefined}
+										aria-pressed={view.layout === layout}
+										onClick={() => update({ layout })}
 									>
 										{label}
 									</button>
 								))}
 							</div>
-						)}
-					</div>
-					<span className="spacer" />
-					<button
-						type="button"
-						className={`chip-toggle${view.hideEmpty ? " on" : ""}`}
-						aria-pressed={view.hideEmpty}
-						onClick={() => update({ hideEmpty: !view.hideEmpty })}
-					>
-						Hide empty
-					</button>
-					<select
-						value={headerSort ? HEADER_SORT : view.sort}
-						onChange={(event) => update({ sort: event.target.value as Sort, ...(headerSort ? { tableSort: "" } : {}) })}
-						aria-label="Sort"
-						title={headerSort ? "The table is sorted by a column header - pick a sort here to clear it" : undefined}
-					>
-						{headerSort && (
-							<option value={HEADER_SORT} disabled>
-								By {headerSort.label}
-							</option>
-						)}
-						<option value="manual">Manual</option>
-						<option value="newest">Newest</option>
-						<option value="oldest">Oldest</option>
-						{kind === "card" && <option value="complexity">Complexity</option>}
-						<option value="moved">Last moved</option>
-						{kind === "card" && <option value="days">Longest in column</option>}
-					</select>
-					<button
-						type="button"
-						className="chip-toggle palette-open"
-						onClick={() => setPalette(rootPage())}
-						title="Command menu (Cmd/Ctrl+K)"
-					>
-						Commands
-					</button>
-					<button
-						type="button"
-						className="quiet shortcuts-open"
-						onClick={() => setHelpOpen(true)}
-						title="Keyboard shortcuts (?)"
-					>
-						?
-					</button>
-					<span className="tally">
-						{visible.length}/{stubs.length}
-					</span>
-					{count > 0 && (
-						<button type="button" className="quiet" onClick={clearFilters}>
-							Clear {count}
-						</button>
-					)}
-				</div>
-
-				<NoticeBar notice={open && notice?.id === open.id ? null : notice} onDismiss={() => setNotice(null)} />
-
-				<div className="workspace">
-					<DndContext
-						id={dndId}
-						sensors={sensors}
-						collisionDetection={collisions}
-						onDragStart={onDragStart}
-						onDragEnd={onDragEnd}
-						onDragCancel={() => setDragging(null)}
-					>
-						{view.layout === "board" ? (
-							<div className="lanes">
-								{columns.map((column) => (
-									<Lane key={column} {...groupProps(column)} />
-								))}
-							</div>
-						) : view.layout === "table" ? (
-							<Table
-								kind={kind}
-								records={rows}
-								columns={fields}
-								context={tableContext}
-								sort={tableSort}
-								onSort={(key) => update({ tableSort: nextTableSort(tableSort, key) })}
-								pending={pending}
-								focusedId={focusedId}
-								selected={selected}
-								onOpen={clickCard}
+							<input
+								ref={search}
+								type="search"
+								className="search"
+								placeholder="Search  /"
+								value={view.query}
+								onChange={(event) => update({ query: event.target.value })}
 							/>
-						) : (
-							<div className="list">
-								{columns.map((column) => (
-									<ListGroup key={column} {...groupProps(column)} />
-								))}
+							<button
+								type="button"
+								className={`chip-toggle filters-toggle${filtersOpen ? " on" : ""}`}
+								aria-expanded={filtersOpen}
+								onClick={() => setFiltersOpen(!filtersOpen)}
+							>
+								Filters{count > 0 ? ` ${count}` : ""}
+							</button>
+							<div className={`filters${filtersOpen ? " open" : ""}`}>
+								{kind === "card" && (
+									<div className="chips" role="group" aria-label="Type">
+										{TYPES.map((type) => (
+											<button
+												key={type}
+												type="button"
+												className={`chip-toggle${view.types.includes(type) ? " on" : ""}`}
+												aria-pressed={view.types.includes(type)}
+												onClick={() => toggleType(type)}
+											>
+												{type}
+											</button>
+										))}
+									</div>
+								)}
+								{kind === "card" && (
+									<select
+										value={view.epic}
+										onChange={(event) => update({ epic: event.target.value })}
+										aria-label="Epic"
+									>
+										<option value="">All epics</option>
+										<option value={NO_EPIC}>No epic</option>
+										<optgroup label="Only">
+											{epics.map((epic) => (
+												<option key={epic.id} value={epic.id}>
+													{epic.name}
+												</option>
+											))}
+										</optgroup>
+										<optgroup label="All but">
+											{epics.map((epic) => (
+												<option key={epic.id} value={exceptEpic(epic.id)}>
+													Not {epic.name}
+												</option>
+											))}
+										</optgroup>
+									</select>
+								)}
+								{kind === "card" && (
+									<div className="chips">
+										{TOGGLES.map(([key, label]) => (
+											<button
+												key={key}
+												type="button"
+												className={`chip-toggle${view[key] ? " on" : ""}`}
+												aria-pressed={view[key]}
+												onClick={() => update({ [key]: !view[key] })}
+											>
+												{label}
+											</button>
+										))}
+									</div>
+								)}
 							</div>
-						)}
-						<DragOverlay dropAnimation={null}>
-							{dragging && (
-								<div className="card overlay">
-									<CardBody stub={dragging} />
-								</div>
+							<span className="spacer" />
+							<button
+								type="button"
+								className={`chip-toggle${view.hideEmpty ? " on" : ""}`}
+								aria-pressed={view.hideEmpty}
+								onClick={() => update({ hideEmpty: !view.hideEmpty })}
+							>
+								Hide empty
+							</button>
+							<select
+								value={headerSort ? HEADER_SORT : view.sort}
+								onChange={(event) =>
+									update({ sort: event.target.value as Sort, ...(headerSort ? { tableSort: "" } : {}) })
+								}
+								aria-label="Sort"
+								title={headerSort ? "The table is sorted by a column header - pick a sort here to clear it" : undefined}
+							>
+								{headerSort && (
+									<option value={HEADER_SORT} disabled>
+										By {headerSort.label}
+									</option>
+								)}
+								<option value="manual">Manual</option>
+								<option value="newest">Newest</option>
+								<option value="oldest">Oldest</option>
+								{kind === "card" && <option value="complexity">Complexity</option>}
+								<option value="moved">Last moved</option>
+								{kind === "card" && <option value="days">Longest in column</option>}
+							</select>
+							<button
+								type="button"
+								className="chip-toggle palette-open"
+								onClick={() => setPalette(rootPage())}
+								title="Command menu (Cmd/Ctrl+K)"
+							>
+								Commands
+							</button>
+							<button
+								type="button"
+								className="quiet shortcuts-open"
+								onClick={() => setHelpOpen(true)}
+								title="Keyboard shortcuts (?)"
+							>
+								?
+							</button>
+							<span className="tally">
+								{visible.length}/{stubs.length}
+							</span>
+							{count > 0 && (
+								<button type="button" className="quiet" onClick={clearFilters}>
+									Clear {count}
+								</button>
 							)}
-						</DragOverlay>
-						{open && (
-							<Peek
-								stub={open}
+						</div>
+
+						<NoticeBar notice={open && notice?.id === open.id ? null : notice} onDismiss={() => setNotice(null)} />
+
+						<div className="workspace">
+							<DndContext
+								id={dndId}
+								sensors={sensors}
+								collisionDetection={collisions}
+								onDragStart={onDragStart}
+								onDragEnd={onDragEnd}
+								onDragCancel={() => setDragging(null)}
+							>
+								{view.layout === "board" ? (
+									<div className="lanes">
+										{columns.map((column) => (
+											<Lane key={column} {...groupProps(column)} />
+										))}
+									</div>
+								) : view.layout === "table" ? (
+									<Table
+										kind={kind}
+										records={rows}
+										columns={fields}
+										context={tableContext}
+										sort={tableSort}
+										onSort={(key) => update({ tableSort: nextTableSort(tableSort, key) })}
+										pending={pending}
+										focusedId={focusedId}
+										selected={selected}
+										onOpen={clickCard}
+									/>
+								) : (
+									<div className="list">
+										{columns.map((column) => (
+											<ListGroup key={column} {...groupProps(column)} />
+										))}
+									</div>
+								)}
+								<DragOverlay dropAnimation={null}>
+									{dragging && (
+										<div className="card overlay">
+											<CardBody stub={dragging} />
+										</div>
+									)}
+								</DragOverlay>
+								{open && (
+									<Peek
+										stub={open}
+										kind={kind}
+										cards={children[open.id] ?? []}
+										lists={lists}
+										handlers={handlersFor(open)}
+										notice={notice?.id === open.id ? notice : null}
+										onDismiss={() => setNotice(null)}
+										onClose={() => show(null)}
+										onCopy={() => copy(open.id, true)}
+										onDuplicate={() => duplicate(open.id)}
+										onArchive={() => bulkEdits([open.id]).archive?.()}
+										onSaved={(saved, span) => {
+											const was = open.id;
+											setStubs((current) => current.map((s) => (s.id === saved.id || s.id === was ? saved : s)));
+											if (saved.id !== was) setOpenId((opened) => (opened === was ? saved.id : opened));
+											setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`));
+											router.refresh();
+										}}
+									/>
+								)}
+							</DndContext>
+						</div>
+						{chosen.length > 0 && (
+							<BulkBar
 								kind={kind}
-								cards={children[open.id] ?? []}
+								count={chosen.length}
 								lists={lists}
-								handlers={handlersFor(open)}
-								notice={notice?.id === open.id ? notice : null}
-								onDismiss={() => setNotice(null)}
-								onClose={() => show(null)}
-								onCopy={() => copy(open.id, true)}
-								onDuplicate={() => duplicate(open.id)}
-								onArchive={() => bulkEdits([open.id]).archive?.()}
-								onSaved={(saved, span) => {
-									const was = open.id;
-									setStubs((current) => current.map((s) => (s.id === saved.id || s.id === was ? saved : s)));
-									if (saved.id !== was) setOpenId((opened) => (opened === was ? saved.id : opened));
-									setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`));
-									router.refresh();
-								}}
+								columns={columns}
+								edits={bulkEdits(chosen)}
+								onClear={() => setSelected(new Set())}
 							/>
 						)}
-					</DndContext>
-				</div>
-				{chosen.length > 0 && (
-					<BulkBar
-						kind={kind}
-						count={chosen.length}
-						lists={lists}
-						columns={columns}
-						edits={bulkEdits(chosen)}
-						onClear={() => setSelected(new Set())}
-					/>
-				)}
-				<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
-				{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
-				{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
-			</div>
-			</MentionContext.Provider>
+						<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
+						{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
+						{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
+					</div>
+				</MentionContext.Provider>
 			</Progresses.Provider>
 		</Names.Provider>
 	);

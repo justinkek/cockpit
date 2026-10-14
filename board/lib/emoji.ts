@@ -191,5 +191,7 @@ export const EMOJI: Emoji[] = EMOJI_GROUPS.flatMap((group) => group.emoji);
 export function findEmoji(query: string): Emoji[] {
 	const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
 	if (words.length === 0) return EMOJI;
-	return EMOJI.filter((entry) => words.every((word) => entry.emoji === word || entry.words.split(" ").some((each) => each.startsWith(word))));
+	return EMOJI.filter((entry) =>
+		words.every((word) => entry.emoji === word || entry.words.split(" ").some((each) => each.startsWith(word))),
+	);
 }

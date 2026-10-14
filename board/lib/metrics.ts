@@ -129,7 +129,9 @@ export function progressTitle(progress: Progress): string {
 	const parts = [`${progress.done} of ${progress.total} cards done`];
 	if (progress.points > 0) parts.push(`${progress.donePoints} of ${progress.points} points`);
 	if (progress.points > 0 && progress.unsized > 0)
-		parts.push(`${progress.unsized} open ${progress.unsized === 1 ? "card has" : "cards have"} no points, so the bar counts cards`);
+		parts.push(
+			`${progress.unsized} open ${progress.unsized === 1 ? "card has" : "cards have"} no points, so the bar counts cards`,
+		);
 	if (progress.dropped > 0) parts.push(`${progress.dropped} deprioritised and left out`);
 	return parts.join(", ");
 }

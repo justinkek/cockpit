@@ -217,7 +217,8 @@ export function dueState(record: Pick<Card, "due" | "status">, now = new Date())
 	if (days < 0) return { tone: "overdue", label: days === -1 ? "Overdue 1 day" : `Overdue ${-days} days`, title };
 	if (days === 0) return { tone: "soon", label: "Due today", title };
 	if (days === 1) return { tone: "soon", label: "Due tomorrow", title };
-	if (days <= 3) return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title };
+	if (days <= 3)
+		return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title };
 	return { tone: "later", label: `Due ${date}`, title };
 }
 
