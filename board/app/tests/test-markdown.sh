@@ -318,4 +318,18 @@ code: <details>\n<summary>Y</summary>
 EOF
   )"
 
+printf "\nTest group: a card or epic id in the text is a link to it\n"
+
+mention_html="$(printf '%s' $'Origin: FEAT-12, unblocked by **BUG-3** and EPIC-4\nsee `TIME-5`, [FEAT-6](https://example.com/FEAT-7) and MYFEAT-8 or FEAT-9x' | node "$WORK/outline.mjs" --html)"
+mentions_found="$(printf '%s' "$mention_html" | grep -oE 'class="mention"[^>]*>[A-Z]+-[0-9]+' | grep -oE '[A-Z]+-[0-9]+$' | paste -sd ' ' -)"
+if [ "$mentions_found" = "FEAT-12 BUG-3 EPIC-4" ]; then
+  assert_ok "a bare id, one in bold and an epic's become links, and none in code, a link, a longer word or a url"
+else
+  assert_ko "a bare id, one in bold and an epic's become links, and none in code, a link, a longer word or a url" "got '$mentions_found' from $mention_html"
+fi
+case "$mention_html" in
+*'href="/card/FEAT-12"'*'href="/epics?open=EPIC-4"'*) assert_ok "a card links to its page and an epic to the epics board" ;;
+*) assert_ko "a card links to its page and an epic to the epics board" "$mention_html" ;;
+esac
+
 finish

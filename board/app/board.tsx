@@ -34,6 +34,7 @@ import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeComm
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
+import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Command, type Page, Palette } from "@/app/palette";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
@@ -690,6 +691,24 @@ export function Board({
 		};
 	}, [query, kind, initial]);
 
+	const mentions = useMemo<Mentions>(() => {
+		const nameOf = mentionNames([...lists.cards, ...lists.epics, ...stubs]);
+		return {
+			nameOf,
+			onOpen: (id) => {
+				if (kindOf(id) !== kind) return false;
+				const number = id.split("-").at(-1);
+				const found =
+					stubs.find((stub) => stub.id === id) ??
+					stubs.find((stub) => kindOf(stub.id) === kind && stub.id.split("-").at(-1) === number);
+				if (!found) return false;
+				setOpenId(found.id);
+				setFocusedId(found.id);
+				return true;
+			},
+		};
+	}, [lists.cards, lists.epics, stubs, kind]);
+
 	const columnsOfKind = boardColumns(kind);
 	const visible = useMemo(
 		() => stubs.filter((stub) => matches(stub, view, found)).sort(sorter(view.sort)),
@@ -1204,6 +1223,7 @@ export function Board({
 
 	return (
 		<Names.Provider value={names}>
+			<MentionContext.Provider value={mentions}>
 			<div className={`board${open ? " peeking" : ""}`}>
 				<div className="toolbar">
 					<div className="segmented" role="group" aria-label="Layout">
@@ -1383,6 +1403,7 @@ export function Board({
 				{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
 				{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 			</div>
+			</MentionContext.Provider>
 		</Names.Provider>
 	);
 }

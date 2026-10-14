@@ -1,5 +1,51 @@
-import type { ReactNode } from "react";
+import { createContext, type MouseEvent, type ReactNode, useContext } from "react";
 import { Mermaid } from "@/app/mermaid";
+
+export type Mentions = { nameOf?: (id: string) => string | undefined; onOpen?: (id: string) => boolean };
+
+export const MentionContext = createContext<Mentions>({});
+
+const CARD_NUMBER = /^(?:FEAT|BUG|TIME)-(\d+)$/;
+
+export function mentionNames(records: { id: string; name: string }[]) {
+	const byId = new Map(records.map((record) => [record.id, record.name]));
+	const byNumber = new Map(
+		records.flatMap((record) => {
+			const number = record.id.match(CARD_NUMBER)?.[1];
+			return number ? [[number, record.name] as const] : [];
+		}),
+	);
+	return (id: string) => byId.get(id) ?? byNumber.get(id.match(CARD_NUMBER)?.[1] ?? "");
+}
+
+function Mention({ id }: { id: string }) {
+	const { nameOf, onOpen } = useContext(MentionContext);
+	const name = nameOf?.(id);
+	const href = id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`;
+	function open(event: MouseEvent<HTMLAnchorElement>) {
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+		if (onOpen?.(id)) event.preventDefault();
+	}
+	return (
+		<a href={href} className="mention" title={name ? `${id}: ${name}` : id} onClick={open}>
+			{id}
+		</a>
+	);
+}
+
+const mention = /(?<![A-Za-z0-9_/-])(?:FEAT|BUG|TIME|EPIC)-\d+(?![A-Za-z0-9_])/g;
+
+function mentioned(text: string, key: string): ReactNode[] {
+	const parts: ReactNode[] = [];
+	let cursor = 0;
+	for (const match of text.matchAll(mention)) {
+		if (match.index > cursor) parts.push(text.slice(cursor, match.index));
+		parts.push(<Mention key={`${key}-@${match.index}`} id={match[0]} />);
+		cursor = match.index + match[0].length;
+	}
+	if (cursor < text.length) parts.push(text.slice(cursor));
+	return parts;
+}
 
 type Anchor = { text: string; thread: string };
 
@@ -11,7 +57,14 @@ type Source = {
 	onCheck?: (line: number, done: boolean) => void;
 };
 
-function highlight(text: string, anchors: Anchor[], onAnchor: (thread: string) => void, key: string): ReactNode[] {
+function highlight(
+	text: string,
+	anchors: Anchor[],
+	onAnchor: (thread: string) => void,
+	key: string,
+	linked = true,
+): ReactNode[] {
+	const plain = (slice: string, at: string) => (linked ? mentioned(slice, at) : [slice]);
 	const spans = anchors
 		.flatMap((anchor) => {
 			const found: { start: number; end: number; thread: string }[] = [];
@@ -27,15 +80,15 @@ function highlight(text: string, anchors: Anchor[], onAnchor: (thread: string) =
 	let cursor = 0;
 	for (const span of spans) {
 		if (span.start < cursor) continue;
-		if (span.start > cursor) parts.push(text.slice(cursor, span.start));
+		if (span.start > cursor) parts.push(...plain(text.slice(cursor, span.start), `${key}-${cursor}`));
 		parts.push(
 			<mark key={`${key}-${span.start}`} className="anchor" onClick={() => onAnchor(span.thread)}>
-				{text.slice(span.start, span.end)}
+				{plain(text.slice(span.start, span.end), `${key}-${span.start}m`)}
 			</mark>,
 		);
 		cursor = span.end;
 	}
-	if (cursor < text.length) parts.push(text.slice(cursor));
+	if (cursor < text.length) parts.push(...plain(text.slice(cursor), `${key}-${cursor}`));
 	return parts;
 }
 
@@ -52,7 +105,7 @@ function inline(text: string, anchors: Anchor[], onAnchor: (thread: string) => v
 		if (match[1] !== undefined) {
 			nodes.push(
 				<a key={part} href={match[2]} target="_blank" rel="noreferrer">
-					{highlight(match[1], anchors, onAnchor, part)}
+					{highlight(match[1], anchors, onAnchor, part, false)}
 				</a>,
 			);
 		} else if (match[3] !== undefined) {
@@ -62,7 +115,7 @@ function inline(text: string, anchors: Anchor[], onAnchor: (thread: string) => v
 				</a>,
 			);
 		} else if (match[4] !== undefined) {
-			nodes.push(<code key={part}>{highlight(match[4], anchors, onAnchor, part)}</code>);
+			nodes.push(<code key={part}>{highlight(match[4], anchors, onAnchor, part, false)}</code>);
 		} else {
 			nodes.push(<strong key={part}>{highlight(match[5], anchors, onAnchor, part)}</strong>);
 		}

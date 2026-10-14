@@ -31,7 +31,7 @@ export default async function EpicsPage() {
 			initial={epics}
 			children={children}
 			lists={{
-				cards: [],
+				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: epics.map(({ id, name }) => ({ id, name })),
 				sprints: [],
 				projects: projects.map(({ id, name }) => ({ id, name })),

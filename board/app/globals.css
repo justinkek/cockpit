@@ -1835,3 +1835,19 @@
 		white-space: nowrap;
 	}
 }
+
+@layer components {
+	.md a.mention {
+		font: 12px var(--mono);
+		color: var(--accent);
+		background: var(--accent-soft);
+		padding: 1px 5px;
+		border-radius: 4px;
+		text-decoration: none;
+		white-space: nowrap;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+}

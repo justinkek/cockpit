@@ -8,6 +8,7 @@ import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeComm
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
+import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
@@ -127,6 +128,17 @@ export function Ticket({
 				linked ? `Linked ${parent} to ${child}` : `Unlinked ${parent} from ${child}`,
 			),
 	};
+
+	const mentions = useMemo<Mentions>(
+		() => ({
+			nameOf: mentionNames([...lists.cards, ...lists.epics]),
+			onOpen: (id) => {
+				router.push(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
+				return true;
+			},
+		}),
+		[lists.cards, lists.epics, router],
+	);
 
 	const kind = kindOf(record.id);
 	const edits: Edits = { label: record.id, move: handlers.onMove, edit: handlers.onEdit };
@@ -260,7 +272,9 @@ export function Ticket({
 				))}
 			</dl>
 
-			<Content id={record.id} body={record.body} onRecord={setRecord} />
+			<MentionContext.Provider value={mentions}>
+				<Content id={record.id} body={record.body} onRecord={setRecord} />
+			</MentionContext.Provider>
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 			{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 		</article>
