@@ -24,7 +24,11 @@ Once the card is registered, the column it sits in decides what kind of output i
 
 ### 1. Resolve the input to a cockpit card
 
-If no input was supplied, ask which card the user is working on. Otherwise resolve the argument as one of:
+If no input was supplied, ask which card the user is working on.
+
+A link to a record on the board app - `http://<host>:4646/card/<id>`, `http://<host>:4646/?open=<id>` or `http://<host>:4646/epics?open=<id>`, whatever the host - is the id it names. Take the id out of it and resolve that id as case 1. It is never case 3's URL: the card already exists, and creating one from its link would duplicate it.
+
+Otherwise resolve the argument as one of:
 
 1. **Card id** (`FEAT-n`, `BUG-n` or `TIME-n`) — read it once with `"$HOME/.cockpit/scripts/board-card" show <card-id> --json`, confirm its name and continue to the epic gate. Exit 3 means no such card: say so and stop. An `EPIC-n` id is an epic, not a card - inform the user and invoke the `/cockpit:epic:0:register` skill with the id instead of continuing the ticket flow. Stop this skill's execution.
 2. **A Notion URL** — the board no longer lives in Notion. Ask for the card id and stop.
