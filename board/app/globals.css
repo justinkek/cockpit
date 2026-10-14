@@ -1092,6 +1092,8 @@
 		background: var(--lane);
 		border-radius: var(--radius);
 		font: 12px/1.5 var(--mono);
+		white-space: pre;
+		tab-size: 4;
 		overflow-x: auto;
 	}
 
@@ -1126,6 +1128,10 @@
 
 		& .hunk {
 			color: var(--accent);
+		}
+
+		& .heading {
+			color: var(--ink);
 		}
 
 		& .meta {

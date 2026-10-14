@@ -376,7 +376,7 @@ printf "\nTest group: a diff block marks each line by what it does\n"
 
 diff_html="$(printf '%s' $'```diff\n=== move it ===\n  same/\n+ added\n- removed\n! changed\n```' | node "$WORK/outline.mjs" --html)"
 diff_kinds="$(printf '%s' "$diff_html" | grep -oE 'diff-line [a-z]+' | sed 's/diff-line //' | paste -sd ' ' -)"
-if [ "$diff_kinds" = "hunk same add del mod" ]; then
+if [ "$diff_kinds" = "heading same add del mod" ]; then
   assert_ok "a heading, an unchanged line, an addition, a removal and a change each get their own mark"
 else
   assert_ko "a heading, an unchanged line, an addition, a removal and a change each get their own mark" "got '$diff_kinds' from $diff_html"

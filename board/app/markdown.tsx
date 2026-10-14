@@ -184,7 +184,8 @@ function aliased(lines: string[]): string[] {
 
 const DIFF_KINDS: [RegExp, string][] = [
 	[/^(?:\+\+\+|---)(?: |$)/, "meta"],
-	[/^(?:@@|={3,})/, "hunk"],
+	[/^={3,}/, "heading"],
+	[/^@@/, "hunk"],
 	[/^\+/, "add"],
 	[/^-/, "del"],
 	[/^!/, "mod"],
