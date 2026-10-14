@@ -1170,6 +1170,14 @@
 		gap: 2px;
 	}
 
+	.code-modes {
+		display: inline-flex;
+		margin-right: 4px;
+		padding: 1px;
+		border-radius: var(--radius);
+		background: var(--surface);
+	}
+
 	.code-tool {
 		height: 24px;
 		padding: 0 8px;
@@ -1204,6 +1212,86 @@
 		.code-block:hover .code-tools,
 		.code-block:focus-within .code-tools {
 			opacity: 1;
+		}
+	}
+
+	.mermaid-views {
+		display: grid;
+		min-width: 0;
+
+		& .md-diagram {
+			margin: 0;
+			padding: 8px 12px 12px;
+		}
+	}
+
+	.mermaid-block.mode-split .mermaid-views {
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: start;
+
+		& .md-code {
+			border-right: 1px solid var(--line);
+			border-radius: 0;
+			height: 100%;
+		}
+	}
+
+	.diagram-failed {
+		margin: 0;
+		padding: 4px 12px 0;
+		font-size: 12px;
+		color: var(--danger);
+	}
+
+	.diagram-zoom {
+		position: fixed;
+		inset: 0;
+		z-index: 100;
+		display: grid;
+		grid-template-rows: auto 1fr;
+		background: var(--surface);
+	}
+
+	.diagram-zoom-bar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 4px;
+		padding: 8px 16px;
+		border-bottom: 1px solid var(--line);
+		background: var(--panel);
+	}
+
+	.diagram-zoom-scale {
+		min-width: 44px;
+		text-align: center;
+		font-size: 12px;
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.diagram-zoom-stage {
+		position: relative;
+		overflow: hidden;
+		cursor: grab;
+		touch-action: none;
+
+		&:active {
+			cursor: grabbing;
+		}
+	}
+
+	.diagram-zoom-canvas {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: max-content;
+		transform-origin: center;
+		user-select: none;
+
+		& svg {
+			display: block;
 		}
 	}
 
@@ -1269,6 +1357,60 @@
 
 	.hljs-emphasis {
 		font-style: italic;
+	}
+
+	@media (width < 760px) {
+		.mermaid-block.mode-split .mermaid-views {
+			grid-template-columns: minmax(0, 1fr);
+
+			& .md-code {
+				border-right: none;
+				border-bottom: 1px solid var(--line);
+			}
+		}
+	}
+
+	.md-diff {
+		padding: 10px 0;
+
+		& .diff-lines {
+			display: grid;
+			width: max-content;
+			min-width: 100%;
+		}
+
+		& .diff-line {
+			min-height: 1.5em;
+			padding: 0 12px;
+		}
+
+		& .add {
+			color: var(--diff-add);
+			background: color-mix(in srgb, var(--diff-add) 12%, transparent);
+		}
+
+		& .del {
+			color: var(--diff-del);
+			background: color-mix(in srgb, var(--diff-del) 12%, transparent);
+		}
+
+		& .mod {
+			color: var(--diff-mod);
+			background: color-mix(in srgb, var(--diff-mod) 12%, transparent);
+		}
+
+		& .hunk {
+			color: var(--accent);
+		}
+
+		& .heading {
+			color: var(--ink);
+		}
+
+		& .meta {
+			color: var(--muted);
+			font-weight: 600;
+		}
 	}
 
 	.md-details > summary {

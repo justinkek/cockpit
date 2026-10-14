@@ -1,7 +1,8 @@
 "use client";
 
 import type { HLJSApi, LanguageFn } from "highlight.js";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { copyText } from "@/app/keys";
 import { useMermaidSvg } from "@/app/mermaid";
 
@@ -263,6 +264,129 @@ function Highlighted({ code, language }: { code: string; language: string }) {
 	);
 }
 
+type Mode = "code" | "diagram" | "split";
+
+const MODES: [Mode, string, string][] = [
+	["code", "Code", "Show the code only"],
+	["diagram", "Preview", "Show the diagram only"],
+	["split", "Split", "Show the code and the diagram"],
+];
+
+function download(svg: string, name: string) {
+	const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = name;
+	document.body.append(link);
+	link.click();
+	link.remove();
+	window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function DiagramZoom({ svg, onClose }: { svg: string; onClose: () => void }) {
+	const stage = useRef<HTMLDivElement>(null);
+	const canvas = useRef<HTMLDivElement>(null);
+	const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+	const [fit, setFit] = useState(1);
+	const dragging = useRef<{ x: number; y: number; fromX: number; fromY: number } | null>(null);
+
+	useLayoutEffect(() => {
+		const box = stage.current;
+		const drawing = canvas.current?.querySelector("svg");
+		if (!box || !drawing) return;
+		const frame = drawing.viewBox.baseVal;
+		const width = frame?.width || drawing.getBoundingClientRect().width || 1;
+		const height = frame?.height || drawing.getBoundingClientRect().height || 1;
+		drawing.setAttribute("width", String(width));
+		drawing.setAttribute("height", String(height));
+		drawing.style.maxWidth = "none";
+		const scale = Math.min(2, (box.clientWidth - 32) / width, (box.clientHeight - 32) / height);
+		setFit(scale);
+		setView({ scale, x: 0, y: 0 });
+	}, [svg]);
+
+	useEffect(() => {
+		const box = stage.current;
+		function onKey(event: KeyboardEvent) {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			event.stopPropagation();
+			onClose();
+		}
+		function onWheel(event: WheelEvent) {
+			event.preventDefault();
+			const factor = Math.exp(-event.deltaY * 0.0015);
+			setView((now) => ({ ...now, scale: Math.min(8, Math.max(0.1, now.scale * factor)) }));
+		}
+		window.addEventListener("keydown", onKey, true);
+		box?.addEventListener("wheel", onWheel, { passive: false });
+		const before = document.body.style.overflow;
+		document.body.style.overflow = "hidden";
+		return () => {
+			window.removeEventListener("keydown", onKey, true);
+			box?.removeEventListener("wheel", onWheel);
+			document.body.style.overflow = before;
+		};
+	}, [onClose]);
+
+	const zoom = (factor: number) =>
+		setView((now) => ({ ...now, scale: Math.min(8, Math.max(0.1, now.scale * factor)) }));
+
+	return createPortal(
+		<div className="diagram-zoom" role="dialog" aria-modal="true" aria-label="Diagram">
+			<div className="diagram-zoom-bar">
+				<button type="button" className="code-tool" onClick={() => zoom(1 / 1.25)} aria-label="Zoom out">
+					−
+				</button>
+				<span className="diagram-zoom-scale">{Math.round(view.scale * 100)}%</span>
+				<button type="button" className="code-tool" onClick={() => zoom(1.25)} aria-label="Zoom in">
+					+
+				</button>
+				<button type="button" className="code-tool" onClick={() => setView({ scale: fit, x: 0, y: 0 })}>
+					Fit
+				</button>
+				<button type="button" className="code-tool" onClick={() => download(svg, "diagram.svg")}>
+					Download SVG
+				</button>
+				<button type="button" className="code-tool" onClick={onClose}>
+					Close
+				</button>
+			</div>
+			<div
+				ref={stage}
+				className="diagram-zoom-stage"
+				onPointerDown={(event) => {
+					event.currentTarget.setPointerCapture(event.pointerId);
+					dragging.current = { x: event.clientX, y: event.clientY, fromX: view.x, fromY: view.y };
+				}}
+				onPointerMove={(event) => {
+					const from = dragging.current;
+					if (!from) return;
+					setView((now) => ({
+						...now,
+						x: from.fromX + event.clientX - from.x,
+						y: from.fromY + event.clientY - from.y,
+					}));
+				}}
+				onPointerUp={() => {
+					dragging.current = null;
+				}}
+				onPointerCancel={() => {
+					dragging.current = null;
+				}}
+			>
+				<div
+					ref={canvas}
+					className="diagram-zoom-canvas"
+					style={{ transform: `translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+					dangerouslySetInnerHTML={{ __html: svg }}
+				/>
+			</div>
+		</div>,
+		document.body,
+	);
+}
+
 function MermaidBlock({
 	code,
 	language,
@@ -274,14 +398,66 @@ function MermaidBlock({
 	style?: CSSProperties;
 	onLanguage?: (language: string) => void;
 }) {
-	const { svg } = useMermaidSvg(code);
+	const [mode, setMode] = useState<Mode>("diagram");
+	const [zoomed, setZoomed] = useState(false);
+	const { svg, failed } = useMermaidSvg(code);
+	const diagram = svg ? (
+		<div className="md-diagram" dangerouslySetInnerHTML={{ __html: svg }} />
+	) : (
+		<div className="diagram-missing">
+			{failed && <p className="diagram-failed">This diagram could not be drawn - its source is below.</p>}
+			<pre className="md-code">{code}</pre>
+		</div>
+	);
 	return (
-		<Frame language={language} onLanguage={onLanguage} style={style} tools={<CopyButton text={code} />}>
-			{svg ? (
-				<div className="md-diagram" dangerouslySetInnerHTML={{ __html: svg }} />
-			) : (
-				<pre className="md-code">{code}</pre>
-			)}
+		<Frame
+			language={language}
+			onLanguage={onLanguage}
+			style={style}
+			className={`mermaid-block mode-${mode}`}
+			tools={
+				<>
+					<span className="code-modes" role="group" aria-label="Show">
+						{MODES.map(([value, label, title]) => (
+							<button
+								key={value}
+								type="button"
+								className={`code-tool${mode === value ? " on" : ""}`}
+								aria-pressed={mode === value}
+								title={title}
+								onClick={() => setMode(value)}
+							>
+								{label}
+							</button>
+						))}
+					</span>
+					<button
+						type="button"
+						className="code-tool"
+						disabled={!svg}
+						title="Open the diagram larger"
+						onClick={() => setZoomed(true)}
+					>
+						Zoom
+					</button>
+					<button
+						type="button"
+						className="code-tool"
+						disabled={!svg}
+						title="Download the diagram as an SVG file"
+						onClick={() => svg && download(svg, "diagram.svg")}
+					>
+						SVG
+					</button>
+					<CopyButton text={code} />
+				</>
+			}
+		>
+			<div className="mermaid-views">
+				{mode !== "diagram" && <Highlighted code={code} language={language} />}
+				{mode !== "code" && diagram}
+			</div>
+			{zoomed && svg && <DiagramZoom svg={svg} onClose={() => setZoomed(false)} />}
 		</Frame>
 	);
 }

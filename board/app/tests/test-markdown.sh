@@ -419,7 +419,10 @@ case "$code_html" in
 *'<pre class="md-code">const a = 1;</pre>'*) assert_ok "the code itself is drawn as written until the highlighter loads" ;;
 *) assert_ko "the code itself is drawn as written until the highlighter loads" "$code_html" ;;
 esac
-
+case "$code_html" in
+*'aria-pressed="true" title="Show the diagram only"'*) assert_ok "a mermaid block shows its diagram alone by default" ;;
+*) assert_ko "a mermaid block shows its diagram alone by default" "$code_html" ;;
+esac
 
 printf "\nTest group: an image is drawn, and an attachment is drawn through the app\n"
 
