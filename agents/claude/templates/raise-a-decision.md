@@ -33,12 +33,12 @@ A caller that names no default has the defect, not the session. Take the option 
 
 ## Once it is answered
 
-A decision still open after it is made reads as feedback waiting at every later stage, and the PR inherits it. The session that acts on the person's reply closes it:
+A decision still open after it is made reads as feedback waiting at every later stage, and the PR inherits it. Whichever session next reads the thread acts on the person's reply, and closes it:
 
 1. Read the section the answer changes fresh, with `board-card show <card-id> --section <heading>`, and write it back amended with `board-card section` - an approved divergence rewrites its step in `## Tech Steps`. A reply that keeps what the card already says changes nothing here.
 2. Resolve the thread with `"$HOME/.cockpit/scripts/board-card" resolve <card-id> <thread-id>`, where `<thread-id>` is the id on the thread's first line.
 
-A `[suggestion]` nobody replied to is accepted by the card moving on instead, as `~/.claude-shared/templates/page-comments.md` sets out.
+A `[suggestion]` nobody replied to is closed by `## A decision a session raised` in `~/.claude-shared/templates/page-comments.md` instead.
 
 ## What is worth a comment
 

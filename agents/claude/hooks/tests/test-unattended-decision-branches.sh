@@ -69,6 +69,22 @@ amends="no"
 printf '%s\n' "$answered_section" | grep --fixed-strings --quiet -- '--section <heading>' && amends="yes"
 assert_eq "and amends the section from a fresh read first" "yes" "$amends"
 
+reader="no"
+printf '%s\n' "$answered_section" | grep --fixed-strings --quiet "Whichever session next reads the thread acts on the person's reply" && reader="yes"
+assert_eq "and names the session that acts on the reply" "yes" "$reader"
+
+unanswered="no"
+printf '%s\n' "$answered_section" | grep --fixed-strings --quiet '`## A decision a session raised` in `~/.claude-shared/templates/page-comments.md`' && unanswered="yes"
+assert_eq "and points an unanswered one at the heading that closes it" "yes" "$unanswered"
+
+heading_there="no"
+grep --line-regexp --fixed-strings --quiet "## A decision a session raised" "$AGENTS/claude/templates/page-comments.md" && heading_there="yes"
+assert_eq "which page-comments.md carries" "yes" "$heading_there"
+
+summarised="no"
+printf '%s\n' "$answered_section" | grep --fixed-strings --quiet 'accepted by the card moving on' && summarised="yes"
+assert_eq "and the pointer carries no summary of what it points at" "no" "$summarised"
+
 pointed="no"
 grep --fixed-strings --quiet "\`## Once it is answered\`" "$AGENTS/shared/board.AGENTS.md" && pointed="yes"
 assert_eq "board.AGENTS.md names the heading" "yes" "$pointed"

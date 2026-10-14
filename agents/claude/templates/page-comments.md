@@ -26,12 +26,23 @@ A comment the draft has answered must not still be open on the card - the review
 
     "$HOME/.cockpit/scripts/board-card" resolve <card-id> <thread-id>
 
-- Resolve only what the draft actually answered, and what the next section counts as accepted. A comment it left open stays open, and the report names it.
+- Resolve only what the draft actually answered, and the decisions the next section closes. A comment it left open stays open, and the report names it.
 - Do this once, at the end, not per section.
 - No open comments means nothing to resolve.
 
-## A suggestion the card has moved past
+## A decision a session raised
 
-A `[suggestion]` this flow posted - its author starts `claude` - with no reply under it counts as accepted once a person has moved the card out of an In-X column after it was posted, so long as the card still carries the default it names. Moving the card on is the approval, as `~/.claude-shared/templates/cockpit-operating-contract.md` sets out. The next skill that reads the comments resolves it, whether or not its draft touched that line.
+A thread whose first comment carries `**[suggestion]**` and an author starting `claude` is a decision a session raised. The session reading it now acts on it, whether or not its draft touched that line:
 
-A thread a person has replied to is closed by `## Once it is answered` in `~/.claude-shared/templates/raise-a-decision.md` instead.
+- **A person has replied under it.** Act on the reply by `## Once it is answered` in `~/.claude-shared/templates/raise-a-decision.md`. A reply that asks something back is not an answer: reply in the thread following `~/.claude-shared/templates/ticket-comment-reply.md`, and leave it open.
+- **No person has replied, and the card has moved past a gate since it was posted.** Resolve it and change nothing on the card. What the card holds now is what the person let through, whether that is the default the suggestion names, a value a person put there instead, or the original a redraft was offered against.
+- **No person has replied, and the card has not moved past a gate since.** It stays open.
+
+A gate is `In BR`, `In TR`, `In CR` or `In FR` on a card, and `In FD`, `In TD` or `In Ticket Breakdown` on an epic. Two reads say whether the card has moved past one:
+
+    "$HOME/.cockpit/scripts/board-card" comments <card-id> --json
+    "$HOME/.cockpit/scripts/board-card" show <card-id> --json
+
+The first carries each comment's `at`. The second carries the card's `status`, and under `dates` the time it first reached each gate. The card has moved past a gate when its `status` comes after that gate in the order `board-card statuses` prints, with `--kind epic` for an epic, and the thread's first `at` is earlier than that gate's date. A card in `Done` has moved past every gate, whenever the thread was posted.
+
+A card a person dragged back to a gate or before it has not moved past that gate.
