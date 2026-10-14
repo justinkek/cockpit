@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-#
-# ticket-done-usage — sum cost/token usage across all sessions for a ticket.
-#
-#   usage: ticket-done-usage <card-id>
-#
-# Scans session markers in the state directory for sessions registered to the
-# given card id, reads each session's .usage sidecar (written by the
-# statusline command), and outputs a JSON object with cumulative totals.
-#
-# Cost and tokens: each summed across sessions. Empty values are skipped; a
-# total that no session recorded a value for outputs null rather than 0.
-# Tokens: uses tokens_k_cumul (delta-accumulated). Falls back to tokens_k
-# for old-format .usage files.
-#
 set -euo pipefail
 
 card_id="${1:-}"
@@ -59,6 +45,16 @@ if [ -d "$STATE_DIR" ]; then
   done
 fi
 
-[ "$has_cost" = true ] || cost_sum=null
-[ "$has_tokens" = true ] || tokens_sum=null
-printf '{"cost_usd": %s, "tokens_k": %s}\n' "$cost_sum" "$tokens_sum"
+as_json_total() {
+  local recorded="$1" sum="$2"
+  if [ "$recorded" != true ]; then
+    printf 'null'
+    return
+  fi
+  case "$sum" in
+    .*) printf '0%s' "$sum" ;;
+    *) printf '%s' "$sum" ;;
+  esac
+}
+
+printf '{"cost_usd": %s, "tokens_k": %s}\n' "$(as_json_total "$has_cost" "$cost_sum")" "$(as_json_total "$has_tokens" "$tokens_sum")"

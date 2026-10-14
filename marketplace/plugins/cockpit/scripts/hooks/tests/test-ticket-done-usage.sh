@@ -61,6 +61,20 @@ record plan-session $'cost_usd=0\ntokens_k_cumul=0\n'
 record api-session $'cost_usd=0\ntokens_k_cumul=0\n'
 assert_eq "a measured zero stays zero" '{"cost_usd": 0, "tokens_k": 0}' "$(bash "$SCRIPT" FEAT-724)"
 
+reset_state
+register both-formats-session FEAT-724
+record both-formats-session $'cost_usd=1\ntokens_k=999\ntokens_k_prev=40\ntokens_k_cumul=120\n'
+assert_eq "a sidecar holding both token formats counts the cumulative one" '{"cost_usd": 1, "tokens_k": 120}' "$(bash "$SCRIPT" FEAT-724)"
+
+printf "Test group: a total below one is still strict JSON\n"
+
+reset_state
+register cheap-session FEAT-724
+record cheap-session $'cost_usd=0.42\ntokens_k_prev=0\ntokens_k_cumul=0.5\n'
+cheap_usage="$(bash "$SCRIPT" FEAT-724)"
+assert_eq "both totals keep their leading zero" '{"cost_usd": 0.42, "tokens_k": 0.5}' "$cheap_usage"
+assert_eq "the line parses as strict JSON" "0.42" "$(printf '%s' "$cheap_usage" | python3 -c 'import json, sys; print(json.load(sys.stdin)["cost_usd"])')"
+
 printf "Test group: the argument is a card id\n"
 
 usage_error="$(bash "$SCRIPT" 2>&1 >/dev/null)"
@@ -75,6 +89,10 @@ card="$(bash "$SCRIPTS/board-card" create --name "A desktop session ticket")"
 register desktop-session "$card"
 assert_eq "board-card prints both totals as null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPTS/board-card" usage "$card")"
 assert_eq "the card's tokens_k is null" "null" "$(bash "$SCRIPTS/board-card" show "$card" --json | jq --compact-output .tokens_k)"
+
+record desktop-session $'cost_usd=0.42\ntokens_k_prev=0\ntokens_k_cumul=120\n'
+assert_eq "board-card prints a sub-dollar cost with its leading zero" '{"cost_usd": 0.42, "tokens_k": 120}' "$(bash "$SCRIPTS/board-card" usage "$card")"
+assert_eq "the card's cost_usd is the sub-dollar total" "0.42" "$(bash "$SCRIPTS/board-card" show "$card" --json | jq --compact-output .cost_usd)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
