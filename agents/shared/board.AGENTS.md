@@ -121,7 +121,7 @@ A record whose front matter does not parse is never written over or read past: a
 
 `board-card set <id> timebox_mins <minutes>` gives a card its budget in whole minutes, read back as `Timebox (mins)`, and a timebox card starts with 60 unless `create --timebox-mins` names another. A card whose type is set to `Timebox` starts with 60 too, unless it already holds a budget.
 
-A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as numbers, through `board-card set` or `create --kind sprint --start --end --dev-days --speed`, and an end before the start is refused.
+A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as numbers, through `board-card set` or `create --kind sprint --start --end --dev-days --speed`, and an end before the start is refused. A sprint and a reference ticket have no status, so `create` refuses `--status` for either, and `board-card set <id> status ''` clears one either was given before.
 
 A project has no columns, so `board-card set <id> status` moves it between `Not started`, `In progress` and `Done`, and `priority` (a whole number) and `repo` (a URL) are set the same way or given to `create --kind project`.
 

@@ -454,7 +454,7 @@ command_create() {
       project) status="Not started" ;;
     esac
   fi
-  [ "$kind" != project ] || field_json project status "$status" >/dev/null || exit "$?"
+  case "$kind" in project|sprint|reference) field_json "$kind" status "$status" >/dev/null || exit "$?" ;; esac
   [ "$kind" = card ] && case "$type" in Feature|Bug|Timebox) ;; *) die 2 "type is Feature, Bug or Timebox, not '$type'" ;; esac
   if [ "$timebox_given" = true ]; then
     pairs+=("timebox_mins" "$timebox")
@@ -732,7 +732,15 @@ field_json() {
       if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
     status)
-      [ "$kind" = project ] || die 2 "status changes through: board-card move or board-card walk"
+      case "$kind" in
+        project) ;;
+        sprint|reference)
+          [ -z "$value" ] || die 2 "a $kind has no status - set it to '' to clear one it was given"
+          echo null
+          return 0
+          ;;
+        *) die 2 "status changes through: board-card move or board-card walk" ;;
+      esac
       case "$value" in "Not started"|"In progress"|"Done") ;; *) die 2 "a project's status is Not started, In progress or Done, not '$value'" ;; esac
       nullable "$value"
       ;;

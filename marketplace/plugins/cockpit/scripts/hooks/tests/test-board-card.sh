@@ -345,6 +345,14 @@ stub set "$sprint" dev_days "" >/dev/null
 assert_eq "an empty value clears it" "null" "$(field "$sprint" .dev_days)"
 stub create --kind sprint --name Backwards --start 2026-10-16 --end 2026-10-12 >/dev/null 2>&1
 assert_eq "create refuses a sprint that ends before it starts" "2" "$?"
+stub create --kind sprint --name Active --status Active >/dev/null 2>&1
+assert_eq "a sprint has no status to be made with" "2" "$?"
+stub set "$sprint" status Active >/dev/null 2>&1
+assert_eq "nor to be set" "2" "$?"
+sed 's/^status: null$/status: "Active"/' "$COCKPIT_BOARD_DIR/sprints/$sprint.md" > "$TMPDIR/sprint.md"
+mv "$TMPDIR/sprint.md" "$COCKPIT_BOARD_DIR/sprints/$sprint.md"
+stub set "$sprint" status "" >/dev/null
+assert_eq "and one given a status before is cleared of it" "Active null" "$(git -C "$COCKPIT_BOARD_DIR" show HEAD~1:"sprints/$sprint.md" | sed -n 's/^status: "\(.*\)"$/\1/p') $(field "$sprint" .status)"
 stub set FEAT-1 start 2026-10-12 >/dev/null 2>&1
 assert_eq "only a sprint has dates" "2" "$?"
 stub create --name "Not a sprint" --speed 3 >/dev/null 2>&1
