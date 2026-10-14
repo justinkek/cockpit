@@ -487,6 +487,7 @@ function Peek({
 	onDismiss,
 	onClose,
 	onCopy,
+	onSaved,
 }: {
 	stub: Stub;
 	kind: Kind;
@@ -497,6 +498,7 @@ function Peek({
 	onDismiss: () => void;
 	onClose: () => void;
 	onCopy: () => void;
+	onSaved: (record: Stub, undo?: Span) => void;
 }) {
 	const dates = Object.entries(stub.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 	const panel = useRef<HTMLElement>(null);
@@ -573,7 +575,7 @@ function Peek({
 					</ol>
 				</section>
 			)}
-			<Content id={stub.id} />
+			<Content id={stub.id} revision={stub.updated} onSaved={onSaved} />
 		</aside>
 	);
 }
@@ -1533,6 +1535,11 @@ export function Board({
 								onDismiss={() => setNotice(null)}
 								onClose={() => setOpenId(null)}
 								onCopy={() => copy(open.id, true)}
+								onSaved={(saved, span) => {
+									setStubs((current) => current.map((s) => (s.id === saved.id ? saved : s)));
+									setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`));
+									router.refresh();
+								}}
 							/>
 						)}
 					</DndContext>

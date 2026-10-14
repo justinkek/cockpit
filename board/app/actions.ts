@@ -164,6 +164,25 @@ export async function checkTodo(id: string, line: number, expected: string, done
 	});
 }
 
+export async function saveBody(
+	id: string,
+	expected: string,
+	text: string,
+): Promise<Result & { body?: string }> {
+	let latest: string | undefined;
+	const result = await report(id, async () => {
+		const current = (await readRecord(id)).body;
+		if (current !== expected) {
+			latest = current;
+			throw new BoardError(
+				`the content of ${id} changed since you started editing - save again to replace it with your draft, or cancel to keep what is there now`,
+			);
+		}
+		return setField(id, "body", text);
+	});
+	return latest === undefined ? result : { ...result, body: latest };
+}
+
 export async function loadBody(id: string): Promise<Failure & { body?: string }> {
 	try {
 		return { body: (await readRecord(id)).body };
@@ -216,7 +235,13 @@ export async function submitCard(form: FormData): Promise<void> {
 	let failure = "";
 	try {
 		const field = text(form, "field");
-		const value = field === "name" ? text(form, "value").replace(/\s*[\r\n]+\s*/g, " ") : text(form, "value");
+		const raw = form.get("value");
+		const value =
+			field === "name"
+				? text(form, "value").replace(/\s*[\r\n]+\s*/g, " ")
+				: field === "body" && typeof raw === "string"
+					? raw.replace(/\r\n/g, "\n")
+					: text(form, "value");
 		switch (text(form, "op")) {
 			case "move":
 				await changeStatus(await readRecord(id), value);

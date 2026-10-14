@@ -299,7 +299,12 @@ export function Ticket({
 			</dl>
 
 			<MentionContext.Provider value={mentions}>
-				<Content id={record.id} body={record.body} onRecord={setRecord} />
+				<Content
+					id={record.id}
+					body={record.body}
+					onRecord={setRecord}
+					onSaved={(saved, span) => setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`))}
+				/>
 			</MentionContext.Provider>
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 			{palette && <Palette start={palette} onClose={() => setPalette(null)} />}

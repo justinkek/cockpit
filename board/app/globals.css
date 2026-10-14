@@ -2024,3 +2024,38 @@
 		}
 	}
 }
+
+@layer components {
+	.body-hint {
+		margin-right: auto;
+		align-self: center;
+		color: var(--faint);
+		font-size: 11.5px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		min-width: 0;
+	}
+
+	.body-fallback {
+		display: block;
+		margin-bottom: 0;
+
+		& > summary {
+			cursor: pointer;
+			color: var(--muted);
+			text-align: right;
+		}
+	}
+
+	.content-body .empty .quiet {
+		height: 22px;
+		padding: 0 6px;
+	}
+
+	@media (width < 760px) {
+		.body-hint {
+			display: none;
+		}
+	}
+}

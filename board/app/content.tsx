@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { checkTodo, editCard, loadBody, loadComments, postComment, resolveThread } from "@/app/actions";
+import {
+	checkTodo,
+	loadBody,
+	loadComments,
+	postComment,
+	resolveThread,
+	type Span,
+	saveBody,
+	submitCard,
+} from "@/app/actions";
+import { useHydrated } from "@/app/fields";
 import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
 import type { Card, CommentThread } from "@/lib/shared";
@@ -68,11 +78,15 @@ function Composer({
 export function Content({
 	id,
 	body: given,
+	revision,
 	onRecord,
+	onSaved,
 }: {
 	id: string;
 	body?: string;
+	revision?: string;
 	onRecord?: (record: Card) => void;
+	onSaved?: (record: Card, undo?: Span) => void;
 }) {
 	const [body, setBody] = useState(given ?? "");
 	const [threads, setThreads] = useState<CommentThread[]>([]);
@@ -82,6 +96,11 @@ export function Content({
 	const [focused, setFocused] = useState<string | null>(null);
 	const [replying, setReplying] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
+	const [base, setBase] = useState("");
+	const [saving, setSaving] = useState(false);
+	const hydrated = useHydrated();
+	const seenRevision = useRef(revision);
+	const dirty = editing !== null && editing !== base;
 	const [, startTransition] = useTransition();
 	const area = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLElement>(null);
@@ -142,11 +161,53 @@ export function Content({
 		});
 	}
 
-	function saveBody(text: string) {
+	useEffect(() => {
+		if (bodyGiven || seenRevision.current === revision) return;
+		seenRevision.current = revision;
+		if (editing !== null) return;
+		let live = true;
+		loadBody(id).then((result) => {
+			if (live && result.body !== undefined) setBody(result.body);
+		});
+		return () => {
+			live = false;
+		};
+	}, [revision, id, bodyGiven, editing]);
+
+	useEffect(() => {
+		if (!dirty) return;
+		function warn(event: BeforeUnloadEvent) {
+			event.preventDefault();
+		}
+		window.addEventListener("beforeunload", warn);
+		return () => window.removeEventListener("beforeunload", warn);
+	}, [dirty]);
+
+	function startEditing() {
+		setBase(body);
+		setEditing(body);
+		setError("");
+	}
+
+	function stopEditing() {
+		if (dirty && !window.confirm("Discard your changes to the content?")) return;
+		setEditing(null);
+		setError("");
+	}
+
+	function save(text: string) {
+		if (saving) return;
+		const expected = base;
+		setSaving(true);
 		startTransition(async () => {
-			const result = await editCard(id, "body", text);
+			const result = await saveBody(id, expected, text);
+			setSaving(false);
 			if (result.error) {
 				setError(result.error);
+				if (result.body !== undefined) {
+					setBody(result.body);
+					setBase(result.body);
+				}
 				return;
 			}
 			setError("");
@@ -154,6 +215,7 @@ export function Content({
 			if (result.record) {
 				setBody(result.record.body);
 				onRecord?.(result.record);
+				onSaved?.(result.record, result.undo);
 			}
 		});
 	}
@@ -259,9 +321,27 @@ export function Content({
 
 	return (
 		<section className="content">
-			{editing === null ? (
+			{!hydrated ? (
+				<details className="content-head body-fallback">
+					<summary>Edit content</summary>
+					<form action={submitCard} className="body-editor">
+						<input type="hidden" name="id" value={id} />
+						<input type="hidden" name="op" value="set" />
+						<input type="hidden" name="field" value="body" />
+						<textarea
+							name="value"
+							aria-label="Content"
+							defaultValue={body}
+							rows={Math.min(40, Math.max(8, body.split("\n").length + 1))}
+						/>
+						<span className="composer-actions">
+							<button type="submit">Save</button>
+						</span>
+					</form>
+				</details>
+			) : editing === null ? (
 				<div className="content-head">
-					<button type="button" className="quiet" onClick={() => setEditing(body)}>
+					<button type="button" className="quiet" onClick={startEditing}>
 						Edit content
 					</button>
 				</div>
@@ -270,29 +350,35 @@ export function Content({
 					className="body-editor"
 					onSubmit={(event) => {
 						event.preventDefault();
-						saveBody(editing);
+						save(editing);
 					}}
 				>
 					<textarea
 						aria-label="Content"
 						value={editing}
 						autoFocus
+						readOnly={saving}
 						rows={Math.min(40, Math.max(8, editing.split("\n").length + 1))}
 						onChange={(event) => setEditing(event.target.value)}
 						onKeyDown={(event) => {
-							if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit();
+							const command = event.metaKey || event.ctrlKey;
+							if (command && (event.key === "Enter" || event.key.toLowerCase() === "s")) {
+								event.preventDefault();
+								event.currentTarget.form?.requestSubmit();
+							}
 							if (event.key === "Escape") {
 								event.stopPropagation();
-								setEditing(null);
+								stopEditing();
 							}
 						}}
 					/>
 					<span className="composer-actions">
-						<button type="button" className="quiet" onClick={() => setEditing(null)}>
+						<span className="body-hint">Markdown · Cmd/Ctrl+S to save · Esc to cancel</span>
+						<button type="button" className="quiet" onClick={stopEditing}>
 							Cancel
 						</button>
-						<button type="submit" disabled={editing === body}>
-							Save
+						<button type="submit" disabled={saving || !dirty}>
+							{saving ? "Saving…" : "Save"}
 						</button>
 					</span>
 				</form>
@@ -301,7 +387,14 @@ export function Content({
 				{body ? (
 					<Markdown source={body} anchors={anchors} onAnchor={reveal} onCheck={check} />
 				) : (
-					<p className="empty">No content.</p>
+					<p className="empty">
+						No content.{" "}
+						{hydrated && (
+							<button type="button" className="quiet" onClick={startEditing}>
+								Add some
+							</button>
+						)}
+					</p>
 				)}
 				{selection && !drafting && (
 					<button
