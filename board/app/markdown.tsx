@@ -70,29 +70,54 @@ function depthOf(line: string) {
 	return tabs + spaces;
 }
 
-export function Markdown({
-	source,
-	anchors = [],
-	onAnchor = () => {},
-}: {
-	source: string;
-	anchors?: Anchor[];
-	onAnchor?: (thread: string) => void;
-}) {
-	const lines = source.split("\n");
+const opening = /^<details(?:\s[^>]*)?>(.*)$/;
+const summarised = /^<summary>(.*)<\/summary>$/;
+
+function blocksOf(
+	lines: string[],
+	from: number,
+	base: number,
+	nested: boolean,
+	anchors: Anchor[],
+	onAnchor: (thread: string) => void,
+): { blocks: ReactNode[]; next: number } {
 	const blocks: ReactNode[] = [];
-	let i = 0;
+	let i = from;
 	while (i < lines.length) {
 		const raw = lines[i];
 		const line = raw.trimStart();
-		const depth = depthOf(raw);
+		const depth = Math.max(0, depthOf(raw) - base);
 		const key = `b${i}`;
 		const style = depth > 0 ? { marginLeft: `${depth * 18}px` } : undefined;
 
+		if (line.trimEnd() === "</details>") {
+			if (nested) return { blocks, next: i + 1 };
+			i++;
+			continue;
+		}
+
+		const toggle = line.trimEnd().match(opening);
+		if (toggle) {
+			let summary = toggle[1].trim();
+			let next = i + 1;
+			if (summary === "" && next < lines.length && summarised.test(lines[next].trim())) summary = lines[next++].trim();
+			const title = summary.match(summarised)?.[1] ?? (summary || "Details");
+			const inner = blocksOf(lines, next, depthOf(raw) + 1, true, anchors, onAnchor);
+			blocks.push(
+				<details key={key} className="md-details" style={style}>
+					<summary>{inline(title, anchors, onAnchor, key)}</summary>
+					<div className="md-details-body">{inner.blocks}</div>
+				</details>,
+			);
+			i = inner.next;
+			continue;
+		}
+
 		if (line.startsWith("```")) {
+			const margin = new RegExp(`^[ \\t]{0,${raw.length - line.length}}`);
 			const code: string[] = [];
 			i++;
-			while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++]);
+			while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++].replace(margin, ""));
 			i++;
 			blocks.push(
 				<pre key={key} className="md-code" style={style}>
@@ -189,5 +214,17 @@ export function Markdown({
 		}
 		i++;
 	}
-	return <div className="md">{blocks}</div>;
+	return { blocks, next: i };
+}
+
+export function Markdown({
+	source,
+	anchors = [],
+	onAnchor = () => {},
+}: {
+	source: string;
+	anchors?: Anchor[];
+	onAnchor?: (thread: string) => void;
+}) {
+	return <div className="md">{blocksOf(source.split("\n"), 0, 0, false, anchors, onAnchor).blocks}</div>;
 }

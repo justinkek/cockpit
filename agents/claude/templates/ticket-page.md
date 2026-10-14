@@ -34,6 +34,9 @@ Background, links, agent instructions. Split it under `### ` subheadings when th
 1. **Complexity** - Fibonacci estimate with rationale and reference ticket comparison, equal to the sum of the Tech Steps layer points. Never a standalone `## Complexity` section. Its subsection's format is in the `/cockpit:ticket:2:tr` skill.
 2. **Back from X summaries** - structured bounce-back records written by the `back-from-column` skill (a `### ` subsection per gate, numbered per bounce).
 3. **Preventions** - the proposal written when the ticket leaves `In Dev`: the pattern across its bounce-backs, which of their preventions to build, and which follow-up tickets to raise.
+4. **Machine gates** - what the In CR by AI reviews found and fixed, written by `~/.claude-shared/templates/status-machine-gates.md`.
+
+`### Timebox output`, from the `/cockpit:ticket:x:status` skill, and `### Session summary`, from the `/cockpit:ticket:x:destock` skill, sit here too, in the order they are written.
 
 When `## Details` does not exist and needs to be created, insert it after Tech Steps (feature) or Context (timebox).
 
@@ -139,8 +142,8 @@ Push detail down here rather than into Outcome: bizdevs scan the Outcome, devs d
 
 4. **BR and TR content do not mix.** BR is _what and why_; TR is _how_. See the `/cockpit:ticket:1:br` skill for BR rules and the exclusion list.
 
-5. **Plain markdown.** Collapsible sections are `### ` subheadings or nested lists, and tables are markdown pipe tables. The body is a markdown file, so nothing else renders.
+5. **Plain markdown.** Collapsible sections are `### ` subheadings or nested lists, and tables are markdown pipe tables. `## Tech Steps` is the one exception: its toggles are `<details>` blocks, each opening on a `<summary>` line, and the board draws them collapsed and nested. Any other HTML shows as plain text.
 
-6. **Write a section, never the whole body.** Replace one section with `"$HOME/.cockpit/scripts/board-card" section <card-id> "<heading>" [--after "<heading>"]`, the new content on stdin. A section that does not exist yet is added after the `--after` heading. Build it from a `board-card show <card-id> --section "<heading>"` taken immediately before the write.
+6. **Write a section, never the whole body.** Replace one section with `"$HOME/.cockpit/scripts/board-card" section <card-id> "<heading>" [--before "<heading>" | --after "<heading>"]`, the new content on stdin. A section that does not exist yet lands before the `--before` heading or after the `--after` heading, and at the end of the body with neither flag or when the heading it names is absent. Build it from a `board-card show <card-id> --section "<heading>"` taken immediately before the write.
 
 7. **Content that vanished between two reads was deleted by a person.** A human edits the card on the board while the agent drafts, so a line on an earlier read and absent from the current one is their edit, never a failed write. Leave it out of the section you write back and say it went; never put it back.
