@@ -113,7 +113,7 @@ function highlight(
 
 function inline(text: string, anchors: Anchor[], onAnchor: (thread: string) => void, key: string): ReactNode[] {
 	const nodes: ReactNode[] = [];
-	const pattern = /\[([^\]]+)\]\(([^)\s]+)\)|<(https?:[^>]+)>|`([^`]+)`|\*\*([^*]+)\*\*/g;
+	const pattern = /!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|<(https?:[^>]+)>|`([^`]+)`|\*\*([^*]+)\*\*/g;
 	let cursor = 0;
 	let match: RegExpExecArray | null;
 	let index = 0;
@@ -121,22 +121,29 @@ function inline(text: string, anchors: Anchor[], onAnchor: (thread: string) => v
 		if (match.index > cursor)
 			nodes.push(...highlight(text.slice(cursor, match.index), anchors, onAnchor, `${key}-t${index}`));
 		const part = `${key}-m${index}`;
-		if (match[1] !== undefined) {
+		if (match[2] !== undefined) {
+			const src = hrefOf(match[2]);
 			nodes.push(
-				<a key={part} href={hrefOf(match[2])} target="_blank" rel="noreferrer">
-					{highlight(match[1], anchors, onAnchor, part, false)}
+				<a key={part} href={src} target="_blank" rel="noreferrer">
+					<img className="md-inline-image" src={src} alt={match[1]} loading="lazy" />
 				</a>,
 			);
 		} else if (match[3] !== undefined) {
 			nodes.push(
-				<a key={part} href={match[3]} target="_blank" rel="noreferrer">
-					{match[3]}
+				<a key={part} href={hrefOf(match[4])} target="_blank" rel="noreferrer">
+					{highlight(match[3], anchors, onAnchor, part, false)}
 				</a>,
 			);
-		} else if (match[4] !== undefined) {
-			nodes.push(<code key={part}>{highlight(match[4], anchors, onAnchor, part, false)}</code>);
+		} else if (match[5] !== undefined) {
+			nodes.push(
+				<a key={part} href={match[5]} target="_blank" rel="noreferrer">
+					{match[5]}
+				</a>,
+			);
+		} else if (match[6] !== undefined) {
+			nodes.push(<code key={part}>{highlight(match[6], anchors, onAnchor, part, false)}</code>);
 		} else {
-			nodes.push(<strong key={part}>{highlight(match[5], anchors, onAnchor, part)}</strong>);
+			nodes.push(<strong key={part}>{highlight(match[7], anchors, onAnchor, part)}</strong>);
 		}
 		cursor = match.index + match[0].length;
 		index++;
@@ -159,6 +166,34 @@ const summarised = /^<summary(?:\s[^>]*)?>(.*)<\/summary>$/;
 const toggleTag = /^<(?:details|summary)[\s>]|^<\/details>/;
 const section = /^#{1,2} /;
 
+const toggleAlias = /^<\/?toggle[\s>-]|<\/toggle(?:-header)?>$/;
+
+function aliased(lines: string[]): string[] {
+	let fenced = false;
+	return lines.map((line) => {
+		const text = line.trim();
+		if (text.startsWith("```")) fenced = !fenced;
+		if (fenced || text.startsWith("```") || !toggleAlias.test(text)) return line;
+		return line
+			.replace(/<toggle-header(?:\s[^>]*)?>/g, "<summary>")
+			.replace(/<\/toggle-header>/g, "</summary>")
+			.replace(/<toggle(?:\s[^>]*)?>/g, "<details>")
+			.replace(/<\/toggle>/g, "</details>");
+	});
+}
+
+const DIFF_KINDS: [RegExp, string][] = [
+	[/^(?:\+\+\+|---)(?: |$)/, "meta"],
+	[/^(?:@@|={3,})/, "hunk"],
+	[/^\+/, "add"],
+	[/^-/, "del"],
+	[/^!/, "mod"],
+];
+
+function diffKind(line: string) {
+	return DIFF_KINDS.find(([pattern]) => pattern.test(line))?.[1] ?? "same";
+}
+
 function continuesSummary(line: string) {
 	const text = line.trim();
 	return text !== "" && !text.startsWith("```") && !toggleTag.test(text) && !section.test(text);
@@ -170,7 +205,8 @@ function filled(lines: string[], from: number) {
 	return at;
 }
 
-function untangled(lines: string[]): { lines: string[]; origins: number[] } {
+function untangled(written: string[]): { lines: string[]; origins: number[] } {
+	const lines = aliased(written);
 	const out: string[] = [];
 	const origins: number[] = [];
 	const keep = (line: string, origin: number) => {
@@ -227,6 +263,7 @@ function untangled(lines: string[]): { lines: string[]; origins: number[] } {
 function blocksOf(source: Source, from: number, base: number, nested: boolean): { blocks: ReactNode[]; next: number } {
 	const { lines, anchors, onAnchor } = source;
 	const blocks: ReactNode[] = [];
+	const counters: number[] = [];
 	let i = from;
 	while (i < lines.length) {
 		const raw = lines[i];
@@ -272,6 +309,20 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 				blocks.push(<Mermaid key={key} source={code.join("\n")} style={style} />);
 				continue;
 			}
+			if (language === "diff") {
+				blocks.push(
+					<pre key={key} className="md-code md-diff" style={style}>
+						<span className="diff-lines">
+							{code.map((text, n) => (
+								<span key={n} className={`diff-line ${diffKind(text)}`}>
+									{text}
+								</span>
+							))}
+						</span>
+					</pre>,
+				);
+				continue;
+			}
 			blocks.push(
 				<pre key={key} className="md-code" style={style}>
 					{code.join("\n")}
@@ -288,7 +339,7 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 					.replace(/^\||\|$/g, "")
 					.split(/(?<!\\)\|/)
 					.map((cell) => cell.trim().replace(/\\\|/g, "|"));
-				if (!cells.every((cell) => /^-+$/.test(cell))) rows.push(cells);
+				if (!cells.every((cell) => /^:?-+:?$/.test(cell))) rows.push(cells);
 				i++;
 			}
 			const [head, ...body] = rows;
@@ -320,10 +371,20 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 		const heading = line.match(/^(#{1,3}) (.*)$/);
 		const todo = line.match(/^- \[( |x)\] (.*)$/);
 		const bullet = line.match(/^[-*] (.*)$/);
-		const numbered = line.match(/^\d+\. (.*)$/);
+		const numbered = line.match(/^(\d+)\. (.*)$/);
 		const quote = line.match(/^> ?(.*)$/);
+		const image = line.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+		if (bullet || todo) counters.length = depth;
+		else if (!numbered && line !== "") counters.length = 0;
 
-		if (heading) {
+		if (image) {
+			const src = hrefOf(image[2]);
+			blocks.push(
+				<a key={key} className="md-image" style={style} href={src} target="_blank" rel="noreferrer">
+					<img src={src} alt={image[1]} loading="lazy" />
+				</a>,
+			);
+		} else if (heading) {
 			const Tag = `h${heading[1].length + 2}` as "h3" | "h4" | "h5";
 			blocks.push(
 				<Tag key={key} className="md-heading" style={style}>
@@ -346,12 +407,19 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 				</div>,
 			);
 		} else if (bullet || numbered) {
+			let marker = "•";
+			if (numbered) {
+				const counted = counters[depth] === undefined ? Number(numbered[1]) : counters[depth] + 1;
+				counters.length = depth;
+				counters[depth] = counted;
+				marker = `${counted}.`;
+			}
 			blocks.push(
-				<div key={key} className="md-item" style={style}>
+				<div key={key} className={`md-item${numbered ? " numbered" : ""}`} style={style}>
 					<span className="marker" aria-hidden="true">
-						{numbered ? "•" : "•"}
+						{marker}
 					</span>
-					<span>{inline((bullet ?? numbered)?.[1] ?? "", anchors, onAnchor, key)}</span>
+					<span>{inline(bullet ? bullet[1] : (numbered?.[2] ?? ""), anchors, onAnchor, key)}</span>
 				</div>,
 			);
 		} else if (quote) {

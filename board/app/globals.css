@@ -32,6 +32,10 @@
 		--type-feature: #5e6ad2;
 		--type-bug: #d4473a;
 		--type-timebox: #c28a1e;
+
+		--diff-add: #2f8a4c;
+		--diff-del: #c23a2e;
+		--diff-mod: #b07612;
 	}
 
 	@media (prefers-color-scheme: dark) {
@@ -47,6 +51,9 @@
 			--line-strong: #34343c;
 			--accent: #7c86e8;
 			--danger: #ec6a5c;
+			--diff-add: #5cc27c;
+			--diff-del: #f07a6e;
+			--diff-mod: #e5ad4f;
 			--shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 0 0 1px var(--line);
 			--shadow-lift: 0 12px 32px rgb(0 0 0 / 55%), 0 0 0 1px var(--line-strong);
 		}
@@ -65,6 +72,9 @@
 		--line-strong: #34343c;
 		--accent: #7c86e8;
 		--danger: #ec6a5c;
+		--diff-add: #5cc27c;
+		--diff-del: #f07a6e;
+		--diff-mod: #e5ad4f;
 		--shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 0 0 1px var(--line);
 		--shadow-lift: 0 12px 32px rgb(0 0 0 / 55%), 0 0 0 1px var(--line-strong);
 	}
@@ -1026,6 +1036,38 @@
 		text-align: center;
 	}
 
+	.md-item.numbered {
+		grid-template-columns: minmax(16px, max-content) minmax(0, 1fr);
+
+		& .marker {
+			font-variant-numeric: tabular-nums;
+			text-align: right;
+		}
+	}
+
+	.md-image {
+		display: block;
+		justify-self: start;
+		max-width: 100%;
+		margin: 4px 0;
+		border-radius: var(--radius);
+		box-shadow: var(--shadow);
+		overflow: hidden;
+
+		& img {
+			display: block;
+			max-width: 100%;
+			max-height: 480px;
+			height: auto;
+		}
+	}
+
+	.md-inline-image {
+		max-width: 100%;
+		max-height: 1.5em;
+		vertical-align: middle;
+	}
+
 	.md-todo {
 		& input[type="checkbox"] {
 			width: 14px;
@@ -1052,6 +1094,45 @@
 		border-radius: var(--radius);
 		font: 12px/1.5 var(--mono);
 		overflow-x: auto;
+	}
+
+	.md-diff {
+		padding: 10px 0;
+
+		& .diff-lines {
+			display: grid;
+			width: max-content;
+			min-width: 100%;
+		}
+
+		& .diff-line {
+			min-height: 1.5em;
+			padding: 0 12px;
+		}
+
+		& .add {
+			color: var(--diff-add);
+			background: color-mix(in srgb, var(--diff-add) 12%, transparent);
+		}
+
+		& .del {
+			color: var(--diff-del);
+			background: color-mix(in srgb, var(--diff-del) 12%, transparent);
+		}
+
+		& .mod {
+			color: var(--diff-mod);
+			background: color-mix(in srgb, var(--diff-mod) 12%, transparent);
+		}
+
+		& .hunk {
+			color: var(--accent);
+		}
+
+		& .meta {
+			color: var(--muted);
+			font-weight: 600;
+		}
 	}
 
 	.md-details > summary {

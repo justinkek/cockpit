@@ -344,4 +344,78 @@ case "$attachment_html" in
 *) assert_ko "and a link elsewhere is left as written" "$attachment_html" ;;
 esac
 
+printf "\nTest group: a toggle written the way Notion exports it is a toggle\n"
+
+assert_outline "a toggle tag with a toggle header holds its body" \
+  $'<toggle>\n<toggle-header>Investigation</toggle-header>\n### APIs\n- one\n</toggle>\nafter' \
+  "$(
+    cat <<'EOF'
+toggle: Investigation
+  heading: APIs
+  item: one
+p: after
+EOF
+  )"
+
+assert_outline "and one titled by a summary closes where its tag sits" \
+  $'<toggle>\n<summary>Options</summary>\nbody\n</toggle>\n<toggle>\n<summary>Root cause</summary>\nwhy\n</toggle>' \
+  "$(
+    cat <<'EOF'
+toggle: Options
+  p: body
+toggle: Root cause
+  p: why
+EOF
+  )"
+
+assert_outline "a toggle tag inside a code block stays text" \
+  $'```html\n<toggle>\n```' \
+  "code: <toggle>"
+
+printf "\nTest group: a diff block marks each line by what it does\n"
+
+diff_html="$(printf '%s' $'```diff\n=== move it ===\n  same/\n+ added\n- removed\n! changed\n```' | node "$WORK/outline.mjs" --html)"
+diff_kinds="$(printf '%s' "$diff_html" | grep -oE 'diff-line [a-z]+' | sed 's/diff-line //' | paste -sd ' ' -)"
+if [ "$diff_kinds" = "hunk same add del mod" ]; then
+  assert_ok "a heading, an unchanged line, an addition, a removal and a change each get their own mark"
+else
+  assert_ko "a heading, an unchanged line, an addition, a removal and a change each get their own mark" "got '$diff_kinds' from $diff_html"
+fi
+case "$diff_html" in
+*'<span class="diff-line add">+ added</span>'*) assert_ok "and keeps the line as written" ;;
+*) assert_ko "and keeps the line as written" "$diff_html" ;;
+esac
+
+printf "\nTest group: an image is drawn, and an attachment is drawn through the app\n"
+
+image_html="$(printf '%s' $'![image](attachments/FEAT-282/1-image.png)\nsee ![icon](https://example.com/i.png) here' | node "$WORK/outline.mjs" --html)"
+case "$image_html" in
+*'<a class="md-image" href="/attachments/FEAT-282/1-image.png" target="_blank" rel="noreferrer"><img src="/attachments/FEAT-282/1-image.png" alt="image" loading="lazy"/></a>'*) assert_ok "an image on a line of its own is drawn from the attachment route and opens full size" ;;
+*) assert_ko "an image on a line of its own is drawn from the attachment route and opens full size" "$image_html" ;;
+esac
+case "$image_html" in
+*'<img class="md-inline-image" src="https://example.com/i.png" alt="icon" loading="lazy"/>'*) assert_ok "and one inside a sentence is drawn where it sits" ;;
+*) assert_ko "and one inside a sentence is drawn where it sits" "$image_html" ;;
+esac
+
+printf "\nTest group: a table and a numbered list read as Notion wrote them\n"
+
+table_html="$(printf '%s' $'| API | Allowed |\n| --- | --- |\n| ----- | :-: |\n| Get | No |' | node "$WORK/outline.mjs" --html)"
+table_rows="$(printf '%s' "$table_html" | grep -o '<tr>' | wc -l | tr -d ' ')"
+if [ "$table_rows" = "2" ]; then
+  assert_ok "an alignment row is not drawn as a row of dashes"
+else
+  assert_ko "an alignment row is not drawn as a row of dashes" "$table_html"
+fi
+
+numbers_of() {
+  printf '%s' "$1" | node "$WORK/outline.mjs" --html | grep -oE 'aria-hidden="true">[^<]+' | sed 's/.*>//' | paste -sd ' ' -
+}
+numbers="$(numbers_of $'1. a\n1. b\n\n1. c\n\t- d\n1. e\n## H\n3. f\n3. g')"
+if [ "$numbers" = "1. 2. 3. • 4. 3. 4." ]; then
+  assert_ok "a numbered list counts on past a blank line and a nested bullet, and starts again after a heading or from its first number"
+else
+  assert_ko "a numbered list counts on past a blank line and a nested bullet, and starts again after a heading or from its first number" "got '$numbers'"
+fi
+
 finish
