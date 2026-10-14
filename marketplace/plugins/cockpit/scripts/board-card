@@ -4,7 +4,7 @@
 #
 #   board-card init
 #   board-card create [--kind card|epic|project|sprint|reference] --name <name> [--type Feature|Bug|Timebox]
-#                     [--status <column>] [--epic <EPIC-n>] [--body -]
+#                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--body -]
 #   board-card show <id> [--json | --section <heading> | <property>...]
 #   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--json]
 #   board-card statuses [--kind card|epic]
@@ -261,7 +261,7 @@ parse_program='
   | .object + {body: $body}'
 
 render_program='
-  ["id", "name", "type", "status", "epic", "project", "sprint", "due", "blocked",
+  ["id", "name", "icon", "type", "status", "epic", "project", "sprint", "due", "blocked",
    "dependent_on", "dependency_for", "complexity", "session", "claimed_at", "prs", "cost_usd", "tokens_k",
    "created", "moved", "updated", "rank", "models", "back_from", "reference", "dates"] as $order
   | . as $record
@@ -336,14 +336,14 @@ next_id() {
 }
 
 create_locked() {
-  local kind="$1" name="$2" type="$3" status="$4" epic="$5" body="$6" id stamp stamped=false
+  local kind="$1" name="$2" type="$3" status="$4" epic="$5" body="$6" fields="${7:-"{}"}" id stamp stamped=false
   id="$(next_id "$kind" "$type")"
   stamp="$(now)"
   if has_board "$kind" && is_stamped "$kind" "$status"; then stamped=true; fi
   jq --null-input \
     --arg kind "$kind" --arg id "$id" --arg name "$name" --arg type "$type" --arg status "$status" \
     --arg epic "$epic" --arg stamp "$stamp" \
-    --arg body "$body" --argjson stamped "$stamped" '
+    --arg body "$body" --argjson stamped "$stamped" --argjson fields "$fields" '
     def blank: if . == "" then null else . end;
     if $kind == "card" then
       {id: $id, name: $name, type: $type, status: $status, epic: ($epic | blank),
@@ -353,13 +353,14 @@ create_locked() {
     else
       {id: $id, name: $name, status: ($status | blank), created: $stamp}
     end
-    + {dates: (if $stamped then {($status): $stamp} else {} end), body: $body}' \
+    + {dates: (if $stamped then {($status): $stamp} else {} end), body: $body}
+    + $fields' \
     | write_record "$id"
   printf '%s\n' "$id"
 }
 
 command_create() {
-  local kind=card name="" type="Feature" status="" epic="" body=""
+  local kind=card name="" type="Feature" status="" epic="" body="" fields="{}" pairs=() index value
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --kind) kind="${2:-}"; shift 2 ;;
@@ -367,6 +368,7 @@ command_create() {
       --type) type="${2:-}"; shift 2 ;;
       --status) status="${2:-}"; shift 2 ;;
       --epic) epic="${2:-}"; shift 2 ;;
+      --icon) pairs+=("icon" "${2:-}"); shift 2 ;;
       --body) [ "${2:-}" = "-" ] || die 2 "--body reads stdin: pass --body -"; body="$(cat)"; shift 2 ;;
       *) die 2 "create: unknown option '$1'" ;;
     esac
@@ -385,12 +387,16 @@ command_create() {
     epic="$(normalise_id "$epic")"
     require_record "$epic"
   fi
+  for ((index = 0; index < ${#pairs[@]}; index += 2)); do
+    value="$(field_json "$kind" "${pairs[index]}" "${pairs[index + 1]}")" || exit "$?"
+    fields="$(jq --compact-output --arg field "${pairs[index]}" --argjson value "$value" '. + {($field): $value}' <<<"$fields")"
+  done
   require_board
-  with_lock create_locked "$kind" "$name" "$type" "$status" "$epic" "$body"
+  with_lock create_locked "$kind" "$name" "$type" "$status" "$epic" "$body" "$fields"
 }
 
 PROPERTY_FIELDS='{
-  "Name": "name", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
+  "Name": "name", "Icon": "icon", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
   "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Blocked": "blocked", "PRs": "prs",
   "Agent: Session Id": "session", "Complexity": "complexity",
   "Dependent on": "dependent_on", "Dependency for": "dependency_for",
@@ -531,6 +537,7 @@ property_of_field() {
   case "$1" in
     complexity) echo Complexity ;;
     name) echo Name ;;
+    icon) echo Icon ;;
     type) echo Type ;;
     epic) echo Epic ;;
     project) echo Project ;;
@@ -545,6 +552,36 @@ property_of_field() {
 }
 
 nullable() { if [ -z "$1" ]; then echo null; else jq --null-input --arg value "$1" '$value'; fi; }
+
+check_icon() {
+  jq --null-input --exit-status --arg value "$1" '
+    def pictograph: (. >= 8448 and . <= 11263) or (. >= 126976 and . <= 129791 and (. < 127462 or . > 127487) and (. < 127995 or . > 127999))
+      or . == 169 or . == 174 or . == 8252 or . == 8265 or . == 12336 or . == 12349 or . == 12951 or . == 12953;
+    def flag: . >= 127462 and . <= 127487;
+    def joiner: . == 8205;
+    def modifier: . == 65038 or . == 65039 or . == 8419 or (. >= 127995 and . <= 127999) or (. >= 917536 and . <= 917631);
+    def keycap: . == 35 or . == 42 or (. >= 48 and . <= 57);
+    ($value | explode) as $points
+    | ([$points[] | select(pictograph)] | length) as $pictographs
+    | ([$points[] | select(flag)] | length) as $flags
+    | ([$points[] | select(keycap)] | length) as $keys
+    | ([$points[] | select(joiner)] | length) as $joins
+    | all($points[]; pictograph or flag or joiner or modifier or keycap)
+      and (if $flags > 0 then $flags == 2 and $pictographs + $keys + $joins == 0
+           elif $keys > 0 then $keys == 1 and $pictographs + $joins == 0 and any($points[]; . == 8419)
+           else $pictographs == $joins + 1 end)' >/dev/null || die 2 "an icon is one emoji, not '$1'"
+}
+
+field_json() {
+  local kind="$1" field="$2" value="$3"
+  case "$field" in
+    icon)
+      [ -z "$value" ] || check_icon "$value"
+      nullable "$value"
+      ;;
+    *) die 2 "no field '$field' on a $kind" ;;
+  esac
+}
 
 rename_card() {
   local from="$1" to="$2" directory file lock_dir marker
@@ -573,7 +610,7 @@ rename_card() {
 }
 
 set_locked() {
-  local id="$1" field="$2" value="$3" reference
+  local id="$1" field="$2" value="$3" reference json
   case "$field" in
     complexity)
       if [ -z "$value" ]; then
@@ -598,6 +635,10 @@ set_locked() {
     name)
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
+      ;;
+    icon)
+      json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
+      update_record "$id" --arg field "$field" --argjson value "$json" '.[$field] = $value'
       ;;
     epic|project|sprint)
       reference=""
@@ -631,7 +672,7 @@ set_locked() {
       ;;
     status) die 2 "status changes through: board-card move or board-card walk" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, type, epic, project, sprint, due, blocked, prs, complexity, session, body, rank, models.<stage>, reference.<key>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, session, body, rank, models.<stage>, reference.<key>" ;;
   esac
 }
 

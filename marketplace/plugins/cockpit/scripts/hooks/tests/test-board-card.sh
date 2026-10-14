@@ -269,6 +269,25 @@ stub unlink FEAT-1 FEAT-3 >/dev/null
 stub create --name Bad --assignee me >/dev/null 2>&1
 assert_eq "a card has no assignee" "2" "$?"
 
+printf "\nTest group: a record carries one emoji as its icon\n"
+
+assert_eq "an icon reads back under its property name" "Icon	🧭" "$(stub set FEAT-1 icon "🧭")"
+assert_eq "the icon sits after the name in the file" "icon" "$(sed -n '/^name:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/FEAT-1.md" | cut -d: -f1)"
+stub set FEAT-1 icon "👩‍💻" >/dev/null
+assert_eq "an emoji joined from several is still one" "👩‍💻" "$(field FEAT-1 .icon)"
+stub set FEAT-1 icon "🇬🇧" >/dev/null
+assert_eq "so is a flag" "🇬🇧" "$(field FEAT-1 .icon)"
+stub set FEAT-1 icon "ok" >/dev/null 2>&1
+assert_eq "text is not an icon" "2" "$?"
+stub set FEAT-1 icon "🚀🚀" >/dev/null 2>&1
+assert_eq "nor are two emoji" "2" "$?"
+stub set FEAT-1 icon "" >/dev/null
+assert_eq "an empty icon clears it" "null" "$(field FEAT-1 .icon)"
+icon_epic="$(stub create --kind epic --name "With an icon" --icon "🧭")"
+assert_eq "create takes an icon for any kind" "🧭" "$(field "$icon_epic" .icon)"
+stub create --name "Bad icon" --icon "x" >/dev/null 2>&1
+assert_eq "and refuses one that is not an emoji" "2" "$?"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null
