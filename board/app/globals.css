@@ -1112,11 +1112,10 @@
 	.comment {
 		display: grid;
 		gap: 2px;
+		min-width: 0;
 
-		& p {
-			margin: 0;
-			white-space: pre-wrap;
-			overflow-wrap: anywhere;
+		&.pending {
+			opacity: 0.6;
 		}
 	}
 

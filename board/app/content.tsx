@@ -6,6 +6,8 @@ import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
 import type { Card, CommentThread } from "@/lib/shared";
 
+type Threads = { threads?: CommentThread[]; error?: string };
+
 type Picked = { text: string; top: number; bottom: number; left: number };
 
 function when(stamp: string) {
@@ -152,13 +154,40 @@ export function Content({
 		});
 	}
 
-	function apply(request: Promise<{ threads?: CommentThread[]; error?: string }>) {
+	function apply(optimistic: (current: CommentThread[]) => CommentThread[], request: () => Promise<Threads>) {
+		const before = threads;
+		setThreads(optimistic(before));
+		setError("");
 		startTransition(async () => {
-			const result = await request;
-			if (result.error) setError(result.error);
-			else setError("");
+			const result = await request();
+			if (result.error) {
+				setThreads(before);
+				setError(result.error);
+				return;
+			}
 			if (result.threads) setThreads(result.threads);
 		});
+	}
+
+	function post(text: string, anchor?: string, reply?: string) {
+		const pending = `pending-${Date.now()}`;
+		const comment = { id: pending, author: "…", at: new Date().toISOString(), text };
+		apply(
+			(current) =>
+				reply
+					? current.map((thread) =>
+							thread.thread === reply ? { ...thread, comments: [...thread.comments, comment] } : thread,
+						)
+					: [...current, { thread: pending, anchor: anchor ?? null, comments: [comment] }],
+			() => postComment(id, text, anchor, reply),
+		);
+	}
+
+	function resolve(thread: string) {
+		apply(
+			(current) => current.filter((other) => other.thread !== thread),
+			() => resolveThread(id, thread),
+		);
 	}
 
 	useEffect(() => {
@@ -287,7 +316,7 @@ export function Content({
 							autoFocus
 							onCancel={() => setDrafting(null)}
 							onSubmit={(text) => {
-								apply(postComment(id, text, drafting.text));
+								post(text, drafting.text);
 								setDrafting(null);
 							}}
 						/>
@@ -313,12 +342,12 @@ export function Content({
 							</blockquote>
 						)}
 						{thread.comments.map((comment) => (
-							<div key={comment.id} className="comment">
+							<div key={comment.id} className={`comment${comment.id.startsWith("pending-") ? " pending" : ""}`}>
 								<span className="comment-head">
 									<strong>{comment.author}</strong>
 									<time dateTime={comment.at}>{when(comment.at)}</time>
 								</span>
-								<p>{comment.text}</p>
+								<Markdown source={comment.text} />
 							</div>
 						))}
 						{replying === thread.thread ? (
@@ -327,7 +356,7 @@ export function Content({
 								autoFocus
 								onCancel={() => setReplying(null)}
 								onSubmit={(text) => {
-									apply(postComment(id, text, undefined, thread.thread));
+									post(text, undefined, thread.thread);
 									setReplying(null);
 								}}
 							/>
@@ -336,14 +365,14 @@ export function Content({
 								<button type="button" className="quiet" onClick={() => setReplying(thread.thread)}>
 									Reply
 								</button>
-								<button type="button" className="quiet" onClick={() => apply(resolveThread(id, thread.thread))}>
+								<button type="button" className="quiet" onClick={() => resolve(thread.thread)}>
 									Resolve
 								</button>
 							</span>
 						)}
 					</article>
 				))}
-				<Composer placeholder="Comment on the page…" onSubmit={(text) => apply(postComment(id, text))} />
+				<Composer placeholder="Comment on the page…" onSubmit={(text) => post(text)} />
 			</section>
 		</section>
 	);
