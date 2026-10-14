@@ -12,7 +12,7 @@ import {
 	kindOf,
 	type Named,
 	overrunTitle,
-	phaseOf,
+	showsOverrun,
 	type Sprint,
 	TYPES,
 } from "@/lib/shared";
@@ -379,7 +379,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 	const back = bounces(record);
 	const models = Object.entries(record.models ?? {}).filter(([, model]) => model);
 	const days = record.days_in_column ?? 0;
-	const overrunning = Boolean(record.overrunning) && phaseOf(record.status) !== "done";
+	const overrunning = showsOverrun(record);
 	const due = dueState(record);
 	const id = record.id;
 

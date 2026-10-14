@@ -150,6 +150,12 @@ export function bounces(record: Pick<Card, "back_from">) {
 	return Object.entries(record.back_from ?? {}).filter(([, count]) => count > 0);
 }
 
+const OVERRUN_PHASES = ["dev", "review", "validate"];
+
+export function showsOverrun(record: Pick<Card, "overrunning" | "status">) {
+	return Boolean(record.overrunning) && OVERRUN_PHASES.includes(phaseOf(record.status));
+}
+
 export function overrunTitle(record: Pick<Card, "type" | "timebox_mins" | "complexity">) {
 	return record.type === "Timebox" && record.timebox_mins
 		? `Its dev time has run past its ${record.timebox_mins}-minute timebox`

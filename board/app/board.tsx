@@ -61,6 +61,7 @@ import {
 	type Named,
 	overrunTitle,
 	phaseOf,
+	showsOverrun,
 	SPLIT_ABOVE,
 	type Card as Stub,
 	TYPES,
@@ -171,7 +172,6 @@ function Complexity({ stub }: { stub: Stub }) {
 function Signals({ stub }: { stub: Stub }) {
 	const back = bounces(stub);
 	const total = back.reduce((sum, [, count]) => sum + count, 0);
-	const live = phaseOf(stub.status) !== "done";
 	return (
 		<>
 			{stub.type === "Timebox" && stub.timebox_mins != null && (
@@ -179,7 +179,7 @@ function Signals({ stub }: { stub: Stub }) {
 					{stub.timebox_mins}m
 				</span>
 			)}
-			{stub.overrunning && live && (
+			{showsOverrun(stub) && (
 				<span className="pill overrun" title={overrunTitle(stub)}>
 					Overrunning
 				</span>
