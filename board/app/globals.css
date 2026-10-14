@@ -1875,15 +1875,49 @@
 	}
 
 	.props .models {
-		gap: 2px;
-		font: 12px var(--mono);
-		color: var(--muted);
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 6px;
+	}
+
+	.model {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+
+		& form {
+			flex: 1;
+			min-width: 0;
+		}
+
+		& input {
+			font: 12px var(--mono);
+		}
 	}
 
 	.model-stage {
-		display: inline-block;
-		min-width: 3.5em;
-		color: var(--ink);
+		flex: none;
+		width: 2.4em;
+		font: 11.5px var(--mono);
+		color: var(--muted);
+	}
+
+	.record-icon {
+		margin-right: 5px;
+	}
+
+	.page-icon {
+		display: block;
+		font-size: 2rem;
+		line-height: 1;
+		margin: 4px 0 6px;
+	}
+
+	@media (width < 760px) {
+		.props .models {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 }
 

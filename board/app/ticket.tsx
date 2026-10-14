@@ -247,6 +247,7 @@ export function Ticket({
 					)}
 				</nav>
 			)}
+			{record.icon && <span className="page-icon">{record.icon}</span>}
 			<Title
 				id={record.id}
 				className="title-input"

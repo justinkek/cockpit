@@ -122,7 +122,10 @@ export function phaseOf(column: string): string {
 
 const FIELD_NAMES: Record<string, string> = { timebox_mins: "timebox", prs: "PRs", due: "due date" };
 
+export const MODEL_STAGES = ["BR", "TR", "Dev", "CR"] as const;
+
 export function fieldName(field: string) {
+	if (field.startsWith("models.")) return `${field.slice(7)} model`;
 	return FIELD_NAMES[field] ?? field;
 }
 

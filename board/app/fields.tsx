@@ -10,6 +10,7 @@ import {
 	dueState,
 	FIBONACCI,
 	kindOf,
+	MODEL_STAGES,
 	type Named,
 	overrunTitle,
 	showsOverrun,
@@ -377,7 +378,6 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 	const epicProject = record.epic ? lists.epics.find((epic) => epic.id === record.epic)?.project : null;
 	const inherited = epicProject ? (lists.projects.find((project) => project.id === epicProject)?.name ?? epicProject) : null;
 	const back = bounces(record);
-	const models = Object.entries(record.models ?? {}).filter(([, model]) => model);
 	const days = record.days_in_column ?? 0;
 	const overrunning = showsOverrun(record);
 	const due = dueState(record);
@@ -405,6 +405,21 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					record.status
 				)}
 			</dd>
+			{kind && (
+				<>
+					<dt>Icon</dt>
+					<dd>
+						<Fallback id={id} op="set" field="icon">
+							<TextField
+								label="Icon"
+								placeholder="No icon - one emoji"
+								value={record.icon ?? ""}
+								onCommit={(icon) => onEdit("icon", icon, { icon: icon || null })}
+							/>
+						</Fallback>
+					</dd>
+				</>
+			)}
 			{kind === "card" && (
 				<>
 					<dt>Type</dt>
@@ -585,18 +600,26 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</dd>
 						</>
 					)}
-					{models.length > 0 && (
-						<>
-							<dt>Models</dt>
-							<dd className="stack models">
-								{models.map(([stage, model]) => (
-									<span key={stage}>
-										<span className="model-stage">{stage}</span> {model}
-									</span>
-								))}
-							</dd>
-						</>
-					)}
+					<dt>Models</dt>
+					<dd className="models">
+						{MODEL_STAGES.map((stage) => (
+							<span key={stage} className="model">
+								<span className="model-stage">{stage}</span>
+								<Fallback id={id} op="set" field={`models.${stage}`}>
+									<TextField
+										label={`${stage} model`}
+										placeholder="Not recorded"
+										value={record.models?.[stage] ?? ""}
+										onCommit={(model) => {
+											const models = { ...record.models, [stage]: model };
+											if (!model) delete models[stage];
+											onEdit(`models.${stage}`, model, { models });
+										}}
+									/>
+								</Fallback>
+							</span>
+						))}
+					</dd>
 				</>
 			)}
 		</dl>

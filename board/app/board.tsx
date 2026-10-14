@@ -208,7 +208,10 @@ function CardBody({ stub }: { stub: Stub }) {
 				<span className="ident">{stub.id}</span>
 				{stub.session && <span className="claimed" title={`Claimed by ${stub.session}`} />}
 			</span>
-			<span className="name">{stub.name}</span>
+			<span className="name">
+				{stub.icon && <span className="record-icon">{stub.icon}</span>}
+				{stub.name}
+			</span>
 			<span className="meta">
 				{stub.type && <TypeMark type={stub.type} />}
 				<Complexity stub={stub} />
@@ -402,7 +405,10 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 			>
 				<span className="ident">{stub.id}</span>
 				<StatusDot status={stub.status} />
-				<span className="name">{stub.name}</span>
+				<span className="name">
+					{stub.icon && <span className="record-icon">{stub.icon}</span>}
+					{stub.name}
+				</span>
 				<span className="row-meta">
 					{stub.blocked && <span className="pill blocked">Blocked</span>}
 					<Signals stub={stub} />
@@ -515,6 +521,7 @@ function Peek({
 				</span>
 			</header>
 			<NoticeBar notice={notice} onDismiss={onDismiss} />
+			{stub.icon && <span className="page-icon">{stub.icon}</span>}
 			<Title
 				id={stub.id}
 				className="peek-title"
