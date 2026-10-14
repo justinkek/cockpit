@@ -28,7 +28,7 @@
 #   board-card unarchive <id>
 #   board-card duplicate <id> [--name <name>] [--status <column>]
 #   board-card history <id>
-#   board-card undo <id> [--since <commit>]
+#   board-card undo <id> [--since <commit> [--until <commit>]]
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -1448,11 +1448,15 @@ undo_links_program='
   ((ids($current; "dependency_for") - ids($restored; "dependency_for"))[] | [., "dependent_on", "remove"])'
 
 undo_locked() {
-  local id="$1" since="${2:-}" paths=() changed=() links=() path commit base subject before_file="" before_id archived=false current_file current restored live reference
+  local id="$1" since="${2:-}" until="${3:-}" paths=() changed=() links=() path commit base subject before_file="" before_id archived=false current_file current restored live reference
   local current_refs restored_refs link other field change owner session
   while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
   commit="$(board_git log -1 --format=%H -- "${paths[@]}")"
   [ -n "$commit" ] || die 2 "$id has no committed version to go back to"
+  if [ -n "$until" ]; then
+    until="$(board_git rev-parse --quiet --verify "$until^{commit}" 2>/dev/null)" || die 2 "the board has no commit '${3}'"
+    [ "$until" = "$commit" ] || die 2 "$id changed after that, in $(board_git log -1 --format='%h %s' "$commit") - undoing it now would take that change back too"
+  fi
   if [ -n "$since" ]; then
     base="$(board_git rev-parse --quiet --verify "$since^{commit}" 2>/dev/null)" || die 2 "the board has no commit '$since'"
     board_git merge-base --is-ancestor "$base" "$commit" || die 2 "$since is not in $id's history"
@@ -1537,20 +1541,24 @@ undo_locked() {
 }
 
 command_undo() {
-  local id since=""
+  local id since="" until=""
   id="$(normalise_id "${1:-}")"
-  case "${2:-}" in
-    "") ;;
-    --since) [ -n "${3:-}" ] || die 2 "--since needs a commit from: board-card history $id"; since="$3" ;;
-    *) die 2 "undo takes an id and an optional --since <commit>, not '$2'" ;;
-  esac
+  shift || true
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --since) [ -n "${2:-}" ] || die 2 "--since needs a commit from: board-card history $id"; since="$2"; shift 2 ;;
+      --until) [ -n "${2:-}" ] || die 2 "--until needs the last commit the change made"; until="$2"; shift 2 ;;
+      *) die 2 "undo takes an id, an optional --since <commit> and an optional --until <commit>, not '$1'" ;;
+    esac
+  done
+  [ -z "$until" ] || [ -n "$since" ] || die 2 "--until goes with --since"
   require_history
   if [ ! -f "$(record_file "$id")" ] && [ -f "$(archive_file "$id")" ]; then
     parse_file "$(archive_file "$id")" >/dev/null
   else
     require_record "$id"
   fi
-  with_lock undo_locked "$id" "$since"
+  with_lock undo_locked "$id" "$since" "$until"
 }
 
 command_path() {

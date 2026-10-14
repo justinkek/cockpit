@@ -23,7 +23,8 @@ import {
 } from "@/lib/board";
 
 type Failure = { error?: string; moved?: string };
-type Result = Failure & { record?: Card; undo?: string };
+export type Span = { since: string; until: string };
+type Result = Failure & { record?: Card; undo?: Span };
 type Threads = Failure & { threads?: CommentThread[] };
 
 function refresh(id: string) {
@@ -48,15 +49,18 @@ async function report(id: string, change: () => Promise<string | void>): Promise
 		const current = (await change()) || id;
 		refresh(current);
 		const after = since ? await lastCommit(current) : null;
-		return { record: await readRecord(current), undo: since && after && after !== since ? since : undefined };
+		return {
+			record: await readRecord(current),
+			undo: since && after && after !== since ? { since, until: after } : undefined,
+		};
 	} catch (error) {
 		return failed(id, error);
 	}
 }
 
-export async function undoChange(id: string, since: string): Promise<Result> {
+export async function undoChange(id: string, span: Span): Promise<Result> {
 	try {
-		const current = await undoSince(id, since);
+		const current = await undoSince(id, span.since, span.until);
 		refresh(id);
 		refresh(current);
 		return { record: await readRecord(current) };
@@ -208,7 +212,7 @@ export type Bulk = { op: "move"; column: string } | { op: "set"; field: string; 
 
 export type BulkResult = {
 	records: { from: string; record: Card | null }[];
-	undo: { id: string; since: string }[];
+	undo: ({ id: string } & Span)[];
 	errors: string[];
 };
 
@@ -228,7 +232,7 @@ export async function bulkChange(ids: string[], change: Bulk): Promise<BulkResul
 			}
 			refresh(current);
 			const after = since ? await lastCommit(current) : null;
-			if (since && after && after !== since) result.undo.push({ id: current, since });
+			if (since && after && after !== since) result.undo.push({ id: current, since, until: after });
 			result.records.push({ from: id, record: change.op === "archive" ? null : await readRecord(current) });
 		} catch (error) {
 			const failure = await failed(id, error);

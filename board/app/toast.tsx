@@ -2,16 +2,20 @@
 
 import { useEffect, useRef } from "react";
 
-export type Change = { id: string; since: string };
+export type Change = { id: string; since: string; until: string };
 
 export type Undoable = { key: number; text: string; changes: Change[] };
 
 let made = 0;
 
-export function undoable(id: string, since: string | undefined, text: string): Undoable | null {
-	if (!since) return null;
+export function undoable(
+	id: string,
+	span: { since: string; until: string } | undefined,
+	text: string,
+): Undoable | null {
+	if (!span) return null;
 	made += 1;
-	return { key: made, text, changes: [{ id, since }] };
+	return { key: made, text, changes: [{ id, ...span }] };
 }
 
 export function toastOf(text: string, changes: Change[] = []): Undoable {

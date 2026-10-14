@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { type Bulk, bulkChange, createCard, dropCard, editCard, linkCards, undoChange } from "@/app/actions";
+import { type Bulk, bulkChange, createCard, dropCard, editCard, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
@@ -191,13 +191,8 @@ function matches(stub: Stub, view: View) {
 }
 
 function filterCount(view: View) {
-	return [
-		view.query.trim() !== "",
-		view.types.length > 0,
-		view.epic !== "",
-		view.blocked,
-		view.claimed,
-	].filter(Boolean).length;
+	return [view.query.trim() !== "", view.types.length > 0, view.epic !== "", view.blocked, view.claimed].filter(Boolean)
+		.length;
 }
 
 function StatusDot({ status }: { status: string }) {
@@ -819,10 +814,22 @@ export function Board({
 			});
 			const renamed = new Map(result.records.flatMap(({ from, record }) => (record ? [[from, record.id]] : [])));
 			setOpenId((opened) => (opened && done.has(opened) ? (done.get(opened)?.id ?? null) : opened));
-			setSelected((current) => new Set([...current].map((id) => renamed.get(id) ?? id).filter((id) => !done.has(id) || done.get(id))));
+			setSelected(
+				(current) =>
+					new Set([...current].map((id) => renamed.get(id) ?? id).filter((id) => !done.has(id) || done.get(id))),
+			);
 			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
 			const count = result.records.length;
-			if (count > 0) setToast(toastOf(label.replace("{n}", count === 1 ? (result.records[0].record?.id ?? result.records[0].from) : `${count} ${kind}s`), result.undo));
+			if (count > 0)
+				setToast(
+					toastOf(
+						label.replace(
+							"{n}",
+							count === 1 ? (result.records[0].record?.id ?? result.records[0].from) : `${count} ${kind}s`,
+						),
+						result.undo,
+					),
+				);
 			router.refresh();
 		});
 	}
@@ -997,7 +1004,8 @@ export function Board({
 				break;
 			case "Enter":
 			case "o": {
-				const control = event.target instanceof HTMLElement && event.target.closest("button, a, summary, [role=dialog]");
+				const control =
+					event.target instanceof HTMLElement && event.target.closest("button, a, summary, [role=dialog]");
 				if (!focusedId || inPanel || (control && !(control as HTMLElement).dataset.card)) return;
 				event.preventDefault();
 				setOpenId(focusedId);
@@ -1075,7 +1083,7 @@ export function Board({
 	function apply(
 		id: string,
 		optimistic: Partial<Stub>,
-		request: () => Promise<{ record?: Stub; error?: string; moved?: string; undo?: string }>,
+		request: () => Promise<{ record?: Stub; error?: string; moved?: string; undo?: Span }>,
 		label: string,
 	) {
 		const before = stubs.find((s) => s.id === id);
@@ -1112,7 +1120,7 @@ export function Board({
 		startTransition(async () => {
 			const failures: string[] = [];
 			for (const change of shown.changes) {
-				const result = await undoChange(change.id, change.since);
+				const result = await undoChange(change.id, { since: change.since, until: change.until });
 				if (result.error) {
 					failures.push(result.error);
 					continue;
@@ -1138,7 +1146,12 @@ export function Board({
 		const stub = stubs.find((s) => s.id === id);
 		if (!stub || (stub.status === column && rank === undefined)) return;
 		const label = stub.status === column ? `Reordered ${id} in ${column}` : `Moved ${id} to ${column}`;
-		apply(id, rank === undefined ? { status: column } : { status: column, rank }, () => dropCard(id, column, rank), label);
+		apply(
+			id,
+			rank === undefined ? { status: column } : { status: column, rank },
+			() => dropCard(id, column, rank),
+			label,
+		);
 	}
 
 	function placement(id: string, overId: string): { column: string; rank?: number } | null {
@@ -1337,11 +1350,7 @@ export function Board({
 						{visible.length}/{stubs.length}
 					</span>
 					{count > 0 && (
-						<button
-							type="button"
-							className="quiet"
-							onClick={clearFilters}
-						>
+						<button type="button" className="quiet" onClick={clearFilters}>
 							Clear {count}
 						</button>
 					)}

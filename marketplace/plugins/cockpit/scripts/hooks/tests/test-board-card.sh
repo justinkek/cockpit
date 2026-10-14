@@ -583,6 +583,27 @@ stub undo "$link_child" --since "$since" >/dev/null
 assert_eq "undo --since takes back a link along with the change after it" "Linked child [] []" \
   "$(field "$link_child" .name) $(field "$link_parent" '.dependent_on | tojson') $(field "$link_child" '.dependency_for | tojson')"
 
+printf "\nTest group: undo --until refuses to take back a change it did not make\n"
+
+guarded="$(stub create --name "Guarded")"
+since="$(stub history "$guarded" | head -1 | cut -f1)"
+stub set "$guarded" complexity 3 >/dev/null
+until="$(stub history "$guarded" | head -1 | cut -f1)"
+stub set "$guarded" name "Renamed elsewhere" >/dev/null
+commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+refusal="$(stub undo "$guarded" --since "$since" --until "$until" 2>&1 >/dev/null)"
+assert_eq "a change made after --until is refused, with nothing written" "2 $commits_before Renamed elsewhere 3" \
+  "$? $(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD) $(field "$guarded" .name) $(field "$guarded" .complexity)"
+assert_eq "the refusal names the change that came after" "true" \
+  "$(printf '%s' "$refusal" | grep --quiet --fixed-strings "set $guarded" && echo true)"
+since="$(stub history "$guarded" | head -1 | cut -f1)"
+stub set "$guarded" complexity 5 >/dev/null
+until="$(stub history "$guarded" | head -1 | cut -f1)"
+stub undo "$guarded" --since "$since" --until "$until" >/dev/null
+assert_eq "and the change is taken back when nothing came after it" "0 3 Renamed elsewhere" "$? $(field "$guarded" .complexity) $(field "$guarded" .name)"
+stub undo "$guarded" --until "$until" >/dev/null 2>&1
+assert_eq "--until without --since is refused" "2" "$?"
+
 printf "\nTest group: a write the filesystem refuses fails with its status\n"
 
 unwritable="$(stub create --name "Unwritable")"

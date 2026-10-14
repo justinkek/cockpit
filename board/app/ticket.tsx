@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState, useTransition } from "react";
-import { dropCard, editCard, linkCards, undoChange } from "@/app/actions";
+import { dropCard, editCard, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
@@ -12,7 +12,7 @@ import { type Page, Palette } from "@/app/palette";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { type Card, fieldName, kindOf } from "@/lib/shared";
 
-type Result = { record?: Card; error?: string; moved?: string; undo?: string };
+type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
 
 type Near = { id: string; name: string } | null;
 
@@ -76,7 +76,7 @@ export function Ticket({
 		setError("");
 		startTransition(async () => {
 			const [change] = shown.changes;
-			const result = await undoChange(change.id, change.since);
+			const result = await undoChange(change.id, { since: change.since, until: change.until });
 			setUndoing(false);
 			setToast(null);
 			if (result.error) {
@@ -107,7 +107,9 @@ export function Ticket({
 
 	async function copy(asLink: boolean) {
 		const copied = await copyText(asLink ? cardLink(record.id) : record.id);
-		setToast(toastOf(copied ? `Copied ${asLink ? `the link to ${record.id}` : record.id}` : `Could not copy ${record.id}`));
+		setToast(
+			toastOf(copied ? `Copied ${asLink ? `the link to ${record.id}` : record.id}` : `Could not copy ${record.id}`),
+		);
 	}
 
 	function rootPage(): Page {
@@ -160,7 +162,11 @@ export function Ticket({
 			{neighbours && (
 				<nav className="neighbours" aria-label={`Cards in ${record.status}`}>
 					{neighbours.previous ? (
-						<Link href={`/card/${neighbours.previous.id}`} title={`Previous: ${neighbours.previous.name} (k)`} rel="prev">
+						<Link
+							href={`/card/${neighbours.previous.id}`}
+							title={`Previous: ${neighbours.previous.name} (k)`}
+							rel="prev"
+						>
 							‹ {neighbours.previous.id}
 						</Link>
 					) : (

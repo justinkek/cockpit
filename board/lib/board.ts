@@ -98,8 +98,8 @@ export async function lastCommit(id: string): Promise<string | null> {
 	}
 }
 
-export async function undoSince(id: string, commit: string): Promise<string> {
-	const output = await boardCard(["undo", id, "--since", commit]);
+export async function undoSince(id: string, since: string, until: string): Promise<string> {
+	const output = await boardCard(["undo", id, "--since", since, "--until", until]);
 	return output.split("\t")[0] || id;
 }
 
