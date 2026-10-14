@@ -216,6 +216,61 @@ wait "$watcher" 2>/dev/null || true
 assert_contains "the refusal is said" "uncommitted changes" "$(cat "$watched")"
 assert_eq "and said once across several polls" "1" "$(grep --count . < "$watched" | tr -d ' ')"
 
+printf "\nTest group: --every makes it poll with nothing in the environment\n"
+
+clone="$(build_repository every-argument)"
+move_base_ahead "$clone" "moved.txt" "moved"
+printf 'work in progress' > "$clone/branch.txt"
+watched="$TMPDIR/every-output"
+(cd "$clone" && env -u PR_CATCH_UP_INTERVAL PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" \
+  PR_CATCH_UP_TEST_REVIEWS="0" bash "$CATCHER" --every 1 > "$watched" 2>&1) &
+watcher="$!"
+sleep 3
+still_polling="$(kill -0 "$watcher" 2>/dev/null && printf 'running' || printf 'exited')"
+kill "$watcher" 2>/dev/null || true
+wait "$watcher" 2>/dev/null || true
+assert_eq "it is still polling after the first pass" "running" "$still_polling"
+assert_contains "the refusal is said" "uncommitted changes" "$(cat "$watched")"
+assert_eq "and said once across several polls" "1" "$(grep --count . < "$watched" | tr -d ' ')"
+
+clone="$(build_repository every-over-environment)"
+watched="$TMPDIR/every-over-environment-output"
+(cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" PR_CATCH_UP_INTERVAL="soon" \
+  bash "$CATCHER" --every=1 > "$watched" 2>&1) &
+watcher="$!"
+sleep 2
+still_polling="$(kill -0 "$watcher" 2>/dev/null && printf 'running' || printf 'exited')"
+kill "$watcher" 2>/dev/null || true
+wait "$watcher" 2>/dev/null || true
+assert_eq "the argument wins over the environment" "running" "$still_polling"
+assert_eq "and a branch already on its base stays silent" "" "$(cat "$watched")"
+
+printf "\nTest group: an interval that is not whole seconds is refused before anything moves\n"
+
+clone="$(build_repository bad-interval)"
+move_base_ahead "$clone" "moved.txt" "moved"
+before="$(git -C "$clone" rev-parse HEAD)"
+for arguments in "--every" "--every soon" "--every 0" "--every=1.5" "--every -5"; do
+  output="$( (cd "$clone" && env -u PR_CATCH_UP_INTERVAL PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" \
+    bash "$CATCHER" $arguments 2>&1) )"
+  status=$?
+  assert_eq "'$arguments' exits 2" "2" "$status"
+  assert_contains "'$arguments' says what an interval is" "a whole number of seconds above zero" "$output"
+done
+assert_eq "and the branch was never rebased" "$before" "$(git -C "$clone" rev-parse HEAD)"
+
+output="$( (cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" PR_CATCH_UP_INTERVAL="soon" \
+  bash "$CATCHER" 2>&1) )"
+status=$?
+assert_eq "a bad interval in the environment exits 2 too" "2" "$status"
+assert_eq "and the branch was still never rebased" "$before" "$(git -C "$clone" rev-parse HEAD)"
+
+output="$( (cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" bash "$CATCHER" --once 2>&1) )"
+status=$?
+assert_eq "an option it does not take exits 2" "2" "$status"
+assert_contains "and names the one it does" "the one option is --every" "$output"
+assert_eq "and the branch was never rebased by it" "$before" "$(git -C "$clone" rev-parse HEAD)"
+
 printf "\nTest group: a conflict is undone, never left half-applied\n"
 
 clone="$(build_repository conflict)"
@@ -247,7 +302,8 @@ printf "\nTest group: the ready-for-cr skill is what arms it\n"
 
 READY_FOR_CR="$(cd "$(dirname "$0")/../../../skills/ticket:4:ready-for-cr" && pwd)/SKILL.md"
 assert_contains "the skill names the script" "pr-catch-up-with-base" "$(cat "$READY_FOR_CR")"
-assert_contains "and the interval that makes it poll" "PR_CATCH_UP_INTERVAL" "$(cat "$READY_FOR_CR")"
+assert_contains "and the interval that makes it poll, in the form the allowlist matches" \
+  '`"$HOME/.cockpit/scripts/pr-catch-up-with-base" --every 300`' "$(cat "$READY_FOR_CR")"
 assert_contains "and arms it persistently" "persistent" "$(cat "$READY_FOR_CR")"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"

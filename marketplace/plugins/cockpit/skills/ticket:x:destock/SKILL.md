@@ -13,13 +13,13 @@ Reference: the "De-stock at the end of the day" standard.
 
 ### 1. Check ticket registration
 
-Read the session marker at `~/.local/state/claude-ticket-sessions/$CLAUDE_SESSION_ID.ticket`.
+Take the card id from this session's `/cockpit:ticket:0:register` step, or Read the session marker at `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
 
-If it does not exist, tell the user to register a ticket first (`/cockpit:ticket:0:register`) and stop.
+If neither gives one, tell the user to register a ticket first (`/cockpit:ticket:0:register`) and stop.
 
 ### 2. Read the ticket
 
-Run `"$HOME/.cockpit/scripts/board-card" show <id> Name Status PRs` with the card id from the marker, and take:
+Run `"$HOME/.cockpit/scripts/board-card" show <id> Name Status PRs` with the card id from step 1, and take:
 
 - `Name` (ticket title)
 - `Status` (current column)

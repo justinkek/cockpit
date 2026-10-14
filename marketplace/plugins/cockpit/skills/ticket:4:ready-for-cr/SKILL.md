@@ -5,9 +5,9 @@ description: Push the session's branch, open a PR for its cockpit ticket, and li
 
 # ready-for-cr
 
-Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked two ways: by the dev skill once the machine gates come back clean, and by the user saying `/ready-for-cr`.
+Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked three ways: by the dev skill once the machine gates come back clean, by the status skill once its step 7 gates land clean, and by the user typing `/ready-for-cr`.
 
-The card is already at `In CR by AI` by the time this runs - finishing dev puts it there, and landing on the column runs the machine gates against the branch as it stands on the machine. This skill publishes a branch whose findings have already been fixed, and then carries the card to `Ready for CR` - the last column before the human pull.
+The card is already at `In CR by AI` by the time this runs - finishing dev puts it there, and landing on the column runs the machine gates against the branch as it stands on the machine. This skill publishes a branch whose defects have already been fixed, and then carries the card to `Ready for CR` - the last column before the human pull.
 
 Read `~/.claude-shared/templates/pull-request-to-ticket.md` before opening the pull request.
 
@@ -15,11 +15,11 @@ Read `~/.claude-shared/templates/pull-request-to-ticket.md` before opening the p
 
 ### 1. Guard: valid source status
 
-Read the session marker at `~/.local/state/claude-ticket-sessions/$CLAUDE_SESSION_ID.ticket` to get the card id.
+Take the card id from this session's `/cockpit:ticket:0:register` step, or Read `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
 
 Read the ticket's current `Status` with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. Only proceed if the ticket is at `In Dev` or `In CR by AI`. If it is at an earlier column, block and name the current status. If it is already at `Ready for CR` or later, report that and stop.
 
-`In CR by AI` is the expected one - finishing dev advances the card and runs the gates. `In Dev` is accepted so a card that never got advanced is not stranded: walk it to `In CR by AI` with the `cockpit:ticket:x:status` skill first, which runs the gates. Carry on to step 2 only when every finding they named is fixed - a finding still open leaves the card at `In CR by AI` and stops this skill, the same as step 6 does.
+`In CR by AI` is the expected one - finishing dev advances the card and runs the gates. `In Dev` is accepted so a card that never got advanced is not stranded: walk it to `In CR by AI` with the `cockpit:ticket:x:status` skill first, which runs the gates. Carry on to step 2 unless they left a finding still open that is a defect - an unfixed divergence from the tech steps does not hold the publish (`~/.claude-shared/templates/status-machine-gates.md`). A defect still open leaves the card at `In CR by AI` and stops this skill, the same as step 6 does.
 
 ### 2. Check git state
 
@@ -27,8 +27,9 @@ Run these checks in order:
 
 1. `git branch --show-current` - get the current branch name. If on `main` or `master`, block: "Cannot create a PR from the default branch." Nothing in a project's `./AGENTS.md` overrides this - PRs require a feature branch.
 2. `git status --porcelain` - check for uncommitted changes. If any exist, block: "Uncommitted changes found - commit first (`/commit`)."
-3. `git rev-parse --abbrev-ref @{u} 2>/dev/null` - check if upstream tracking exists.
-4. If tracking exists: `git log @{u}..HEAD --oneline` - check for unpushed commits.
+3. `git fetch origin <default-branch>`, then `git log origin/<default-branch>..HEAD --oneline` - check the branch carries only this ticket's work. `gh pr create` below passes no `--base`, so the PR publishes every commit this lists, whether the machine gates reviewed it or not, and a branch cut from the local HEAD carries whatever that HEAD held. If it lists a commit that is not this ticket's work, name those commits and stop before the push. Whether to stack the PR on the branch they came from with `--base`, or wait for that branch to merge, is the user's call.
+4. `git rev-parse --abbrev-ref @{u} 2>/dev/null` - check if upstream tracking exists.
+5. If tracking exists: `git log @{u}..HEAD --oneline` - check for unpushed commits.
 
 ### 3. Push if needed
 
@@ -85,7 +86,7 @@ The watcher prints one line, in one of two shapes. A passed line is a report - t
 
 ### 5.6. Arm the base watcher
 
-Call the `Monitor` tool with `command` set to `"$HOME/.cockpit/scripts/pr-catch-up-with-base"`, `description` `pull request behind its base`, `persistent` true, and `PR_CATCH_UP_INTERVAL` in the environment - the script polls on that cadence and the pull request stays open for as long as review takes.
+Call the `Monitor` tool with `command` set to `"$HOME/.cockpit/scripts/pr-catch-up-with-base" --every 300`, `description` `pull request behind its base`, and `persistent` true - the script polls every 300 seconds, and the pull request stays open for as long as review takes. Pass the interval as that argument rather than an environment variable in front of the command: the allowlist matches the script's path at the start of the command, and without an interval the script runs one pass and exits.
 
 Arming is best-effort, as in step 5.5.
 
@@ -95,7 +96,7 @@ The script prints nothing while the branch already carries its base, so a silent
 
 Once the gates have run and the PR is up, walk the card on with the `cockpit:ticket:x:status` skill targeting `Ready for CR`, and stop there - `In CR` is the human pull.
 
-Only on a PR that is actually up. A step that blocked - no push, no PR, a gate finding still open - leaves the card at `In CR by AI`.
+Only on a PR that is actually up. A step that blocked - no push, no PR, a gate finding still open that is a defect as step 1 reads it - leaves the card at `In CR by AI`. A finding step 1 let through is already on the PR from step 4.5 and holds nothing here.
 
 ### 7. Report
 
