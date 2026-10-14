@@ -523,6 +523,38 @@ stub undo "$named_epic" >/dev/null 2>&1
 assert_eq "but not while another record names it" "2 $COCKPIT_BOARD_DIR/epics/$named_epic.md" "$? $(stub path "$named_epic")"
 stub set "$renamed" epic "" >/dev/null
 
+printf "\nTest group: undo keeps both sides of a link, and the claim lock, in step with the record\n"
+
+link_parent="$(stub create --name "Linked parent")"
+link_child="$(stub create --name "Linked child")"
+stub link "$link_parent" "$link_child" >/dev/null
+stub undo "$link_child" >/dev/null
+assert_eq "undoing a link from the child's side unlinks the parent too" "[] null []" \
+  "$(field "$link_parent" '.dependent_on | tojson') $(field "$link_parent" .complexity) $(field "$link_child" '.dependency_for | tojson')"
+stub undo "$link_child" >/dev/null
+assert_eq "and undoing that undo links both sides again" "[\"$link_child\"] 0 [\"$link_parent\"]" \
+  "$(field "$link_parent" '.dependent_on | tojson') $(field "$link_parent" .complexity) $(field "$link_child" '.dependency_for | tojson')"
+stub unlink "$link_parent" "$link_child" >/dev/null
+stub undo "$link_parent" >/dev/null
+assert_eq "undoing an unlink from the parent's side links the child again" "[\"$link_parent\"]" "$(field "$link_child" '.dependency_for | tojson')"
+stub unlink "$link_parent" "$link_child" >/dev/null
+
+claimed="$(stub create --name "Claimed then undone")"
+stub claim "$claimed" >/dev/null
+stub undo "$claimed" >/dev/null
+assert_eq "undoing a claim lets the lock go with it" "null " "$(field "$claimed" .session) $(bash "$SCRIPTS/ticket-claim-lock" owner "$claimed")"
+CLAUDE_SESSION_ID=session-two bash "$SCRIPTS/board-card" claim "$claimed" >/dev/null 2>&1
+assert_eq "so another session can claim it" "0 session-two" "$? $(field "$claimed" .session)"
+CLAUDE_SESSION_ID=session-two bash "$SCRIPTS/board-card" release "$claimed" >/dev/null
+stub undo "$claimed" >/dev/null
+assert_eq "undoing a release takes the lock again for the session the record names" "session-two session-two" \
+  "$(field "$claimed" .session) $(bash "$SCRIPTS/ticket-claim-lock" owner "$claimed")"
+CLAUDE_SESSION_ID=session-two bash "$SCRIPTS/board-card" release "$claimed" >/dev/null
+CLAUDE_SESSION_ID=session-three bash "$SCRIPTS/ticket-claim-lock" take "$claimed" >/dev/null
+stub undo "$claimed" >/dev/null 2>&1
+assert_eq "and an undo that would name one session while another holds the lock is refused" "1 null" "$? $(field "$claimed" .session)"
+CLAUDE_SESSION_ID=session-three bash "$SCRIPTS/ticket-claim-lock" release "$claimed" >/dev/null
+
 printf "\nTest group: days in the column and overrunning are worked out as Notion did\n"
 
 notion_card() {

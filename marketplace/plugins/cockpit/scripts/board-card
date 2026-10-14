@@ -1428,8 +1428,16 @@ following_program='
   | (if (.dependency_for | type) == "array" then .dependency_for |= map(live) else . end)
   | if .card != null then .card |= live else . end'
 
+undo_links_program='
+  def ids($record; $field): $record[$field] | if type == "array" then . else [] end;
+  ((ids($restored; "dependent_on") - ids($current; "dependent_on"))[] | [., "dependency_for", "add"]),
+  ((ids($current; "dependent_on") - ids($restored; "dependent_on"))[] | [., "dependency_for", "remove"]),
+  ((ids($restored; "dependency_for") - ids($current; "dependency_for"))[] | [., "dependent_on", "add"]),
+  ((ids($current; "dependency_for") - ids($restored; "dependency_for"))[] | [., "dependent_on", "remove"])'
+
 undo_locked() {
-  local id="$1" paths=() changed=() path commit subject before_file="" before_id archived=false current_file current restored live reference
+  local id="$1" paths=() changed=() links=() path commit subject before_file="" before_id archived=false current_file current restored live reference
+  local current_refs restored_refs link other field change owner session
   while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
   commit="$(board_git log -1 --format=%H -- "${paths[@]}")"
   [ -n "$commit" ] || die 2 "$id has no committed version to go back to"
@@ -1455,14 +1463,27 @@ undo_locked() {
     && { printf '%s' "$current"; printf '%s' "$restored"; } | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
     die 2 "nothing to undo on $id: before $subject it held what it holds now, once renamed cards are followed"
   fi
+  current_refs="$(printf '%s' "$current" | jq --compact-output '{epic, project, sprint, card, dependent_on, dependency_for, session}')"
+  restored_refs="$(printf '%s' "$restored" | jq --compact-output '{epic, project, sprint, card, dependent_on, dependency_for, session}')"
+  owner="$("$CLAIM_LOCK" owner "$id" 2>/dev/null || true)"
+  session=""
   if [ "$archived" = true ]; then
     [ "$current_file" = "$(archive_file "$id")" ] || require_unnamed "$id"
   else
     while IFS= read -r reference; do
       [ -f "$(record_file "$reference")" ] || die 2 "undoing $subject would bring back $reference, which is not on the board"
-    done < <(printf '%s' "$restored" | jq --raw-output --argjson current "$current" '
-      . as $restored | ("epic", "project", "sprint", "card") as $field
+    done < <(jq --null-input --raw-output --argjson current "$current_refs" --argjson restored "$restored_refs" '
+      ("epic", "project", "sprint", "card") as $field
       | select($restored[$field] != null and $restored[$field] != $current[$field]) | $restored[$field]')
+    while IFS= read -r link; do links+=("$link"); done < <(jq --null-input --raw-output \
+      --argjson current "$current_refs" --argjson restored "$restored_refs" "$undo_links_program | @tsv")
+    for link in ${links[@]+"${links[@]}"}; do
+      IFS=$'\t' read -r other field change <<<"$link"
+      [ "$change" = remove ] || [ -f "$(record_file "$other")" ] \
+        || die 2 "undoing $subject would link $before_id to $other, which is not on the board"
+    done
+    session="$(printf '%s' "$restored_refs" | jq --raw-output '.session // ""')"
+    [ -z "$session" ] || [ -z "$owner" ] || [ "$owner" = "$session" ] || die 1 "$id is held by session $owner"
   fi
   for path in "${changed[@]}"; do
     if board_git cat-file -e "$commit^:$path" 2>/dev/null; then
@@ -1474,6 +1495,22 @@ undo_locked() {
   done
   [ "$archived" = true ] || printf '%s' "$restored" | write_record "$before_id" touch
   [ "$before_id" = "$id" ] || follow_rename "$id" "$before_id"
+  for link in ${links[@]+"${links[@]}"}; do
+    IFS=$'\t' read -r other field change <<<"$link"
+    if [ "$change" = add ]; then
+      update_record "$other" --arg self "$before_id" --arg field "$field" '
+        .[$field] = ((.[$field] // []) + [$self] | unique) | if $field == "dependent_on" then .complexity = 0 else . end'
+    elif [ -f "$(record_file "$other")" ]; then
+      update_record "$other" --arg self "$before_id" --arg field "$field" '
+        .[$field] = ((.[$field] // []) - [$self])
+        | if $field == "dependent_on" and (.dependent_on | length) == 0 and .complexity == 0 then .complexity = null else . end'
+    fi
+  done
+  if [ -z "$session" ] && [ -n "$owner" ]; then
+    CLAUDE_SESSION_ID="$owner" CLAUDE_CODE_SESSION_ID="$owner" "$CLAIM_LOCK" release "$before_id" >/dev/null
+  elif [ -n "$session" ] && [ -z "$owner" ]; then
+    CLAUDE_SESSION_ID="$session" CLAUDE_CODE_SESSION_ID="$session" "$CLAIM_LOCK" take "$before_id" >/dev/null
+  fi
   printf '%s\tundid %s\n' "$before_id" "$subject"
 }
 
