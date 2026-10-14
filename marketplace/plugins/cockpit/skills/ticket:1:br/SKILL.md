@@ -186,6 +186,8 @@ The wrong example splits three paths into three scenarios on one ticket. The rig
 - Database queries or schemas
 - Technical error codes
 
+The name of a format the user writes or reads (markdown, mermaid, CSV) is observable input, not a library name, and stays in the step.
+
 ## Anti-examples
 
 **Tech detail leak** - an agent investigating which AWS API to use during BR wrote the API choice and implementation approach under the BR section. That is TR output - it belongs in Tech Steps, not in Validation Steps. BR should have captured _what the user needs to see_ (filtered model list), not _how to filter it_ (Bedrock ListFoundationModels API).
@@ -199,6 +201,7 @@ After writing BR content to the card, verify:
 1. **Sections** - only the allowed sections for this ticket type exist as top-level `##` headings (plus `## Context` if background is needed). No ad-hoc headings. Verify `## User Story` is absent - it is never written.
 2. **Validation Steps** (features) - one scenario, golden path only, first person (`I`), `AaUser` on its own line. Scan each clause for anything from the exclusion list. If edge cases exist, they become separate tickets.
    - **Actor check** - for each `When`, confirm a human could perform it through a surface they actually interact with. An agent-only command or an internal call fails this even when no exclusion-list term appears.
+   - **And check** - an `And` adds only what I see after the same `When`. A clause with an action or a surface of its own is a second scenario and is split out like any other. Each `Then` and `And` is something a person can answer yes or no.
    - **Board-transition check** - when a `When` names a board column, it must exist in the canonical column order and be the column the ticket's behaviour actually targets.
    - **Symmetric-subject carve-out** - when the subject is inherently two-sided (BR and TR, create and delete), both sides are the golden path. Do not split one half out as an edge case.
 3. **Replication/Validation Steps** (bugs) - one scenario, `AaUser` on its own line, `Then ... (bug)` with nested `Instead of ... (fix)`. Scan each clause for anything from the exclusion list.
