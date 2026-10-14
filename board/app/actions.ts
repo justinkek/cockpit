@@ -189,19 +189,16 @@ export async function submitNew(form: FormData): Promise<void> {
 	redirect(`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kind}: ${result.error}`)}`);
 }
 
-const HOMES = { project: "/projects", sprint: "/sprints", reference: "/references" } as const;
-
 const CREATED_WITH = ["icon", "start", "end", "dev_days", "speed", "priority", "repo"];
 
 const SET_AFTER = ["points", "domain", "stack", "why", "description", "card"];
 
-export async function submitRecord(form: FormData): Promise<void> {
+export async function submitRecord(_previous: string | null, form: FormData): Promise<string | null> {
 	const kind = text(form, "kind");
 	if (!(kind === "project" || kind === "sprint" || kind === "reference")) redirect("/");
-	const home = HOMES[kind];
 	const name = text(form, "name").replace(/\s*[\r\n]+\s*/g, " ");
-	const back = (error: string) => redirect(`${home}?error=${encodeURIComponent(`Could not create the ${kind}: ${error}`)}`);
-	if (!name) back(`a new ${kind} needs a name`);
+	const refused = (error: string) => `Could not create the ${kind}: ${error}`;
+	if (!name) return refused(`a new ${kind} needs a name`);
 	const fields = Object.fromEntries(CREATED_WITH.map((field) => [field, text(form, field)]).filter(([, value]) => value));
 	let id = "";
 	let failure = "";
@@ -216,7 +213,7 @@ export async function submitRecord(form: FormData): Promise<void> {
 		if (!(error instanceof BoardError)) throw error;
 		failure = id ? `${id} was created, but ${error.message}` : error.message;
 	}
-	if (!id) back(failure);
+	if (!id) return refused(failure);
 	const query = failure ? `error=${encodeURIComponent(failure)}` : "";
 	if (kind === "sprint") redirect(`/sprints?sprint=${encodeURIComponent(id)}${query ? `&${query}` : ""}`);
 	redirect(`/card/${encodeURIComponent(id)}${query ? `?${query}` : ""}`);

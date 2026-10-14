@@ -1,15 +1,13 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
+import { type ReactNode, startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { submitRecord } from "@/app/actions";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { DOMAINS, FIBONACCI, PROJECT_STATUSES } from "@/lib/shared";
 
 type Other = "project" | "sprint" | "reference";
 
-function Submit({ kind }: { kind: Other }) {
-	const { pending } = useFormStatus();
+function Submit({ kind, pending }: { kind: Other; pending: boolean }) {
 	return (
 		<button type="submit" disabled={pending}>
 			{pending ? "Creating…" : `Create ${kind}`}
@@ -72,6 +70,7 @@ function props(kind: Other): ReactNode {
 export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label?: string }) {
 	const [open, setOpen] = useState(false);
 	const [icon, setIcon] = useState("");
+	const [failure, create, pending] = useActionState(submitRecord, null);
 	const frame = useRef<HTMLDetailsElement>(null);
 	const name = useRef<HTMLInputElement>(null);
 
@@ -107,8 +106,12 @@ export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label
 			</summary>
 			<form
 				className="new-panel"
-				action={submitRecord}
 				aria-label={`New ${kind}`}
+				onSubmit={(event) => {
+					event.preventDefault();
+					const form = new FormData(event.currentTarget);
+					startTransition(() => create(form));
+				}}
 				onKeyDown={(event) => {
 					if (event.key === "Escape") {
 						event.preventDefault();
@@ -134,11 +137,16 @@ export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label
 					/>
 				</span>
 				<div className="new-props">{props(kind)}</div>
+				{failure && !pending && (
+					<p className="new-error" role="alert">
+						{failure}
+					</p>
+				)}
 				<span className="composer-actions">
 					<button type="button" className="quiet" onClick={() => setOpen(false)}>
 						Cancel
 					</button>
-					<Submit kind={kind} />
+					<Submit kind={kind} pending={pending} />
 				</span>
 			</form>
 		</details>
