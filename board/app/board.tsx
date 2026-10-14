@@ -22,7 +22,7 @@ import { createContext, useContext, useEffect, useId, useMemo, useRef, useState,
 import { dropCard, editCard, linkCards } from "@/app/actions";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
-import { boardColumns, type Kind, type Named, phaseOf, type Card as Stub, TYPES } from "@/lib/shared";
+import { boardColumns, type Kind, kindOf, type Named, phaseOf, type Card as Stub, TYPES } from "@/lib/shared";
 
 const Names = createContext<Record<string, string>>({});
 
@@ -315,8 +315,13 @@ function Peek({
 	onClose: () => void;
 }) {
 	const dates = Object.entries(stub.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
+	const panel = useRef<HTMLElement>(null);
+	const number = stub.id.split("-").at(-1);
+	useEffect(() => {
+		panel.current?.scrollTo({ top: 0 });
+	}, [number]);
 	return (
-		<aside className="peek" aria-label={`${stub.id} details`}>
+		<aside className="peek" ref={panel} aria-label={`${stub.id} details`}>
 			<header className="peek-head">
 				<span className="ident">{stub.id}</span>
 				<span className="peek-actions">
@@ -411,14 +416,28 @@ export function Board({
 		const params = new URLSearchParams(window.location.search);
 		const epic = params.get("epic");
 		if (saved || epic) setView({ ...(saved ?? DEFAULT_VIEW), ...(epic ? { epic } : {}) });
-		const opening = params.get("open");
-		if (opening) setOpenId(opening);
+		const opening = params.get("open")?.toUpperCase();
+		if (opening) {
+			const number = opening.split("-").at(-1);
+			const found =
+				initial.find((stub) => stub.id === opening) ??
+				initial.find((stub) => kindOf(stub.id) === kindOf(opening) && stub.id.split("-").at(-1) === number);
+			setOpenId(found?.id ?? opening);
+		}
 		setLoaded(true);
 	}, []);
 
 	useEffect(() => {
 		if (loaded) saveView(kind, view);
 	}, [view, loaded]);
+
+	useEffect(() => {
+		if (!loaded) return;
+		const url = new URL(window.location.href);
+		if (openId) url.searchParams.set("open", openId);
+		else url.searchParams.delete("open");
+		if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+	}, [openId, loaded]);
 
 	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
