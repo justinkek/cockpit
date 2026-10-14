@@ -25,9 +25,9 @@ Read `~/.claude-shared/templates/cockpit-operating-contract.md` before drafting 
 These stay here, because each fires when no skill has been invoked to load them:
 
 - **A rejection in chat is a bounce-back.** When the user says delivered work is wrong and the agent fixes it in place, invoke `/cockpit:ticket:x:back-from-column` without being asked, source and target both the current column. A defect in delivered work is a bounce-back; a preference, a scope change or a new requirement is not. One per defect, not per message.
-- **Mid-dev divergence from the tech steps** is a 60-second human amendment decision, noted on the ticket - never silently absorbed by the agent.
+- **Mid-dev divergence from the tech steps** is a 60-second human amendment decision - never silently absorbed by the agent. Post it as a comment anchored to the step it changes, following `~/.claude-shared/templates/raise-a-decision.md`, for the person to answer on that thread, and once they have, follow that template's `## Once it is answered`.
 - **All ticket creation goes through `/cockpit:ticket:0:new`.** Never call `board-card create` directly to create a ticket, on any path - scope-drift stub, follow-up, or bounce-back next step. An epic's ticket breakdown is the one exception: `/cockpit:epic:0:register` creates the approved set itself.
-- **Crossing Ready for Sprint → Sprint Backlog** anywhere but the weekly ceremony is a process violation. Tripwire: a Done ticket with an empty "Date: Ready for Sprint" was smuggled. A split parent is the one exemption.
+- **Crossing Ready for Sprint → Sprint Backlog** anywhere but the weekly ceremony is a process violation. Tripwire: a Done ticket with an empty "Date: Ready for Sprint" was smuggled, unless the repository's `## Ticket walk skip` lists Ready for Sprint. A split parent is the other exemption.
 - **A timebox verdict of success requires zero uncertainty** - any open question, unconfirmed datum or unresolved follow-up makes it partial success. Never write the Outcome while resolvable uncertainty remains and time is left.
 
 ## Cockpit - advance the ticket as you work
@@ -41,7 +41,7 @@ The walk, the skip list, where to stop and what a scope shift means are in the `
   - ticket registered (should it skip ahead of Ready for BR by AI?)
   - requirements clarified / scope locked
   - BR/TR skill completed
-  - first code edit (auto-advanced by hook)
+  - first code edit (`require-dev-status.sh` refuses it until `/cockpit:ticket:3:dev` has run)
   - commit
   - PR created
   - review requested
@@ -109,7 +109,7 @@ A card id is accepted wherever a ticket URL was: `ticket-register` records it, `
 
 `board-card move` lands on one column, and `board-card walk` steps every column up to the target and refuses to go backwards. Each stamps a column's date on first arrival only. `Deprioritised` sits outside the walk: `move` puts a card there or takes it out, and `walk` refuses either. A card's place within its column is its `rank`, lowest first; a card with none sorts as the negative of its ticket number, so the newest comes first.
 
-`board-card section <id> <heading>` replaces one section of the content with what arrives on stdin, or adds it after `--after <heading>`, and leaves the rest. `board-card bounce <id> <gate>` adds one to that gate's `Back from` counter.
+`board-card section <id> <heading>` replaces one section of the content with what arrives on stdin and leaves the rest, or adds it before `--before <heading>` or after `--after <heading>`, and at the end of the body when given neither. `board-card bounce <id> <gate>` adds one to that gate's `Back from` counter.
 
 A comment sits in `<id>.comments.jsonl` beside its record, one line each. `board-card comment <id> --anchor <text>` pins it to that text in the content, `--reply <comment-id>` adds it to a thread, and no flag puts it on the whole page. `board-card comments <id>` lists the open threads and `board-card resolve` closes one. `show --section` prints the open comments anchored inside that section.
 
@@ -119,7 +119,7 @@ The app in `board/` reads and writes through `board-card` alone. Start it with `
 
 A session holds a card by taking a lock under `~/.local/state/claude-ticket-claims`, through `ticket-claim-lock`. Only the session holding one may release it, and a session whose id resolves to nothing can release a lock nobody owns and no other.
 
-**A claimed card stays with the session that picked it up until it reaches Done.** Both entry paths take the claim - `/cockpit:ticket:0:copilot` when it takes a waiting card, `/cockpit:ticket:0:register` when a card id is given - and only two things release it: the status hop that lands on `Done`, and the SessionEnd hook when the session ends first. Never a refinement column boundary, which puts the card back in the pool between stages for a second session to claim while the first still carries it. A claim is expired on whether its session is still alive, never on which column the card is sitting in.
+**A claimed card stays with the session that picked it up until it reaches Done.** Both entry paths take the claim - `/cockpit:ticket:0:copilot` when it takes a waiting card, `/cockpit:ticket:0:register` on every card it registers, one it created included - and only two things release it: the status hop that lands on `Done`, and the SessionEnd hook when the session ends first. Never a refinement column boundary, which puts the card back in the pool between stages for a second session to claim while the first still carries it. A claim is expired on whether its session is still alive, never on which column the card is sitting in.
 
 ## The status line's running step
 
@@ -183,7 +183,7 @@ A `section` write carries that one section and nothing else, so the guard reads 
 
 ## Cockpit status gates what output is allowed
 
-Which column allows which output is in the `cockpit:ticket:0:register` skill. Do not _propose_ implementation - code snippets, "here's what I'd change", file-level plans - while the card is in a BR or TR column.
+Which column allows which output is in the `cockpit:ticket:0:register` skill. Do not _propose_ implementation - code snippets, "here's what I'd change", file-level plans - while the card is in a BR column, or in a TR column anywhere but the tech steps written to the card.
 
 ## Writing a reply about the board
 
