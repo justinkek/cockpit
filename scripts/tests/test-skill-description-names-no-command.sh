@@ -55,7 +55,7 @@ assert_carries "ticket:1:br" "when a ticket enters BR by AI"
 assert_carries "ticket:2:tr" "when a ticket enters TR by AI"
 assert_carries "epic:1:fd" "when an epic enters FD by AI"
 assert_carries "ticket:3:dev" "when the require-dev-status hook blocks an edit"
-assert_carries "ticket:4:ready-for-cr" "Fires on clean gates"
+assert_carries "ticket:4:ready-for-cr" "Fires once the gates leave no defect open"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

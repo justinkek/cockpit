@@ -1,11 +1,11 @@
 ---
 name: ticket:4:ready-for-cr
-description: Push the session's branch, open a PR for its cockpit ticket, and link it - after the machine gates have already run. Fires on clean gates.
+description: Push the session's branch, open a PR for its cockpit ticket, and link it - after the machine gates have already run. Fires once the gates leave no defect open.
 ---
 
 # ready-for-cr
 
-Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked three ways: by the dev skill once the machine gates come back clean, by the status skill once its step 7 gates land clean, and by the user typing `/ready-for-cr`.
+Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked three ways: by the dev skill and by the status skill's step 7 once the machine gates leave no defect open, and by the user typing `/ready-for-cr`.
 
 The card is already at `In CR by AI` by the time this runs - finishing dev puts it there, and landing on the column runs the machine gates against the branch as it stands on the machine. This skill publishes a branch whose defects have already been fixed, and then carries the card to `Ready for CR` - the last column before the human pull.
 
@@ -27,9 +27,10 @@ Run these checks in order:
 
 1. `git branch --show-current` - get the current branch name. If on `main` or `master`, block: "Cannot create a PR from the default branch." Nothing in a project's `./AGENTS.md` overrides this - PRs require a feature branch.
 2. `git status --porcelain` - check for uncommitted changes. If any exist, block: "Uncommitted changes found - commit first (`/commit`)."
-3. `git fetch origin <default-branch>`, then `git log origin/<default-branch>..HEAD --oneline` - check the branch carries only this ticket's work. `gh pr create` below passes no `--base`, so the PR publishes every commit this lists, whether the machine gates reviewed it or not, and a branch cut from the local HEAD carries whatever that HEAD held. If it lists a commit that is not this ticket's work, name those commits and stop before the push. Whether to stack the PR on the branch they came from with `--base`, or wait for that branch to merge, is the user's call.
-4. `git rev-parse --abbrev-ref @{u} 2>/dev/null` - check if upstream tracking exists.
-5. If tracking exists: `git log @{u}..HEAD --oneline` - check for unpushed commits.
+3. Settle the base the PR publishes against. Once a PR is open on this branch, the base is that PR's own, which `gh pr list --head <branch> --json baseRefName --jq '.[0].baseRefName // empty'` prints - the same base `pr-catch-up-with-base` keeps the branch on. With no PR open, it is the branch the user named if they chose to stack on it at this check, and the default branch otherwise.
+4. `git fetch origin <base>`, then `git log --no-merges origin/<base>..HEAD --oneline` - check the branch carries only this ticket's work. The PR publishes every commit this lists, whether the machine gates reviewed it or not, and a branch cut from the local HEAD carries whatever that HEAD held. `--no-merges` leaves out the commit `pr-catch-up-with-base` makes when it merges the base into a reviewed PR. If it lists a commit that is not this ticket's work, name those commits and stop before the push. Whether to stack the PR on the branch they came from, or wait for that branch to merge, is the user's call.
+5. `git rev-parse --abbrev-ref @{u} 2>/dev/null` - check if upstream tracking exists.
+6. If tracking exists: `git log @{u}..HEAD --oneline` - check for unpushed commits.
 
 ### 3. Push if needed
 
@@ -52,11 +53,12 @@ gh pr list --head "$(git branch --show-current)" --json url,state --jq '.'
 
 ```sh
 gh pr create \
+  --base <base> \
   --title "<type>(<scope>): <short description>" \
   --body "<the body>"
 ```
 
-Title it and write its body as `~/.claude-shared/templates/pull-request-to-ticket.md` says.
+`<base>` is the one step 2 settled, so the PR carries exactly the commits that check listed. Title it and write its body as `~/.claude-shared/templates/pull-request-to-ticket.md` says.
 
 ### 4.5. Post the open findings on the PR
 
