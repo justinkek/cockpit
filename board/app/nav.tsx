@@ -10,6 +10,7 @@ import type { InboxItem } from "@/lib/shared";
 const LINKS = [
 	{ href: "/", label: "Cards" },
 	{ href: "/epics", label: "Epics" },
+	{ href: "/plan", label: "Plan" },
 	{ href: "/sprints", label: "Sprints" },
 	{ href: "/projects", label: "Projects" },
 	{ href: "/references", label: "References" },
