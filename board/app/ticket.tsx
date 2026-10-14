@@ -49,24 +49,25 @@ export function Ticket({
 		if (kindOfRecord) setView(loadView(kindOfRecord));
 	}, [initial.id]);
 
-	const [inContent, setInContent] = useState<Set<string> | undefined>(undefined);
+	const [found, setFound] = useState<{ query: string; ids: Set<string> } | null>(null);
+	const query = view?.query.trim() ?? "";
 
 	useEffect(() => {
-		const query = view?.query.trim() ?? "";
 		const kindOfRecord = kindOf(initial.id);
 		if (query.length < 2 || !kindOfRecord) return;
 		let live = true;
 		findInContent(kindOfRecord, query).then((result) => {
 			if (!live) return;
-			if ("ids" in result) setInContent(new Set(result.ids));
+			if ("ids" in result) setFound({ query, ids: new Set(result.ids) });
 			else setError(contentSearchFailed(kindOfRecord, result.error));
 		});
 		return () => {
 			live = false;
 		};
-	}, [view, initial.id]);
+	}, [query, initial.id]);
 
 	const epicNames = useMemo(() => Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.name])), [lists.epics]);
+	const inContent = found?.query === query ? found.ids : undefined;
 	const neighbours = useMemo(
 		() => neighboursIn(column, initial.id, view, { names: epicNames, inContent }),
 		[column, initial.id, view, epicNames, inContent],
