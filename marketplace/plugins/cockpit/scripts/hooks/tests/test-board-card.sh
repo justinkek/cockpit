@@ -327,6 +327,29 @@ assert_eq "only a sprint has dates" "2" "$?"
 stub create --name "Not a sprint" --speed 3 >/dev/null 2>&1
 assert_eq "nor does create give a card a speed" "2" "$?"
 
+printf "\nTest group: a project is ranked and moves through three states\n"
+
+project="$(stub create --kind project --name Cockpit --priority 2 --repo https://github.com/o/cockpit)"
+assert_eq "a new project has not started" "Not started" "$(field "$project" .status)"
+assert_eq "create takes a project's priority and repo" "2 https://github.com/o/cockpit" "$(field "$project" '"\(.priority) \(.repo)"')"
+assert_eq "a project's status is set rather than walked" "Status	In progress" "$(stub set "$project" status "In progress")"
+stub set "$project" status Bogus >/dev/null 2>&1
+assert_eq "a status outside the three is refused" "2" "$?"
+stub create --kind project --name Bad --status Bogus >/dev/null 2>&1
+assert_eq "and refused on create" "2" "$?"
+assert_eq "a priority reads back under its property name" "Priority	5" "$(stub set "$project" priority 5)"
+stub set "$project" priority first >/dev/null 2>&1
+assert_eq "a priority is a whole number" "2" "$?"
+stub set "$project" repo "not a url" >/dev/null 2>&1
+assert_eq "a repo is a URL" "2" "$?"
+stub set "$project" repo "" >/dev/null
+assert_eq "an empty repo clears it" "null" "$(field "$project" .repo)"
+assert_eq "list finds a project by its status" "$project" "$(stub list --kind project --status "In progress" | cut -f1)"
+stub set FEAT-1 status Done >/dev/null 2>&1
+assert_eq "a card's status still changes only through a move or a walk" "2" "$?"
+stub set FEAT-1 priority 1 >/dev/null 2>&1
+assert_eq "only a project has a priority" "2" "$?"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

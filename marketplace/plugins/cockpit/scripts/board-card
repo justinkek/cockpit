@@ -5,7 +5,7 @@
 #   board-card init
 #   board-card create [--kind card|epic|project|sprint|reference] --name <name> [--type Feature|Bug|Timebox]
 #                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
-#                     [--start <date>] [--end <date>] [--dev-days <n>] [--speed <n>]
+#                     [--start <date>] [--end <date>] [--dev-days <n>] [--speed <n>] [--priority <n>] [--repo <url>]
 #   board-card show <id> [--json | --section <heading> | <property>...]
 #   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--json]
 #   board-card statuses [--kind card|epic]
@@ -375,6 +375,8 @@ command_create() {
       --end) end="${2:-}"; pairs+=("end" "$end"); shift 2 ;;
       --dev-days) pairs+=("dev_days" "${2:-}"); shift 2 ;;
       --speed) pairs+=("speed" "${2:-}"); shift 2 ;;
+      --priority) pairs+=("priority" "${2:-}"); shift 2 ;;
+      --repo) pairs+=("repo" "${2:-}"); shift 2 ;;
       --body) [ "${2:-}" = "-" ] || die 2 "--body reads stdin: pass --body -"; body="$(cat)"; shift 2 ;;
       *) die 2 "create: unknown option '$1'" ;;
     esac
@@ -385,8 +387,10 @@ command_create() {
     case "$kind" in
       card) status="Backlog" ;;
       epic) status="Ready for FD by AI" ;;
+      project) status="Not started" ;;
     esac
   fi
+  [ "$kind" != project ] || field_json project status "$status" >/dev/null || exit "$?"
   [ "$kind" = card ] && case "$type" in Feature|Bug|Timebox) ;; *) die 2 "type is Feature, Bug or Timebox, not '$type'" ;; esac
   if [ "$timebox_given" = true ]; then
     pairs+=("timebox_mins" "$timebox")
@@ -414,7 +418,8 @@ PROPERTY_FIELDS='{
   "Dependent on": "dependent_on", "Dependency for": "dependency_for",
   "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
   "Cost": "cost_usd", "Tokens": "tokens_k",
-  "Start Date": "start", "End Date": "end", "Dev Days": "dev_days", "Speed": "speed"}'
+  "Start Date": "start", "End Date": "end", "Dev Days": "dev_days", "Speed": "speed",
+  "Priority": "priority", "Repo": "repo"}'
 
 require_properties() {
   local unknown
@@ -554,6 +559,9 @@ property_of_field() {
     end) echo "End Date" ;;
     dev_days) echo "Dev Days" ;;
     speed) echo Speed ;;
+    status) echo Status ;;
+    priority) echo Priority ;;
+    repo) echo Repo ;;
     name) echo Name ;;
     icon) echo Icon ;;
     type) echo Type ;;
@@ -619,6 +627,21 @@ field_json() {
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+(\.[0-9]+)?$' || die 2 "a sprint's $field is a number, not '$value'"
       if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
+    status)
+      [ "$kind" = project ] || die 2 "status changes through: board-card move or board-card walk"
+      case "$value" in "Not started"|"In progress"|"Done") ;; *) die 2 "a project's status is Not started, In progress or Done, not '$value'" ;; esac
+      nullable "$value"
+      ;;
+    priority)
+      [ "$kind" = project ] || die 2 "only a project has a priority, and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+$' || die 2 "a project's priority is a whole number, not '$value'"
+      if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
+      ;;
+    repo)
+      [ "$kind" = project ] || die 2 "only a project has a repo, and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^https?://[^[:space:]]+$' || die 2 "a project's repo is a URL, not '$value'"
+      nullable "$value"
+      ;;
     *) die 2 "no field '$field' on a $kind" ;;
   esac
 }
@@ -676,7 +699,7 @@ set_locked() {
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
       ;;
-    icon|timebox_mins|start|end|dev_days|speed)
+    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
       case "$field" in
         start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
@@ -714,9 +737,8 @@ set_locked() {
       printf '%s' "$value" | grep --quiet --extended-regexp '^-?[0-9]+(\.[0-9]+)?$' || die 2 "rank is a number, not '$value'"
       update_record "$id" --argjson value "$value" '.rank = $value'
       ;;
-    status) die 2 "status changes through: board-card move or board-card walk" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, start, end, dev_days, speed, session, body, rank, models.<stage>, reference.<key>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, start, end, dev_days, speed, priority, repo, status of a project, session, body, rank, models.<stage>, reference.<key>" ;;
   esac
 }
 
