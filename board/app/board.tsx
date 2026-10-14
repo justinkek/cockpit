@@ -229,6 +229,17 @@ function CardBody({ stub }: { stub: Stub }) {
 	);
 }
 
+function Points({ stubs }: { stubs: Stub[] }) {
+	const sized = stubs.filter((stub) => stub.complexity != null);
+	if (sized.length === 0) return null;
+	const total = sized.reduce((sum, stub) => sum + (stub.complexity ?? 0), 0);
+	return (
+		<span className="lane-points" title={`${total} points across ${sized.length} sized of ${stubs.length}`}>
+			{total} pts
+		</span>
+	);
+}
+
 function Card({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOpen: (id: string) => void }) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: stub.id });
 	const drop = useDroppable({ id: `card:${stub.id}` });
@@ -277,6 +288,7 @@ function Lane({
 				<StatusDot status={column} />
 				<span className="lane-name">{column}</span>
 				<span className="count">{stubs.length}</span>
+				<Points stubs={stubs} />
 			</button>
 			{!collapsed && (
 				<ul>
@@ -346,6 +358,7 @@ function ListGroup({
 				<StatusDot status={column} />
 				<span className="lane-name">{column}</span>
 				<span className="count">{stubs.length}</span>
+				<Points stubs={stubs} />
 			</button>
 			{!collapsed && (
 				<ul>

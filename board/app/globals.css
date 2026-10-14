@@ -1407,3 +1407,18 @@
 		}
 	}
 }
+
+@layer components {
+	.lane-points {
+		margin-left: auto;
+		color: var(--faint);
+		font-weight: 400;
+		font-size: 11.5px;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.lane.collapsed .lane-points {
+		margin: 0;
+	}
+}
