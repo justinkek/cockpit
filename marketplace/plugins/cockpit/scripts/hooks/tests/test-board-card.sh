@@ -88,6 +88,9 @@ stub set BUG-2 complexity 4 >/dev/null 2>&1
 assert_eq "complexity off the Fibonacci list is refused" "2" "$?"
 stub set BUG-2 complexity 5 >/dev/null
 assert_eq "a Fibonacci complexity is kept" "5" "$(field BUG-2 .complexity)"
+stub set BUG-2 complexity "1 2" >/dev/null 2>&1
+assert_eq "two numbers are not one complexity" "2" "$?"
+assert_eq "and the refused value leaves the record whole" "Child" "$(field BUG-2 .name)"
 stub set BUG-2 complexity 0 >/dev/null 2>&1
 assert_eq "0 is refused on a stub with no children" "2" "$?"
 stub set BUG-2 complexity "" >/dev/null
@@ -365,6 +368,8 @@ stub set "$reference" reference.points 3 >/dev/null
 assert_eq "the old reference.<key> form sets the same field" "3 false" "$(field "$reference" '"\(.points) \(has("reference"))"')"
 stub set "$reference" points 4 >/dev/null 2>&1
 assert_eq "points off the Fibonacci list are refused" "2" "$?"
+stub set "$reference" points "1 2" >/dev/null 2>&1
+assert_eq "and so are two numbers" "2 3" "$? $(field "$reference" .points)"
 stub set "$reference" domain Ops >/dev/null 2>&1
 assert_eq "a domain is Tech or Bizdev" "2" "$?"
 stub set "$reference" card EPIC-1 >/dev/null 2>&1
