@@ -560,6 +560,29 @@ stub undo "$link_parent" >/dev/null
 assert_eq "undoing an unlink from the parent's side links the child again" "[\"$link_parent\"]" "$(field "$link_child" '.dependency_for | tojson')"
 stub unlink "$link_parent" "$link_child" >/dev/null
 
+printf "\nTest group: undo --since takes back every change after a commit in one write\n"
+
+dropped="$(stub create --name "Dropped across columns")"
+stub set "$dropped" rank 4 >/dev/null
+since="$(stub history "$dropped" | head -1 | cut -f1)"
+stub walk "$dropped" "Ready for BR" >/dev/null
+stub set "$dropped" rank 1.5 >/dev/null
+assert_eq "undo --since names how many changes it took back" "$dropped	undid 2 changes since $since" "$(stub undo "$dropped" --since "$since")"
+assert_eq "and puts both the column and the rank back" "Backlog 4" "$(field "$dropped" .status) $(field "$dropped" .rank)"
+assert_eq "in one commit of its own" "undo $dropped" "$(last_commit %s)"
+stub undo "$dropped" --since "$(stub history "$dropped" | head -1 | cut -f1)" >/dev/null 2>&1
+assert_eq "a record unchanged since the commit has nothing to undo" "2" "$?"
+stub undo "$dropped" --since 0000000 >/dev/null 2>&1
+assert_eq "a commit the board does not have is refused" "2" "$?"
+stub undo "$dropped" --since >/dev/null 2>&1
+assert_eq "--since with no commit is refused" "2" "$?"
+since="$(stub history "$link_child" | head -1 | cut -f1)"
+stub link "$link_parent" "$link_child" >/dev/null
+stub set "$link_child" name "Linked child, renamed" >/dev/null
+stub undo "$link_child" --since "$since" >/dev/null
+assert_eq "undo --since takes back a link along with the change after it" "Linked child [] []" \
+  "$(field "$link_child" .name) $(field "$link_parent" '.dependent_on | tojson') $(field "$link_child" '.dependency_for | tojson')"
+
 claimed="$(stub create --name "Claimed then undone")"
 stub claim "$claimed" >/dev/null
 stub undo "$claimed" >/dev/null

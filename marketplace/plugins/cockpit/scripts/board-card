@@ -28,7 +28,7 @@
 #   board-card unarchive <id>
 #   board-card duplicate <id> [--name <name>] [--status <column>]
 #   board-card history <id>
-#   board-card undo <id>
+#   board-card undo <id> [--since <commit>]
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -1445,14 +1445,23 @@ undo_links_program='
   ((ids($current; "dependency_for") - ids($restored; "dependency_for"))[] | [., "dependent_on", "remove"])'
 
 undo_locked() {
-  local id="$1" paths=() changed=() links=() path commit subject before_file="" before_id archived=false current_file current restored live reference
+  local id="$1" since="${2:-}" paths=() changed=() links=() path commit base subject before_file="" before_id archived=false current_file current restored live reference
   local current_refs restored_refs link other field change owner session
   while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
   commit="$(board_git log -1 --format=%H -- "${paths[@]}")"
   [ -n "$commit" ] || die 2 "$id has no committed version to go back to"
-  subject="$(board_git log -1 --format='%h %s' "$commit")"
+  if [ -n "$since" ]; then
+    base="$(board_git rev-parse --quiet --verify "$since^{commit}" 2>/dev/null)" || die 2 "the board has no commit '$since'"
+    board_git merge-base --is-ancestor "$base" "$commit" || die 2 "$since is not in $id's history"
+    [ -n "$(board_git log -1 --format=%H "$base..$commit" -- "${paths[@]}")" ] \
+      || die 2 "nothing to undo on $id: it has not changed since $since"
+    subject="$(board_git rev-list --count "$base..$commit" -- "${paths[@]}") changes since $(board_git log -1 --format=%h "$base")"
+  else
+    base="$commit^"
+    subject="$(board_git log -1 --format='%h %s' "$commit")"
+  fi
   while IFS= read -r path; do
-    if board_git cat-file -e "$commit^:$path" 2>/dev/null; then before_file="$path"; fi
+    if board_git cat-file -e "$base:$path" 2>/dev/null; then before_file="$path"; fi
   done < <(record_paths "$id" main)
   [ -n "$before_file" ] || die 2 "$id has no version before $subject, which made it"
   before_id="${before_file##*/}"
@@ -1461,12 +1470,12 @@ undo_locked() {
   current_file="$(record_file "$id")"
   [ -f "$current_file" ] || current_file="$(archive_file "$id")"
   current="$(parse_file "$current_file")" || exit "$?"
-  restored="$(board_git show "$commit^:$before_file" | jq --raw-input --null-input "[inputs] | $parse_program" 2>/dev/null)" \
+  restored="$(board_git show "$base:$before_file" | jq --raw-input --null-input "[inputs] | $parse_program" 2>/dev/null)" \
     || die 8 "$before_file as it stood before $subject does not parse"
   live="$(for path in "$BOARD_DIR"/cards/*.md; do path="${path##*/}"; printf '%s\n' "${path%.md}"; done \
     | jq --raw-input --null-input --arg id "$before_id" --argjson archived "$archived" "$live_cards_program")"
   restored="$(printf '%s' "$restored" | jq --argjson live "$live" "$following_program")"
-  while IFS= read -r path; do changed+=("$path"); done < <(board_git diff --name-only --no-renames "$commit^" "$commit" -- "${paths[@]}")
+  while IFS= read -r path; do changed+=("$path"); done < <(board_git diff --name-only --no-renames "$base" "$commit" -- "${paths[@]}")
   if [ "$before_file" = "${current_file#"$BOARD_DIR/"}" ] \
     && ! printf '%s\n' "${changed[@]}" | grep --quiet --invert-match --extended-regexp '^(archive/)?[a-z]+/[A-Z]+-[0-9]+\.md$' \
     && { printf '%s' "$current"; printf '%s' "$restored"; } | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
@@ -1495,9 +1504,9 @@ undo_locked() {
     [ -z "$session" ] || [ -z "$owner" ] || [ "$owner" = "$session" ] || die 1 "$id is held by session $owner"
   fi
   for path in "${changed[@]}"; do
-    if board_git cat-file -e "$commit^:$path" 2>/dev/null; then
+    if board_git cat-file -e "$base:$path" 2>/dev/null; then
       mkdir -p "$BOARD_DIR/$(dirname "$path")"
-      board_git show "$commit^:$path" > "$BOARD_DIR/$path"
+      board_git show "$base:$path" > "$BOARD_DIR/$path"
     else
       rm -f "$BOARD_DIR/$path"
       case "$path" in attachments/*/* | archive/attachments/*/*) rmdir "$BOARD_DIR/$(dirname "$path")" 2>/dev/null || true ;; esac
@@ -1525,15 +1534,20 @@ undo_locked() {
 }
 
 command_undo() {
-  local id
+  local id since=""
   id="$(normalise_id "${1:-}")"
+  case "${2:-}" in
+    "") ;;
+    --since) [ -n "${3:-}" ] || die 2 "--since needs a commit from: board-card history $id"; since="$3" ;;
+    *) die 2 "undo takes an id and an optional --since <commit>, not '$2'" ;;
+  esac
   require_history
   if [ ! -f "$(record_file "$id")" ] && [ -f "$(archive_file "$id")" ]; then
     parse_file "$(archive_file "$id")" >/dev/null
   else
     require_record "$id"
   fi
-  with_lock undo_locked "$id"
+  with_lock undo_locked "$id" "$since"
 }
 
 command_path() {
