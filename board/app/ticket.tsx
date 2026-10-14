@@ -10,7 +10,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
-import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
+import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import { type Card, fieldName, kindOf } from "@/lib/shared";
 
@@ -38,6 +38,11 @@ export function Ticket({
 	const [view, setView] = useState<View | null>(null);
 
 	useEffect(() => setRecord(initial), [initial]);
+
+	useEffect(() => {
+		const handed = takeCarried(initial.id);
+		if (handed) setToast(handed);
+	}, [initial.id]);
 
 	useEffect(() => {
 		const kindOfRecord = kindOf(initial.id);
@@ -93,8 +98,12 @@ export function Ticket({
 			}
 			if (!result.record) return;
 			setRecord(result.record);
-			setToast(undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id)));
-			if (result.record.id !== before.id) router.replace(`/card/${result.record.id}`);
+			const shown = undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id));
+			setToast(shown);
+			if (result.record.id !== before.id) {
+				carryTo(result.record.id, shown);
+				router.replace(`/card/${result.record.id}`);
+			}
 		});
 	}
 

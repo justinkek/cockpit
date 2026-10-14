@@ -22,6 +22,19 @@ export function withNewId(text: string, from: string, to: string) {
 	return from === to ? text : `${text}, so it is now ${to}`;
 }
 
+let carried: { id: string; toast: Undoable } | null = null;
+
+export function carryTo(id: string, toast: Undoable | null) {
+	carried = toast ? { id, toast } : null;
+}
+
+export function takeCarried(id: string): Undoable | null {
+	if (carried?.id !== id) return null;
+	const { toast } = carried;
+	carried = null;
+	return toast;
+}
+
 export function toastOf(text: string, changes: Change[] = []): Undoable {
 	made += 1;
 	return { key: made, text, changes };
