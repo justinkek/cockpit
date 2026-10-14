@@ -407,6 +407,23 @@ stub link FEAT-1 BUG-2 >/dev/null
 stub archive BUG-2 >/dev/null 2>&1
 assert_eq "a linked card is not archived" "2" "$?"
 stub unlink FEAT-1 BUG-2 >/dev/null
+naming_reference="$(stub create --kind reference --name "Taken from a card")"
+stub set "$naming_reference" card BUG-2 >/dev/null
+stub archive BUG-2 >/dev/null 2>&1
+assert_eq "nor is a card a reference ticket names" "2" "$?"
+stub set "$naming_reference" card "" >/dev/null
+dangling_epic="$(stub create --kind epic --name "Soon gone")"
+stub set BUG-2 epic "$dangling_epic" >/dev/null
+stub archive "$dangling_epic" >/dev/null 2>&1
+assert_eq "nor an epic a card still names" "2" "$?"
+assert_eq "and the refusal names the card and the field" "true" \
+  "$(stub archive "$dangling_epic" 2>&1 | grep --quiet --fixed-strings "BUG-2 (epic)" && echo true)"
+mkdir -p "$COCKPIT_BOARD_DIR/archive/epics"
+mv "$COCKPIT_BOARD_DIR/epics/$dangling_epic.md" "$COCKPIT_BOARD_DIR/archive/epics/"
+assert_eq "a copy leaves out an epic that is no longer on the board" "null" "$(field "$(stub duplicate BUG-2 --name "Copy with no epic")" .epic)"
+mv "$COCKPIT_BOARD_DIR/archive/epics/$dangling_epic.md" "$COCKPIT_BOARD_DIR/epics/"
+stub set BUG-2 epic "" >/dev/null
+assert_eq "an epic nothing names is archived" "archived $dangling_epic" "$(stub archive "$dangling_epic")"
 
 copy="$(stub duplicate BUG-2)"
 assert_eq "a copy is a new card of the same type" "BUG" "${copy%%-*}"

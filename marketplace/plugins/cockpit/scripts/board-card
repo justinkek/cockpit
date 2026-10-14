@@ -1273,12 +1273,34 @@ archive_locked() {
   printf '%sd %s\n' "$direction" "$id"
 }
 
-command_archive() {
-  local id links
-  id="$(normalise_id "${1:-}")"
-  require_record "$id"
+naming_records() {
+  local id="$1" file
+  { grep --files-with-matches --fixed-strings "\"$id\"" \
+      "$BOARD_DIR"/cards/*.md "$BOARD_DIR"/epics/*.md "$BOARD_DIR"/projects/*.md "$BOARD_DIR"/sprints/*.md "$BOARD_DIR"/references/*.md 2>/dev/null || true; } \
+    | while IFS= read -r file; do
+        parse_file "$file" | jq --raw-output --arg id "$id" '
+          . as $record
+          | [(("epic", "project", "sprint", "card") as $field | select($record[$field] == $id) | $field),
+             (("dependent_on", "dependency_for") as $field
+              | select(any($record[$field] | if type == "array" then .[] else empty end; . == $id)) | $field)]
+          | select(length > 0 and $record.id != $id)
+          | "\($record.id) (\(join(", ")))"'
+      done
+}
+
+require_unnamed() {
+  local id="$1" links named
   links="$(read_record "$id" | jq --raw-output '[(.dependent_on // [])[], (.dependency_for // [])[]] | join(", ")')"
   [ -z "$links" ] || die 2 "$id is linked to $links - run board-card unlink first"
+  named="$(naming_records "$id" | paste -sd ',' - | sed 's/,/, /g')"
+  [ -z "$named" ] || die 2 "$id is still named by $named - point them elsewhere first"
+}
+
+command_archive() {
+  local id
+  id="$(normalise_id "${1:-}")"
+  require_record "$id"
+  require_unnamed "$id"
   with_lock archive_locked "$id" archive
 }
 
@@ -1291,14 +1313,19 @@ command_unarchive() {
 }
 
 duplicate_locked() {
-  local id="$1" name="$2" status="$3" kind source fields
+  local id="$1" name="$2" status="$3" kind source fields epic project
   kind="$(kind_of "$id")"
   source="$(read_record "$id")"
-  fields="$(printf '%s' "$source" | jq --compact-output '
-    {project, icon, timebox_mins, complexity: (if .complexity == 0 then null else .complexity end)}
+  epic="$(printf '%s' "$source" | jq --raw-output '.epic // ""')"
+  [ -z "$epic" ] || [ -f "$(record_file "$epic")" ] || epic=""
+  project="$(printf '%s' "$source" | jq --raw-output '.project // ""')"
+  [ -z "$project" ] || [ -f "$(record_file "$project")" ] || project=""
+  fields="$(printf '%s' "$source" | jq --compact-output --arg project "$project" '
+    {project: (if $project == "" then null else $project end), icon, timebox_mins,
+     complexity: (if .complexity == 0 then null else .complexity end)}
     | with_entries(select(.value != null))')"
   create_locked "$kind" "$name" "$(printf '%s' "$source" | jq --raw-output '.type // ""')" "$status" \
-    "$(printf '%s' "$source" | jq --raw-output '.epic // ""')" "$(printf '%s' "$source" | jq --raw-output '.body // ""')" "$fields"
+    "$epic" "$(printf '%s' "$source" | jq --raw-output '.body // ""')" "$fields"
 }
 
 command_duplicate() {

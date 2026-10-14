@@ -127,9 +127,9 @@ A project has no columns, so `board-card set <id> status` moves it between `Not 
 
 A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domain` (`Tech` or `Bizdev`), `stack` and `card` (the card it was taken from) are each set with `board-card set`, which also accepts them as `reference.<key>`.
 
-`board-card archive <id>` moves a record, its comments and its attachments under `archive/`, where `list` passes it by unless given `--archived`, and refuses a card still linked to another. `board-card unarchive <id>` puts an archived record back on the board.
+`board-card archive <id>` moves a record, its comments and its attachments under `archive/`, where `list` passes it by unless given `--archived`. It refuses a card still linked to another, and any record another one still names as its epic, project, sprint or card, so nothing on the board is left pointing at an id it cannot read. `board-card unarchive <id>` puts an archived record back on the board.
 
-`board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity and timebox, in the first column unless `--name` or `--status` say otherwise.
+`board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity and timebox, in the first column unless `--name` or `--status` say otherwise. An epic or project no longer on the board is left off the copy.
 
 `board-card history <id>` prints the commits that touched a record, newest first, one line each holding the commit, its time and its subject. `board-card undo <id>` writes the record, its comments and its attachments back as they stood before the last commit that touched them, as a commit of its own, so a second undo takes back the first and any other record that commit changed is left as it is.
 
