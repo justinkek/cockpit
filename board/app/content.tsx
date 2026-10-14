@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+	changeComment,
 	checkTodo,
 	loadBody,
 	loadComments,
 	postComment,
+	removeComment,
 	resolveThread,
 	type Span,
 	saveBody,
@@ -17,7 +19,7 @@ import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
 import type { Card, CommentThread } from "@/lib/shared";
 
-type Threads = { threads?: CommentThread[]; error?: string };
+type Threads = { threads?: CommentThread[]; me?: string | null; error?: string };
 
 type Picked = { text: string; top: number; bottom: number; left: number };
 
@@ -49,18 +51,54 @@ function when(stamp: string) {
 	return Number.isNaN(date.getTime()) ? stamp : date.toLocaleString();
 }
 
+export function ago(stamp: string, now = Date.now()) {
+	const date = new Date(stamp);
+	if (Number.isNaN(date.getTime())) return stamp;
+	const minutes = Math.round((now - date.getTime()) / 60000);
+	if (minutes < 1) return "just now";
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.round(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	const days = Math.round(hours / 24);
+	if (days < 7) return `${days}d ago`;
+	return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function Stamp({ at, edited }: { at: string; edited?: string }) {
+	return (
+		<>
+			<time dateTime={at} title={when(at)} suppressHydrationWarning>
+				{ago(at)}
+			</time>
+			{edited && (
+				<span className="edited" title={`Edited ${when(edited)}`} suppressHydrationWarning>
+					edited
+				</span>
+			)}
+		</>
+	);
+}
+
 function Composer({
 	placeholder,
 	onSubmit,
 	onCancel,
 	autoFocus,
+	initial = "",
+	submitLabel = "Comment",
 }: {
 	placeholder: string;
 	onSubmit: (text: string) => void;
 	onCancel?: () => void;
 	autoFocus?: boolean;
+	initial?: string;
+	submitLabel?: string;
 }) {
-	const [text, setText] = useState("");
+	const [text, setText] = useState(initial);
+	const box = useRef<HTMLTextAreaElement>(null);
+	useEffect(() => {
+		if (autoFocus && box.current) box.current.setSelectionRange(initial.length, initial.length);
+	}, [autoFocus, initial]);
 	return (
 		<form
 			className="composer"
@@ -72,6 +110,7 @@ function Composer({
 			}}
 		>
 			<textarea
+				ref={box}
 				value={text}
 				placeholder={placeholder}
 				autoFocus={autoFocus}
@@ -91,8 +130,8 @@ function Composer({
 						Cancel
 					</button>
 				)}
-				<button type="submit" disabled={!text.trim()}>
-					Comment
+				<button type="submit" disabled={!text.trim() || text.trim() === initial.trim()}>
+					{submitLabel}
 				</button>
 			</span>
 		</form>
@@ -119,6 +158,8 @@ export function Content({
 	const [drafting, setDrafting] = useState<Picked | null>(null);
 	const [focused, setFocused] = useState<string | null>(null);
 	const [replying, setReplying] = useState<string | null>(null);
+	const [rewriting, setRewriting] = useState<string | null>(null);
+	const [me, setMe] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
 	const [base, setBase] = useState("");
 	const [saving, setSaving] = useState(false);
@@ -149,6 +190,7 @@ export function Content({
 		setSelection(null);
 		setDrafting(null);
 		setReplying(null);
+		setRewriting(null);
 		setTarget(null);
 		if (!renamed) {
 			setError("");
@@ -163,6 +205,7 @@ export function Content({
 		loadComments(id).then((result) => {
 			if (!live) return;
 			if (result.threads) setThreads(result.threads);
+			if (result.me !== undefined) setMe(result.me);
 			if (result.error) setError(result.error);
 		});
 		return () => {
@@ -297,6 +340,7 @@ export function Content({
 				return;
 			}
 			if (result.threads) setThreads(result.threads);
+			if (result.me !== undefined) setMe(result.me);
 		});
 	}
 
@@ -314,10 +358,35 @@ export function Content({
 		);
 	}
 
-	function resolve(thread: string) {
+	function resolve(thread: string, resolved: boolean) {
 		apply(
-			(current) => current.filter((other) => other.thread !== thread),
-			() => resolveThread(id, thread),
+			(current) => current.map((other) => (other.thread === thread ? { ...other, resolved } : other)),
+			() => resolveThread(id, thread, resolved),
+		);
+	}
+
+	function rewrite(comment: string, text: string) {
+		setRewriting(null);
+		apply(
+			(current) =>
+				current.map((thread) => ({
+					...thread,
+					comments: thread.comments.map((other) =>
+						other.id === comment ? { ...other, text, edited: new Date().toISOString() } : other,
+					),
+				})),
+			() => changeComment(id, comment, text),
+		);
+	}
+
+	function remove(comment: string) {
+		if (!window.confirm("Delete this comment? This cannot be undone from here.")) return;
+		apply(
+			(current) =>
+				current
+					.map((thread) => ({ ...thread, comments: thread.comments.filter((other) => other.id !== comment) }))
+					.filter((thread) => thread.comments.length > 0),
+			() => removeComment(id, comment),
 		);
 	}
 
@@ -377,7 +446,44 @@ export function Content({
 			?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 	}
 
-	const anchored = threads.filter((thread) => thread.anchor);
+	const open = threads.filter((thread) => !thread.resolved);
+	const resolved = threads.filter((thread) => thread.resolved);
+	const anchored = open.filter((thread) => thread.anchor);
+	function renderComment(comment: CommentThread["comments"][number]) {
+		const pending = comment.id.startsWith("pending-");
+		const mine = !pending && me !== null && comment.author === me;
+		return (
+			<div key={comment.id} className={`comment${pending ? " pending" : ""}`}>
+				<span className="comment-head">
+					<strong>{comment.author}</strong>
+					<Stamp at={comment.at} edited={comment.edited} />
+					{mine && rewriting !== comment.id && (
+						<span className="comment-tools">
+							<button type="button" className="quiet" onClick={() => setRewriting(comment.id)}>
+								Edit
+							</button>
+							<button type="button" className="quiet" onClick={() => remove(comment.id)}>
+								Delete
+							</button>
+						</span>
+					)}
+				</span>
+				{rewriting === comment.id ? (
+					<Composer
+						placeholder="Edit your comment…"
+						autoFocus
+						initial={comment.text}
+						submitLabel="Save"
+						onCancel={() => setRewriting(null)}
+						onSubmit={(text) => rewrite(comment.id, text)}
+					/>
+				) : (
+					<Markdown source={comment.text} />
+				)}
+			</div>
+		);
+	}
+
 	const anchors = anchored.map((thread) => ({ text: thread.anchor as string, thread: thread.thread }));
 	const orphaned = anchored.filter((thread) => !body.includes(thread.anchor as string));
 
@@ -489,55 +595,72 @@ export function Content({
 			{error && <p className="notice error">{error}</p>}
 
 			<section className="threads" ref={list}>
-				<h3>Comments {threads.length > 0 && <span className="count">{threads.length}</span>}</h3>
-				{threads.map((thread) => {
-					const sending = thread.thread.startsWith("pending-");
-					return (
-						<article
-							key={thread.thread}
-							data-thread={thread.thread}
-							className={`thread${focused === thread.thread ? " focused" : ""}`}
-							onMouseEnter={() => setFocused(thread.thread)}
-							onMouseLeave={() => setFocused(null)}
-						>
-							{thread.anchor && (
-								<blockquote className={`quoted${orphaned.includes(thread) ? " orphaned" : ""}`}>
-									{thread.anchor}
-								</blockquote>
-							)}
-							{thread.comments.map((comment) => (
-								<div key={comment.id} className={`comment${comment.id.startsWith("pending-") ? " pending" : ""}`}>
-									<span className="comment-head">
-										<strong>{comment.author}</strong>
-										<time dateTime={comment.at}>{when(comment.at)}</time>
-									</span>
-									<Markdown source={comment.text} />
-								</div>
-							))}
-							{replying === thread.thread ? (
-								<Composer
-									placeholder="Reply…"
-									autoFocus
-									onCancel={() => setReplying(null)}
-									onSubmit={(text) => {
-										post(text, undefined, thread.thread);
-										setReplying(null);
-									}}
-								/>
-							) : (
+				<h3>Comments {open.length > 0 && <span className="count">{open.length}</span>}</h3>
+				{open.map((thread) => (
+					<article
+						key={thread.thread}
+						data-thread={thread.thread}
+						className={`thread${focused === thread.thread ? " focused" : ""}`}
+						onMouseEnter={() => setFocused(thread.thread)}
+						onMouseLeave={() => setFocused(null)}
+					>
+						{thread.anchor && (
+							<blockquote className={`quoted${orphaned.includes(thread) ? " orphaned" : ""}`}>
+								{thread.anchor}
+							</blockquote>
+						)}
+						{thread.comments.map((comment) => renderComment(comment))}
+						{replying === thread.thread ? (
+							<Composer
+								placeholder="Reply…"
+								autoFocus
+								onCancel={() => setReplying(null)}
+								onSubmit={(text) => {
+									post(text, undefined, thread.thread);
+									setReplying(null);
+								}}
+							/>
+						) : (
+							<span className="thread-actions">
+								<button
+									type="button"
+									className="quiet"
+									disabled={thread.thread.startsWith("pending-")}
+									onClick={() => setReplying(thread.thread)}
+								>
+									Reply
+								</button>
+								<button
+									type="button"
+									className="quiet"
+									disabled={thread.thread.startsWith("pending-")}
+									onClick={() => resolve(thread.thread, true)}
+								>
+									Resolve
+								</button>
+							</span>
+						)}
+					</article>
+				))}
+				<Composer placeholder="Comment on the page…" onSubmit={(text) => post(text)} />
+				{resolved.length > 0 && (
+					<details className="resolved-threads">
+						<summary>
+							Resolved <span className="count">{resolved.length}</span>
+						</summary>
+						{resolved.map((thread) => (
+							<article key={thread.thread} data-thread={thread.thread} className="thread resolved">
+								{thread.anchor && <blockquote className="quoted">{thread.anchor}</blockquote>}
+								{thread.comments.map((comment) => renderComment(comment))}
 								<span className="thread-actions">
-									<button type="button" className="quiet" disabled={sending} onClick={() => setReplying(thread.thread)}>
-										Reply
-									</button>
-									<button type="button" className="quiet" disabled={sending} onClick={() => resolve(thread.thread)}>
-										Resolve
+									<button type="button" className="quiet" onClick={() => resolve(thread.thread, false)}>
+										Reopen
 									</button>
 								</span>
-							)}
-						</article>
-					);
-				})}
-				<Composer placeholder="Comment on the page…" onSubmit={(text) => post(text)} />
+							</article>
+						))}
+					</details>
+				)}
 			</section>
 		</section>
 	);

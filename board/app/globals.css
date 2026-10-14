@@ -1278,6 +1278,74 @@
 		}
 	}
 
+	.comment-head .edited {
+		color: var(--faint);
+		font-size: 11.5px;
+	}
+
+	.comment-tools {
+		margin-left: auto;
+		display: flex;
+		gap: 2px;
+		opacity: 0;
+		transition: opacity 0.1s;
+
+		& button {
+			height: 22px;
+			padding: 0 6px;
+			font-size: 11.5px;
+		}
+	}
+
+	.comment:hover .comment-tools,
+	.comment:focus-within .comment-tools {
+		opacity: 1;
+	}
+
+	@media (hover: none) {
+		.comment-tools {
+			opacity: 1;
+		}
+	}
+
+	.resolved-threads {
+		display: grid;
+		gap: 10px;
+
+		& > summary {
+			cursor: pointer;
+			color: var(--muted);
+			font-size: 12px;
+			width: fit-content;
+
+			&:hover {
+				color: var(--ink);
+			}
+		}
+
+		&[open] > summary {
+			margin-bottom: 10px;
+		}
+	}
+
+	.thread.resolved {
+		background: none;
+		color: var(--muted);
+	}
+
+	.pill.comments {
+		gap: 4px;
+
+		& svg {
+			width: 12px;
+			height: 12px;
+			fill: none;
+			stroke: currentColor;
+			stroke-width: 1.4;
+			stroke-linejoin: round;
+		}
+	}
+
 	.thread-actions,
 	.composer-actions {
 		display: flex;

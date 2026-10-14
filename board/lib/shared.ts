@@ -81,6 +81,7 @@ export type Card = {
 	end?: string | null;
 	days_in_column?: number;
 	overrunning?: boolean;
+	comments?: number;
 	body: string;
 };
 
@@ -90,7 +91,7 @@ export type CommentThread = {
 	thread: string;
 	anchor: string | null;
 	resolved?: boolean;
-	comments: { id: string; author: string; at: string; text: string }[];
+	comments: { id: string; author: string; at: string; text: string; edited?: string }[];
 };
 
 export type Named = { id: string; name: string };

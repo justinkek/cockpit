@@ -20,9 +20,11 @@
 #   board-card claim <id>
 #   board-card release <id>
 #   board-card release-session <session-id>
-#   board-card comment <id> [--anchor <text> | --reply <comment-id>] [--author <name>] < <text>
+#   board-card comment <id> [--anchor <text> | --reply <comment-id> | --edit <comment-id>] [--author <name>] < <text>
+#   board-card uncomment <id> <comment-id> [--author <name>]
 #   board-card comments <id> [--all] [--json]
 #   board-card resolve <id> <comment-id>
+#   board-card reopen <id> <comment-id>
 #   board-card attach <id> <file>
 #   board-card attachments <id>
 #   board-card usage <id>
@@ -531,14 +533,18 @@ section_lines() {
     inside { print NR "\t" $0 }'
 }
 
+threads_program='
+  group_by(.thread)
+  | map(select($all or (.[0].resolved | not)))
+  | map({thread: .[0].thread, anchor: .[0].anchor, resolved: (.[0].resolved // false),
+         comments: map(select(.deleted | not) | {id, author, at, text} + (if .edited then {edited} else {} end))})
+  | map(select(.comments | length > 0))'
+
 open_comments_json() {
   local id="$1" file
   file="$(comments_file "$id")"
   [ -f "$file" ] || { printf '[]\n'; return 0; }
-  jq --slurp '
-    group_by(.thread)
-    | map(select(.[0].resolved | not))
-    | map({thread: .[0].thread, anchor: .[0].anchor, comments: map({id, author, at, text})})' "$file"
+  jq --slurp --argjson all false "$threads_program" "$file"
 }
 
 command_show() {
@@ -604,11 +610,20 @@ command_list() {
     for file in "${files[@]}"; do parse_file "$file" >/dev/null; done
     die 8 "a record in $directory does not parse"
   fi
+  local notes=("$directory"/*.comments.jsonl) counts='{}'
+  if [ -f "${notes[0]}" ]; then
+    counts="$(jq --null-input '
+      [inputs as $line | $line + {record: (input_filename | sub("^.*/"; "") | sub("\\.comments\\.jsonl$"; ""))}]
+      | group_by(.record)
+      | map({key: .[0].record,
+             value: (group_by(.thread) | map(select((.[0].resolved | not) and any(.[]; .deleted | not))) | length)})
+      | from_entries' "${notes[@]}")"
+  fi
   printf '%s' "$records" \
-    | jq --arg status "$status" --arg epic "$epic" --arg now "$(now)" "$derived_program"'
+    | jq --arg status "$status" --arg epic "$epic" --arg now "$(now)" --argjson counts "$counts" "$derived_program"'
       map(select(($status == "" or .status == $status) and ($epic == "" or .epic == $epic)))
       | sort_by(.id | split("-") | (.[0]), (.[1] | tonumber))
-      | map(derived($now))' \
+      | map(derived($now) + {comments: ($counts[.id] // 0)})' \
     | if [ "$as_json" = true ]; then
         cat
       else
@@ -1227,14 +1242,31 @@ comment_locked() {
   printf '%s\n' "$comment_id"
 }
 
+rewrite_comment_locked() {
+  local id="$1" comment_id="$2" author="$3" change="$4" text="${5:-}" file tmp
+  file="$(comments_file "$id")"
+  [ -f "$file" ] && jq --exit-status --arg comment "$comment_id" 'select(.id == $comment and (.deleted | not))' "$file" >/dev/null \
+    || die 3 "no comment $comment_id on $id"
+  jq --exit-status --arg comment "$comment_id" --arg author "$author" 'select(.id == $comment and .author == $author)' "$file" >/dev/null \
+    || die 2 "$comment_id on $id was written by $(jq --raw-output --arg comment "$comment_id" 'select(.id == $comment) | .author' "$file"), so only they can change it"
+  tmp="$(mktemp "$(dirname "$file")/.$id.comments.XXXXXX")"
+  jq --compact-output --arg comment "$comment_id" --arg change "$change" --arg text "$text" --arg at "$(now)" '
+    if .id != $comment then .
+    elif $change == "edit" then .text = $text | .edited = $at
+    else .text = "" | .deleted = true end' "$file" > "$tmp"
+  mv "$tmp" "$file"
+  touch_record "$id"
+}
+
 command_comment() {
-  local id anchor="" reply="" author="" text body
+  local id anchor="" reply="" edit="" author="" text body
   id="$(normalise_id "${1:-}")"
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --anchor) anchor="${2:-}"; shift 2 ;;
       --reply) reply="${2:-}"; shift 2 ;;
+      --edit) edit="${2:-}"; [ -n "$edit" ] || die 2 "--edit needs a comment id"; shift 2 ;;
       --author) author="${2:-}"; shift 2 ;;
       *) die 2 "comment: unknown option '$1'" ;;
     esac
@@ -1242,6 +1274,13 @@ command_comment() {
   require_record "$id"
   text="$(cat)"
   [ -n "$text" ] || die 2 "a comment needs text on stdin"
+  if [ -n "$edit" ]; then
+    [ -z "$anchor" ] && [ -z "$reply" ] || die 2 "an edit keeps the comment where it is - drop --anchor and --reply"
+    [ -n "$author" ] || author="$(default_author)"
+    with_lock rewrite_comment_locked "$id" "$edit" "$author" edit "$text"
+    printf 'edited %s on %s\n' "$edit" "$id"
+    return 0
+  fi
   if [ -n "$anchor" ]; then
     body="$(read_record "$id" | jq --raw-output '.body')"
     case "$body" in *"$anchor"*) ;; *) die 2 "the anchor text is not in $id's body: '$anchor'" ;; esac
@@ -1267,10 +1306,7 @@ command_comments() {
   if [ ! -f "$file" ]; then
     threads='[]'
   else
-    threads="$(jq --slurp --argjson all "$all" '
-      group_by(.thread)
-      | map(select($all or (.[0].resolved | not)))
-      | map({thread: .[0].thread, anchor: .[0].anchor, resolved: .[0].resolved, comments: map({id, author, at, text})})' "$file")"
+    threads="$(jq --slurp --argjson all "$all" "$threads_program" "$file")"
   fi
   if [ "$as_json" = true ]; then
     printf '%s\n' "$threads"
@@ -1282,13 +1318,15 @@ command_comments() {
 }
 
 resolve_locked() {
-  local id="$1" comment_id="$2" file tmp
+  local id="$1" comment_id="$2" resolved="${3:-true}" file tmp
   file="$(comments_file "$id")"
   [ -f "$file" ] && jq --exit-status --arg comment "$comment_id" 'select(.id == $comment and .id == .thread)' "$file" >/dev/null \
     || die 3 "no thread $comment_id on $id"
-  if jq --exit-status --arg comment "$comment_id" 'select(.id == $comment and .resolved)' "$file" >/dev/null; then return 0; fi
+  if jq --exit-status --arg comment "$comment_id" --argjson resolved "$resolved" \
+    'select(.id == $comment and (.resolved // false) == $resolved)' "$file" >/dev/null; then return 0; fi
   tmp="$(mktemp "$(dirname "$file")/.$id.comments.XXXXXX")"
-  jq --compact-output --arg comment "$comment_id" 'if .id == $comment then .resolved = true else . end' "$file" > "$tmp"
+  jq --compact-output --arg comment "$comment_id" --argjson resolved "$resolved" \
+    'if .id == $comment then .resolved = $resolved else . end' "$file" > "$tmp"
   mv "$tmp" "$file"
   touch_record "$id"
 }
@@ -1298,8 +1336,34 @@ command_resolve() {
   id="$(normalise_id "${1:-}")"
   [ -n "$comment_id" ] || die 2 "usage: board-card resolve <id> <comment-id>"
   require_record "$id"
-  with_lock resolve_locked "$id" "$comment_id"
+  with_lock resolve_locked "$id" "$comment_id" true
   printf 'resolved %s on %s\n' "$comment_id" "$id"
+}
+
+command_reopen() {
+  local id comment_id="${2:-}"
+  id="$(normalise_id "${1:-}")"
+  [ -n "$comment_id" ] || die 2 "usage: board-card reopen <id> <comment-id>"
+  require_record "$id"
+  with_lock resolve_locked "$id" "$comment_id" false
+  printf 'reopened %s on %s\n' "$comment_id" "$id"
+}
+
+command_uncomment() {
+  local id comment_id="${2:-}" author=""
+  id="$(normalise_id "${1:-}")"
+  [ -n "$comment_id" ] || die 2 "usage: board-card uncomment <id> <comment-id> [--author <name>]"
+  shift 2
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --author) author="${2:-}"; shift 2 ;;
+      *) die 2 "uncomment: unknown option '$1'" ;;
+    esac
+  done
+  require_record "$id"
+  [ -n "$author" ] || author="$(default_author)"
+  with_lock rewrite_comment_locked "$id" "$comment_id" "$author" delete
+  printf 'deleted %s on %s\n' "$comment_id" "$id"
 }
 
 attach_locked() {
@@ -1657,6 +1721,8 @@ case "$action" in
   comment) command_comment "$@" ;;
   comments) command_comments "$@" ;;
   resolve) command_resolve "$@" ;;
+  reopen) command_reopen "$@" ;;
+  uncomment) command_uncomment "$@" ;;
   attach) command_attach "$@" ;;
   attachments) command_attachments "$@" ;;
   usage) command_usage "$@" ;;

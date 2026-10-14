@@ -13,10 +13,14 @@ const script =
 
 export class BoardError extends Error {}
 
+export function commentAuthor(): string | null {
+	return process.env.COCKPIT_AUTHOR || process.env.USER || null;
+}
+
 async function boardCard(args: string[], input?: string): Promise<string> {
 	try {
 		const pending = run(script, args, {
-			env: { ...process.env, COCKPIT_AUTHOR: process.env.COCKPIT_AUTHOR ?? process.env.USER },
+			env: { ...process.env, COCKPIT_AUTHOR: commentAuthor() ?? undefined },
 			maxBuffer: 256 * 1024 * 1024,
 		});
 		pending.child.stdin?.end(input ?? "");
@@ -119,7 +123,7 @@ export async function undoSince(id: string, since: string, until: string): Promi
 }
 
 export async function readComments(id: string): Promise<CommentThread[]> {
-	return JSON.parse(await boardCard(["comments", id, "--json"]));
+	return JSON.parse(await boardCard(["comments", id, "--all", "--json"]));
 }
 
 export async function addComment(id: string, text: string, anchor?: string, reply?: string): Promise<void> {
@@ -129,6 +133,14 @@ export async function addComment(id: string, text: string, anchor?: string, repl
 	await boardCard(args, text);
 }
 
-export async function resolveComment(id: string, thread: string): Promise<void> {
-	await boardCard(["resolve", id, thread]);
+export async function resolveComment(id: string, thread: string, resolved = true): Promise<void> {
+	await boardCard([resolved ? "resolve" : "reopen", id, thread]);
+}
+
+export async function editComment(id: string, comment: string, text: string): Promise<void> {
+	await boardCard(["comment", id, "--edit", comment], text);
+}
+
+export async function deleteComment(id: string, comment: string): Promise<void> {
+	await boardCard(["uncomment", id, comment]);
 }

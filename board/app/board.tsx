@@ -189,6 +189,17 @@ function Signals({ stub }: { stub: Stub }) {
 					Overrunning
 				</span>
 			)}
+			{(stub.comments ?? 0) > 0 && (
+				<span
+					className="pill comments"
+					title={`${stub.comments} open comment ${stub.comments === 1 ? "thread" : "threads"}`}
+				>
+					<svg viewBox="0 0 16 16" aria-hidden="true">
+						<path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" />
+					</svg>
+					{stub.comments}
+				</span>
+			)}
 			{total > 0 && (
 				<span
 					className="pill rework"

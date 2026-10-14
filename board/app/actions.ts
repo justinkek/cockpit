@@ -10,7 +10,10 @@ import {
 	type CommentThread,
 	type Kind,
 	changeStatus,
+	commentAuthor,
 	createRecord,
+	deleteComment,
+	editComment,
 	duplicateRecord,
 	findRenamed,
 	lastCommit,
@@ -27,7 +30,7 @@ import {
 type Failure = { error?: string; moved?: string };
 export type Span = { since: string; until: string };
 type Result = Failure & { record?: Card; undo?: Span };
-type Threads = Failure & { threads?: CommentThread[] };
+type Threads = Failure & { threads?: CommentThread[]; me?: string | null };
 export type NewOptions = { type?: string; epic?: string; rank?: number; body?: string; project?: string };
 
 function refresh(id: string) {
@@ -76,7 +79,7 @@ async function threadsAfter(id: string, change: () => Promise<void>): Promise<Th
 	try {
 		await change();
 		refresh(id);
-		return { threads: await readComments(id) };
+		return { threads: await readComments(id), me: commentAuthor() };
 	} catch (error) {
 		return failed(id, error);
 	}
@@ -202,7 +205,7 @@ export async function findInContent(kind: Kind, query: string): Promise<{ ids: s
 
 export async function loadComments(id: string): Promise<Threads> {
 	try {
-		return { threads: await readComments(id) };
+		return { threads: await readComments(id), me: commentAuthor() };
 	} catch (error) {
 		return failed(id, error);
 	}
@@ -212,8 +215,16 @@ export async function postComment(id: string, text: string, anchor?: string, rep
 	return threadsAfter(id, () => addComment(id, text, anchor, reply));
 }
 
-export async function resolveThread(id: string, thread: string): Promise<Threads> {
-	return threadsAfter(id, () => resolveComment(id, thread));
+export async function resolveThread(id: string, thread: string, resolved = true): Promise<Threads> {
+	return threadsAfter(id, () => resolveComment(id, thread, resolved));
+}
+
+export async function changeComment(id: string, comment: string, text: string): Promise<Threads> {
+	return threadsAfter(id, () => editComment(id, comment, text));
+}
+
+export async function removeComment(id: string, comment: string): Promise<Threads> {
+	return threadsAfter(id, () => deleteComment(id, comment));
 }
 
 function text(form: FormData, name: string) {

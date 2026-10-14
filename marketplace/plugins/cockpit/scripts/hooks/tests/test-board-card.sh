@@ -799,5 +799,41 @@ assert_eq "a board with no history still changes its revision" "true" \
 COCKPIT_BOARD_DIR="$TMPDIR/no-board" stub revision >/dev/null 2>&1
 assert_eq "and a directory with no board is refused" "3" "$?"
 
+printf "\nTest group: a comment is edited, deleted and reopened, and counted on the list\n"
+
+discussed="$(stub create --name "Discussed" | tail -1)"
+printf 'first take' | stub comment "$discussed" --author justin >/dev/null
+printf 'an agent asks' | stub comment "$discussed" --author "claude one" >/dev/null
+printf 'a reply' | stub comment "$discussed" --reply c2 --author justin >/dev/null
+count_of() { stub list --json | jq --raw-output --arg id "$1" '.[] | select(.id == $id) | .comments'; }
+assert_eq "the list counts the open threads on each record" "2" "$(count_of "$discussed")"
+assert_eq "and a record with none counts nothing" "0" "$(count_of "$found_two")"
+assert_eq "an edit keeps the comment's id" "edited c1 on $discussed" \
+  "$(printf 'second take' | COCKPIT_NOW=2026-10-14T13:00:00Z stub comment "$discussed" --edit c1 --author justin)"
+assert_eq "and changes its text, saying when" "second take 2026-10-14T13:00:00Z" \
+  "$(stub comments "$discussed" --json | jq --raw-output '.[0].comments[0] | "\(.text) \(.edited)"')"
+assert_eq "an edit is committed under the comment verb" "comment $discussed" "$(last_commit %s)"
+printf 'not mine' | stub comment "$discussed" --edit c2 --author justin >/dev/null 2>&1
+assert_eq "only the author of a comment can edit it" "2" "$?"
+printf 'nothing' | stub comment "$discussed" --edit c9 --author justin >/dev/null 2>&1
+assert_eq "a comment that does not exist cannot be edited" "3" "$?"
+stub uncomment "$discussed" c2 --author justin >/dev/null 2>&1
+assert_eq "nor deleted by anyone else" "2" "$?"
+assert_eq "a delete names the comment" "deleted c3 on $discussed" "$(stub uncomment "$discussed" c3 --author justin)"
+assert_eq "a deleted comment leaves the thread" "c2" \
+  "$(stub comments "$discussed" --json | jq --raw-output '.[] | select(.thread == "c2") | [.comments[].id] | join(" ")')"
+stub uncomment "$discussed" c1 --author justin >/dev/null
+assert_eq "and a thread with nothing left in it goes" "c2" "$(stub comments "$discussed" --all --json | jq --raw-output '[.[].thread] | join(" ")')"
+assert_eq "a later comment still gets a fresh number" "c4" "$(printf 'new' | stub comment "$discussed" --author justin)"
+stub resolve "$discussed" c2 >/dev/null
+assert_eq "a resolved thread drops out of the count" "1" "$(count_of "$discussed")"
+assert_eq "reopen names the thread" "reopened c2 on $discussed" "$(stub reopen "$discussed" c2)"
+assert_eq "and puts it back in the open list" "c2 c4" "$(stub comments "$discussed" --json | jq --raw-output '[.[].thread] | join(" ")')"
+assert_eq "a reopen is committed under its verb and id" "reopen $discussed" "$(last_commit %s)"
+stub reopen "$discussed" c4 >/dev/null
+assert_eq "reopening an open thread changes nothing" "reopen $discussed" "$(last_commit %s)"
+stub reopen "$discussed" c9 >/dev/null 2>&1
+assert_eq "and a thread that does not exist is refused" "3" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
