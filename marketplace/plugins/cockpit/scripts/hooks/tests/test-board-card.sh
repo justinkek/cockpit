@@ -522,6 +522,27 @@ stub set "$renamed" epic "$named_epic" >/dev/null
 stub undo "$named_epic" >/dev/null 2>&1
 assert_eq "but not while another record names it" "2 $COCKPIT_BOARD_DIR/epics/$named_epic.md" "$? $(stub path "$named_epic")"
 stub set "$renamed" epic "" >/dev/null
+attached="$(stub create --name "Attached, renamed and archived")"
+printf 'note' > "$TMPDIR/note.txt"
+stub attach "$attached" "$TMPDIR/note.txt" >/dev/null
+attached_bug="$(stub set "$attached" type Bug | sed -n 's/^renamed .* to //p')"
+stub undo "$attached_bug" >/dev/null
+assert_eq "undoing a rename takes the attachments back and leaves no folder under the id it left" "true false" \
+  "$([ -f "$COCKPIT_BOARD_DIR/attachments/$attached/note.txt" ] && echo true) $([ -e "$COCKPIT_BOARD_DIR/attachments/$attached_bug" ] && echo true || echo false)"
+stub set "$attached" type Bug >/dev/null
+assert_eq "so renaming it again puts the attachment straight under the new id" "true" \
+  "$([ -f "$COCKPIT_BOARD_DIR/attachments/$attached_bug/note.txt" ] && echo true)"
+stub archive "$attached_bug" >/dev/null
+stub undo "$attached_bug" >/dev/null
+assert_eq "undoing an archive leaves no folder in the archive's attachments" "false" \
+  "$([ -e "$COCKPIT_BOARD_DIR/archive/attachments/$attached_bug" ] && echo true || echo false)"
+stub archive "$attached_bug" >/dev/null
+assert_eq "so archiving it again puts the attachment straight under its id" "true" \
+  "$([ -f "$COCKPIT_BOARD_DIR/archive/attachments/$attached_bug/note.txt" ] && echo true)"
+mkdir -p "$COCKPIT_BOARD_DIR/attachments/$attached_bug"
+stub unarchive "$attached_bug" >/dev/null
+assert_eq "and an empty folder already waiting under its id is replaced rather than moved into" "true" \
+  "$([ -f "$COCKPIT_BOARD_DIR/attachments/$attached_bug/note.txt" ] && echo true)"
 
 printf "\nTest group: undo keeps both sides of a link, and the claim lock, in step with the record\n"
 

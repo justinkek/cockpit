@@ -800,13 +800,21 @@ follow_rename() {
   return 0
 }
 
+move_attachments() {
+  local from="$1" to="$2"
+  [ -d "$from" ] || return 0
+  rmdir "$to" 2>/dev/null || true
+  mkdir -p "$(dirname "$to")"
+  mv "$from" "$to"
+}
+
 rename_card() {
   local from="$1" to="$2" directory
   directory="$BOARD_DIR/cards"
   read_record "$from" | jq --arg to "$to" '.id = $to' | write_record "$to"
   rm -f "$directory/$from.md"
   [ -f "$directory/$from.comments.jsonl" ] && mv "$directory/$from.comments.jsonl" "$directory/$to.comments.jsonl"
-  [ -d "$BOARD_DIR/attachments/$from" ] && mv "$BOARD_DIR/attachments/$from" "$BOARD_DIR/attachments/$to"
+  move_attachments "$BOARD_DIR/attachments/$from" "$BOARD_DIR/attachments/$to"
   follow_rename "$from" "$to"
 }
 
@@ -1297,10 +1305,7 @@ archive_locked() {
   mkdir -p "$to/$directory"
   mv "$from/$directory/$id.md" "$to/$directory/$id.md"
   if [ -f "$from/$directory/$id.comments.jsonl" ]; then mv "$from/$directory/$id.comments.jsonl" "$to/$directory/$id.comments.jsonl"; fi
-  if [ -d "$from/attachments/$id" ]; then
-    mkdir -p "$to/attachments"
-    mv "$from/attachments/$id" "$to/attachments/$id"
-  fi
+  move_attachments "$from/attachments/$id" "$to/attachments/$id"
   if [ "$direction" = unarchive ]; then touch_record "$id"; fi
   printf '%sd %s\n' "$direction" "$id"
 }
@@ -1491,6 +1496,7 @@ undo_locked() {
       board_git show "$commit^:$path" > "$BOARD_DIR/$path"
     else
       rm -f "$BOARD_DIR/$path"
+      case "$path" in attachments/*/* | archive/attachments/*/*) rmdir "$BOARD_DIR/$(dirname "$path")" 2>/dev/null || true ;; esac
     fi
   done
   [ "$archived" = true ] || printf '%s' "$restored" | write_record "$before_id" touch
