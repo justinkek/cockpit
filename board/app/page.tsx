@@ -20,10 +20,6 @@ export default async function CardsPage() {
 		return <p className="notice error">{error.message}</p>;
 	}
 
-	if (cards.length === 0) {
-		return <p className="notice">No cards yet. Create one with board-card create --name ….</p>;
-	}
-
 	return (
 		<Board
 			kind="card"

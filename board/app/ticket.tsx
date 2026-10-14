@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
-import { dropCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
+import { dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
@@ -153,7 +153,20 @@ export function Ticket({
 	);
 
 	const kind = kindOf(record.id);
-	const edits: Edits = { label: record.id, move: handlers.onMove, edit: handlers.onEdit };
+	const edits: Edits = { label: record.id, move: handlers.onMove, edit: handlers.onEdit, duplicate };
+
+	function duplicate() {
+		setError("");
+		startTransition(async () => {
+			const result = await duplicateCard(record.id);
+			if (!result.record) {
+				setError(result.error ?? "board-card made nothing");
+				return;
+			}
+			carryTo(result.record.id, toastOf(`Duplicated ${record.id} as ${result.record.id}`));
+			router.push(`/card/${result.record.id}`);
+		});
+	}
 
 	async function copy(asLink: boolean) {
 		const copied = await copyText(asLink ? cardLink(record.id) : record.id);

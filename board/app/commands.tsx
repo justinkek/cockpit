@@ -10,6 +10,7 @@ export type Edits = {
 	move: (column: string) => void;
 	edit: (field: string, value: string, change: Partial<Card>) => void;
 	archive?: () => void;
+	duplicate?: () => void;
 };
 
 function dot(column: string) {
@@ -117,6 +118,9 @@ export function recordCommands(
 					]),
 			},
 		);
+	}
+	if (edits.duplicate) {
+		commands.push({ id: "do:duplicate", group, label: "Duplicate", keywords: "copy clone", run: edits.duplicate });
 	}
 	if (edits.archive) {
 		commands.push({ id: "do:archive", group, label: "Archive", keywords: "remove hide", run: edits.archive });

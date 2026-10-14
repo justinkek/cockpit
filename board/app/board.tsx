@@ -24,6 +24,7 @@ import {
 	bulkChange,
 	createCard,
 	dropCard,
+	duplicateCard,
 	editCard,
 	findInContent,
 	linkCards,
@@ -32,6 +33,7 @@ import {
 } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
+import { type Draft, NewRecord } from "@/app/create";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -680,6 +682,7 @@ export function Board({
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	const [addingIn, setAddingIn] = useState<string | null>(null);
+	const [composing, setComposing] = useState(false);
 	const [focusedId, setFocusedId] = useState<string | null>(null);
 	const [helpOpen, setHelpOpen] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
@@ -695,6 +698,8 @@ export function Board({
 		const saved = loadView(kind);
 		const params = new URLSearchParams(window.location.search);
 		const epic = params.get("epic");
+		const failure = params.get("error");
+		if (failure) setNotice({ id: "", text: failure });
 		if (saved || epic) setView({ ...(saved ?? DEFAULT_VIEW), ...(epic ? { epic } : {}) });
 		const opening = params.get("open")?.toUpperCase();
 		if (opening) {
@@ -716,6 +721,7 @@ export function Board({
 		const url = new URL(window.location.href);
 		if (openId) url.searchParams.set("open", openId);
 		else url.searchParams.delete("open");
+		url.searchParams.delete("error");
 		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
 	}, [openId, loaded]);
 
@@ -919,7 +925,13 @@ export function Board({
 		const stub = stubs.find((s) => s.id === ids[0]);
 		if (!stub) return null;
 		const handlers = handlersFor(stub);
-		return { label: stub.id, move: handlers.onMove, edit: handlers.onEdit, archive: bulkEdits(ids).archive };
+		return {
+			label: stub.id,
+			move: handlers.onMove,
+			edit: handlers.onEdit,
+			archive: bulkEdits(ids).archive,
+			duplicate: () => duplicate(stub.id),
+		};
 	}
 
 	function rootPage(): Page {
@@ -968,6 +980,14 @@ export function Board({
 						},
 					})),
 				}),
+			},
+			{
+				id: "go:compose",
+				group: "Board",
+				label: `New ${kind} with its fields and content…`,
+				hint: "Shift+C",
+				keywords: "create add",
+				run: () => setComposing(true),
 			},
 			{
 				id: "go:layout",
@@ -1071,6 +1091,10 @@ export function Board({
 				break;
 			case "c": {
 				event.preventDefault();
+				if (event.shiftKey) {
+					setComposing(true);
+					break;
+				}
 				const focused = order.find((stub) => stub.id === target);
 				const column = focused?.status ?? columns.find((c) => !view.collapsed.includes(c)) ?? columns[0];
 				if (!column) return;
@@ -1078,6 +1102,10 @@ export function Board({
 				setAddingIn(column);
 				break;
 			}
+			case "C":
+				event.preventDefault();
+				setComposing(true);
+				break;
 		}
 	});
 
@@ -1086,7 +1114,8 @@ export function Board({
 		{ keys: ["h", "l"], label: "Previous or next column" },
 		{ keys: ["Enter"], label: "Open the focused card" },
 		{ keys: ["Esc"], label: "Close the card, or clear the focus" },
-		{ keys: ["c"], label: "New card in the focused column" },
+		{ keys: ["c"], label: `New ${kind} in the focused column` },
+		{ keys: ["Shift", "C"], label: `New ${kind} with its fields and content` },
 		{ keys: ["Cmd/Ctrl", "K"], label: "Command menu: jump to a card or run an action" },
 		{ keys: ["x"], label: "Select the focused card, or Shift-click one" },
 		{ keys: ["s"], label: "Move the card, or the selected cards, to a column" },
@@ -1249,6 +1278,48 @@ export function Board({
 		return true;
 	}
 
+	async function compose(draft: Draft): Promise<string | null> {
+		setNotice(null);
+		const lane = visible.filter((stub) => stub.status === draft.status);
+		const last = lane.at(-1);
+		const { name, status, ...options } = draft;
+		const result = await createCard(kind, name, status, {
+			...options,
+			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
+		});
+		const fresh = result.record;
+		if (!fresh) {
+			if (!result.moved) return `Could not create the ${kind}: ${result.error ?? "board-card made nothing"}`;
+			setComposing(false);
+			setNotice({ id: "", text: result.error ?? "" });
+			router.refresh();
+			return null;
+		}
+		setStubs((current) => [...current, fresh]);
+		setComposing(false);
+		if (view.collapsed.includes(fresh.status)) toggleColumn(fresh.status);
+		openCard(fresh.id);
+		setToast(toastOf(`Created ${fresh.id}`));
+		router.refresh();
+		return null;
+	}
+
+	function duplicate(id: string) {
+		setNotice(null);
+		startTransition(async () => {
+			const result = await duplicateCard(id);
+			const fresh = result.record;
+			if (!fresh) {
+				setNotice({ id: result.moved ?? id, text: `${id}: ${result.error ?? "board-card made nothing"}` });
+				return;
+			}
+			setStubs((current) => [...current, fresh]);
+			openCard(fresh.id);
+			setToast(toastOf(`Duplicated ${id} as ${fresh.id}`));
+			router.refresh();
+		});
+	}
+
 	function onDragStart(event: DragStartEvent) {
 		const id = draggedId(event.active.id);
 		setDragging(stubs.find((stub) => stub.id === id) ?? null);
@@ -1284,6 +1355,18 @@ export function Board({
 			<MentionContext.Provider value={mentions}>
 			<div className={`board${open ? " peeking" : ""}`}>
 				<div className="toolbar">
+					<NewRecord
+						kind={kind}
+						lists={lists}
+						open={composing}
+						defaults={{
+							status: columnsOfKind[0],
+							type: kind === "card" && view.types.length === 1 ? view.types[0] : undefined,
+							epic: kind === "card" ? view.epic || undefined : undefined,
+						}}
+						onOpenChange={setComposing}
+						onCreate={compose}
+					/>
 					<div className="segmented" role="group" aria-label="Layout">
 						{(["board", "list"] as const).map((layout) => (
 							<button

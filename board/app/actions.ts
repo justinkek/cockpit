@@ -11,6 +11,7 @@ import {
 	type Kind,
 	changeStatus,
 	createRecord,
+	duplicateRecord,
 	findRenamed,
 	lastCommit,
 	link,
@@ -27,6 +28,7 @@ type Failure = { error?: string; moved?: string };
 export type Span = { since: string; until: string };
 type Result = Failure & { record?: Card; undo?: Span };
 type Threads = Failure & { threads?: CommentThread[] };
+export type NewOptions = { type?: string; epic?: string; rank?: number; body?: string; project?: string };
 
 function refresh(id: string) {
 	revalidatePath("/");
@@ -96,19 +98,45 @@ export async function createCard(
 	kind: Kind,
 	name: string,
 	status: string,
-	options: { type?: string; epic?: string; rank?: number } = {},
+	options: NewOptions = {},
 ): Promise<Result> {
 	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
-	if (!typed) return { error: "a new card needs a name" };
+	if (!typed) return { error: `a new ${kind} needs a name` };
+	let id = "";
 	try {
-		const id = await createRecord(kind, typed, status, options);
+		id = await createRecord(kind, typed, status, options);
 		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
+		if (options.project) await setField(id, "project", options.project);
 		refresh(id);
 		return { record: await readRecord(id) };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
-		return { error: error.message };
+		return { error: id ? `${id} was created, but ${error.message}` : error.message, moved: id || undefined };
 	}
+}
+
+export async function duplicateCard(id: string): Promise<Result> {
+	try {
+		const source = await readRecord(id);
+		const copy = await duplicateRecord(id, source.status);
+		refresh(copy);
+		return { record: await readRecord(copy) };
+	} catch (error) {
+		return failed(id, error);
+	}
+}
+
+export async function submitNew(form: FormData): Promise<void> {
+	const kind: Kind = text(form, "kind") === "epic" ? "epic" : "card";
+	const result = await createCard(kind, text(form, "name"), text(form, "status"), {
+		type: text(form, "type") || undefined,
+		epic: text(form, "epic") || undefined,
+		project: text(form, "project") || undefined,
+		body: typeof form.get("body") === "string" ? String(form.get("body")).replace(/\r\n/g, "\n") : undefined,
+	});
+	const made = result.record?.id ?? result.moved;
+	if (made) redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
+	redirect(`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kind}: ${result.error}`)}`);
 }
 
 export async function editCard(id: string, field: string, value: string): Promise<Result> {

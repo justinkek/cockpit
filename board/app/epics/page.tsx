@@ -14,10 +14,6 @@ export default async function EpicsPage() {
 		return <p className="notice error">{error.message}</p>;
 	}
 
-	if (epics.length === 0) {
-		return <p className="notice">No epics yet. Create one with board-card create --kind epic --name ….</p>;
-	}
-
 	const children: Record<string, { id: string; name: string; status: string }[]> = {};
 	for (const card of cards) {
 		if (!card.epic) continue;

@@ -1886,3 +1886,107 @@
 		color: var(--ink);
 	}
 }
+
+@layer components {
+	.new-record {
+		position: relative;
+		flex: none;
+
+		& > summary {
+			list-style: none;
+
+			&::-webkit-details-marker {
+				display: none;
+			}
+		}
+	}
+
+	.new-open {
+		display: inline-flex;
+		align-items: center;
+		height: 28px;
+		padding: 0 10px;
+		border-radius: var(--radius);
+		background: var(--accent);
+		color: #fff;
+		font-weight: 500;
+		white-space: nowrap;
+		cursor: pointer;
+		user-select: none;
+
+		&:focus-visible {
+			outline: 2px solid var(--accent-soft);
+			outline-offset: 1px;
+		}
+	}
+
+	.new-panel {
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 0;
+		z-index: 35;
+		width: min(520px, calc(100vw - 32px));
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 8px;
+		padding: 12px;
+		background: var(--panel);
+		border-radius: 10px;
+		box-shadow: var(--shadow-lift);
+
+		& .composer-actions button {
+			height: 30px;
+		}
+	}
+
+	.new-name {
+		height: 34px;
+		font-size: 14px;
+		font-weight: 500;
+	}
+
+	.new-props {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+
+		& select {
+			flex: 1 1 140px;
+			max-width: 100%;
+		}
+	}
+
+	.new-body {
+		width: 100%;
+		min-height: 96px;
+		padding: 8px 10px;
+		font: 12.5px/1.55 var(--mono);
+		color: inherit;
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		resize: vertical;
+
+		&:focus {
+			outline: 2px solid var(--accent-soft);
+			border-color: var(--accent);
+		}
+	}
+
+	.new-error {
+		margin: 0;
+		color: var(--danger);
+	}
+
+	@media (width < 760px) {
+		.new-panel {
+			position: fixed;
+			top: 56px;
+			left: 16px;
+			right: 16px;
+			width: auto;
+			max-height: calc(100dvh - 72px);
+			overflow-y: auto;
+		}
+	}
+}
