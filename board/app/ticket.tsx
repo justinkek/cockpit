@@ -7,7 +7,7 @@ import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import type { Card } from "@/lib/shared";
 
-type Result = { record?: Card; error?: string };
+type Result = { record?: Card; error?: string; moved?: string };
 
 export function Ticket({ initial, lists, failure }: { initial: Card; lists: Lists; failure?: string }) {
 	const router = useRouter();
@@ -22,7 +22,11 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 		if (!url.searchParams.has("error")) return;
 		url.searchParams.delete("error");
 		router.replace(`${url.pathname}${url.search}`, { scroll: false });
-	}, [router]);
+	}, [router, failure]);
+
+	useEffect(() => {
+		if (failure) setError(failure);
+	}, [failure]);
 
 	const dates = Object.entries(record.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 
@@ -35,6 +39,7 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 			if (result.error) {
 				setRecord(before);
 				setError(result.error);
+				if (result.moved) router.replace(`/card/${result.moved}?error=${encodeURIComponent(result.error)}`);
 				return;
 			}
 			if (!result.record) return;

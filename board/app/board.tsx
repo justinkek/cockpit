@@ -557,7 +557,7 @@ export function Board({
 	function apply(
 		id: string,
 		optimistic: Partial<Stub>,
-		request: () => Promise<{ record?: Stub; error?: string }>,
+		request: () => Promise<{ record?: Stub; error?: string; moved?: string }>,
 	) {
 		const before = stubs.find((s) => s.id === id);
 		if (!before) return;
@@ -568,8 +568,13 @@ export function Board({
 			const result = await request();
 			markPending(id, false);
 			if (result.error) {
+				const moved = result.moved;
 				setStubs((current) => current.map((s) => (s.id === id ? before : s)));
-				setNotice({ id, text: `${id}: ${result.error}` });
+				setNotice({ id: moved ?? id, text: moved ? result.error : `${id}: ${result.error}` });
+				if (moved) {
+					setOpenId((opened) => (opened === id ? moved : opened));
+					router.refresh();
+				}
 				return;
 			}
 			const fresh = result.record;

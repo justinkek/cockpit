@@ -8,6 +8,7 @@ import {
 	type Card,
 	type CommentThread,
 	changeStatus,
+	findRenamed,
 	link,
 	listRecords,
 	readComments,
@@ -16,13 +17,24 @@ import {
 	setField,
 } from "@/lib/board";
 
-type Result = { record?: Card; error?: string };
-type Threads = { threads?: CommentThread[]; error?: string };
+type Failure = { error?: string; moved?: string };
+type Result = Failure & { record?: Card };
+type Threads = Failure & { threads?: CommentThread[] };
 
 function refresh(id: string) {
 	revalidatePath("/");
 	revalidatePath("/epics");
 	revalidatePath(`/card/${id}`);
+}
+
+async function failed(id: string, error: unknown): Promise<Failure> {
+	if (!(error instanceof BoardError)) throw error;
+	const missing = error.message.match(/^no record (\S+) in /)?.[1];
+	if (!missing) return { error: error.message };
+	if (missing !== id) return { error: `${missing} is not on the board` };
+	const moved = await findRenamed(id);
+	if (moved) return { error: `${id} is now ${moved} - it was changed elsewhere, so this change was not saved`, moved };
+	return { error: `${id} is no longer on the board - reload to see what changed` };
 }
 
 async function report(id: string, change: () => Promise<string | void>): Promise<Result> {
@@ -31,8 +43,7 @@ async function report(id: string, change: () => Promise<string | void>): Promise
 		refresh(current);
 		return { record: await readRecord(current) };
 	} catch (error) {
-		if (!(error instanceof BoardError)) throw error;
-		return { error: error.message };
+		return failed(id, error);
 	}
 }
 
@@ -42,8 +53,7 @@ async function threadsAfter(id: string, change: () => Promise<void>): Promise<Th
 		refresh(id);
 		return { threads: await readComments(id) };
 	} catch (error) {
-		if (!(error instanceof BoardError)) throw error;
-		return { error: error.message };
+		return failed(id, error);
 	}
 }
 
@@ -80,12 +90,11 @@ export async function checkTodo(id: string, line: number, expected: string, done
 	});
 }
 
-export async function loadBody(id: string): Promise<{ body?: string; error?: string }> {
+export async function loadBody(id: string): Promise<Failure & { body?: string }> {
 	try {
 		return { body: (await readRecord(id)).body };
 	} catch (error) {
-		if (!(error instanceof BoardError)) throw error;
-		return { error: error.message };
+		return failed(id, error);
 	}
 }
 
@@ -93,8 +102,7 @@ export async function loadComments(id: string): Promise<Threads> {
 	try {
 		return { threads: await readComments(id) };
 	} catch (error) {
-		if (!(error instanceof BoardError)) throw error;
-		return { error: error.message };
+		return failed(id, error);
 	}
 }
 
@@ -148,8 +156,9 @@ export async function submitCard(form: FormData): Promise<void> {
 		}
 		refresh(current);
 	} catch (error) {
-		if (!(error instanceof BoardError)) throw error;
-		failure = error.message;
+		const result = await failed(current, error);
+		failure = result.error ?? "";
+		current = result.moved ?? current;
 	}
 	redirect(`/card/${encodeURIComponent(current)}${failure ? `?error=${encodeURIComponent(failure)}` : ""}`);
 }
