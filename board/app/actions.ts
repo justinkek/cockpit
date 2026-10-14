@@ -20,6 +20,7 @@ import {
 	link,
 	listRecords,
 	readComments,
+	readInboxUpTo,
 	readRecord,
 	resolveComment,
 	searchContent,
@@ -225,6 +226,17 @@ export async function changeComment(id: string, comment: string, text: string): 
 
 export async function removeComment(id: string, comment: string): Promise<Threads> {
 	return threadsAfter(id, () => deleteComment(id, comment));
+}
+
+export async function markInboxRead(stamp: string): Promise<Failure> {
+	try {
+		await readInboxUpTo(stamp);
+		revalidatePath("/inbox");
+		return {};
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
 }
 
 function text(form: FormData, name: string) {

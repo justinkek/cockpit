@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 				<header className="masthead">
 					<Link href="/" className="brand">
 						<span className="brand-mark" aria-hidden="true" />
-						Cockpit
+						<span className="brand-name">Cockpit</span>
 					</Link>
 					<Nav />
 					<LiveUpdates />

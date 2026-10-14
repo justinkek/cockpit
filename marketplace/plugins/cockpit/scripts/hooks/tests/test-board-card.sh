@@ -835,5 +835,51 @@ assert_eq "reopening an open thread changes nothing" "reopen $discussed" "$(last
 stub reopen "$discussed" c9 >/dev/null 2>&1
 assert_eq "and a thread that does not exist is refused" "3" "$?"
 
+printf "\nTest group: the inbox gathers what waits on the person reading it\n"
+
+inbox_board="$TMPDIR/inbox-board"
+inbox() { COCKPIT_BOARD_DIR="$inbox_board" COCKPIT_AUTHOR=justin stub "$@"; }
+inbox init >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Talked about" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Waiting on review" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Stuck" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --kind epic --name "An epic" >/dev/null
+printf 'my own note' | COCKPIT_NOW=2026-10-14T10:00:00Z inbox comment FEAT-1 >/dev/null
+printf 'an agent asks' | COCKPIT_NOW=2026-10-14T10:05:00Z inbox comment FEAT-1 --author "claude one" >/dev/null
+printf 'on the epic' | COCKPIT_NOW=2026-10-14T10:06:00Z inbox comment EPIC-1 --author "claude two" >/dev/null
+printf 'gone' | COCKPIT_NOW=2026-10-14T10:07:00Z inbox comment FEAT-1 --author "claude one" >/dev/null
+COCKPIT_AUTHOR="claude one" COCKPIT_BOARD_DIR="$inbox_board" stub uncomment FEAT-1 c3 >/dev/null
+COCKPIT_NOW=2026-10-14T10:10:00Z inbox walk FEAT-2 "Ready for CR" >/dev/null
+COCKPIT_NOW=2026-10-14T10:15:00Z inbox set FEAT-3 blocked "waiting on keys" >/dev/null
+assert_eq "setting a block stamps when it began" "2026-10-14T10:15:00Z" \
+  "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-3 --json | jq --raw-output .blocked_at)"
+COCKPIT_NOW=2026-10-14T11:00:00Z inbox set FEAT-3 blocked "waiting on keys" >/dev/null
+assert_eq "and the same block set again keeps that time" "2026-10-14T10:15:00Z" \
+  "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-3 --json | jq --raw-output .blocked_at)"
+listed="$(COCKPIT_NOW=2026-10-14T12:00:00Z inbox inbox --json)"
+assert_eq "it lists others' comments, cards waiting on a person and blocks, newest first" \
+  "blocked FEAT-3|waiting FEAT-2|comment EPIC-1|comment FEAT-1" \
+  "$(printf '%s' "$listed" | jq --raw-output '[.items[] | "\(.kind) \(.id)"] | join("|")')"
+assert_eq "leaving out the reader's own comments and deleted ones" "an agent asks" \
+  "$(printf '%s' "$listed" | jq --raw-output '[.items[] | select(.kind == "comment" and .id == "FEAT-1") | .text] | join("|")')"
+assert_eq "a waiting card is dated by when it reached the column" "2026-10-14T10:10:00Z" \
+  "$(printf '%s' "$listed" | jq --raw-output '.items[] | select(.kind == "waiting") | .at')"
+assert_eq "with nothing read yet, the last week is unread" "4 null" "$(printf '%s' "$listed" | jq --raw-output '"\(.unread) \(.seen)"')"
+assert_eq "reading names the time it read up to" "read the inbox up to 2026-10-14T10:06:00Z" "$(inbox inbox --read 2026-10-14T10:06:00Z)"
+assert_eq "a read is committed under its verb" "inbox" "$(git -C "$inbox_board" log -1 --format=%s)"
+assert_eq "what came after the read stays unread" "2 blocked FEAT-3|waiting FEAT-2" \
+  "$(COCKPIT_NOW=2026-10-14T12:00:00Z inbox inbox --json | jq --raw-output '"\(.unread) \([.items[] | select(.unread) | "\(.kind) \(.id)"] | sort | join("|"))"')"
+COCKPIT_NOW=2026-10-14T13:00:00Z inbox set FEAT-3 name "Still stuck" >/dev/null
+assert_eq "and an edit to a blocked card does not bring its block back" "2" \
+  "$(COCKPIT_NOW=2026-10-14T13:00:00Z inbox inbox --json | jq .unread)"
+COCKPIT_NOW=2026-10-14T13:30:00Z inbox inbox --read >/dev/null
+assert_eq "a read with no time reads up to now" "0 2026-10-14T13:30:00Z" "$(inbox inbox --json | jq --raw-output '"\(.unread) \(.seen)"')"
+assert_eq "--limit keeps the newest" "blocked FEAT-3" "$(inbox inbox --json --limit 1 | jq --raw-output '.items | map("\(.kind) \(.id)") | join("|")')"
+inbox set FEAT-3 blocked "" >/dev/null
+assert_eq "clearing a block takes it and its time away" "null null 3" \
+  "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-3 --json | jq --raw-output '"\(.blocked) \(.blocked_at)"') $(inbox inbox --json | jq '.items | length')"
+inbox inbox --read yesterday >/dev/null 2>&1
+assert_eq "a read time that is not a time is refused" "2" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

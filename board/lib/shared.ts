@@ -94,6 +94,23 @@ export type CommentThread = {
 	comments: { id: string; author: string; at: string; text: string; edited?: string }[];
 };
 
+export type InboxItem = {
+	kind: "comment" | "waiting" | "blocked";
+	id: string;
+	name: string;
+	status: string;
+	at: string;
+	unread: boolean;
+	author?: string;
+	text?: string;
+	thread?: string;
+	comment?: string;
+	anchor?: string | null;
+	resolved?: boolean;
+};
+
+export type Inbox = { me: string; seen: string | null; now: string; unread: number; items: InboxItem[] };
+
 export type Named = { id: string; name: string };
 
 export type Sprint = Named & { start?: string | null; end?: string | null };
@@ -172,4 +189,17 @@ export function overrunTitle(record: Pick<Card, "type" | "timebox_mins" | "compl
 
 export function manualRank(record: Pick<Card, "id" | "rank">) {
 	return record.rank ?? -Number(record.id.split("-").at(-1));
+}
+
+export function ago(stamp: string, now = Date.now()) {
+	const date = new Date(stamp);
+	if (Number.isNaN(date.getTime())) return stamp;
+	const minutes = Math.round((now - date.getTime()) / 60000);
+	if (minutes < 1) return "just now";
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.round(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	const days = Math.round(hours / 24);
+	if (days < 7) return `${days}d ago`;
+	return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }

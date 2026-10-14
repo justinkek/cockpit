@@ -34,6 +34,7 @@
 #   board-card history <id>
 #   board-card undo <id> [--since <commit> [--until <commit>]]
 #   board-card revision
+#   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -79,6 +80,11 @@ EPIC_COLUMNS=(
   "Ready for TD by AI" "In TD by AI" "Ready for TD" "In TD"
   "Ready for Ticket Breakdown by AI" "In Ticket Breakdown by AI" "Ready for Ticket Breakdown" "In Ticket Breakdown"
   "Tickets In Dev" "Epic Done"
+)
+
+WAITING_COLUMNS=(
+  "Ready for BR" "Ready for TR" "Ready for CR" "Ready for FR" "Ready for Validation"
+  "Ready for FD" "Ready for TD" "Ready for Ticket Breakdown"
 )
 
 FIBONACCI=" 0 1 2 3 5 8 13 21 34 "
@@ -931,7 +937,13 @@ set_locked() {
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]{4}-[0-9]{2}-[0-9]{2}' || die 2 "due is a date, not '$value'"
       update_record "$id" --argjson value "$(nullable "$value")" '.due = $value'
       ;;
-    session|blocked|prs)
+    blocked)
+      update_record "$id" --argjson value "$(nullable "$value")" --arg at "$(now)" '
+        if $value == null then .blocked = null | del(.blocked_at)
+        elif .blocked == $value then .
+        else .blocked = $value | .blocked_at = $at end'
+      ;;
+    session|prs)
       update_record "$id" --arg field "$field" --argjson value "$(nullable "$value")" '.[$field] = $value'
       ;;
     models.*)
@@ -1683,6 +1695,75 @@ command_revision() {
   fi
 }
 
+inbox_read_locked() {
+  printf '%s\n' "$1" > "$BOARD_DIR/inbox-seen"
+}
+
+command_inbox() {
+  local as_json=false reading=false stamp="" author="" limit=100 scratch kind inbox
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --json) as_json=true; shift ;;
+      --read)
+        reading=true
+        shift
+        if [ "$#" -gt 0 ] && [ "${1#--}" = "$1" ]; then stamp="$1"; shift; fi
+        ;;
+      --author) author="${2:-}"; shift 2 ;;
+      --limit) limit="${2:-}"; shift 2 ;;
+      *) die 2 "inbox: unknown option '$1'" ;;
+    esac
+  done
+  require_board
+  if [ "$reading" = true ]; then
+    [ -n "$stamp" ] || stamp="$(now)"
+    printf '%s' "$stamp" | grep --quiet --extended-regexp '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}' \
+      || die 2 "not a time: '$stamp' - write it as 2026-10-14T09:30:00Z"
+    with_lock inbox_read_locked "$stamp"
+    printf 'read the inbox up to %s\n' "$stamp"
+    return 0
+  fi
+  printf '%s' "$limit" | grep --quiet --extended-regexp '^[0-9]+$' || die 2 "--limit needs a number"
+  [ -n "$author" ] || author="$(default_author)"
+  scratch="$(mktemp -d)"
+  { command_list --kind card --json; command_list --kind epic --json; } | jq --slurp 'add' > "$scratch/records.json"
+  printf '[]' > "$scratch/comments.json"
+  for kind in card epic; do
+    local notes=("$(directory_of_kind "$kind")"/*.comments.jsonl)
+    [ -f "${notes[0]}" ] || continue
+    jq --null-input '[inputs as $line | $line + {record: (input_filename | sub("^.*/"; "") | sub("\\.comments\\.jsonl$"; ""))}]' \
+      "${notes[@]}" | jq --slurp 'add' "$scratch/comments.json" - > "$scratch/merged.json"
+    mv "$scratch/merged.json" "$scratch/comments.json"
+  done
+  inbox="$(jq --null-input --slurpfile records "$scratch/records.json" --slurpfile comments "$scratch/comments.json" \
+    --arg me "$author" --arg seen "$(cat "$BOARD_DIR/inbox-seen" 2>/dev/null || true)" --arg now "$(now)" \
+    --argjson limit "$limit" --argjson waiting "$(printf '%s\n' "${WAITING_COLUMNS[@]}" | jq --raw-input . | jq --slurp --compact-output .)" \
+    "$derived_program"'
+    def at_seconds: (epoch // 0);
+    ($records[0] | map({key: .id, value: .}) | from_entries) as $by
+    | ($comments[0] | map(select(.id == .thread) | {key: "\(.record) \(.thread)", value: (.resolved // false)}) | from_entries) as $resolved
+    | (if $seen == "" then ($now | at_seconds) - 7 * 86400 else ($seen | at_seconds) end) as $since
+    | ([$comments[0][] | select((.deleted | not) and .author != $me and $by[.record] != null)
+        | {kind: "comment", id: .record, name: $by[.record].name, status: $by[.record].status, at, author, text,
+           thread, comment: .id, anchor, resolved: ($resolved["\(.record) \(.thread)"] // false)}]
+       + [$records[0][] | select(.status as $status | $waiting | index($status))
+          | {kind: "waiting", id, name, status, at: (.dates[.status] // .moved // .created)}]
+       + [$records[0][] | select((.blocked // "") != "")
+          | {kind: "blocked", id, name, status, at: (.blocked_at // .moved // .created), text: .blocked}])
+    | map(. + {unread: ((.at | at_seconds) > $since)})
+    | sort_by(.at | at_seconds) | reverse
+    | {me: $me, seen: (if $seen == "" then null else $seen end), now: $now,
+       unread: (map(select(.unread)) | length), items: .[:$limit]}')" || { rm -rf "$scratch"; return 1; }
+  rm -rf "$scratch"
+  if [ "$as_json" = true ]; then
+    printf '%s\n' "$inbox"
+  else
+    printf '%s' "$inbox" | jq --raw-output '.items[] | [(if .unread then "*" else " " end), .at, .kind, .id,
+          (if .kind == "comment" then "\(.author): \(.text | split("\n")[0])"
+           elif .kind == "blocked" then .text else "waiting in \(.status)" end)] | @tsv'
+  fi
+}
+
 command_path() {
   local id
   if [ -n "${1:-}" ]; then
@@ -1732,6 +1813,7 @@ case "$action" in
   history) command_history "$@" ;;
   undo) command_undo "$@" ;;
   revision) command_revision ;;
+  inbox) command_inbox "$@" ;;
   path) command_path "$@" ;;
   *) sed -n '3,/^#   board-card path/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

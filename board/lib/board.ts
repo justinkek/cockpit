@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Card, CommentThread, Kind } from "./shared";
+import type { Card, CommentThread, Inbox, Kind } from "./shared";
 
 export * from "./shared";
 
@@ -51,6 +51,14 @@ export async function listAttachments(id: string): Promise<string[]> {
 
 export async function boardRevision(): Promise<string> {
 	return (await boardCard(["revision"])).trim();
+}
+
+export async function readInbox(limit = 100): Promise<Inbox> {
+	return JSON.parse(await boardCard(["inbox", "--json", "--limit", String(limit)]));
+}
+
+export async function readInboxUpTo(stamp: string): Promise<void> {
+	await boardCard(["inbox", "--read", stamp]);
 }
 
 export async function boardDirectory(): Promise<string> {

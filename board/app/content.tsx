@@ -17,7 +17,7 @@ import { useHydrated } from "@/app/fields";
 import { onBoardChange } from "@/app/live";
 import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
-import type { Card, CommentThread } from "@/lib/shared";
+import { ago, type Card, type CommentThread } from "@/lib/shared";
 
 type Threads = { threads?: CommentThread[]; me?: string | null; error?: string };
 
@@ -49,19 +49,6 @@ function leavesPage(event: MouseEvent) {
 function when(stamp: string) {
 	const date = new Date(stamp);
 	return Number.isNaN(date.getTime()) ? stamp : date.toLocaleString();
-}
-
-export function ago(stamp: string, now = Date.now()) {
-	const date = new Date(stamp);
-	if (Number.isNaN(date.getTime())) return stamp;
-	const minutes = Math.round((now - date.getTime()) / 60000);
-	if (minutes < 1) return "just now";
-	if (minutes < 60) return `${minutes}m ago`;
-	const hours = Math.round(minutes / 60);
-	if (hours < 24) return `${hours}h ago`;
-	const days = Math.round(hours / 24);
-	if (days < 7) return `${days}d ago`;
-	return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 function Stamp({ at, edited }: { at: string; edited?: string }) {
