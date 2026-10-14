@@ -663,20 +663,40 @@ property_of_field() {
 
 nullable() { if [ -z "$1" ]; then echo null; else jq --null-input --arg value "$1" '$value'; fi; }
 
+EMOJI_SHOWN='[[8986,8987],[9193,9196],[9200,9200],[9203,9203],[9725,9726],[9748,9749],[9800,9811],[9855,9855],[9875,9875],
+  [9889,9889],[9898,9899],[9917,9918],[9924,9925],[9934,9934],[9940,9940],[9962,9962],[9970,9971],[9973,9973],[9978,9978],
+  [9981,9981],[9989,9989],[9994,9995],[10024,10024],[10060,10060],[10062,10062],[10067,10069],[10071,10071],[10133,10135],
+  [10160,10160],[10175,10175],[11035,11036],[11088,11088],[11093,11093]]'
+
+EMOJI_AS_TEXT='[[169,169],[174,174],[8252,8252],[8265,8265],[8482,8482],[8505,8505],[8596,8601],[8617,8618],[9000,9000],
+  [9167,9167],[9197,9199],[9201,9202],[9208,9210],[9410,9410],[9642,9643],[9654,9654],[9664,9664],[9723,9724],[9728,9732],
+  [9742,9742],[9745,9745],[9752,9752],[9757,9757],[9760,9760],[9762,9763],[9766,9766],[9770,9770],[9774,9775],[9784,9786],
+  [9792,9792],[9794,9794],[9823,9824],[9827,9827],[9829,9830],[9832,9832],[9851,9851],[9854,9854],[9874,9874],[9876,9879],
+  [9881,9881],[9883,9884],[9888,9888],[9895,9895],[9904,9905],[9928,9928],[9935,9935],[9937,9937],[9939,9939],[9961,9961],
+  [9968,9969],[9972,9972],[9975,9977],[9986,9986],[9992,9993],[9996,9997],[9999,9999],[10002,10002],[10004,10004],
+  [10006,10006],[10013,10013],[10017,10017],[10035,10036],[10052,10052],[10055,10055],[10083,10084],[10145,10145],
+  [10548,10549],[11013,11015],[12336,12336],[12349,12349],[12951,12951],[12953,12953]]'
+
 check_icon() {
-  jq --null-input --exit-status --arg value "$1" '
-    def pictograph: (. >= 8448 and . <= 11263) or (. >= 126976 and . <= 129791 and (. < 127462 or . > 127487) and (. < 127995 or . > 127999))
-      or . == 169 or . == 174 or . == 8252 or . == 8265 or . == 12336 or . == 12349 or . == 12951 or . == 12953;
+  jq --null-input --exit-status --arg value "$1" --argjson shown "$EMOJI_SHOWN" --argjson textual "$EMOJI_AS_TEXT" '
+    def within($ranges): . as $point | any($ranges[]; $point >= .[0] and $point <= .[1]);
+    def pictograph: within($shown)
+      or (. >= 126976 and . <= 129791 and (. < 127462 or . > 127487) and (. < 127995 or . > 127999));
     def flag: . >= 127462 and . <= 127487;
     def joiner: . == 8205;
     def modifier: . == 65038 or . == 65039 or . == 8419 or (. >= 127995 and . <= 127999) or (. >= 917536 and . <= 917631);
     def keycap: . == 35 or . == 42 or (. >= 48 and . <= 57);
     ($value | explode) as $points
-    | ([$points[] | select(pictograph)] | length) as $pictographs
-    | ([$points[] | select(flag)] | length) as $flags
-    | ([$points[] | select(keycap)] | length) as $keys
-    | ([$points[] | select(joiner)] | length) as $joins
-    | all($points[]; pictograph or flag or joiner or modifier or keycap)
+    | [range(0; $points | length) as $at | $points[$at]
+       | if pictograph then "pictograph"
+         elif within($textual) then (if $points[$at + 1] == 65039 or ($at > 0 and $points[$at - 1] == 8205) then "pictograph" else "text" end)
+         elif flag then "flag" elif joiner then "joiner" elif modifier then "modifier" elif keycap then "keycap"
+         else "text" end] as $classes
+    | ([$classes[] | select(. == "pictograph")] | length) as $pictographs
+    | ([$classes[] | select(. == "flag")] | length) as $flags
+    | ([$classes[] | select(. == "keycap")] | length) as $keys
+    | ([$classes[] | select(. == "joiner")] | length) as $joins
+    | all($classes[]; . != "text")
       and (if $flags > 0 then $flags == 2 and $pictographs + $keys + $joins == 0
            elif $keys > 0 then $keys == 1 and $pictographs + $joins == 0 and any($points[]; . == 8419)
            else $pictographs == $joins + 1 end)' >/dev/null || die 2 "an icon is one emoji, not '$1'"

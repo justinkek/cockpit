@@ -283,6 +283,16 @@ stub set FEAT-1 icon "👩‍💻" >/dev/null
 assert_eq "an emoji joined from several is still one" "👩‍💻" "$(field FEAT-1 .icon)"
 stub set FEAT-1 icon "🇬🇧" >/dev/null
 assert_eq "so is a flag" "🇬🇧" "$(field FEAT-1 .icon)"
+refused_symbols=""
+for symbol in "→" "↑" "∑" "─" "№" "♀"; do
+  stub set FEAT-1 icon "$symbol" >/dev/null 2>&1 || refused_symbols="$refused_symbols$symbol"
+done
+assert_eq "a text symbol is refused, an arrow, a sum, a line, a numero sign and a sign drawn as text alike" "→↑∑─№♀" "$refused_symbols"
+assert_eq "and the icon before them is kept" "🇬🇧" "$(field FEAT-1 .icon)"
+stub set FEAT-1 icon "♀️" >/dev/null
+assert_eq "a sign asked to show as an emoji is one" "♀️" "$(field FEAT-1 .icon)"
+stub set FEAT-1 icon "⭐" >/dev/null
+assert_eq "and a symbol that shows as an emoji unasked is one too" "⭐" "$(field FEAT-1 .icon)"
 stub set FEAT-1 icon "ok" >/dev/null 2>&1
 assert_eq "text is not an icon" "2" "$?"
 stub set FEAT-1 icon "🚀🚀" >/dev/null 2>&1
