@@ -288,6 +288,22 @@ assert_eq "create takes an icon for any kind" "🧭" "$(field "$icon_epic" .icon
 stub create --name "Bad icon" --icon "x" >/dev/null 2>&1
 assert_eq "and refuses one that is not an emoji" "2" "$?"
 
+printf "\nTest group: a timebox carries its budget in minutes\n"
+
+timebox="$(stub create --name "Spike two" --type Timebox)"
+assert_eq "a new timebox starts with an hour" "60" "$(field "$timebox" .timebox_mins)"
+assert_eq "the budget reads back under its property name" "Timebox (mins)	90" "$(stub set "$timebox" timebox_mins 90)"
+stub set "$timebox" timebox_mins 0 >/dev/null 2>&1
+assert_eq "a budget of no minutes is refused" "2" "$?"
+stub set "$timebox" timebox_mins 1.5 >/dev/null 2>&1
+assert_eq "so is part of a minute" "2" "$?"
+stub set "$timebox" timebox_mins "" >/dev/null
+assert_eq "an empty budget clears it" "null" "$(field "$timebox" .timebox_mins)"
+assert_eq "create takes a budget of its own" "30" "$(field "$(stub create --name "Spike three" --type Timebox --timebox-mins 30)" .timebox_mins)"
+assert_eq "a feature starts with none" "null" "$(field "$(stub create --name "No budget")" .timebox_mins)"
+stub set EPIC-1 timebox_mins 30 >/dev/null 2>&1
+assert_eq "only a card has a timebox" "2" "$?"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

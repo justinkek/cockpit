@@ -4,7 +4,7 @@
 #
 #   board-card init
 #   board-card create [--kind card|epic|project|sprint|reference] --name <name> [--type Feature|Bug|Timebox]
-#                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--body -]
+#                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
 #   board-card show <id> [--json | --section <heading> | <property>...]
 #   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--json]
 #   board-card statuses [--kind card|epic]
@@ -349,7 +349,7 @@ create_locked() {
       {id: $id, name: $name, type: $type, status: $status, epic: ($epic | blank),
        sprint: null, due: null, blocked: null, dependent_on: [], dependency_for: [],
        complexity: null, session: null, claimed_at: null,
-       prs: null, cost_usd: null, tokens_k: null, created: $stamp, models: {}, back_from: {}}
+       prs: null, cost_usd: null, tokens_k: null, created: $stamp, models: {}, back_from: {}, timebox_mins: null}
     else
       {id: $id, name: $name, status: ($status | blank), created: $stamp}
     end
@@ -360,7 +360,7 @@ create_locked() {
 }
 
 command_create() {
-  local kind=card name="" type="Feature" status="" epic="" body="" fields="{}" pairs=() index value
+  local kind=card name="" type="Feature" status="" epic="" body="" fields="{}" pairs=() index value timebox="" timebox_given=false
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --kind) kind="${2:-}"; shift 2 ;;
@@ -369,6 +369,7 @@ command_create() {
       --status) status="${2:-}"; shift 2 ;;
       --epic) epic="${2:-}"; shift 2 ;;
       --icon) pairs+=("icon" "${2:-}"); shift 2 ;;
+      --timebox-mins) timebox="${2:-}"; timebox_given=true; shift 2 ;;
       --body) [ "${2:-}" = "-" ] || die 2 "--body reads stdin: pass --body -"; body="$(cat)"; shift 2 ;;
       *) die 2 "create: unknown option '$1'" ;;
     esac
@@ -382,6 +383,11 @@ command_create() {
     esac
   fi
   [ "$kind" = card ] && case "$type" in Feature|Bug|Timebox) ;; *) die 2 "type is Feature, Bug or Timebox, not '$type'" ;; esac
+  if [ "$timebox_given" = true ]; then
+    pairs+=("timebox_mins" "$timebox")
+  elif [ "$kind" = card ] && [ "$type" = Timebox ]; then
+    pairs+=("timebox_mins" "60")
+  fi
   require_column "$kind" "$status"
   if [ -n "$epic" ]; then
     epic="$(normalise_id "$epic")"
@@ -398,7 +404,7 @@ command_create() {
 PROPERTY_FIELDS='{
   "Name": "name", "Icon": "icon", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
   "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Blocked": "blocked", "PRs": "prs",
-  "Agent: Session Id": "session", "Complexity": "complexity",
+  "Agent: Session Id": "session", "Complexity": "complexity", "Timebox (mins)": "timebox_mins",
   "Dependent on": "dependent_on", "Dependency for": "dependency_for",
   "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
   "Cost": "cost_usd", "Tokens": "tokens_k"}'
@@ -536,6 +542,7 @@ check_complexity() {
 property_of_field() {
   case "$1" in
     complexity) echo Complexity ;;
+    timebox_mins) echo "Timebox (mins)" ;;
     name) echo Name ;;
     icon) echo Icon ;;
     type) echo Type ;;
@@ -578,6 +585,11 @@ field_json() {
     icon)
       [ -z "$value" ] || check_icon "$value"
       nullable "$value"
+      ;;
+    timebox_mins)
+      [ "$kind" = card ] || die 2 "only a card has a timebox, and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a timebox is a whole number of minutes, not '$value'"
+      if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     *) die 2 "no field '$field' on a $kind" ;;
   esac
@@ -636,7 +648,7 @@ set_locked() {
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
       ;;
-    icon)
+    icon|timebox_mins)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
       update_record "$id" --arg field "$field" --argjson value "$json" '.[$field] = $value'
       ;;
@@ -672,7 +684,7 @@ set_locked() {
       ;;
     status) die 2 "status changes through: board-card move or board-card walk" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, session, body, rank, models.<stage>, reference.<key>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, session, body, rank, models.<stage>, reference.<key>" ;;
   esac
 }
 
