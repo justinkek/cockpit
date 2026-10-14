@@ -11,6 +11,7 @@ const LINKS = [
 	{ href: "/", label: "Cards" },
 	{ href: "/epics", label: "Epics" },
 	{ href: "/sprints", label: "Sprints" },
+	{ href: "/obeya", label: "Obeya" },
 ];
 
 function useUnread() {

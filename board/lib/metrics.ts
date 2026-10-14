@@ -186,3 +186,34 @@ export function currentSprint<T extends { start?: string | null; end?: string | 
 		.sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""));
 	return started[0] ?? sprints[0] ?? null;
 }
+
+export type Week = { start: string; done: number; points: number };
+
+export function throughputOf(
+	cards: Pick<Card, "status" | "complexity" | "dates" | "moved">[],
+	weeks: number,
+	now = new Date(),
+): Week[] {
+	const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+	const starts = Array.from(
+		{ length: weeks },
+		(_, index) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7 * (weeks - 1 - index)),
+	);
+	const result = starts.map((start) => ({ start: dayText(start), done: 0, points: 0 }));
+	for (const card of cards) {
+		const at = doneAt(card);
+		if (at == null) continue;
+		const index = starts.findLastIndex((start) => start.getTime() <= at);
+		if (index < 0 || at > now.getTime()) continue;
+		result[index].done += 1;
+		result[index].points += card.complexity ?? 0;
+	}
+	return result;
+}
+
+export function median(values: number[]): number | null {
+	if (values.length === 0) return null;
+	const sorted = [...values].sort((a, b) => a - b);
+	const middle = Math.floor(sorted.length / 2);
+	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}

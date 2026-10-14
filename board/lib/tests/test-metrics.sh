@@ -128,4 +128,13 @@ assert_eq "the current sprint is the one today falls in" \
 assert_eq "between sprints the last one started is current" \
   'SPR-1' "$(evaluate 'm.currentSprint([{id:"SPR-1",start:"2026-10-01",end:"2026-10-09"},{id:"SPR-2",start:"2026-10-19",end:"2026-10-23"}], new Date(Date.parse("2026-10-14T12:00:00Z"))).id')"
 
+printf "Test group: throughput by week and the median\n"
+
+WEEKLY='[{"status":"Done","complexity":2,"dates":{"Done":"2026-10-12T10:00:00Z"}},{"status":"Done","complexity":3,"dates":{"Done":"2026-10-09T10:00:00Z"}},{"status":"Done","dates":{"Done":"2026-10-05T00:30:00Z"}},{"status":"In Dev","dates":{"Done":"2026-10-13T10:00:00Z"}},{"status":"Done","dates":{"Done":"2026-09-01T10:00:00Z"}}]'
+assert_eq "each card done counts in the week from the Monday it was done in, and an older one in none" \
+  '[{"start":"2026-10-05","done":2,"points":3},{"start":"2026-10-12","done":1,"points":2}]' \
+  "$(evaluate "m.throughputOf($WEEKLY, 2, new Date($NOW))")"
+assert_eq "the median of an even count is the mean of the middle two" '2.5' "$(evaluate 'm.median([4, 1, 3, 2])')"
+assert_eq "nothing has no median" 'null' "$(evaluate 'm.median([])')"
+
 finish

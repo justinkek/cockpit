@@ -76,30 +76,30 @@ export default async function SprintsPage({ searchParams }: Props) {
 				</span>
 			</header>
 
-			<dl className="stat-row">
+			<div className="stat-row">
 				<div>
-					<dt>Scope</dt>
-					<dd>
+					<span className="stat-label">Scope</span>
+					<span className="stat-value">
 						{points(counted)} <span>pts · {counted.length} cards</span>
-					</dd>
+					</span>
 				</div>
 				<div>
-					<dt>Done</dt>
-					<dd>
+					<span className="stat-label">Done</span>
+					<span className="stat-value">
 						{points(done)} <span>pts · {done.length} cards</span>
-					</dd>
+					</span>
 				</div>
 				<div>
-					<dt>Left</dt>
-					<dd>
+					<span className="stat-label">Left</span>
+					<span className="stat-value">
 						{points(counted) - points(done)} <span>pts · {counted.length - done.length} cards</span>
-					</dd>
+					</span>
 				</div>
 				<div>
-					<dt>Working days left</dt>
-					<dd>{daysLeft}</dd>
+					<span className="stat-label">Working days left</span>
+					<span className="stat-value">{daysLeft}</span>
 				</div>
-			</dl>
+			</div>
 
 			<div className="report-card">
 				<h2>
