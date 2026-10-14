@@ -52,13 +52,16 @@ import {
 } from "@/app/view";
 import {
 	boardColumns,
+	bounces,
 	dueState,
 	fieldName,
 	type Kind,
 	kindOf,
 	manualRank,
 	type Named,
+	overrunTitle,
 	phaseOf,
+	SPLIT_ABOVE,
 	type Card as Stub,
 	TYPES,
 } from "@/lib/shared";
@@ -152,6 +155,47 @@ function DueChip({ stub }: { stub: Stub }) {
 	);
 }
 
+function Complexity({ stub }: { stub: Stub }) {
+	if (stub.complexity == null) return null;
+	const split = stub.complexity > SPLIT_ABOVE;
+	return (
+		<span
+			className={`pill${split ? " split" : ""}`}
+			title={split ? `${stub.complexity} points, above the ${SPLIT_ABOVE} a day holds - split it?` : `${stub.complexity} points`}
+		>
+			{stub.complexity}
+		</span>
+	);
+}
+
+function Signals({ stub }: { stub: Stub }) {
+	const back = bounces(stub);
+	const total = back.reduce((sum, [, count]) => sum + count, 0);
+	const live = phaseOf(stub.status) !== "done";
+	return (
+		<>
+			{stub.type === "Timebox" && stub.timebox_mins != null && (
+				<span className="pill" title={`A timebox of ${stub.timebox_mins} minutes`}>
+					{stub.timebox_mins}m
+				</span>
+			)}
+			{stub.overrunning && live && (
+				<span className="pill overrun" title={overrunTitle(stub)}>
+					Overrunning
+				</span>
+			)}
+			{total > 0 && (
+				<span
+					className="pill rework"
+					title={`Back from ${back.map(([gate, count]) => `${gate} ${count === 1 ? "once" : `${count} times`}`).join(", ")}`}
+				>
+					↺ {total}
+				</span>
+			)}
+		</>
+	);
+}
+
 function CardBody({ stub }: { stub: Stub }) {
 	return (
 		<>
@@ -162,8 +206,9 @@ function CardBody({ stub }: { stub: Stub }) {
 			<span className="name">{stub.name}</span>
 			<span className="meta">
 				{stub.type && <TypeMark type={stub.type} />}
-				{stub.complexity != null && <span className="pill">{stub.complexity}</span>}
+				<Complexity stub={stub} />
 				{stub.blocked && <span className="pill blocked">Blocked</span>}
+				<Signals stub={stub} />
 				<DueChip stub={stub} />
 				<EpicPill epic={stub.epic} />
 			</span>
@@ -355,10 +400,16 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 				<span className="name">{stub.name}</span>
 				<span className="row-meta">
 					{stub.blocked && <span className="pill blocked">Blocked</span>}
+					<Signals stub={stub} />
 					<DueChip stub={stub} />
 					<EpicPill epic={stub.epic} />
 					{stub.type && <TypeMark type={stub.type} />}
-					<span className="points">{stub.complexity ?? ""}</span>
+					<span
+						className={`points${(stub.complexity ?? 0) > SPLIT_ABOVE ? " split" : ""}`}
+						title={(stub.complexity ?? 0) > SPLIT_ABOVE ? `Above the ${SPLIT_ABOVE} a day holds - split it?` : undefined}
+					>
+						{stub.complexity ?? ""}
+					</span>
 				</span>
 			</button>
 		</li>

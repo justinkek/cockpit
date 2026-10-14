@@ -3,13 +3,25 @@
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { submitCard } from "@/app/actions";
-import { boardColumns, type Card, dueState, FIBONACCI, kindOf, type Named, type Sprint, TYPES } from "@/lib/shared";
+import {
+	boardColumns,
+	bounces,
+	type Card,
+	dueState,
+	FIBONACCI,
+	kindOf,
+	type Named,
+	overrunTitle,
+	phaseOf,
+	type Sprint,
+	TYPES,
+} from "@/lib/shared";
 
 export type Picked = Named & { status: string };
 
 export type Lists = {
 	cards: Picked[];
-	epics: Named[];
+	epics: (Named & { project?: string | null })[];
 	sprints: Sprint[];
 	projects: Named[];
 };
@@ -362,6 +374,12 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 		name: sprint.start ? `${sprint.name} (${sprint.start} to ${sprint.end ?? "?"})` : sprint.name,
 	}));
 	const urls = pullRequests(record.prs ?? "");
+	const epicProject = record.epic ? lists.epics.find((epic) => epic.id === record.epic)?.project : null;
+	const inherited = epicProject ? (lists.projects.find((project) => project.id === epicProject)?.name ?? epicProject) : null;
+	const back = bounces(record);
+	const models = Object.entries(record.models ?? {}).filter(([, model]) => model);
+	const days = record.days_in_column ?? 0;
+	const overrunning = Boolean(record.overrunning) && phaseOf(record.status) !== "done";
 	const due = dueState(record);
 	const id = record.id;
 
@@ -484,7 +502,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 						<Fallback id={id} op="set" field="project">
 							<Choice
 								label="Project"
-								none="No project"
+								none={inherited && !record.project ? `${inherited} (from the epic)` : "No project"}
 								value={record.project}
 								options={lists.projects}
 								onChange={(project) => onEdit("project", project, { project: project || null })}
@@ -538,6 +556,47 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</a>
 						))}
 					</dd>
+					{(days > 0 || overrunning) && (
+						<>
+							<dt>In column</dt>
+							<dd>
+								{days > 0 && (
+									<span>
+										{days} working {days === 1 ? "day" : "days"}
+									</span>
+								)}
+								{overrunning && (
+									<span className="pill overrun" title={overrunTitle(record)}>
+										Overrunning
+									</span>
+								)}
+							</dd>
+						</>
+					)}
+					{back.length > 0 && (
+						<>
+							<dt>Back from</dt>
+							<dd>
+								{back.map(([gate, count]) => (
+									<span key={gate} className="pill rework" title={`Sent back from ${gate} ${count === 1 ? "once" : `${count} times`}`}>
+										{gate} ×{count}
+									</span>
+								))}
+							</dd>
+						</>
+					)}
+					{models.length > 0 && (
+						<>
+							<dt>Models</dt>
+							<dd className="stack models">
+								{models.map(([stage, model]) => (
+									<span key={stage}>
+										<span className="model-stage">{stage}</span> {model}
+									</span>
+								))}
+							</dd>
+						</>
+					)}
 				</>
 			)}
 		</dl>

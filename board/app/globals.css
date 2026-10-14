@@ -1851,3 +1851,38 @@
 		}
 	}
 }
+
+@layer components {
+	.pill.split,
+	.points.split {
+		color: var(--phase-dev);
+		border-color: color-mix(in srgb, var(--phase-dev) 45%, transparent);
+	}
+
+	.points.split {
+		font-weight: 600;
+	}
+
+	.pill.overrun {
+		color: var(--danger);
+		border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+		background: color-mix(in srgb, var(--danger) 8%, transparent);
+	}
+
+	.pill.rework {
+		color: var(--phase-refine);
+		border-color: color-mix(in srgb, var(--phase-refine) 40%, transparent);
+	}
+
+	.props .models {
+		gap: 2px;
+		font: 12px var(--mono);
+		color: var(--muted);
+	}
+
+	.model-stage {
+		display: inline-block;
+		min-width: 3.5em;
+		color: var(--ink);
+	}
+}

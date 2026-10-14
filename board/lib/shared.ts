@@ -79,6 +79,8 @@ export type Card = {
 	dates?: Record<string, string>;
 	start?: string | null;
 	end?: string | null;
+	days_in_column?: number;
+	overrunning?: boolean;
 	body: string;
 };
 
@@ -140,6 +142,18 @@ export function dueState(record: Pick<Card, "due" | "status">, now = new Date())
 	if (days === 1) return { tone: "soon", label: "Due tomorrow", title };
 	if (days <= 3) return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title };
 	return { tone: "later", label: `Due ${date}`, title };
+}
+
+export const SPLIT_ABOVE = 5;
+
+export function bounces(record: Pick<Card, "back_from">) {
+	return Object.entries(record.back_from ?? {}).filter(([, count]) => count > 0);
+}
+
+export function overrunTitle(record: Pick<Card, "type" | "timebox_mins" | "complexity">) {
+	return record.type === "Timebox" && record.timebox_mins
+		? `Its dev time has run past its ${record.timebox_mins}-minute timebox`
+		: `Its dev time has run past ${record.complexity ?? 0} points of working time`;
 }
 
 export function manualRank(record: Pick<Card, "id" | "rank">) {
