@@ -59,6 +59,10 @@ case "$tool" in
   *) exit 0 ;;
 esac
 
+if [ "$(cat "$STATE_DIR/$session_id.column" 2>/dev/null)" = "Done" ]; then
+  deny "Done gate: the card this session is bound to is Done, so its work is finished — new work needs its own ticket and its own session. Assistant: do not edit files here and do not invoke /cockpit:ticket:3:dev to reopen the card; tell the user the card is Done and that the next change starts in a new session with its own ticket."
+fi
+
 if [ -z "$file_path" ]; then
   target_dir="$cwd"
 elif [ "${file_path#/}" != "$file_path" ]; then

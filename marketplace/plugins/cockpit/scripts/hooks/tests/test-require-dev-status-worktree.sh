@@ -123,5 +123,18 @@ printf "\nTest group: tools other than Edit and Write are never gated here\n"
 
 assert_silent "bash from the main checkout" "$(verdict Bash "$main_checkout")"
 
+printf "\nTest group: a Done card is refused as Done wherever the edit lands\n"
+
+printf 'Done\n' > "$state_directory/$session.column"
+
+assert_contains "edit from the main checkout after the worktree is given back" "Done gate" \
+  "$(verdict Edit "$main_checkout")"
+assert_contains "edit from a linked worktree once the card is Done" "Done gate" \
+  "$(verdict Edit "$linked_worktree")"
+assert_silent "bash from the main checkout once the card is Done" \
+  "$(verdict Bash "$main_checkout")"
+
+rm -f "$state_directory/$session.column"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

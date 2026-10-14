@@ -70,5 +70,59 @@ assert_marker_withheld "the script piped into another command" \
 assert_marker_withheld "the script chained after another command" \
   "true; \\\"\$HOME/.cockpit/scripts/ticket-status-confirm\\\" dev"
 
+column_file="$state_directory/$session.column"
+
+edit_verdict() {
+  printf '{"tool_name":"%s","session_id":"%s","cwd":"%s","tool_input":{"file_path":"%s/edited.txt"}}' \
+    "$1" "$session" "$sandbox" "$sandbox" | "$HOOK"
+}
+
+assert_edit_denied() {
+  local label="$1" tool="$2" want="$3" out
+  out="$(edit_verdict "$tool")"
+  case "$out" in
+    *'"permissionDecision":"deny"'*"$want"*)
+      printf "  OK  %s\n" "$label"
+      pass=$((pass + 1)) ;;
+    *)
+      printf "  KO  %s — expected a deny naming '%s', got '%s'\n" "$label" "$want" "$out"
+      fail=$((fail + 1)) ;;
+  esac
+}
+
+assert_edit_allowed() {
+  local label="$1" tool="$2" out
+  out="$(edit_verdict "$tool")"
+  if [ -z "$out" ]; then
+    printf "  OK  %s\n" "$label"
+    pass=$((pass + 1))
+  else
+    printf "  KO  %s — expected the edit to pass, got '%s'\n" "$label" "$out"
+    fail=$((fail + 1))
+  fi
+}
+
+printf "\nTest group: a card on Done keeps file edits shut although dev once confirmed\n"
+
+: > "$stage_marker"
+
+printf 'In Dev\n' > "$column_file"
+assert_edit_allowed "an edit while the card is In Dev" Edit
+
+printf 'Done\n' > "$column_file"
+assert_edit_denied "an edit once the card is Done" Edit "card this session is bound to is Done"
+assert_edit_denied "a write once the card is Done" Write "new work needs its own ticket and its own session"
+
+verdict "\\\"\$HOME/.cockpit/scripts/ticket-status-confirm\\\" dev" > /dev/null
+assert_edit_denied "an edit after the confirm script runs again on a Done card" Edit "Done gate"
+
+rm -f "$stage_marker"
+assert_edit_denied "an edit on a Done card with no stage marker names Done, not In Dev" Edit "Done gate"
+
+printf 'Ready for CR\n' > "$column_file"
+: > "$stage_marker"
+assert_edit_allowed "an edit once the card has moved on from In Dev but not to Done" Edit
+rm -f "$column_file"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
