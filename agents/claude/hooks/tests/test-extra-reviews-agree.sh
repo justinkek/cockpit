@@ -95,6 +95,17 @@ assert_names "and that step is the one posting open findings" \
   "$READY" '### 4.5. Post the open findings on the PR'
 assert_lacks "the gates template no longer sends it through the thread walker" \
   "$GATES" 'through `/cockpit:ticket:4:cr:comments`'
+assert_lacks "and does not post it a second time after the publish" \
+  "$GATES" 'So publish, then post'
+
+printf "\nTest group: a card that came back is reviewed the way the normal path is\n"
+
+assert_lacks "the gates template passes no flag that posts only on a pull request target" \
+  "$GATES" '/code-review low --comment'
+assert_names "and says to leave it off" \
+  "$GATES" 'leave `--comment` off'
+assert_names "so the commits that brought the card back reach the PR through ready-for-cr" \
+  "$GATES" '`/cockpit:ticket:4:ready-for-cr` pushes the fixes to that PR'
 
 printf "\nTest group: every review reads the range the pull request carries\n"
 
