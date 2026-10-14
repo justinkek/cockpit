@@ -71,8 +71,73 @@ function depthOf(line: string) {
 	return tabs + spaces;
 }
 
-const opening = /^<details(?:\s[^>]*)?>(.*)$/;
-const summarised = /^<summary>(.*)<\/summary>$/;
+const opening = /^<details(?:\s[^>]*)?>/;
+const closing = "</details>";
+const summaryOpening = /^<summary(?:\s[^>]*)?>/;
+const summaryClosing = "</summary>";
+const summarised = /^<summary(?:\s[^>]*)?>(.*)<\/summary>$/;
+const toggleTag = /^<(?:details|summary)[\s>]|^<\/details>/;
+const section = /^#{1,2} /;
+
+function continuesSummary(line: string) {
+	const text = line.trim();
+	return text !== "" && !text.startsWith("```") && !toggleTag.test(text) && !section.test(text);
+}
+
+function filled(lines: string[], from: number) {
+	let at = from;
+	while (at < lines.length && lines[at].trim() === "") at++;
+	return at;
+}
+
+function untangled(lines: string[]): string[] {
+	const out: string[] = [];
+	let fenced = false;
+	let awaiting = false;
+	for (let i = 0; i < lines.length; i++) {
+		const raw = lines[i];
+		let rest = raw.trim();
+		if (fenced || rest.startsWith("```")) {
+			if (rest.startsWith("```")) fenced = !fenced;
+			out.push(raw);
+			awaiting = false;
+			continue;
+		}
+		const parts: string[] = [];
+		const open = rest.match(opening);
+		if (open) {
+			parts.push("<details>");
+			rest = rest.slice(open[0].length).trim();
+		}
+		if ((open || awaiting) && summaryOpening.test(rest)) {
+			let end = i;
+			let gathered = rest;
+			while (!gathered.includes(summaryClosing) && end + 1 < lines.length && continuesSummary(lines[end + 1]))
+				gathered += ` ${lines[++end].trim()}`;
+			const close = gathered.indexOf(summaryClosing);
+			if (close >= 0) {
+				parts.push(gathered.slice(0, close + summaryClosing.length));
+				rest = gathered.slice(close + summaryClosing.length).trim();
+				i = end;
+			}
+		}
+		awaiting = (awaiting && parts.length === 0 && rest === "") || (open !== null && parts.length === 1 && rest === "");
+		let closes = 0;
+		while (rest.endsWith(closing)) {
+			rest = rest.slice(0, -closing.length).trim();
+			closes++;
+		}
+		if (parts.length === 0 && closes === 0) {
+			out.push(raw);
+			continue;
+		}
+		if (rest !== "") parts.push(rest);
+		parts.push(...Array<string>(closes).fill(closing));
+		const indent = raw.slice(0, raw.length - raw.trimStart().length);
+		out.push(...parts.map((part) => indent + part));
+	}
+	return out;
+}
 
 function blocksOf(
 	lines: string[],
@@ -91,19 +156,22 @@ function blocksOf(
 		const key = `b${i}`;
 		const style = depth > 0 ? { marginLeft: `${depth * 18}px` } : undefined;
 
-		if (line.trimEnd() === "</details>") {
+		if (nested && section.test(line)) return { blocks, next: i };
+
+		if (line.trimEnd() === closing) {
 			if (nested) return { blocks, next: i + 1 };
 			i++;
 			continue;
 		}
 
-		const toggle = line.trimEnd().match(opening);
-		if (toggle) {
-			let summary = toggle[1].trim();
-			let next = i + 1;
-			if (summary === "" && next < lines.length && summarised.test(lines[next].trim())) summary = lines[next++].trim();
-			const title = summary.match(summarised)?.[1] ?? (summary || "Details");
-			const inner = blocksOf(lines, next, depthOf(raw) + 1, true, anchors, onAnchor);
+		if (line.trimEnd() === "<details>") {
+			const ahead = filled(lines, i + 1);
+			const summary = lines[ahead]?.trim().match(summarised);
+			const next = summary ? ahead + 1 : i + 1;
+			const title = summary?.[1].trim() || "Details";
+			const first = filled(lines, next);
+			const body = Math.min(depthOf(raw) + 1, first < lines.length ? depthOf(lines[first]) : depthOf(raw) + 1);
+			const inner = blocksOf(lines, next, body, true, anchors, onAnchor);
 			blocks.push(
 				<details key={key} className="md-details" style={style}>
 					<summary>{inline(title, anchors, onAnchor, key)}</summary>
@@ -232,5 +300,5 @@ export function Markdown({
 	anchors?: Anchor[];
 	onAnchor?: (thread: string) => void;
 }) {
-	return <div className="md">{blocksOf(source.split("\n"), 0, 0, false, anchors, onAnchor).blocks}</div>;
+	return <div className="md">{blocksOf(untangled(source.split("\n")), 0, 0, false, anchors, onAnchor).blocks}</div>;
 }

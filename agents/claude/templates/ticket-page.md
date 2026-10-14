@@ -142,7 +142,7 @@ Push detail down here rather than into Outcome: bizdevs scan the Outcome, devs d
 
 4. **BR and TR content do not mix.** BR is _what and why_; TR is _how_. See the `/cockpit:ticket:1:br` skill for BR rules and the exclusion list.
 
-5. **Plain markdown.** Collapsible sections are `### ` subheadings or nested lists, and tables are markdown pipe tables. `## Tech Steps` is the one exception: its toggles are `<details>` blocks, each opening on a `<summary>` line, and the board draws them collapsed and nested. Any other HTML shows as plain text.
+5. **Plain markdown.** Collapsible sections are `### ` subheadings or nested lists, and tables are markdown pipe tables. `## Tech Steps` is the one exception: its toggles are `<details>` blocks, each opening on a `<summary>` line, and the board draws them collapsed and nested. The board would draw a toggle in any other section too, so keeping them to `## Tech Steps` is the writer's job. HTML other than a toggle shows as plain text.
 
 6. **Write a section, never the whole body.** Replace one section with `"$HOME/.cockpit/scripts/board-card" section <card-id> "<heading>" [--before "<heading>" | --after "<heading>"]`, the new content on stdin. A section that does not exist yet lands before the `--before` heading or after the `--after` heading, and at the end of the body with neither flag or when the heading it names is absent. Build it from a `board-card show <card-id> --section "<heading>"` taken immediately before the write.
 

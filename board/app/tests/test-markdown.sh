@@ -1,0 +1,303 @@
+#!/usr/bin/env bash
+
+repo_root_through_symlink() {
+  cd "$(dirname "$0")" && cd "$(pwd -P)/../../.." && pwd
+}
+
+REPO="$(repo_root_through_symlink)"
+BOARD="$REPO/board"
+
+pass=0
+fail=0
+
+assert_ok() {
+  printf "  OK  %s\n" "$1"
+  pass=$((pass + 1))
+}
+
+assert_ko() {
+  printf "  KO  %s — %s\n" "$1" "$2"
+  fail=$((fail + 1))
+}
+
+finish() {
+  printf "\n%d passed, %d failed\n" "$pass" "$fail"
+  [ "$fail" -eq 0 ]
+  exit
+}
+
+printf "Test group: the renderer loads outside the app\n"
+
+if [ -d "$BOARD/node_modules/typescript" ] && [ -d "$BOARD/node_modules/react-dom" ]; then
+  assert_ok "the board's packages are installed"
+else
+  assert_ko "the board's packages are installed" "run npm ci in $BOARD, or nothing below can be checked"
+  finish
+fi
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+ln -s "$BOARD/node_modules" "$WORK/node_modules"
+
+cat >"$WORK/compile.cjs" <<'EOF'
+const fs = require("node:fs");
+const [board, work] = process.argv.slice(2);
+const ts = require(`${board}/node_modules/typescript`);
+const source = fs.readFileSync(`${board}/app/markdown.tsx`, "utf8");
+const rewritten = source.replace('from "@/app/mermaid"', 'from "./mermaid.mjs"');
+if (rewritten === source) {
+	process.stderr.write("markdown.tsx no longer imports @/app/mermaid\n");
+	process.exit(1);
+}
+const { outputText } = ts.transpileModule(rewritten, {
+	compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+});
+fs.writeFileSync(`${work}/markdown.mjs`, outputText);
+EOF
+
+cat >"$WORK/mermaid.mjs" <<'EOF'
+import { jsx } from "react/jsx-runtime";
+export function Mermaid({ source }) {
+	return jsx("pre", { className: "md-code", children: `diagram ${source}` });
+}
+EOF
+
+cat >"$WORK/outline.mjs" <<'EOF'
+import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Markdown } from "./markdown.mjs";
+
+const html = renderToStaticMarkup(createElement(Markdown, { source: readFileSync(0, "utf8") }));
+if (process.argv[2] === "--html") {
+	process.stdout.write(html);
+	process.exit(0);
+}
+const decoded = (text) =>
+	text
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#x27;/g, "'")
+		.replace(/&amp;/g, "&");
+const kinds = { "md-item": "item", "md-p": "p", "md-code": "code", "md-heading": "heading", "md-quote": "quote" };
+const out = [];
+let depth = 0;
+let toggleMargin;
+let open = null;
+const pattern = /<(\/?)([a-z0-9]+)([^>]*)>|([^<]+)/g;
+let match;
+while ((match = pattern.exec(html)) !== null) {
+	const [, closing, tag, attributes, text] = match;
+	if (text !== undefined) {
+		if (open) open.text += text;
+		continue;
+	}
+	if (open) {
+		if (tag === open.tag) open.nest += closing ? -1 : 1;
+		if (open.nest === 0) {
+			const body = decoded(open.text).replace(/^•/, "").replace(/\n/g, "\\n").trim();
+			out.push(`${"  ".repeat(open.depth)}${open.kind}${open.margin ? `@${open.margin}` : ""}: ${body}`);
+			open = null;
+		}
+		continue;
+	}
+	const margin = /margin-left:\s*(\d+)px/.exec(attributes)?.[1];
+	if (tag === "details") {
+		depth += closing ? -1 : 1;
+		toggleMargin = margin;
+		continue;
+	}
+	if (closing) continue;
+	if (tag === "summary") {
+		open = { tag, kind: "toggle", margin: toggleMargin, depth: depth - 1, text: "", nest: 1 };
+		continue;
+	}
+	const kind = kinds[/class="([^"]+)"/.exec(attributes)?.[1]];
+	if (kind) open = { tag, kind, margin, depth, text: "", nest: 1 };
+}
+process.stdout.write(`${out.join("\n")}\n`);
+EOF
+
+if node "$WORK/compile.cjs" "$BOARD" "$WORK" 2>"$WORK/compile.err" && printf 'x' | node "$WORK/outline.mjs" >/dev/null 2>"$WORK/render.err"; then
+  assert_ok "markdown.tsx compiles and renders on its own"
+else
+  assert_ko "markdown.tsx compiles and renders on its own" "$(cat "$WORK/compile.err" "$WORK/render.err" 2>/dev/null | head -5)"
+  finish
+fi
+
+outline_of() {
+  printf '%s' "$1" | node "$WORK/outline.mjs"
+}
+
+assert_outline() {
+  local label="$1" source="$2" expected="$3" actual
+  actual="$(outline_of "$source")"
+  if [ "$actual" = "$expected" ]; then
+    assert_ok "$label"
+  else
+    assert_ko "$label" "$(printf 'expected:\n%s\ngot:\n%s' "$expected" "$actual")"
+  fi
+}
+
+printf "\nTest group: a toggle the writer forgot to close hides nothing past its section\n"
+
+assert_outline "an unclosed toggle ends at the next section heading" \
+  $'## Tech Steps\n<details>\n<summary>Layer</summary>\n\t- step\n## Context\nBackground' \
+  "$(
+    cat <<'EOF'
+heading: Tech Steps
+toggle: Layer
+  item: step
+heading: Context
+p: Background
+EOF
+  )"
+
+assert_outline "and so does a nest missing only its outermost close" \
+  $'## Tech Steps\n<details>\n<summary>Board Layer **(2 points)**</summary>\n\t<details>\n\t<summary>add a thing</summary>\n\t\t- In a.ts\n\t</details>\n\n## Context\nBackground\n## Details\nNotes' \
+  "$(
+    cat <<'EOF'
+heading: Tech Steps
+toggle: Board Layer (2 points)
+  toggle: add a thing
+    item: In a.ts
+heading: Context
+p: Background
+heading: Details
+p: Notes
+EOF
+  )"
+
+assert_outline "a subheading inside a toggle stays inside it" \
+  $'<details>\n<summary>S</summary>\n### Sub\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: S
+  heading: Sub
+EOF
+  )"
+
+printf "\nTest group: a toggle closes where its closing tag sits\n"
+
+assert_outline "a toggle written on one line holds its body and nothing after it" \
+  $'<details><summary>Title</summary>body</details>\nafter' \
+  "$(
+    cat <<'EOF'
+toggle: Title
+  p: body
+p: after
+EOF
+  )"
+
+assert_outline "a closing tag at the end of a line closes the toggle after that line" \
+  $'<details>\n<summary>S</summary>\n- last</details>\nafter' \
+  "$(
+    cat <<'EOF'
+toggle: S
+  item: last
+p: after
+EOF
+  )"
+
+assert_outline "a stray closing tag outside any toggle is dropped" \
+  $'<details><summary>Context</summary>\n</details>\nprose\n</details>\nmore' \
+  "$(
+    cat <<'EOF'
+toggle: Context
+p: prose
+p: more
+EOF
+  )"
+
+printf "\nTest group: a toggle keeps the nesting written inside it\n"
+
+assert_outline "a list outside a toggle draws three levels" \
+  $'- a\n  - b\n    - c' \
+  "$(
+    cat <<'EOF'
+item: a
+item@18: b
+item@36: c
+EOF
+  )"
+
+assert_outline "and draws the same three levels written flush left inside one" \
+  $'<details>\n<summary>S</summary>\n\n- a\n  - b\n    - c\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: S
+  item: a
+  item@18: b
+  item@36: c
+EOF
+  )"
+
+assert_outline "and the same three levels indented one step under it" \
+  $'<details>\n<summary>S</summary>\n\t- a\n\t\t- b\n\t\t\t- c\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: S
+  item: a
+  item@18: b
+  item@36: c
+EOF
+  )"
+
+assert_outline "a code block inside nested toggles loses the toggles' indentation and keeps its own" \
+  $'<details>\n<summary>L</summary>\n\t<details>\n\t<summary>C</summary>\n\t\t```ts\n\t\tconst a = 1;\n\t\t  indented();\n\t\t```\n\t</details>\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: L
+  toggle: C
+    code: const a = 1;\n  indented();
+EOF
+  )"
+
+printf "\nTest group: a summary written another way still titles its toggle\n"
+
+assert_outline "a summary spread over lines, after a blank line, with an attribute" \
+  $'<details>\n\n<summary class="x">Spread\nover lines</summary>\nbody\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: Spread over lines
+  p: body
+EOF
+  )"
+
+assert_outline "a summary whose tags sit on lines of their own" \
+  $'<details>\n<summary>\nTitle\n</summary>\nbody\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: Title
+  p: body
+EOF
+  )"
+
+assert_outline "a toggle with no summary is titled Details" \
+  $'<details>\nbody\n</details>' \
+  "$(
+    cat <<'EOF'
+toggle: Details
+  p: body
+EOF
+  )"
+
+summary_html="$(printf '%s' $'<details>\n<summary>Board Layer **(2 points)**</summary>\n</details>' | node "$WORK/outline.mjs" --html)"
+case "$summary_html" in
+*"<summary>Board Layer <strong>(2 points)</strong></summary>"*) assert_ok "a summary's bold text is drawn bold" ;;
+*) assert_ko "a summary's bold text is drawn bold" "$summary_html" ;;
+esac
+
+printf "\nTest group: toggle tags that are not at the start of a block stay text\n"
+
+assert_outline "a tag mentioned in a list item and one inside a code block" \
+  $'- write a <details><summary>X</summary> toggle\n```html\n<details>\n<summary>Y</summary>\n```' \
+  "$(
+    cat <<'EOF'
+item: write a <details><summary>X</summary> toggle
+code: <details>\n<summary>Y</summary>
+EOF
+  )"
+
+finish
