@@ -81,6 +81,10 @@ export async function createRecord(
 	return (await boardCard(args)).trim().split("\n").at(-1) ?? "";
 }
 
+export async function archiveRecord(id: string): Promise<void> {
+	await boardCard(["archive", id]);
+}
+
 export async function link(parent: string, child: string, linked: boolean): Promise<void> {
 	await boardCard([linked ? "link" : "unlink", parent, child]);
 }

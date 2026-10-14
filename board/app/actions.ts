@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
 	addComment,
+	archiveRecord,
 	BoardError,
 	type Card,
 	type CommentThread,
@@ -201,4 +202,38 @@ export async function submitCard(form: FormData): Promise<void> {
 		current = result.moved ?? current;
 	}
 	redirect(`/card/${encodeURIComponent(current)}${failure ? `?error=${encodeURIComponent(failure)}` : ""}`);
+}
+
+export type Bulk = { op: "move"; column: string } | { op: "set"; field: string; value: string } | { op: "archive" };
+
+export type BulkResult = {
+	records: { from: string; record: Card | null }[];
+	undo: { id: string; since: string }[];
+	errors: string[];
+};
+
+export async function bulkChange(ids: string[], change: Bulk): Promise<BulkResult> {
+	const result: BulkResult = { records: [], undo: [], errors: [] };
+	for (const id of ids) {
+		try {
+			const since = await lastCommit(id);
+			let current = id;
+			if (change.op === "move") {
+				const record = await readRecord(id);
+				if (record.status !== change.column) await changeStatus(record, change.column);
+			} else if (change.op === "set") {
+				current = await setField(id, change.field, change.value);
+			} else {
+				await archiveRecord(id);
+			}
+			refresh(current);
+			const after = since ? await lastCommit(current) : null;
+			if (since && after && after !== since) result.undo.push({ id: current, since });
+			result.records.push({ from: id, record: change.op === "archive" ? null : await readRecord(current) });
+		} catch (error) {
+			const failure = await failed(id, error);
+			result.errors.push(`${id}: ${failure.error ?? "failed"}`);
+		}
+	}
+	return result;
 }

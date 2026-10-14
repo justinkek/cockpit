@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { createCard, dropCard, editCard, linkCards, undoChange } from "@/app/actions";
+import { type Bulk, bulkChange, createCard, dropCard, editCard, linkCards, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
@@ -255,9 +255,15 @@ function Points({ stubs }: { stubs: Stub[] }) {
 	);
 }
 
-type ItemProps = { stub: Stub; pending: boolean; focused: boolean; onOpen: (id: string) => void };
+type ItemProps = {
+	stub: Stub;
+	pending: boolean;
+	focused: boolean;
+	selected: boolean;
+	onOpen: (id: string, toggle: boolean) => void;
+};
 
-function Card({ stub, pending, focused, onOpen }: ItemProps) {
+function Card({ stub, pending, focused, selected, onOpen }: ItemProps) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: stub.id });
 	const drop = useDroppable({ id: `card:${stub.id}` });
 	return (
@@ -275,8 +281,9 @@ function Card({ stub, pending, focused, onOpen }: ItemProps) {
 				{...listeners}
 				{...attributes}
 				data-card={stub.id}
-				className={`card${pending ? " pending" : ""}${focused ? " focused" : ""}`}
-				onClick={() => onOpen(stub.id)}
+				className={`card${pending ? " pending" : ""}${focused ? " focused" : ""}${selected ? " selected" : ""}`}
+				aria-pressed={selected || undefined}
+				onClick={(event) => onOpen(stub.id, event.shiftKey || event.metaKey || event.ctrlKey)}
 			>
 				<CardBody stub={stub} />
 			</button>
@@ -352,6 +359,7 @@ function Lane({
 	onToggle,
 	pending,
 	focusedId,
+	selected,
 	onOpen,
 	adding,
 }: {
@@ -361,7 +369,8 @@ function Lane({
 	onToggle: () => void;
 	pending: Set<string>;
 	focusedId: string | null;
-	onOpen: (id: string) => void;
+	selected: Set<string>;
+	onOpen: (id: string, toggle: boolean) => void;
 	adding: Adding;
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: column });
@@ -381,6 +390,7 @@ function Lane({
 							stub={stub}
 							pending={pending.has(stub.id)}
 							focused={focusedId === stub.id}
+							selected={selected.has(stub.id)}
 							onOpen={onOpen}
 						/>
 					))}
@@ -391,7 +401,7 @@ function Lane({
 	);
 }
 
-function ListRow({ stub, pending, focused, onOpen }: ItemProps) {
+function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: stub.id });
 	const drop = useDroppable({ id: `card:${stub.id}` });
 	return (
@@ -409,8 +419,9 @@ function ListRow({ stub, pending, focused, onOpen }: ItemProps) {
 				{...listeners}
 				{...attributes}
 				data-card={stub.id}
-				className={`row${pending ? " pending" : ""}${focused ? " focused" : ""}`}
-				onClick={() => onOpen(stub.id)}
+				className={`row${pending ? " pending" : ""}${focused ? " focused" : ""}${selected ? " selected" : ""}`}
+				aria-pressed={selected || undefined}
+				onClick={(event) => onOpen(stub.id, event.shiftKey || event.metaKey || event.ctrlKey)}
 			>
 				<span className="ident">{stub.id}</span>
 				<StatusDot status={stub.status} />
@@ -434,6 +445,7 @@ function ListGroup({
 	onToggle,
 	pending,
 	focusedId,
+	selected,
 	onOpen,
 	adding,
 }: {
@@ -443,7 +455,8 @@ function ListGroup({
 	onToggle: () => void;
 	pending: Set<string>;
 	focusedId: string | null;
-	onOpen: (id: string) => void;
+	selected: Set<string>;
+	onOpen: (id: string, toggle: boolean) => void;
 	adding: Adding;
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: column });
@@ -464,6 +477,7 @@ function ListGroup({
 							stub={stub}
 							pending={pending.has(stub.id)}
 							focused={focusedId === stub.id}
+							selected={selected.has(stub.id)}
 							onOpen={onOpen}
 						/>
 					))}
@@ -574,6 +588,93 @@ function Peek({
 	);
 }
 
+function BulkBar({
+	kind,
+	count,
+	lists,
+	columns,
+	edits,
+	onClear,
+}: {
+	kind: Kind;
+	count: number;
+	lists: Lists;
+	columns: string[];
+	edits: Edits;
+	onClear: () => void;
+}) {
+	const pick = (apply: (value: string) => void) => (event: React.ChangeEvent<HTMLSelectElement>) => {
+		const value = event.target.value;
+		event.target.value = "-";
+		if (value !== "-") apply(value);
+	};
+	return (
+		<div className="bulk" role="toolbar" aria-label={`${count} selected`}>
+			<span className="bulk-count">{count} selected</span>
+			<select aria-label="Move the selected cards" defaultValue="-" onChange={pick(edits.move)}>
+				<option value="-" disabled>
+					Move to…
+				</option>
+				{columns.map((column) => (
+					<option key={column}>{column}</option>
+				))}
+			</select>
+			{kind === "card" && (
+				<>
+					<select
+						aria-label="Set the epic of the selected cards"
+						defaultValue="-"
+						onChange={pick((epic) => edits.edit("epic", epic, { epic: epic || null }))}
+					>
+						<option value="-" disabled>
+							Epic…
+						</option>
+						<option value="">No epic</option>
+						{lists.epics.map((epic) => (
+							<option key={epic.id} value={epic.id}>
+								{epic.name}
+							</option>
+						))}
+					</select>
+					<select
+						aria-label="Set the type of the selected cards"
+						defaultValue="-"
+						onChange={pick((type) => edits.edit("type", type, { type: type as Stub["type"] }))}
+					>
+						<option value="-" disabled>
+							Type…
+						</option>
+						{TYPES.map((type) => (
+							<option key={type}>{type}</option>
+						))}
+					</select>
+					<select
+						aria-label="Set the sprint of the selected cards"
+						defaultValue="-"
+						onChange={pick((sprint) => edits.edit("sprint", sprint, { sprint: sprint || null }))}
+					>
+						<option value="-" disabled>
+							Sprint…
+						</option>
+						<option value="">No sprint</option>
+						{lists.sprints.map((sprint) => (
+							<option key={sprint.id} value={sprint.id}>
+								{sprint.name}
+							</option>
+						))}
+					</select>
+				</>
+			)}
+			<button type="button" className="quiet" onClick={() => edits.archive?.()}>
+				Archive
+			</button>
+			<button type="button" className="quiet" onClick={onClear} title="Clear the selection (Esc)">
+				Clear
+			</button>
+		</div>
+	);
+}
+
 export function Board({
 	initial,
 	kind = "card",
@@ -601,6 +702,7 @@ export function Board({
 	const [focusedId, setFocusedId] = useState<string | null>(null);
 	const [helpOpen, setHelpOpen] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
+	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
@@ -670,6 +772,72 @@ export function Board({
 		if (id) setFocusedId(id);
 	}
 
+	function toggleSelected(id: string) {
+		setFocusedId(id);
+		setSelected((current) => {
+			const next = new Set(current);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
+	}
+
+	function clickCard(id: string, toggle: boolean) {
+		if (toggle || selected.size > 0) toggleSelected(id);
+		else openCard(id);
+	}
+
+	const chosen = [...selected].filter((id) => stubs.some((stub) => stub.id === id));
+
+	function targets() {
+		if (chosen.length > 0) return chosen;
+		const target = openId ?? focusedId;
+		return target && stubs.some((stub) => stub.id === target) ? [target] : [];
+	}
+
+	function runBulk(ids: string[], change: Bulk, optimistic: Partial<Stub> | null, label: string) {
+		if (ids.length === 0) return;
+		const before = stubs.filter((stub) => ids.includes(stub.id));
+		setNotice(null);
+		setStubs((current) =>
+			optimistic === null
+				? current.filter((stub) => !ids.includes(stub.id))
+				: current.map((stub) => (ids.includes(stub.id) ? { ...stub, ...optimistic } : stub)),
+		);
+		for (const id of ids) markPending(id, true);
+		startTransition(async () => {
+			const result = await bulkChange(ids, change);
+			for (const id of ids) markPending(id, false);
+			const done = new Map(result.records.map(({ from, record }) => [from, record]));
+			setStubs((current) => {
+				const kept = current.filter((stub) => !ids.includes(stub.id));
+				const back = before.flatMap((stub) => {
+					if (!done.has(stub.id)) return [stub];
+					const record = done.get(stub.id);
+					return record ? [record] : [];
+				});
+				return [...kept, ...back];
+			});
+			const renamed = new Map(result.records.flatMap(({ from, record }) => (record ? [[from, record.id]] : [])));
+			setOpenId((opened) => (opened && done.has(opened) ? (done.get(opened)?.id ?? null) : opened));
+			setSelected((current) => new Set([...current].map((id) => renamed.get(id) ?? id).filter((id) => !done.has(id) || done.get(id))));
+			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
+			const count = result.records.length;
+			if (count > 0) setToast(toastOf(label.replace("{n}", count === 1 ? (result.records[0].record?.id ?? result.records[0].from) : `${count} ${kind}s`), result.undo));
+			router.refresh();
+		});
+	}
+
+	function bulkEdits(ids: string[]): Edits {
+		return {
+			label: ids.length === 1 ? ids[0] : `${ids.length} ${kind}s`,
+			move: (column) => runBulk(ids, { op: "move", column }, { status: column }, `Moved {n} to ${column}`),
+			edit: (field, value, change) =>
+				runBulk(ids, { op: "set", field, value }, change, `Changed the ${fieldName(field)} of {n}`),
+			archive: () => runBulk(ids, { op: "archive" }, null, "Archived {n}"),
+		};
+	}
+
 	function step(by: number) {
 		if (order.length === 0) return;
 		const from = order.findIndex((stub) => stub.id === (focusedId ?? openId));
@@ -696,19 +864,38 @@ export function Board({
 		setToast(toastOf(copied ? `Copied ${asLink ? `the link to ${id}` : id}` : `Could not copy ${id}`));
 	}
 
-	function editsFor(id: string): Edits | null {
-		const stub = stubs.find((s) => s.id === id);
+	function editsFor(ids: string[]): Edits | null {
+		if (ids.length === 0) return null;
+		if (ids.length > 1) return bulkEdits(ids);
+		const stub = stubs.find((s) => s.id === ids[0]);
 		if (!stub) return null;
 		const handlers = handlersFor(stub);
-		return { label: id, move: handlers.onMove, edit: handlers.onEdit };
+		return { label: stub.id, move: handlers.onMove, edit: handlers.onEdit, archive: bulkEdits(ids).archive };
 	}
 
 	function rootPage(): Page {
-		const target = openId ?? focusedId;
-		const record = target ? (stubs.find((stub) => stub.id === target) ?? null) : null;
-		const edits = record ? editsFor(record.id) : null;
-		const actions: Command[] = [...recordCommands(record, lists, edits)];
-		if (record) {
+		const ids = targets();
+		const record = ids.length === 1 ? (stubs.find((stub) => stub.id === ids[0]) ?? null) : null;
+		const edits = editsFor(ids);
+		const actions: Command[] = [...recordCommands(edits ? kind : null, record, lists, edits)];
+		if (chosen.length > 0) {
+			actions.push({
+				id: "do:unselect",
+				group: edits?.label,
+				label: "Clear the selection",
+				hint: "Esc",
+				run: () => setSelected(new Set()),
+			});
+		} else if (record) {
+			actions.push({
+				id: "do:select",
+				group: record.id,
+				label: "Select it, to change several cards at once",
+				hint: "X",
+				run: () => toggleSelected(record.id),
+			});
+		}
+		if (record && chosen.length === 0) {
 			actions.push(
 				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(record.id, false) },
 				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(record.id, true) },
@@ -778,6 +965,7 @@ export function Board({
 		if (event.key === "Escape") {
 			if (typing) (event.target as HTMLElement).blur();
 			else if (openId) setOpenId(null);
+			else if (selected.size > 0) setSelected(new Set());
 			else setFocusedId(null);
 			return;
 		}
@@ -818,13 +1006,19 @@ export function Board({
 			}
 			case "s":
 			case "e": {
-				const edits = target ? editsFor(target) : null;
-				const record = stubs.find((stub) => stub.id === target);
-				if (!edits || !record || (event.key === "e" && kind !== "card")) return;
+				const ids = targets();
+				const edits = editsFor(ids);
+				const record = ids.length === 1 ? stubs.find((stub) => stub.id === ids[0]) : undefined;
+				if (!edits || (event.key === "e" && kind !== "card")) return;
 				event.preventDefault();
-				setPalette(event.key === "s" ? movePage(kind, record.status, edits) : epicPage(lists, record.epic, edits));
+				setPalette(event.key === "s" ? movePage(kind, record?.status, edits) : epicPage(lists, record?.epic, edits));
 				break;
 			}
+			case "x":
+				if (!focusedId) return;
+				event.preventDefault();
+				toggleSelected(focusedId);
+				break;
 			case "c": {
 				event.preventDefault();
 				const focused = order.find((stub) => stub.id === target);
@@ -844,8 +1038,9 @@ export function Board({
 		{ keys: ["Esc"], label: "Close the card, or clear the focus" },
 		{ keys: ["c"], label: "New card in the focused column" },
 		{ keys: ["Cmd/Ctrl", "K"], label: "Command menu: jump to a card or run an action" },
-		{ keys: ["s"], label: "Move the card to a column" },
-		...(kind === "card" ? [{ keys: ["e"], label: "Set the card's epic" }] : []),
+		{ keys: ["x"], label: "Select the focused card, or Shift-click one" },
+		{ keys: ["s"], label: "Move the card, or the selected cards, to a column" },
+		...(kind === "card" ? [{ keys: ["e"], label: "Set the epic of the card, or the selected cards" }] : []),
 		{ keys: ["/"], label: "Search" },
 		{ keys: ["Cmd/Ctrl", "."], label: "Copy the card's id" },
 		{ keys: ["Cmd/Ctrl", "Shift", "."], label: "Copy a link to the card" },
@@ -1019,7 +1214,8 @@ export function Board({
 		onToggle: () => toggleColumn(column),
 		pending,
 		focusedId,
-		onOpen: openCard,
+		selected,
+		onOpen: clickCard,
 		adding: {
 			open: addingIn === column,
 			onOpenChange: (open: boolean) => setAddingIn(open ? column : null),
@@ -1198,6 +1394,16 @@ export function Board({
 						)}
 					</DndContext>
 				</div>
+				{chosen.length > 0 && (
+					<BulkBar
+						kind={kind}
+						count={chosen.length}
+						lists={lists}
+						columns={columns}
+						edits={bulkEdits(chosen)}
+						onClear={() => setSelected(new Set())}
+					/>
+				)}
 				<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 				{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
 				{palette && <Palette start={palette} onClose={() => setPalette(null)} />}

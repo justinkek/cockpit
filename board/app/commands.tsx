@@ -3,12 +3,13 @@
 import type { Lists } from "@/app/fields";
 import type { Command, Page } from "@/app/palette";
 import { applyTheme } from "@/app/theme";
-import { boardColumns, type Card, FIBONACCI, kindOf, phaseOf, TYPES } from "@/lib/shared";
+import { boardColumns, type Card, FIBONACCI, phaseOf, TYPES } from "@/lib/shared";
 
 export type Edits = {
 	label: string;
 	move: (column: string) => void;
 	edit: (field: string, value: string, change: Partial<Card>) => void;
+	archive?: () => void;
 };
 
 function dot(column: string) {
@@ -48,8 +49,12 @@ function choicePage(title: string, items: Command[]): Page {
 	return { title, items };
 }
 
-export function recordCommands(record: Card | null, lists: Lists, edits: Edits | null): Command[] {
-	const kind = record ? kindOf(record.id) : null;
+export function recordCommands(
+	kind: "card" | "epic" | null,
+	record: Card | null,
+	lists: Lists,
+	edits: Edits | null,
+): Command[] {
 	if (!kind || !edits) return [];
 	const group = edits.label;
 	const commands: Command[] = [
@@ -112,6 +117,9 @@ export function recordCommands(record: Card | null, lists: Lists, edits: Edits |
 					]),
 			},
 		);
+	}
+	if (edits.archive) {
+		commands.push({ id: "do:archive", group, label: "Archive", keywords: "remove hide", run: edits.archive });
 	}
 	return commands;
 }

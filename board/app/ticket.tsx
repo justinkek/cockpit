@@ -100,7 +100,7 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 			title: "Command menu",
 			root: true,
 			items: [
-				...recordCommands(record, lists, edits),
+				...recordCommands(kind, record, lists, edits),
 				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
 				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(true) },
 				{
