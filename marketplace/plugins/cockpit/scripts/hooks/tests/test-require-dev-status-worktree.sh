@@ -32,6 +32,7 @@ sandbox="$(mktemp -d)"
 trap 'rm -rf "$sandbox"' EXIT
 
 export HOME="$sandbox/home"
+export COCKPIT_BOARD_DIR="$sandbox/board"
 state_directory="$HOME/.local/state/claude-ticket-sessions"
 mkdir -p "$state_directory"
 

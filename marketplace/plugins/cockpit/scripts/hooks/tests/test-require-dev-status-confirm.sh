@@ -12,6 +12,8 @@ sandbox="$(mktemp -d)"
 trap 'rm -rf "$sandbox"' EXIT
 
 export HOME="$sandbox/home"
+export COCKPIT_BOARD_DIR="$sandbox/board"
+export CLAUDE_SHARED_DIR="$(cd "$here/../../../../../../agents/claude" && pwd -P)"
 state_directory="$HOME/.local/state/claude-ticket-sessions"
 mkdir -p "$state_directory"
 
@@ -123,6 +125,52 @@ printf 'Ready for CR\n' > "$column_file"
 : > "$stage_marker"
 assert_edit_allowed "an edit once the card has moved on from In Dev but not to Done" Edit
 rm -f "$column_file"
+
+printf "\nTest group: without jq the Done deny is still a JSON verdict\n"
+
+jq_path="$(command -v jq)"
+bin_without_jq="$sandbox/bin-without-jq"
+mkdir -p "$bin_without_jq"
+for tool in bash cat sed grep head tr dirname; do
+  ln -s "$(command -v "$tool")" "$bin_without_jq/$tool"
+done
+
+printf 'Done\n' > "$column_file"
+without_jq="$(printf '{"tool_name":"Edit","session_id":"%s","cwd":"%s","tool_input":{"file_path":"%s/edited.txt"}}' \
+  "$session" "$sandbox" "$sandbox" | PATH="$bin_without_jq" "$HOOK")"
+if printf '%s' "$without_jq" | "$jq_path" --exit-status \
+  '.hookSpecificOutput.permissionDecision == "deny" and (.hookSpecificOutput.permissionDecisionReason | startswith("Done gate"))' > /dev/null 2>&1; then
+  printf "  OK  %s\n" "a Done card with no jq on PATH"
+  pass=$((pass + 1))
+else
+  printf "  KO  %s — expected a JSON deny naming the Done gate, got '%s'\n" "a Done card with no jq on PATH" "$without_jq"
+  fail=$((fail + 1))
+fi
+rm -f "$column_file"
+
+printf "\nTest group: the board decides Done, so a card a person dragged there shuts file edits too\n"
+
+board_card="$here/../../board-card"
+"$board_card" init > /dev/null
+card="$("$board_card" create --name "dragged by hand" --status "In Dev")"
+
+session="board-session"
+printf '%s\n' "$card" > "$state_directory/$session.ticket"
+column_file="$state_directory/$session.column"
+: > "$state_directory/$session.stage-dev"
+
+printf 'In Dev\n' > "$column_file"
+assert_edit_allowed "an edit while the board holds the card on In Dev" Edit
+
+"$board_card" move "$card" Done > /dev/null
+printf 'Ready for Validation\n' > "$column_file"
+assert_edit_denied "an edit once the card is dragged to Done, the column file still on the column before" Edit "Done gate"
+rm -f "$column_file"
+assert_edit_denied "a write once the card is dragged to Done, with no column file at all" Write "Done gate"
+
+"$board_card" move "$card" "In Dev" > /dev/null
+printf 'Done\n' > "$column_file"
+assert_edit_allowed "an edit once the card is dragged back off Done, the column file still on Done" Edit
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
