@@ -12,6 +12,7 @@ import {
 	submitCard,
 } from "@/app/actions";
 import { useHydrated } from "@/app/fields";
+import { onBoardChange } from "@/app/live";
 import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
 import type { Card, CommentThread } from "@/lib/shared";
@@ -131,6 +132,7 @@ export function Content({
 	const area = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLElement>(null);
 	const checking = useRef(0);
+	const commenting = useRef(0);
 	const shown = useRef(id);
 	shown.current = id;
 	const bodyGiven = given !== undefined;
@@ -265,13 +267,28 @@ export function Content({
 		});
 	}
 
+	useEffect(
+		() =>
+			onBoardChange(() => {
+				if (commenting.current > 0) return;
+				const asked = id;
+				loadComments(asked).then((result) => {
+					if (shown.current === asked && commenting.current === 0 && result.threads) setThreads(result.threads);
+				});
+			}),
+		[id],
+	);
+
 	function apply(optimistic: (current: CommentThread[]) => CommentThread[], request: () => Promise<Threads>) {
 		const before = threads;
 		const asked = id;
 		setThreads(optimistic(before));
 		setError("");
+		commenting.current++;
 		startTransition(async () => {
-			const result = await request();
+			const result = await request().finally(() => {
+				commenting.current--;
+			});
 			if (shown.current !== asked) return;
 			if (result.error) {
 				setError(result.error);

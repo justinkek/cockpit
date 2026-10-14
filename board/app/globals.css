@@ -1554,6 +1554,63 @@
 }
 
 @layer components {
+	.live {
+		margin-left: auto;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 26px;
+		padding: 0 8px;
+		color: var(--muted);
+		background: none;
+		border: none;
+		border-radius: var(--radius);
+		font-size: 12px;
+		cursor: pointer;
+
+		&:hover {
+			color: var(--ink);
+			background: var(--lane);
+		}
+
+		& + .theme-switch {
+			margin-left: 0;
+		}
+	}
+
+	.live-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--phase-done);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--phase-done) 22%, transparent);
+	}
+
+	.live.paused .live-dot {
+		background: var(--faint);
+		box-shadow: none;
+	}
+
+	.live.offline {
+		color: var(--danger);
+
+		& .live-dot {
+			background: var(--danger);
+			box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+		}
+	}
+
+	@media (width < 760px) {
+		.live-label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip-path: inset(50%);
+			white-space: nowrap;
+		}
+	}
+
 	.theme-switch {
 		margin-left: auto;
 		width: auto;

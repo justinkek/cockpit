@@ -31,6 +31,7 @@
 #   board-card duplicate <id> [--name <name>] [--status <column>]
 #   board-card history <id>
 #   board-card undo <id> [--since <commit> [--until <commit>]]
+#   board-card revision
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -1604,6 +1605,20 @@ command_undo() {
   with_lock undo_locked "$id" "$since" "$until"
 }
 
+command_revision() {
+  require_board
+  if [ -d "$BOARD_DIR/.git" ]; then
+    {
+      board_git rev-parse --verify --quiet HEAD || true
+      board_git diff HEAD --no-ext-diff --binary 2>/dev/null || true
+      board_git ls-files --others --exclude-standard 2>/dev/null || true
+    } | cksum | cut -d' ' -f1
+  else
+    find "$BOARD_DIR" \( -name .lock -o -name '.*.??????' \) -prune -o -type f -exec cksum {} + \
+      | LC_ALL=C sort | cksum | cut -d' ' -f1
+  fi
+}
+
 command_path() {
   local id
   if [ -n "${1:-}" ]; then
@@ -1650,6 +1665,7 @@ case "$action" in
   duplicate) command_duplicate "$@" ;;
   history) command_history "$@" ;;
   undo) command_undo "$@" ;;
+  revision) command_revision ;;
   path) command_path "$@" ;;
   *) sed -n '3,/^#   board-card path/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

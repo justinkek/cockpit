@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { LiveUpdates } from "@/app/live";
 import { Nav } from "@/app/nav";
 import { ThemeSwitch } from "@/app/theme";
 import { THEME_SCRIPT } from "@/lib/theme";
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 						Cockpit
 					</Link>
 					<Nav />
+					<LiveUpdates />
 					<ThemeSwitch />
 				</header>
 				<main>{children}</main>

@@ -777,5 +777,27 @@ assert_eq "an epic is searched with --kind epic" "" "$(stub search "wiring" --ki
 stub search >/dev/null 2>&1
 assert_eq "and a search for nothing is refused" "2" "$?"
 
+printf "\nTest group: the revision changes whenever anything on the board does\n"
+
+first_revision="$(stub revision)"
+assert_eq "it is one token" "true" "$([[ "$first_revision" =~ ^[0-9]+$ ]] && echo true)"
+assert_eq "and the same token while nothing changes" "$first_revision" "$(stub revision)"
+stub set "$found_one" name "Renamed for the revision" >/dev/null
+second_revision="$(stub revision)"
+assert_eq "a write through board-card changes it" "true" "$([ "$second_revision" != "$first_revision" ] && echo true)"
+printf '\nedited by hand\n' >> "$COCKPIT_BOARD_DIR/cards/$found_one.md"
+third_revision="$(stub revision)"
+assert_eq "so does an edit nobody committed" "true" "$([ "$third_revision" != "$second_revision" ] && echo true)"
+printf 'and again\n' >> "$COCKPIT_BOARD_DIR/cards/$found_one.md"
+assert_eq "and a second edit to the same uncommitted file" "true" "$([ "$(stub revision)" != "$third_revision" ] && echo true)"
+plain_board="$TMPDIR/plain-board"
+mkdir -p "$plain_board/cards"
+plain_first="$(COCKPIT_BOARD_DIR="$plain_board" stub revision)"
+printf -- '---\nid: "FEAT-1"\n---\n' > "$plain_board/cards/FEAT-1.md"
+assert_eq "a board with no history still changes its revision" "true" \
+  "$([ "$(COCKPIT_BOARD_DIR="$plain_board" stub revision)" != "$plain_first" ] && echo true)"
+COCKPIT_BOARD_DIR="$TMPDIR/no-board" stub revision >/dev/null 2>&1
+assert_eq "and a directory with no board is refused" "3" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
