@@ -51,6 +51,26 @@ function choicePage(title: string, items: Command[]): Page {
 	return { title, items };
 }
 
+export function iconCommand(record: Card | null, edits: Edits): Command {
+	return {
+		id: "do:icon",
+		group: edits.label,
+		label: "Set icon…",
+		keywords: "emoji",
+		next: () =>
+			choicePage(`Set the icon of ${edits.label}`, [
+				{ id: "icon:none", label: "No icon", run: () => edits.edit("icon", "", { icon: null }) },
+				...EMOJI.map((entry) => ({
+					id: `icon:${entry.emoji}`,
+					label: `${entry.emoji}  ${entry.words.split(" ")[0]}`,
+					keywords: entry.words,
+					hint: entry.emoji === record?.icon ? "Current" : undefined,
+					run: () => edits.edit("icon", entry.emoji, { icon: entry.emoji }),
+				})),
+			]),
+	};
+}
+
 export function recordCommands(
 	kind: "card" | "epic" | null,
 	record: Card | null,
@@ -142,23 +162,7 @@ export function recordCommands(
 			},
 		);
 	}
-	commands.push({
-		id: "do:icon",
-		group,
-		label: "Set icon…",
-		keywords: "emoji",
-		next: () =>
-			choicePage(`Set the icon of ${edits.label}`, [
-				{ id: "icon:none", label: "No icon", run: () => edits.edit("icon", "", { icon: null }) },
-				...EMOJI.map((entry) => ({
-					id: `icon:${entry.emoji}`,
-					label: `${entry.emoji}  ${entry.words.split(" ")[0]}`,
-					keywords: entry.words,
-					hint: entry.emoji === record?.icon ? "Current" : undefined,
-					run: () => edits.edit("icon", entry.emoji, { icon: entry.emoji }),
-				})),
-			]),
-	});
+	commands.push(iconCommand(record, edits));
 	if (edits.duplicate) {
 		commands.push({ id: "do:duplicate", group, label: "Duplicate", keywords: "copy clone", run: edits.duplicate });
 	}

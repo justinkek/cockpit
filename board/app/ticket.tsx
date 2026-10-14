@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { archiveOne, dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
-import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
+import { cardCommands, type Edits, epicPage, iconCommand, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
@@ -223,7 +223,10 @@ export function Ticket({
 				...recordCommands(kind, record, lists, edits),
 				...(kind
 					? []
-					: [{ id: "do:archive", group: record.id, label: "Archive", keywords: "remove delete hide", run: archive }]),
+					: [
+							iconCommand(record, edits),
+							{ id: "do:archive", group: record.id, label: "Archive", keywords: "remove delete hide", run: archive },
+						]),
 				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
 				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(true) },
 				{
