@@ -350,6 +350,34 @@ assert_eq "a card's status still changes only through a move or a walk" "2" "$?"
 stub set FEAT-1 priority 1 >/dev/null 2>&1
 assert_eq "only a project has a priority" "2" "$?"
 
+printf "\nTest group: a reference ticket keeps its fields where TR reads them\n"
+
+reference="$(stub create --kind reference --name "Fix a typo")"
+assert_eq "points read back under their property name" "Points	2" "$(stub set "$reference" points 2)"
+stub set "$reference" why "One line, no decisions" >/dev/null
+stub set "$reference" description "Change one word" >/dev/null
+stub set "$reference" domain Tech >/dev/null
+stub set "$reference" stack Shell >/dev/null
+stub set "$reference" card FEAT-1 >/dev/null
+assert_eq "each field sits at the top of the record, as list --kind reference --json gives it" '{"points":2,"why":"One line, no decisions","description":"Change one word","domain":"Tech","stack":"Shell","card":"FEAT-1"}' \
+  "$(stub list --kind reference --json | jq --compact-output --arg id "$reference" '.[] | select(.id == $id) | {points, why, description, domain, stack, card}')"
+stub set "$reference" reference.points 3 >/dev/null
+assert_eq "the old reference.<key> form sets the same field" "3 false" "$(field "$reference" '"\(.points) \(has("reference"))"')"
+stub set "$reference" points 4 >/dev/null 2>&1
+assert_eq "points off the Fibonacci list are refused" "2" "$?"
+stub set "$reference" domain Ops >/dev/null 2>&1
+assert_eq "a domain is Tech or Bizdev" "2" "$?"
+stub set "$reference" card EPIC-1 >/dev/null 2>&1
+assert_eq "the card is a card" "2" "$?"
+stub set "$reference" card FEAT-99 >/dev/null 2>&1
+assert_eq "and one the board holds" "3" "$?"
+stub set FEAT-1 points 3 >/dev/null 2>&1
+assert_eq "only a reference ticket has points" "2" "$?"
+printf -- '---\nid: "REF-90"\nname: "Nested"\nstatus: null\npoints: 1\nreference:\n  "points": "5"\n  "why": "set the old way"\ndates: {}\n---\n' > "$COCKPIT_BOARD_DIR/references/REF-90.md"
+stub set REF-90 stack Shell >/dev/null
+assert_eq "a record written the old way is repaired on its next write" "5 set the old way false" \
+  "$(field REF-90 '"\(.points) \(.why) \(has("reference"))"')"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

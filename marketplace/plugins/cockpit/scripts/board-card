@@ -419,7 +419,8 @@ PROPERTY_FIELDS='{
   "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
   "Cost": "cost_usd", "Tokens": "tokens_k",
   "Start Date": "start", "End Date": "end", "Dev Days": "dev_days", "Speed": "speed",
-  "Priority": "priority", "Repo": "repo"}'
+  "Priority": "priority", "Repo": "repo",
+  "Points": "points", "Why this score": "why", "Description": "description", "Domain": "domain", "Stack": "stack", "Ticket": "card"}'
 
 require_properties() {
   local unknown
@@ -562,6 +563,13 @@ property_of_field() {
     status) echo Status ;;
     priority) echo Priority ;;
     repo) echo Repo ;;
+    points) echo Points ;;
+    why) echo "Why this score" ;;
+    description) echo Description ;;
+    domain) echo Domain ;;
+    stack) echo Stack ;;
+    card) echo Ticket ;;
+    reference.*) property_of_field "${1#reference.}" ;;
     name) echo Name ;;
     icon) echo Icon ;;
     type) echo Type ;;
@@ -642,6 +650,29 @@ field_json() {
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^https?://[^[:space:]]+$' || die 2 "a project's repo is a URL, not '$value'"
       nullable "$value"
       ;;
+    points)
+      [ "$kind" = reference ] || die 2 "only a reference ticket has points, and this is a $kind"
+      [ -z "$value" ] || case "$FIBONACCI" in *" $value "*) ;; *) die 2 "points are a Fibonacci number ($FIBONACCI), not '$value'" ;; esac
+      if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
+      ;;
+    why|description|stack)
+      [ "$kind" = reference ] || die 2 "only a reference ticket has $field, and this is a $kind"
+      nullable "$value"
+      ;;
+    domain)
+      [ "$kind" = reference ] || die 2 "only a reference ticket has a domain, and this is a $kind"
+      case "$value" in ""|Tech|Bizdev) ;; *) die 2 "a domain is Tech or Bizdev, not '$value'" ;; esac
+      nullable "$value"
+      ;;
+    card)
+      [ "$kind" = reference ] || die 2 "only a reference ticket names the card it was taken from, and this is a $kind"
+      if [ -n "$value" ]; then
+        value="$(normalise_id "$value")" || exit "$?"
+        [ "$(kind_of "$value")" = card ] || die 2 "$value is not a card"
+        require_record "$value"
+      fi
+      nullable "$value"
+      ;;
     *) die 2 "no field '$field' on a $kind" ;;
   esac
 }
@@ -672,6 +703,16 @@ rename_card() {
   return 0
 }
 
+unnest_reference_program='
+  if (.id | startswith("REF-")) and ((.reference // null) | type) == "object" then
+    .reference as $nested
+    | del(.reference)
+    | reduce ($nested | to_entries[]) as $entry (.;
+        if ($entry.key | IN("points", "why", "description", "domain", "stack", "card"))
+        then .[$entry.key] = (if $entry.key == "points" then ($entry.value | tonumber? // $entry.value) else $entry.value end)
+        else .reference[$entry.key] = $entry.value end)
+  else . end'
+
 set_locked() {
   local id="$1" field="$2" value="$3" reference json
   case "$field" in
@@ -699,13 +740,13 @@ set_locked() {
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
       ;;
-    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status)
+    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status|points|why|description|domain|stack|card)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
       case "$field" in
         start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
         end) check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
-      update_record "$id" --arg field "$field" --argjson value "$json" '.[$field] = $value'
+      update_record "$id" --arg field "$field" --argjson value "$json" "$unnest_reference_program | .[\$field] = \$value"
       ;;
     epic|project|sprint)
       reference=""
@@ -728,7 +769,10 @@ set_locked() {
       update_record "$id" --arg key "${field#models.}" --argjson value "$(nullable "$value")" '.models = ((.models // {}) + {($key): $value} | with_entries(select(.value != null)))'
       ;;
     reference.*)
-      update_record "$id" --arg key "${field#reference.}" --argjson value "$(nullable "$value")" '.reference = ((.reference // {}) + {($key): $value} | with_entries(select(.value != null)))'
+      case "${field#reference.}" in
+        points|why|description|domain|stack|card) set_locked "$id" "${field#reference.}" "$value" ;;
+        *) die 2 "a reference ticket has points, why, description, domain, stack and card, not '${field#reference.}'" ;;
+      esac
       ;;
     body)
       update_record "$id" --arg value "$value" '.body = $value'
@@ -738,7 +782,7 @@ set_locked() {
       update_record "$id" --argjson value "$value" '.rank = $value'
       ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, start, end, dev_days, speed, priority, repo, status of a project, session, body, rank, models.<stage>, reference.<key>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, start, end, dev_days, speed, priority, repo, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
   esac
 }
 
