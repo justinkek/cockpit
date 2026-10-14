@@ -3705,8 +3705,18 @@
 		flex-wrap: wrap;
 	}
 
+	.peek-head {
+		gap: 4px;
+
+		& .drag-handle {
+			flex: none;
+			white-space: nowrap;
+		}
+	}
+
 	.peek-actions {
-		gap: 2px;
+		gap: 0;
+		min-width: 0;
 
 		& > * {
 			white-space: nowrap;
@@ -3714,7 +3724,7 @@
 
 		& > button,
 		& > .quiet-link {
-			padding: 0 7px;
+			padding: 0 5px;
 		}
 	}
 
