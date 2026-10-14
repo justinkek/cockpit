@@ -61,8 +61,20 @@ export function NewRecord({
 		onOpenChange(false);
 	}
 
+	function changed(set: (value: string) => void) {
+		return (event: { target: { value: string } }) => {
+			set(event.target.value);
+			setError("");
+		};
+	}
+
 	async function create() {
-		if (!name.trim() || busy) return;
+		if (busy) return;
+		if (!name.trim()) {
+			setError(`Give the ${kind} a name before creating it.`);
+			box.current?.focus();
+			return;
+		}
 		setBusy(true);
 		setError("");
 		const failure = await onCreate({
@@ -133,23 +145,23 @@ export function NewRecord({
 					required
 					value={name}
 					disabled={busy}
-					onChange={(event) => setName(event.target.value)}
+					onChange={changed(setName)}
 				/>
 				<div className="new-props">
-					<select name="status" aria-label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>
+					<select name="status" aria-label="Status" value={status} onChange={changed(setStatus)}>
 						{columns.map((column) => (
 							<option key={column}>{column}</option>
 						))}
 					</select>
 					{kind === "card" && (
-						<select name="type" aria-label="Type" value={type} onChange={(event) => setType(event.target.value)}>
+						<select name="type" aria-label="Type" value={type} onChange={changed(setType)}>
 							{TYPES.map((option) => (
 								<option key={option}>{option}</option>
 							))}
 						</select>
 					)}
 					{kind === "card" && (
-						<select name="epic" aria-label="Epic" value={epic} onChange={(event) => setEpic(event.target.value)}>
+						<select name="epic" aria-label="Epic" value={epic} onChange={changed(setEpic)}>
 							<option value="">No epic</option>
 							{lists.epics.map((option) => (
 								<option key={option.id} value={option.id}>
@@ -162,7 +174,7 @@ export function NewRecord({
 						name="project"
 						aria-label="Project"
 						value={project}
-						onChange={(event) => setProject(event.target.value)}
+						onChange={changed(setProject)}
 					>
 						<option value="">{inherited ? `${inherited} (from the epic)` : "No project"}</option>
 						{lists.projects.map((option) => (
@@ -180,7 +192,7 @@ export function NewRecord({
 					rows={6}
 					value={body}
 					disabled={busy}
-					onChange={(event) => setBody(event.target.value)}
+					onChange={changed(setBody)}
 				/>
 				{error && (
 					<p className="new-error" role="alert">
