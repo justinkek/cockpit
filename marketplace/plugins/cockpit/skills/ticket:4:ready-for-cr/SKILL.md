@@ -5,7 +5,7 @@ description: Push the session's branch, open a PR for its cockpit ticket, and li
 
 # ready-for-cr
 
-Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked three ways: by the dev skill and by the status skill's step 7 once the machine gates leave no defect open, and by the user typing `/ready-for-cr`.
+Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked three ways: by the dev skill and by the status skill's **Publish** step once the machine gates leave no defect open, and by the user typing `/ready-for-cr`.
 
 The card is already at `In CR by AI` by the time this runs - finishing dev puts it there, and landing on the column runs the machine gates against the branch as it stands on the machine. This skill publishes a branch whose defects have already been fixed, and then carries the card to `Ready for CR` - the last column before the human pull.
 
