@@ -93,6 +93,8 @@ Only the checkout `~/.claude-shared` resolves into is followed by an apply: the 
 
 The cockpit board is a folder of markdown files, `~/.local/state/cockpit/board`, a git repository of its own that is never pushed. `board-card` is its one writer, run as `"$HOME/.cockpit/scripts/board-card"`, and `board-card init` makes it. Every write goes through the script, so the board works with the app stopped. Nothing reaches Notion.
 
+Every write `board-card` makes is committed to that repository. Writes that land close together are held and go in as one commit a few seconds after the last of them, as `COCKPIT_COMMIT_DELAY` in `board-card` sets, and `history` and `undo` commit whatever is still held before they read. Exit 6 means the write is on disk but the repository refused the commit: never repeat the write, say what it printed, and leave it - the next write commits what was left over.
+
 | Folder        | Holds                                                      | Id                           |
 | ------------- | ---------------------------------------------------------- | ---------------------------- |
 | `cards/`      | a ticket card, its prefix naming its type                  | `FEAT-12`, `BUG-7`, `TIME-3` |
@@ -163,13 +165,13 @@ The title is the session's name with the bracketed epic dropped. The glyph in fr
 
 ## A decision nobody is there to answer
 
-`agents/claude/templates/raise-a-decision.md` owns both halves: where the comment goes, and what the session does once it is posted. A branch names that template and its own default; it never restates the ask. A skill with no ticket to write on - the daily mail - names the gap in what it produces instead.
+`agents/claude/templates/raise-a-decision.md` owns all three parts: where the comment goes, what the session does once it is posted, and what the session that next reads the thread does with the person's answer. A branch names that template and its own default; it never restates the ask. A skill with no ticket to write on - the daily mail - names the gap in what it produces instead.
 
 ## The end of a dev turn
 
-A commit is not the end of dev - several land while the tech steps are being built - so what carries the card to In CR by AI is the turn ending with one behind it. `remind-ticket-status.sh` records a commit that exited 0 as a `.dev-committed` sidecar, and `advance-after-dev.sh` notes the turn end while that sidecar sits beside a card still reading In Dev.
+A commit is not the end of dev - several land while the tech steps are being built - so what carries the card to In CR by AI is the turn ending with one behind it. `remind-ticket-status.sh` records a commit that exited 0 as a `.dev-committed` sidecar. At the turn end `advance-after-dev.sh` takes that sidecar away and, while the recorded column still reads In Dev and the machine gates have not run, records a stop note that `replay-stop-notes.sh` prints when the person next writes.
 
-The note takes the sidecar away, so it costs one line per commit and never twice for the same one: a session with steps left says what is left, and the next commit arms it again.
+The first turn end after a commit takes the sidecar whatever the column reads, so it costs one line per commit at most and never twice for the same one: a session with steps left says what is left, and the next commit arms it again.
 
 ## What the watcher announces
 
