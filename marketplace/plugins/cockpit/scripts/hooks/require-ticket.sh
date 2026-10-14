@@ -2,6 +2,126 @@
 
 . "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/hooks/hook-argv-lib.sh"
 
+sole_invocation_words() {
+  printf '%s' "$2" | awk -v mode="$1" -v readers="$HOOK_READONLY_CMDS" '
+    function close_word(  name) {
+      if (!inword) return
+      if (segment == 1) words[++count] = word
+      else if (reader_due) {
+        name = word
+        sub(/^.*\//, "", name)
+        if (!(name in reader)) exit 1
+        reader_due = 0
+      }
+      word = ""
+      inword = 0
+    }
+    { s = s (NR > 1 ? "\n" : "") $0 }
+    END {
+      split(readers, list, " ")
+      for (j in list) reader[list[j]] = 1
+      if (mode == "approve" && index(s, "\n")) exit 1
+      n = length(s)
+      i = 1
+      segment = 1
+      while (i <= n) {
+        c = substr(s, i, 1)
+        two = substr(s, i, 2)
+        if (quote == "\047") {
+          if (c == "\047") quote = ""; else word = word c
+          i++
+          continue
+        }
+        if (c == "\\" || c == "`" || two == "$(") exit 1
+        if (two == "${") {
+          if (!match(substr(s, i), /^\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) exit 1
+          word = word substr(s, i, RLENGTH)
+          inword = 1
+          i += RLENGTH
+          continue
+        }
+        if (quote == "\"") {
+          if (c == "\"") quote = ""; else word = word c
+          i++
+          continue
+        }
+        if (two == "$\047" || (c == "#" && !inword)) exit 1
+        if (c == "\047" || c == "\"") {
+          quote = c
+          inword = 1
+          i++
+          continue
+        }
+        if (c == " " || c == "\t") {
+          close_word()
+          i++
+          continue
+        }
+        if (c == "\n") {
+          close_word()
+          i++
+          if (delimiter != "") {
+            while (i <= n) {
+              line_end = index(substr(s, i), "\n")
+              line = line_end ? substr(s, i, line_end - 1) : substr(s, i)
+              i = line_end ? i + line_end : n + 1
+              if (strip) sub(/^\t+/, "", line)
+              if (line == delimiter) break
+            }
+            delimiter = ""
+          }
+          if (substr(s, i) !~ /^[ \t\n]*$/) exit 1
+          break
+        }
+        if (mode == "let-through" && c == "|") {
+          after = substr(s, i + 1, 1)
+          if (after == "|" || after == "&") exit 1
+          close_word()
+          if (count == 0 || reader_due) exit 1
+          segment++
+          reader_due = 1
+          i++
+          continue
+        }
+        if (mode == "let-through" && two == "<<" && !heredoc) {
+          close_word()
+          i += 2
+          if (substr(s, i, 1) == "-") {
+            strip = 1
+            i++
+          }
+          while (substr(s, i, 1) == " " || substr(s, i, 1) == "\t") i++
+          if (!match(substr(s, i), /^\047[A-Za-z_][A-Za-z0-9_]*\047/) && !match(substr(s, i), /^"[A-Za-z_][A-Za-z0-9_]*"/)) exit 1
+          delimiter = substr(s, i + 1, RLENGTH - 2)
+          heredoc = 1
+          i += RLENGTH
+          after = substr(s, i, 1)
+          if (after != "" && after != " " && after != "\t" && after != "\n" && after != "|") exit 1
+          continue
+        }
+        if (index(";&|<>()", c)) exit 1
+        word = word c
+        inword = 1
+        i++
+      }
+      if (quote != "") exit 1
+      close_word()
+      if (reader_due) exit 1
+      for (j = 1; j <= count; j++) print words[j]
+    }'
+}
+
+names_cockpit_script() {
+  local word="$1" name
+  shift
+  for name in "$@"; do
+    case "$word" in
+      "\$HOME/.cockpit/scripts/$name" | "\${HOME}/.cockpit/scripts/$name" | "~/.cockpit/scripts/$name" | "$HOME/.cockpit/scripts/$name") return 0 ;;
+    esac
+  done
+  return 1
+}
+
 input="$(cat)"
 
 if command -v jq >/dev/null 2>&1; then
@@ -14,9 +134,9 @@ else
   cmd="$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 
-command_words="$(hook_argv_words "$cmd")"
-first="$(printf '%s\n' "$command_words" | sed -n '1s/^w //p')"
-subcommand="$(printf '%s\n' "$command_words" | sed -n '2s/^w //p')"
+invocation="$(sole_invocation_words let-through "$cmd")"
+first="$(printf '%s\n' "$invocation" | sed -n 1p)"
+subcommand="$(printf '%s\n' "$invocation" | sed -n 2p)"
 
 # No session id (shouldn't happen) -> defer rather than brick the session.
 [ -n "$session_id" ] || exit 0
@@ -39,9 +159,9 @@ marker="$STATE_DIR/$session_id.ticket"
 # Intercept the registration command: write the marker, then auto-approve it.
 # The registration call is forced by this very gate, so prompting on it is a
 # self-inflicted loop. Approve it silently — but only when the command is
-# *nothing but* a ticket-register invocation: strip quoted substrings and bail
-# on any pipe/redirect/chaining/subshell, and require the first token to be a
-# ticket-register script. A command that merely contains the substring, or
+# *nothing but* a ticket-register invocation: bail on any pipe, redirect,
+# chain or second line, on a substitution even inside double quotes, and
+# require the first token to name a ticket-register script exactly. A command that merely contains the substring, or
 # tacks shell metacharacters onto it, still defers to the normal prompt.
 #
 # Ordering matters: the marker is written BEFORE the shape gate, so the gate
@@ -53,8 +173,6 @@ marker="$STATE_DIR/$session_id.ticket"
 # that did not happen — accepted: the sidecars record intent, and a stale
 # marker is repaired by the next status hop, whereas a missing one is silent.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
-  residue="$(printf '%s' "$cmd" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")"
-
   # Which script is invoked? Matched anywhere in the command, not just as the
   # first token, so a chained invocation is still recognised. Longest name
   # first: the -column / -type variants must win over the
@@ -103,8 +221,8 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
 
   # Shape gate: auto-approve only a standalone invocation. Anything chained or
   # redirected defers to the normal prompt — with its sidecar already written.
-  case "$residue" in *'|'*|*'&'*|*';'*|*'<'*|*'>'*|*'`'*|*'$('*|*$'\n'*) exit 0 ;; esac
-  case "$first" in *.cockpit/scripts/ticket-register*) ;; *) exit 0 ;; esac
+  names_cockpit_script "$(sole_invocation_words approve "$cmd" | sed -n 1p)" \
+    ticket-register ticket-register-column ticket-register-type || exit 0
 
   if command -v jq >/dev/null 2>&1; then
     jq -nc --arg r "$reason" \
@@ -121,22 +239,20 @@ fi
 # why they are named here one by one rather than by a pattern that would let
 # anything through.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-claim-lock|ticket-waiting-cards'; then
-  case "$first" in *.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards) exit 0 ;; esac
+  names_cockpit_script "$first" ticket-claim-lock ticket-waiting-cards && exit 0
 fi
 
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'board-card'; then
-  case "$first" in
-    *.cockpit/scripts/board-card)
-      case "$subcommand" in show|list|statuses|path|claim|create) exit 0 ;; esac
-      ;;
-  esac
+  if names_cockpit_script "$first" board-card; then
+    case "$subcommand" in show|list|statuses|path|claim|create) exit 0 ;; esac
+  fi
 fi
 
 # Cross-allow: let auto-rename through without writing the ticket marker.
 # Without this, auto-rename is denied by the ticket gate before the rename
 # gate can intercept it — a chicken-and-egg deadlock between the two hooks.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'auto-rename'; then
-  case "$first" in *.cockpit/scripts/auto-rename) exit 0 ;; esac
+  names_cockpit_script "$first" auto-rename && exit 0
 fi
 
 # A command that only reads is not a mutation. exit 0 is "no opinion": the
