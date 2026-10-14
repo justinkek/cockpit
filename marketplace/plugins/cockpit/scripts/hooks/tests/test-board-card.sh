@@ -232,6 +232,10 @@ assert_eq "an attachment is committed under its verb and id" "attach BUG-2" "$(l
 commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 stub attach BUG-2 "$TMPDIR/flow.svg" >/dev/null
 assert_eq "attaching the same file again changes nothing and commits nothing" "$commits_before" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+assert_eq "attachments names the file each attachment lies in" "$COCKPIT_BOARD_DIR/attachments/BUG-2/flow.svg" "$(stub attachments bug-2)"
+assert_eq "and names nothing for a record with none" "" "$(stub attachments FEAT-1)"
+stub attachments FEAT-999 >/dev/null 2>&1
+assert_eq "and refuses a record that does not exist" "3" "$?"
 
 printf "\nTest group: epics have their own columns\n"
 
@@ -423,6 +427,7 @@ stub show BUG-2 Status >/dev/null 2>&1
 assert_eq "an archived record cannot be read as if it were on the board" "3" "$?"
 assert_eq "and the refusal says how to bring it back" "true" "$(stub show BUG-2 Status 2>&1 | grep --quiet 'board-card unarchive BUG-2' && echo true)"
 assert_eq "path names the file where it now lies" "$COCKPIT_BOARD_DIR/archive/cards/BUG-2.md" "$(stub path BUG-2)"
+assert_eq "and attachments names where its attachments now lie" "$COCKPIT_BOARD_DIR/archive/attachments/BUG-2/flow.svg" "$(stub attachments BUG-2)"
 numbered="$(stub create --name "After the archive")"
 assert_eq "an archived record's number is not given out again" "true" "$([ "${numbered##*-}" -gt 2 ] && echo true)"
 assert_eq "and a record never made, the file it would be" "$COCKPIT_BOARD_DIR/cards/FEAT-999.md" "$(stub path FEAT-999)"

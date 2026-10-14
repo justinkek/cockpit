@@ -332,4 +332,16 @@ case "$mention_html" in
 *) assert_ko "a card links to its page and an epic to the epics board" "$mention_html" ;;
 esac
 
+printf "\nTest group: a link to an attachment opens it through the app\n"
+
+attachment_html="$(printf '%s' $'[flow diagram.html](attachments/EPIC-19/1-flow%20diagram.html) and [site](https://example.com/attachments/X/y)' | node "$WORK/outline.mjs" --html)"
+case "$attachment_html" in
+*'href="/attachments/EPIC-19/1-flow%20diagram.html"'*) assert_ok "a link into the board's attachments points at the app's attachment route" ;;
+*) assert_ko "a link into the board's attachments points at the app's attachment route" "$attachment_html" ;;
+esac
+case "$attachment_html" in
+*'href="https://example.com/attachments/X/y"'*) assert_ok "and a link elsewhere is left as written" ;;
+*) assert_ko "and a link elsewhere is left as written" "$attachment_html" ;;
+esac
+
 finish

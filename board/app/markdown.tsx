@@ -18,6 +18,25 @@ export function mentionNames(records: { id: string; name: string }[]) {
 	return (id: string) => byId.get(id) ?? byNumber.get(id.match(CARD_NUMBER)?.[1] ?? "");
 }
 
+const attachmentPath = /^(?:\.\/)?attachments\/([^/?#]+)\/([^/?#]+)$/;
+
+export function attachmentHref(id: string, name: string) {
+	return `/attachments/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
+}
+
+function decoded(part: string) {
+	try {
+		return decodeURIComponent(part);
+	} catch {
+		return part;
+	}
+}
+
+export function hrefOf(target: string) {
+	const found = target.match(attachmentPath);
+	return found ? attachmentHref(decoded(found[1]), decoded(found[2])) : target;
+}
+
 function Mention({ id }: { id: string }) {
 	const { nameOf, onOpen } = useContext(MentionContext);
 	const name = nameOf?.(id);
@@ -104,7 +123,7 @@ function inline(text: string, anchors: Anchor[], onAnchor: (thread: string) => v
 		const part = `${key}-m${index}`;
 		if (match[1] !== undefined) {
 			nodes.push(
-				<a key={part} href={match[2]} target="_blank" rel="noreferrer">
+				<a key={part} href={hrefOf(match[2])} target="_blank" rel="noreferrer">
 					{highlight(match[1], anchors, onAnchor, part, false)}
 				</a>,
 			);

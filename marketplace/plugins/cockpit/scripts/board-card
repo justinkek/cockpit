@@ -24,6 +24,7 @@
 #   board-card comments <id> [--all] [--json]
 #   board-card resolve <id> <comment-id>
 #   board-card attach <id> <file>
+#   board-card attachments <id>
 #   board-card usage <id>
 #   board-card archive <id>
 #   board-card unarchive <id>
@@ -1318,6 +1319,18 @@ command_attach() {
   printf 'attachments/%s/%s\n' "$id" "$name"
 }
 
+command_attachments() {
+  local id directory
+  id="$(normalise_id "${1:-}")"
+  directory="$BOARD_DIR/attachments/$id"
+  if [ ! -f "$(record_file "$id")" ]; then
+    [ -f "$(archive_file "$id")" ] || die 3 "no record $id in $(directory_of_kind "$(kind_of "$id")")"
+    directory="$BOARD_DIR/archive/attachments/$id"
+  fi
+  [ -d "$directory" ] || return 0
+  find "$directory" -mindepth 1 -maxdepth 1 -type f | LC_ALL=C sort
+}
+
 command_usage() {
   local id usage
   id="$(normalise_id "${1:-}")"
@@ -1630,6 +1643,7 @@ case "$action" in
   comments) command_comments "$@" ;;
   resolve) command_resolve "$@" ;;
   attach) command_attach "$@" ;;
+  attachments) command_attachments "$@" ;;
   usage) command_usage "$@" ;;
   archive) command_archive "$@" ;;
   unarchive) command_unarchive "$@" ;;

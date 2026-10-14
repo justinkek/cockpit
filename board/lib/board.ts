@@ -41,6 +41,10 @@ export async function searchContent(kind: Kind, text: string): Promise<string[]>
 	return (await boardCard(["search", text, "--kind", kind])).split("\n").filter(Boolean);
 }
 
+export async function listAttachments(id: string): Promise<string[]> {
+	return (await boardCard(["attachments", id])).split("\n").filter(Boolean);
+}
+
 export async function boardDirectory(): Promise<string> {
 	return (await boardCard(["path"])).trim();
 }

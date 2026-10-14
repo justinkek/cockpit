@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { Ticket } from "@/app/ticket";
-import { BoardError, type Card, findRenamed, kindOf, listRecords, readRecord } from "@/lib/board";
+import { BoardError, type Card, findRenamed, kindOf, listAttachments, listRecords, readRecord } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +26,7 @@ export default async function CardPage({ params, searchParams }: Props) {
 	let epics: Card[] = [];
 	let sprints: Card[] = [];
 	let projects: Card[] = [];
+	let attachments: string[] = [];
 	try {
 		[cards, epics, sprints, projects] = await Promise.all([
 			listRecords("card"),
@@ -33,6 +34,7 @@ export default async function CardPage({ params, searchParams }: Props) {
 			listRecords("sprint"),
 			listRecords("project"),
 		]);
+		attachments = await listAttachments(record.id);
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
 	}
@@ -44,6 +46,7 @@ export default async function CardPage({ params, searchParams }: Props) {
 			initial={record}
 			column={column}
 			failure={typeof error === "string" ? error : undefined}
+			attachments={attachments.map((file) => file.slice(file.lastIndexOf("/") + 1))}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: epics.map(({ id, name, project }) => ({ id, name, project })),

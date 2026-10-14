@@ -8,7 +8,7 @@ import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeComm
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
-import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
+import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
@@ -21,11 +21,13 @@ export function Ticket({
 	lists,
 	failure,
 	column,
+	attachments = [],
 }: {
 	initial: Card;
 	lists: Lists;
 	failure?: string;
 	column: Card[];
+	attachments?: string[];
 }) {
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
@@ -295,6 +297,18 @@ export function Ticket({
 				</dd>
 				<dt>Created</dt>
 				<dd>{record.created}</dd>
+				{attachments.length > 0 && (
+					<>
+						<dt>Attachments</dt>
+						<dd className="attachments">
+							{attachments.map((name) => (
+								<a key={name} href={attachmentHref(record.id, name)} target="_blank" rel="noreferrer">
+									{name}
+								</a>
+							))}
+						</dd>
+					</>
+				)}
 				{dates.map(([column, stamp]) => (
 					<Fragment key={column}>
 						<dt>Date: {column}</dt>
