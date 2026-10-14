@@ -41,7 +41,8 @@ Each commit is the smallest self-contained diff that builds/passes on its own. D
 
    - Format: `<type>(<scope>): <short description>`
    - Types: feat, fix, perf, refactor, style, chore, docs, test, build, ci, revert
-   - Imperative mood, under 72 characters, no trailing period
+   - Imperative mood, no trailing period
+   - As long as the subjects step 1 read from `git log` run, and under 72 characters in a repository with no history to read
    - The `Co-Authored-By` name and email come from the system prompt's model identity (e.g. `Claude Opus 4.6 <noreply@anthropic.com>`)
 
 7. **Verify.** Run `git status` after the commit to confirm success. If a pre-commit hook fails, fix the issue and create a NEW commit (never amend).
