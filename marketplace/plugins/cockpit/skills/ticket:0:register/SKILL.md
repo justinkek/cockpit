@@ -15,7 +15,7 @@ Once the card is registered, the column it sits in decides what kind of output i
 
 - **Backlog**: no refinement output at all. The ticket is captured, not committed - never draft validation steps or tech steps for it, and never advance it. A person pulls it into refinement when they decide to.
 - **BR columns** (Ready for BR by AI, In BR by AI, Ready for BR, In BR): only BR output is allowed - validation steps for features, replication/validation steps for bugs, expected outcome for timeboxes, and questions to clarify scope. No tech steps, no file paths, no code snippets, no implementation proposals.
-- **TR columns** (Ready for TR by AI, In TR by AI, Ready for TR, In TR): only TR output is allowed - tech steps, complexity estimation, and risks. No file edits, no code generation, no running commands beyond reading the codebase to inform the tech steps.
+- **TR columns** (Ready for TR by AI, In TR by AI, Ready for TR, In TR): only TR output is allowed - tech steps and complexity estimation. No file edits; code appears only inside the tech steps written to the card; commands are limited to reading the codebase and the `board-card` calls the TR skill names.
 - **In Dev or later**: implementation is allowed - file edits, code generation, running builds and tests.
 
 `require-dev-status.sh` hard-gates file edits until In Dev.
@@ -29,6 +29,8 @@ If no input was supplied, ask which card the user is working on. Otherwise resol
 1. **Card id** (`FEAT-n`, `BUG-n` or `TIME-n`) — read it once with `"$HOME/.cockpit/scripts/board-card" show <card-id> --json`, confirm its name and continue to the epic gate. Exit 3 means no such card: say so and stop. An `EPIC-n` id is an epic, not a card - inform the user and invoke the `/cockpit:epic:0:register` skill with the id instead of continuing the ticket flow. Stop this skill's execution.
 2. **A Notion URL** — the board no longer lives in Notion. Ask for the card id and stop.
 3. **Title, free text or any other URL** — delegate card creation to `/cockpit:ticket:0:new`, passing: title (from the text, or the page a URL names), type (from step 2.5), and epic (from step 2). A URL is reference material: it goes in the card's `## Context`, and nothing reads or writes the page it names.
+
+Case 3 has no card to read until it creates one. Run step 2's points 1 to 4 and step 2.5 first, answering them from the person's text, then delegate. Read the card it creates once with `"$HOME/.cockpit/scripts/board-card" show <card-id> --json` - that read is the step 1 read every later step refers to - and carry on at step 3.
 
 Handle epic ambiguity only in the epic gate; do not ask twice.
 
@@ -52,7 +54,7 @@ Take the `epic` field from the step 1 read - never a second read of the card ste
 
 Case 1 - take `type` from the step 1 read. Populated, carry straight on; empty, pick one and hold it for step 4.1 to write.
 
-Cases 3 and 4 - no card exists yet, so pick one and hand it to `/cockpit:ticket:0:new`, which writes it at creation.
+Case 3 - no card exists yet, so pick one and hand it to `/cockpit:ticket:0:new`, which writes it at creation.
 
 Read the title and whatever body there is, and pick without asking:
 
@@ -80,15 +82,17 @@ Run exactly:
 
 ### 4.1. Write what the gates picked
 
-If the epic gate (step 2) identified an epic for a newly created card, link it now:
+Only case 1 writes here. A card the workflow created carries the epic and the type the gates picked from its creation - never write either again here.
+
+For case 1, write the epic when the gate picked one - for an empty field by points 1 to 4, or when point 5 picked a replacement for a closed one:
 
 ```sh
 "$HOME/.cockpit/scripts/board-card" set <card-id> epic <EPIC-n>
 ```
 
-For case 1 (existing cockpit card), write the epic only when point 5 picked a replacement for a closed one. A field the gate left alone is already right - skip the epic half of this step.
+An open epic the gate found already linked is right - skip the epic half of this step.
 
-A `Type` picked at step 2.5 for a card that arrived without one is written with `board-card set <card-id> type <Type>`. A card the workflow created carries the gate's pick already, written at creation - never overwrite it here.
+A `Type` picked at step 2.5 for a card that arrived without one is written with `board-card set <card-id> type <Type>`.
 
 ### 4.5. Store work item type
 
@@ -102,11 +106,9 @@ Where `<ticket-type>` is the card's `Type` lowercased (e.g. `feature`, `timebox`
 
 ### 4.6. Advance to In BR by AI
 
-If the card's current status is `Ready for BR by AI`, advance it:
+If the card's current status is `Ready for BR by AI`, advance it by invoking the `cockpit:ticket:x:status` skill with target `In BR by AI`.
 
-```sh
-"$HOME/.cockpit/scripts/board-card" walk <card-id> "In BR by AI"
-```
+Go through that skill, never a bare `board-card walk`. Its Record model step writes `models.BR` only for a column its own walk lands on, and the BR skill's walk starts from `In BR by AI`, so no later walk lands there to write it.
 
 If the status is anything else (card re-registered mid-flight or picked up from a later column), skip this step silently.
 
@@ -128,7 +130,7 @@ Read the card's `session` (already in the step 1 read) and act on what it holds:
 
 - **Already this session's claim** - nothing to do. A re-registration after a context reset lands here.
 
-- **Another session's claim** - leave it alone and say who holds it. The user asked for this card by id, so registration goes ahead; two sessions on one card is theirs to resolve, not this skill's to block.
+- **Another session's claim** - leave it alone and say who holds it. Registration goes ahead; two sessions on one card is the person's to resolve, not this skill's to block.
 
 The claim is held from here to `Done`. `cockpit:ticket:x:status` releases it on the hop that lands on `Done`, and the SessionEnd hook releases it if the session ends first.
 
@@ -153,6 +155,8 @@ Arm the watcher here, once. Call the `Monitor` tool with:
 Arming is best-effort. A watcher that exits at once with an error line leaves registration standing. Report the line, do not retry the arm, and carry on with the remaining steps.
 
 ### 4.75. Check for pre-existing PR
+
+Run this step only for a card at `In Dev` or later, and never for a card this run created. A card before `In Dev` has no branch of its own: the branch the session started on belongs to its checkout, not to the ticket, and a PR on it is other work.
 
 If the session is in a git repository with a GitHub remote, check whether the current branch already has an open pull request:
 

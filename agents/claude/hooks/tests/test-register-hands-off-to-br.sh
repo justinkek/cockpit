@@ -51,6 +51,18 @@ assert_hand_off_follows "the claim" "ticket-claim-lock"
 assert_hand_off_follows "the column record" "ticket-register-column"
 assert_hand_off_follows "the watcher arming" "ticket-watch-column"
 
+printf "\nTest group: the advance into In BR by AI goes through the status skill, which records models.BR\n"
+
+advances_through_status="no"
+grep --fixed-strings --quiet '`cockpit:ticket:x:status` skill with target `In BR by AI`' "$REGISTER" && advances_through_status="yes"
+assert_eq "register advances through cockpit:ticket:x:status" "yes" "$advances_through_status"
+
+bare_walk="no"
+grep --fixed-strings --quiet 'board-card" walk' "$REGISTER" && bare_walk="yes"
+assert_eq "register carries no bare board-card walk" "no" "$bare_walk"
+
+assert_hand_off_follows "the advance" "cockpit:ticket:x:status\` skill with target"
+
 printf "\nTest group: every path sending a BR by-AI column somewhere sends it to the same skill\n"
 
 for path in "$COPILOT" "$WATCHER"; do
