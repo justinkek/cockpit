@@ -289,6 +289,24 @@ case "$summary_html" in
 *) assert_ko "a summary's bold text is drawn bold" "$summary_html" ;;
 esac
 
+printf "\nTest group: a to-do is a box that names the line of the content it came from\n"
+
+todo_html="$(printf '%s' $'- [ ] a\n<details><summary>S</summary>\n- [x] b</details>\n```\n- [ ] not a box\n```\n  - [ ] c' | node "$WORK/outline.mjs" --html)"
+todo_lines="$(printf '%s' "$todo_html" | grep -oE 'data-line="[0-9]+"' | grep -oE '[0-9]+' | paste -sd ' ' -)"
+if [ "$todo_lines" = "0 2 6" ]; then
+  assert_ok "each box names its own line, past a toggle and a code block"
+else
+  assert_ko "each box names its own line, past a toggle and a code block" "got '$todo_lines' from $todo_html"
+fi
+case "$todo_html" in
+*'<div class="md-todo done" data-line="2"><input type="checkbox" disabled="" aria-label="Mark not done" checked=""/>'*) assert_ok "a ticked to-do is drawn ticked" ;;
+*) assert_ko "a ticked to-do is drawn ticked" "$todo_html" ;;
+esac
+case "$todo_html" in
+*'data-line="0"><input type="checkbox" disabled=""'*) assert_ok "and with nothing to save a tick, the box cannot be ticked" ;;
+*) assert_ko "and with nothing to save a tick, the box cannot be ticked" "$todo_html" ;;
+esac
+
 printf "\nTest group: toggle tags that are not at the start of a block stay text\n"
 
 assert_outline "a tag mentioned in a list item and one inside a code block" \

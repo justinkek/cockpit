@@ -3,6 +3,14 @@ import { Mermaid } from "@/app/mermaid";
 
 type Anchor = { text: string; thread: string };
 
+type Source = {
+	lines: string[];
+	origins: number[];
+	anchors: Anchor[];
+	onAnchor: (thread: string) => void;
+	onCheck?: (line: number, done: boolean) => void;
+};
+
 function highlight(text: string, anchors: Anchor[], onAnchor: (thread: string) => void, key: string): ReactNode[] {
 	const spans = anchors
 		.flatMap((anchor) => {
@@ -90,8 +98,13 @@ function filled(lines: string[], from: number) {
 	return at;
 }
 
-function untangled(lines: string[]): string[] {
+function untangled(lines: string[]): { lines: string[]; origins: number[] } {
 	const out: string[] = [];
+	const origins: number[] = [];
+	const keep = (line: string, origin: number) => {
+		out.push(line);
+		origins.push(origin);
+	};
 	let fenced = false;
 	let awaiting = false;
 	for (let i = 0; i < lines.length; i++) {
@@ -99,7 +112,7 @@ function untangled(lines: string[]): string[] {
 		let rest = raw.trim();
 		if (fenced || rest.startsWith("```")) {
 			if (rest.startsWith("```")) fenced = !fenced;
-			out.push(raw);
+			keep(raw, i);
 			awaiting = false;
 			continue;
 		}
@@ -128,25 +141,19 @@ function untangled(lines: string[]): string[] {
 			closes++;
 		}
 		if (parts.length === 0 && closes === 0) {
-			out.push(raw);
+			keep(raw, i);
 			continue;
 		}
 		if (rest !== "") parts.push(rest);
 		parts.push(...Array<string>(closes).fill(closing));
 		const indent = raw.slice(0, raw.length - raw.trimStart().length);
-		out.push(...parts.map((part) => indent + part));
+		for (const part of parts) keep(indent + part, i);
 	}
-	return out;
+	return { lines: out, origins };
 }
 
-function blocksOf(
-	lines: string[],
-	from: number,
-	base: number,
-	nested: boolean,
-	anchors: Anchor[],
-	onAnchor: (thread: string) => void,
-): { blocks: ReactNode[]; next: number } {
+function blocksOf(source: Source, from: number, base: number, nested: boolean): { blocks: ReactNode[]; next: number } {
+	const { lines, anchors, onAnchor } = source;
 	const blocks: ReactNode[] = [];
 	let i = from;
 	while (i < lines.length) {
@@ -171,7 +178,7 @@ function blocksOf(
 			const title = summary?.[1].trim() || "Details";
 			const first = filled(lines, next);
 			const body = Math.min(depthOf(raw) + 1, first < lines.length ? depthOf(lines[first]) : depthOf(raw) + 1);
-			const inner = blocksOf(lines, next, body, true, anchors, onAnchor);
+			const inner = blocksOf(source, next, body, true);
 			blocks.push(
 				<details key={key} className="md-details" style={style}>
 					<summary>{inline(title, anchors, onAnchor, key)}</summary>
@@ -252,11 +259,17 @@ function blocksOf(
 				</Tag>,
 			);
 		} else if (todo) {
+			const done = todo[1] === "x";
+			const origin = source.origins[i];
 			blocks.push(
-				<div key={key} className={`md-todo${todo[1] === "x" ? " done" : ""}`} style={style}>
-					<span className="box" aria-hidden="true">
-						{todo[1] === "x" ? "✓" : ""}
-					</span>
+				<div key={key} className={`md-todo${done ? " done" : ""}`} style={style} data-line={origin}>
+					<input
+						type="checkbox"
+						checked={done}
+						disabled={!source.onCheck}
+						aria-label={done ? "Mark not done" : "Mark done"}
+						onChange={() => source.onCheck?.(origin, !done)}
+					/>
 					<span>{inline(todo[2], anchors, onAnchor, key)}</span>
 				</div>,
 			);
@@ -295,10 +308,13 @@ export function Markdown({
 	source,
 	anchors = [],
 	onAnchor = () => {},
+	onCheck,
 }: {
 	source: string;
 	anchors?: Anchor[];
 	onAnchor?: (thread: string) => void;
+	onCheck?: (line: number, done: boolean) => void;
 }) {
-	return <div className="md">{blocksOf(untangled(source.split("\n")), 0, 0, false, anchors, onAnchor).blocks}</div>;
+	const { lines, origins } = untangled(source.split("\n"));
+	return <div className="md">{blocksOf({ lines, origins, anchors, onAnchor, onCheck }, 0, 0, false).blocks}</div>;
 }

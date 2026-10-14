@@ -96,6 +96,19 @@ export async function editCard(id: string, field: string, value: string): Promis
 	return report(id, () => setField(id, field, value));
 }
 
+const TODO = /- \[( |x)\] /;
+
+export async function checkTodo(id: string, line: number, expected: string, done: boolean): Promise<Result> {
+	return report(id, async () => {
+		const lines = (await readRecord(id)).body.split("\n");
+		if (lines[line] !== expected || !TODO.test(expected)) {
+			throw new BoardError("that to-do has changed since the page loaded - reload to see it");
+		}
+		lines[line] = expected.replace(TODO, done ? "- [x] " : "- [ ] ");
+		return setField(id, "body", lines.join("\n"));
+	});
+}
+
 export async function loadBody(id: string): Promise<{ body?: string; error?: string }> {
 	try {
 		return { body: (await readRecord(id)).body };

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { loadBody, loadComments, postComment, resolveThread } from "@/app/actions";
+import { checkTodo, loadBody, loadComments, postComment, resolveThread } from "@/app/actions";
 import { Markdown } from "@/app/markdown";
-import type { CommentThread } from "@/lib/shared";
+import type { Card, CommentThread } from "@/lib/shared";
 
 function when(stamp: string) {
 	const date = new Date(stamp);
@@ -60,7 +60,15 @@ function Composer({
 	);
 }
 
-export function Content({ id, body: given }: { id: string; body?: string }) {
+export function Content({
+	id,
+	body: given,
+	onRecord,
+}: {
+	id: string;
+	body?: string;
+	onRecord?: (record: Card) => void;
+}) {
 	const [body, setBody] = useState(given ?? "");
 	const [threads, setThreads] = useState<CommentThread[]>([]);
 	const [error, setError] = useState("");
@@ -70,13 +78,19 @@ export function Content({ id, body: given }: { id: string; body?: string }) {
 	const [replying, setReplying] = useState<string | null>(null);
 	const [, startTransition] = useTransition();
 	const area = useRef<HTMLDivElement>(null);
+	const checking = useRef(0);
+	const bodyGiven = given !== undefined;
+
+	useEffect(() => {
+		if (given !== undefined && checking.current === 0) setBody(given);
+	}, [given]);
 
 	useEffect(() => {
 		let live = true;
 		setThreads([]);
 		setSelection(null);
 		setDrafting(null);
-		if (given === undefined) {
+		if (!bodyGiven) {
 			setBody("");
 			loadBody(id).then((result) => {
 				if (live && result.body !== undefined) setBody(result.body);
@@ -90,7 +104,31 @@ export function Content({ id, body: given }: { id: string; body?: string }) {
 		return () => {
 			live = false;
 		};
-	}, [id, given]);
+	}, [id, bodyGiven]);
+
+	function check(line: number, done: boolean) {
+		const lines = body.split("\n");
+		const expected = lines[line];
+		if (expected === undefined) return;
+		const before = body;
+		lines[line] = expected.replace(/- \[( |x)\] /, done ? "- [x] " : "- [ ] ");
+		setBody(lines.join("\n"));
+		checking.current++;
+		startTransition(async () => {
+			const result = await checkTodo(id, line, expected, done);
+			checking.current--;
+			if (result.error) {
+				setBody(before);
+				setError(result.error);
+				return;
+			}
+			setError("");
+			if (result.record) {
+				if (checking.current === 0) setBody(result.record.body);
+				onRecord?.(result.record);
+			}
+		});
+	}
 
 	function apply(request: Promise<{ threads?: CommentThread[]; error?: string }>) {
 		startTransition(async () => {
@@ -123,7 +161,7 @@ export function Content({ id, body: given }: { id: string; body?: string }) {
 		<section className="content">
 			<div className="content-body" ref={area} onMouseUp={onMouseUp}>
 				{body ? (
-					<Markdown source={body} anchors={anchors} onAnchor={setFocused} />
+					<Markdown source={body} anchors={anchors} onAnchor={setFocused} onCheck={check} />
 				) : (
 					<p className="empty">No content.</p>
 				)}

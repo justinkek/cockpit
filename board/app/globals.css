@@ -959,25 +959,21 @@
 	}
 
 	.md-todo {
-		& .box {
+		& input[type="checkbox"] {
 			width: 14px;
 			height: 14px;
-			margin-top: 3px;
-			border: 1.5px solid var(--line-strong);
-			border-radius: 4px;
-			font-size: 10px;
-			line-height: 11px;
-			text-align: center;
-			color: #fff;
+			margin: 3px 0 0;
+			padding: 0;
+			accent-color: var(--accent);
+			cursor: pointer;
+
+			&:disabled {
+				cursor: default;
+			}
 		}
 
 		&.done {
 			color: var(--muted);
-
-			& .box {
-				background: var(--accent);
-				border-color: var(--accent);
-			}
 		}
 	}
 
