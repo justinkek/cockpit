@@ -12,11 +12,10 @@ state_directory="$HOME/.local/state/claude-ticket-sessions"
 
 committed_marker="$state_directory/$session_id.dev-committed"
 [ -f "$committed_marker" ] || exit 0
+rm -f "$committed_marker"
 
 [ -f "$state_directory/$session_id.stage-cr" ] && exit 0
 [ "$(cat "$state_directory/$session_id.column" 2>/dev/null)" = "In Dev" ] || exit 0
-
-rm -f "$committed_marker"
 
 . "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/hooks/hook-stop-note-lib.sh"
 

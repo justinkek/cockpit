@@ -33,13 +33,25 @@ run_guard() {
   return 0
 }
 
-run_recorder() {
+recorder_says() {
   local command="$1" exit_code="${2:-0}" session_id="${3:-$SESSION}" field="${4:-tool_response}"
   jq --null-input --compact-output \
     --arg sid "$session_id" --arg command "$command" --argjson code "$exit_code" --arg field "$field" \
     '{hook_event_name:"PostToolUse",tool_name:"Bash",session_id:$sid,tool_input:{command:$command}}
      | .[$field] = {exitCode:$code}' \
-    | HOME="$TMPDIR" bash "$RECORDER" >/dev/null 2>&1
+    | HOME="$TMPDIR" bash "$RECORDER" 2>/dev/null
+}
+
+run_recorder() {
+  recorder_says "$@" >/dev/null
+}
+
+recorder_says_to_an_edit() {
+  local tool="$1"
+  jq --null-input --compact-output \
+    --arg sid "$SESSION" --arg tool "$tool" \
+    '{hook_event_name:"PreToolUse",tool_name:$tool,session_id:$sid,tool_input:{file_path:"/tmp/a-file"}}' \
+    | HOME="$TMPDIR" bash "$RECORDER" 2>/dev/null
 }
 
 at_column() {
@@ -103,6 +115,30 @@ run_recorder "git commit --message 'a change'" 0 "$SESSION" tool_result
 assert_marker "a commit reported under the older field name" present
 rm -f "$STATE_DIR/$SESSION.dev-committed"
 
+assert_blocks "a commit with the card In Dev asks for the advance" "$(recorder_says "git commit --message 'a change'")"
+rm -f "$STATE_DIR/$SESSION.dev-committed"
+
+printf "\nTest group: commits the recorder leaves alone\n"
+
+at_column "In CR by AI"
+assert_passes "a gate-fix commit with the card at In CR by AI says nothing" "$(recorder_says "git commit --message 'a gate fix'")"
+assert_marker "a gate-fix commit with the card at In CR by AI" absent
+
+rm -f "$STATE_DIR/$SESSION.column"
+run_recorder "git commit --message 'a change'"
+assert_marker "a commit with no column recorded" absent
+
+at_column "In Dev"
+assert_passes "an Edit says nothing" "$(recorder_says_to_an_edit Edit)"
+assert_passes "a Write says nothing" "$(recorder_says_to_an_edit Write)"
+if [ -e "$STATE_DIR/$SESSION.edit-nudged" ]; then
+  printf "  KO  an edit leaves no sidecar — found %s.edit-nudged\n" "$SESSION"
+  fail=$((fail + 1))
+else
+  printf "  OK  an edit leaves no sidecar\n"
+  pass=$((pass + 1))
+fi
+
 printf "\nTest group: the turn that ends with a commit behind it\n"
 
 run_recorder "git commit --message 'a change'"
@@ -115,17 +151,22 @@ printf "\nTest group: where the hook stays quiet\n"
 run_recorder "git commit --message 'a change'"
 at_column "In CR by AI"
 assert_passes "the card already past In Dev" "$(run_guard)"
+assert_marker "a commit the card has moved past is consumed" absent
 
 at_column "In Dev"
+assert_passes "the card back at In Dev finds no stale commit" "$(run_guard)"
+
+run_recorder "git commit --message 'a change'"
 : > "$STATE_DIR/$SESSION.stage-cr"
 assert_passes "the post-dev stage already confirmed" "$(run_guard)"
+assert_marker "a commit behind a confirmed post-dev stage is consumed" absent
 rm -f "$STATE_DIR/$SESSION.stage-cr"
 
+run_recorder "git commit --message 'a change'"
 rm -f "$STATE_DIR/$SESSION.column"
 assert_passes "no column recorded for the session" "$(run_guard)"
-
+assert_marker "a commit with the column gone is consumed" absent
 at_column "In Dev"
-assert_blocks "the column back in place" "$(run_guard)"
 
 printf "\nTest group: the guards\n"
 
