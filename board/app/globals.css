@@ -1229,6 +1229,29 @@
 		}
 	}
 
+	.field-form,
+	.title-form {
+		display: flex;
+		gap: 6px;
+		width: 100%;
+		min-width: 0;
+
+		& > select,
+		& > input,
+		& > textarea {
+			flex: 1;
+			min-width: 0;
+		}
+	}
+
+	.title-form {
+		align-items: flex-start;
+	}
+
+	.unlink-form {
+		display: contents;
+	}
+
 	.pr-link {
 		font-size: 12px;
 		overflow-wrap: anywhere;

@@ -368,7 +368,12 @@ function Peek({
 					</button>
 				</span>
 			</header>
-			<Title className="peek-title" value={stub.name} onCommit={(name) => handlers.onEdit("name", name, { name })} />
+			<Title
+				id={stub.id}
+				className="peek-title"
+				value={stub.name}
+				onCommit={(name) => handlers.onEdit("name", name, { name })}
+			/>
 			<Fields record={stub} lists={lists} handlers={handlers} />
 			<Links record={stub} lists={lists} handlers={handlers} />
 			<dl className="props">

@@ -9,13 +9,20 @@ import type { Card } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string };
 
-export function Ticket({ initial, lists }: { initial: Card; lists: Lists }) {
+export function Ticket({ initial, lists, failure }: { initial: Card; lists: Lists; failure?: string }) {
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
-	const [error, setError] = useState("");
+	const [error, setError] = useState(failure ?? "");
 	const [saving, startTransition] = useTransition();
 
 	useEffect(() => setRecord(initial), [initial]);
+
+	useEffect(() => {
+		const url = new URL(window.location.href);
+		if (!url.searchParams.has("error")) return;
+		url.searchParams.delete("error");
+		router.replace(`${url.pathname}${url.search}`, { scroll: false });
+	}, [router]);
 
 	const dates = Object.entries(record.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 
@@ -46,7 +53,12 @@ export function Ticket({ initial, lists }: { initial: Card; lists: Lists }) {
 
 	return (
 		<article className="stub">
-			<Title className="title-input" value={record.name} onCommit={(name) => handlers.onEdit("name", name, { name })} />
+			<Title
+				id={record.id}
+				className="title-input"
+				value={record.name}
+				onCommit={(name) => handlers.onEdit("name", name, { name })}
+			/>
 			<p className="meta">
 				<span>{record.id}</span>
 				{record.type && <span>{record.type}</span>}

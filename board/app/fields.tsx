@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { submitCard } from "@/app/actions";
 import { boardColumns, type Card, FIBONACCI, kindOf, type Named, type Sprint, TYPES } from "@/lib/shared";
 
 export type Picked = Named & { status: string };
@@ -27,6 +28,48 @@ export function linkChange(record: Card, parent: string, child: string, linked: 
 	if (parent === record.id) return { dependent_on: toggle(record.dependent_on, child) };
 	if (child === record.id) return { dependency_for: toggle(record.dependency_for, parent) };
 	return {};
+}
+
+const never = () => () => {};
+
+export function useHydrated() {
+	return useSyncExternalStore(
+		never,
+		() => true,
+		() => false,
+	);
+}
+
+function Fallback({
+	id,
+	op,
+	field,
+	hidden = {},
+	label = "Set",
+	className = "field-form",
+	children,
+}: {
+	id: string;
+	op: "move" | "set" | "link" | "unlink";
+	field?: string;
+	hidden?: Record<string, string>;
+	label?: string;
+	className?: string;
+	children: ReactNode;
+}) {
+	const hydrated = useHydrated();
+	return (
+		<form action={submitCard} className={className}>
+			<input type="hidden" name="id" value={id} />
+			<input type="hidden" name="op" value={op} />
+			{field && <input type="hidden" name="field" value={field} />}
+			{Object.entries(hidden).map(([name, value]) => (
+				<input key={name} type="hidden" name={name} value={value} />
+			))}
+			{children}
+			{!hydrated && <button type="submit">{label}</button>}
+		</form>
+	);
 }
 
 function TextField({
@@ -57,6 +100,7 @@ function TextField({
 	return (
 		<input
 			type={type}
+			name="value"
 			aria-label={label}
 			placeholder={placeholder}
 			value={draft}
@@ -85,7 +129,17 @@ function TextField({
 	);
 }
 
-export function Title({ value, onCommit, className }: { value: string; onCommit: (value: string) => void; className: string }) {
+export function Title({
+	id,
+	value,
+	onCommit,
+	className,
+}: {
+	id: string;
+	value: string;
+	onCommit: (value: string) => void;
+	className: string;
+}) {
 	const [draft, setDraft] = useState(value);
 	const cancelled = useRef(false);
 	const box = useRef<HTMLTextAreaElement>(null);
@@ -93,38 +147,47 @@ export function Title({ value, onCommit, className }: { value: string; onCommit:
 	useLayoutEffect(() => {
 		const area = box.current;
 		if (!area) return;
-		area.style.height = "auto";
-		area.style.height = `${area.scrollHeight}px`;
+		const fit = () => {
+			area.style.height = "auto";
+			area.style.height = `${area.scrollHeight + area.offsetHeight - area.clientHeight}px`;
+		};
+		fit();
+		const watcher = new ResizeObserver(fit);
+		watcher.observe(area.parentElement ?? area);
+		return () => watcher.disconnect();
 	}, [draft]);
 	return (
-		<textarea
-			ref={box}
-			className={className}
-			aria-label="Name"
-			rows={1}
-			value={draft}
-			onChange={(event) => setDraft(event.target.value.replace(/\n/g, " "))}
-			onKeyDown={(event) => {
-				if (event.key === "Enter") {
-					event.preventDefault();
-					event.currentTarget.blur();
-				}
-				if (event.key === "Escape") {
-					event.stopPropagation();
-					cancelled.current = true;
-					event.currentTarget.blur();
-				}
-			}}
-			onBlur={() => {
-				const next = draft.trim();
-				if (cancelled.current || next === "") {
-					cancelled.current = false;
-					setDraft(value);
-					return;
-				}
-				if (next !== value) onCommit(next);
-			}}
-		/>
+		<Fallback id={id} op="set" field="name" className="title-form">
+			<textarea
+				ref={box}
+				name="value"
+				className={className}
+				aria-label="Name"
+				rows={1}
+				value={draft}
+				onChange={(event) => setDraft(event.target.value.replace(/\n/g, " "))}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") {
+						event.preventDefault();
+						event.currentTarget.blur();
+					}
+					if (event.key === "Escape") {
+						event.stopPropagation();
+						cancelled.current = true;
+						event.currentTarget.blur();
+					}
+				}}
+				onBlur={() => {
+					const next = draft.trim();
+					if (cancelled.current || next === "") {
+						cancelled.current = false;
+						setDraft(value);
+						return;
+					}
+					if (next !== value) onCommit(next);
+				}}
+			/>
+		</Fallback>
 	);
 }
 
@@ -143,7 +206,7 @@ function Choice({
 }) {
 	const known = !value || options.some((option) => option.id === value);
 	return (
-		<select aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
+		<select name="value" aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
 			<option value="">{none}</option>
 			{!known && value && (
 				<option value={value} disabled>
@@ -170,11 +233,15 @@ function idOf(text: string, cards: Picked[]) {
 }
 
 function Picker({
+	id,
+	side,
 	label,
 	cards,
 	onPick,
 	onMiss,
 }: {
+	id: string;
+	side: "child" | "parent";
 	label: string;
 	cards: Picked[];
 	onPick: (id: string) => void;
@@ -182,6 +249,7 @@ function Picker({
 }) {
 	const [text, setText] = useState("");
 	const list = useId();
+	const hydrated = useHydrated();
 	function pick(value: string) {
 		const id = idOf(value, cards);
 		if (!id) {
@@ -194,12 +262,17 @@ function Picker({
 	return (
 		<form
 			className="picker"
+			action={submitCard}
 			onSubmit={(event) => {
 				event.preventDefault();
 				if (text.trim()) pick(text);
 			}}
 		>
+			<input type="hidden" name="id" value={id} />
+			<input type="hidden" name="op" value="link" />
+			<input type="hidden" name="side" value={side} />
 			<input
+				name="value"
 				list={list}
 				value={text}
 				aria-label={label}
@@ -218,7 +291,7 @@ function Picker({
 					</option>
 				))}
 			</datalist>
-			<button type="submit" disabled={!text.trim()}>
+			<button type="submit" disabled={hydrated && !text.trim()}>
 				Link
 			</button>
 		</form>
@@ -226,16 +299,21 @@ function Picker({
 }
 
 function Linked({
+	owner,
 	ids,
+	pair,
 	names,
 	onOpen,
 	onUnlink,
 }: {
 	ids: string[];
+	owner: string;
+	pair: (other: string) => { parent: string; child: string };
 	names: Record<string, string>;
 	onOpen?: (id: string) => void;
 	onUnlink: (id: string) => void;
 }) {
+	const hydrated = useHydrated();
 	if (ids.length === 0) return <p className="empty">None</p>;
 	return (
 		<ul>
@@ -251,9 +329,13 @@ function Linked({
 						</Link>
 					)}
 					<span className="linked-name">{names[id] ?? ""}</span>
-					<button type="button" className="quiet" aria-label={`Unlink ${id}`} onClick={() => onUnlink(id)}>
-						Unlink
-					</button>
+					<Fallback id={owner} op="unlink" hidden={pair(id)} label="Unlink" className="unlink-form">
+						{hydrated && (
+							<button type="button" className="quiet" aria-label={`Unlink ${id}`} onClick={() => onUnlink(id)}>
+								Unlink
+							</button>
+						)}
+					</Fallback>
 				</li>
 			))}
 		</ul>
@@ -273,18 +355,26 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 		name: sprint.start ? `${sprint.name} (${sprint.start} to ${sprint.end ?? "?"})` : sprint.name,
 	}));
 	const urls = pullRequests(record.prs ?? "");
+	const id = record.id;
 
 	return (
 		<dl className="props">
 			<dt>Status</dt>
 			<dd>
 				{kind ? (
-					<select aria-label="Status" value={record.status} onChange={(event) => onMove(event.target.value)}>
-						{!columns.includes(record.status) && <option disabled>{record.status}</option>}
-						{columns.map((column) => (
-							<option key={column}>{column}</option>
-						))}
-					</select>
+					<Fallback id={id} op="move" label="Move">
+						<select
+							name="value"
+							aria-label="Status"
+							value={record.status}
+							onChange={(event) => onMove(event.target.value)}
+						>
+							{!columns.includes(record.status) && <option disabled>{record.status}</option>}
+							{columns.map((column) => (
+								<option key={column}>{column}</option>
+							))}
+						</select>
+					</Fallback>
 				) : (
 					record.status
 				)}
@@ -293,62 +383,72 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 				<>
 					<dt>Type</dt>
 					<dd>
-						<select
-							aria-label="Type"
-							value={record.type}
-							onChange={(event) => {
-								const type = event.target.value as Card["type"];
-								onEdit("type", event.target.value, { type });
-							}}
-						>
-							{TYPES.map((type) => (
-								<option key={type}>{type}</option>
-							))}
-						</select>
+						<Fallback id={id} op="set" field="type">
+							<select
+								name="value"
+								aria-label="Type"
+								value={record.type}
+								onChange={(event) => {
+									const type = event.target.value as Card["type"];
+									onEdit("type", event.target.value, { type });
+								}}
+							>
+								{TYPES.map((type) => (
+									<option key={type}>{type}</option>
+								))}
+							</select>
+						</Fallback>
 					</dd>
 					<dt>Complexity</dt>
 					<dd>
-						<select
-							aria-label="Complexity"
-							value={record.complexity ?? ""}
-							onChange={(event) => {
-								const value = event.target.value;
-								onEdit("complexity", value, { complexity: value === "" ? null : Number(value) });
-							}}
-						>
-							<option value="">Not set</option>
-							{FIBONACCI.map((points) => (
-								<option key={points} value={points}>
-									{points}
-								</option>
-							))}
-						</select>
+						<Fallback id={id} op="set" field="complexity">
+							<select
+								name="value"
+								aria-label="Complexity"
+								value={record.complexity ?? ""}
+								onChange={(event) => {
+									const value = event.target.value;
+									onEdit("complexity", value, { complexity: value === "" ? null : Number(value) });
+								}}
+							>
+								<option value="">Not set</option>
+								{FIBONACCI.map((points) => (
+									<option key={points} value={points}>
+										{points}
+									</option>
+								))}
+							</select>
+						</Fallback>
 					</dd>
 					{record.type === "Timebox" && (
 						<>
 							<dt>Timebox (mins)</dt>
 							<dd>
-								<TextField
-									type="number"
-									label="Timebox (mins)"
-									placeholder="No budget"
-									value={record.timebox_mins == null ? "" : String(record.timebox_mins)}
-									onCommit={(value) =>
-										onEdit("timebox_mins", value, { timebox_mins: value === "" ? null : Number(value) })
-									}
-								/>
+								<Fallback id={id} op="set" field="timebox_mins">
+									<TextField
+										type="number"
+										label="Timebox (mins)"
+										placeholder="No budget"
+										value={record.timebox_mins == null ? "" : String(record.timebox_mins)}
+										onCommit={(value) =>
+											onEdit("timebox_mins", value, { timebox_mins: value === "" ? null : Number(value) })
+										}
+									/>
+								</Fallback>
 							</dd>
 						</>
 					)}
 					<dt>Epic</dt>
 					<dd className="with-link">
-						<Choice
-							label="Epic"
-							none="No epic"
-							value={record.epic}
-							options={lists.epics}
-							onChange={(epic) => onEdit("epic", epic, { epic: epic || null })}
-						/>
+						<Fallback id={id} op="set" field="epic">
+							<Choice
+								label="Epic"
+								none="No epic"
+								value={record.epic}
+								options={lists.epics}
+								onChange={(epic) => onEdit("epic", epic, { epic: epic || null })}
+							/>
+						</Fallback>
 						{record.epic && (
 							<Link href={`/epics?open=${record.epic}`} className="quiet-link" aria-label="Open the epic">
 								↗
@@ -357,13 +457,15 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					</dd>
 					<dt>Sprint</dt>
 					<dd>
-						<Choice
-							label="Sprint"
-							none="No sprint"
-							value={record.sprint}
-							options={sprintOptions}
-							onChange={(sprint) => onEdit("sprint", sprint, { sprint: sprint || null })}
-						/>
+						<Fallback id={id} op="set" field="sprint">
+							<Choice
+								label="Sprint"
+								none="No sprint"
+								value={record.sprint}
+								options={sprintOptions}
+								onChange={(sprint) => onEdit("sprint", sprint, { sprint: sprint || null })}
+							/>
+						</Fallback>
 					</dd>
 				</>
 			)}
@@ -371,13 +473,15 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 				<>
 					<dt>Project</dt>
 					<dd>
-						<Choice
-							label="Project"
-							none="No project"
-							value={record.project}
-							options={lists.projects}
-							onChange={(project) => onEdit("project", project, { project: project || null })}
-						/>
+						<Fallback id={id} op="set" field="project">
+							<Choice
+								label="Project"
+								none="No project"
+								value={record.project}
+								options={lists.projects}
+								onChange={(project) => onEdit("project", project, { project: project || null })}
+							/>
+						</Fallback>
 					</dd>
 				</>
 			)}
@@ -385,30 +489,36 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 				<>
 					<dt>Due</dt>
 					<dd>
-						<TextField
-							type="date"
-							label="Due"
-							value={record.due?.slice(0, 10) ?? ""}
-							onCommit={(due) => onEdit("due", due, { due: due || null })}
-						/>
+						<Fallback id={id} op="set" field="due">
+							<TextField
+								type="date"
+								label="Due"
+								value={record.due?.slice(0, 10) ?? ""}
+								onCommit={(due) => onEdit("due", due, { due: due || null })}
+							/>
+						</Fallback>
 					</dd>
 					<dt>Blocked</dt>
 					<dd>
-						<TextField
-							label="Blocked"
-							placeholder="Not blocked"
-							value={record.blocked ?? ""}
-							onCommit={(blocked) => onEdit("blocked", blocked, { blocked: blocked || null })}
-						/>
+						<Fallback id={id} op="set" field="blocked">
+							<TextField
+								label="Blocked"
+								placeholder="Not blocked"
+								value={record.blocked ?? ""}
+								onCommit={(blocked) => onEdit("blocked", blocked, { blocked: blocked || null })}
+							/>
+						</Fallback>
 					</dd>
 					<dt>PRs</dt>
 					<dd className="stack">
-						<TextField
-							label="PRs"
-							placeholder="No pull requests"
-							value={record.prs ?? ""}
-							onCommit={(prs) => onEdit("prs", prs, { prs: prs || null })}
-						/>
+						<Fallback id={id} op="set" field="prs">
+							<TextField
+								label="PRs"
+								placeholder="No pull requests"
+								value={record.prs ?? ""}
+								onCommit={(prs) => onEdit("prs", prs, { prs: prs || null })}
+							/>
+						</Fallback>
 						{urls.map((url) => (
 							<a key={url} href={url} target="_blank" rel="noreferrer" className="pr-link">
 								{url.replace(/^https?:\/\/(www\.)?github\.com\//, "")}
@@ -432,16 +542,34 @@ export function Links({ record, lists, handlers }: { record: Card; lists: Lists;
 	return (
 		<section className="links">
 			<h3>Dependent on</h3>
-			<Linked ids={children} names={names} onOpen={onOpen} onUnlink={(child) => onLink(record.id, child, false)} />
+			<Linked
+				owner={record.id}
+				ids={children}
+				pair={(child) => ({ parent: record.id, child })}
+				names={names}
+				onOpen={onOpen}
+				onUnlink={(child) => onLink(record.id, child, false)}
+			/>
 			<Picker
+				id={record.id}
+				side="child"
 				label="Add a child"
 				cards={linkable.filter((card) => !children.includes(card.id))}
 				onPick={(child) => onLink(record.id, child, true)}
 				onMiss={miss}
 			/>
 			<h3>Dependency for</h3>
-			<Linked ids={parents} names={names} onOpen={onOpen} onUnlink={(parent) => onLink(parent, record.id, false)} />
+			<Linked
+				owner={record.id}
+				ids={parents}
+				pair={(parent) => ({ parent, child: record.id })}
+				names={names}
+				onOpen={onOpen}
+				onUnlink={(parent) => onLink(parent, record.id, false)}
+			/>
 			<Picker
+				id={record.id}
+				side="parent"
 				label="Add a parent"
 				cards={linkable.filter((card) => !parents.includes(card.id))}
 				onPick={(parent) => onLink(parent, record.id, true)}

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
 	addComment,
 	BoardError,
@@ -8,6 +9,7 @@ import {
 	type CommentThread,
 	changeStatus,
 	link,
+	listRecords,
 	readComments,
 	readRecord,
 	resolveComment,
@@ -102,4 +104,51 @@ export async function postComment(id: string, text: string, anchor?: string, rep
 
 export async function resolveThread(id: string, thread: string): Promise<Threads> {
 	return threadsAfter(id, () => resolveComment(id, thread));
+}
+
+function text(form: FormData, name: string) {
+	const value = form.get(name);
+	return typeof value === "string" ? value.trim() : "";
+}
+
+async function cardNamed(typed: string): Promise<string> {
+	const id = typed.match(/^([A-Za-z]+-\d+)\b/)?.[1]?.toUpperCase();
+	if (id) return id;
+	const named = (await listRecords("card")).find((card) => card.name.toLowerCase() === typed.toLowerCase());
+	if (!named) throw new BoardError(`no card called '${typed}'`);
+	return named.id;
+}
+
+export async function submitCard(form: FormData): Promise<void> {
+	const id = text(form, "id");
+	let current = id;
+	let failure = "";
+	try {
+		const value = text(form, "value");
+		switch (text(form, "op")) {
+			case "move":
+				await changeStatus(await readRecord(id), value);
+				break;
+			case "set":
+				current = await setField(id, text(form, "field"), value);
+				break;
+			case "link": {
+				const other = await cardNamed(value);
+				if (text(form, "side") === "parent") await link(other, id, true);
+				else await link(id, other, true);
+				refresh(other);
+				break;
+			}
+			case "unlink":
+				await link(text(form, "parent"), text(form, "child"), false);
+				break;
+			default:
+				throw new BoardError("that form sent no change");
+		}
+		refresh(current);
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		failure = error.message;
+	}
+	redirect(`/card/${encodeURIComponent(current)}${failure ? `?error=${encodeURIComponent(failure)}` : ""}`);
 }

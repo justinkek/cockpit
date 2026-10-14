@@ -6,10 +6,12 @@ export const dynamic = "force-dynamic";
 
 type Props = {
 	params: Promise<{ id: string }>;
+	searchParams: Promise<{ error?: string | string[] }>;
 };
 
-export default async function CardPage({ params }: Props) {
+export default async function CardPage({ params, searchParams }: Props) {
 	const { id } = await params;
+	const { error } = await searchParams;
 	let record: Card;
 	try {
 		record = await readRecord(id);
@@ -38,6 +40,7 @@ export default async function CardPage({ params }: Props) {
 	return (
 		<Ticket
 			initial={record}
+			failure={typeof error === "string" ? error : undefined}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: epics.map(({ id, name }) => ({ id, name })),
