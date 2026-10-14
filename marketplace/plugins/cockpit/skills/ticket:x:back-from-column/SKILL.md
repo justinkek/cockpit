@@ -141,14 +141,6 @@ The reason is the one-line summary (same as the `[problem]` field, condensed).
 "$HOME/.cockpit/scripts/board-card" move <id> "<target-column>"
 ```
 
-When the **source** column is `In BR by AI` or `In TR by AI`, release the claim too - it clears `Agent: Session Id` and the local lock together:
-
-```
-"$HOME/.cockpit/scripts/board-card" release <id>
-```
-
-This skill bypasses the walk, so it does not inherit the walk's release step - and a card bounced out of a by-AI column while still locked or still marked as claimed is a card `cockpit:ticket:0:copilot` will never offer again.
-
 Then record the landed column for the status line:
 
 ```
