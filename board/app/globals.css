@@ -2813,3 +2813,50 @@
 		}
 	}
 }
+
+@layer components {
+	.progress {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 20px;
+		color: var(--muted);
+		font-size: 11.5px;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+
+		&.wide {
+			width: 100%;
+		}
+
+		&.complete .progress-track span {
+			background: var(--phase-done);
+		}
+	}
+
+	.progress-track {
+		display: block;
+		width: 48px;
+		height: 4px;
+		border-radius: 2px;
+		background: var(--line);
+		overflow: hidden;
+
+		.wide & {
+			flex: 1;
+			width: auto;
+			min-width: 60px;
+		}
+
+		& span {
+			display: block;
+			height: 100%;
+			border-radius: 2px;
+			background: var(--accent);
+		}
+	}
+
+	.progress-percent {
+		color: var(--faint);
+	}
+}

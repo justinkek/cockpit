@@ -98,4 +98,16 @@ assert_eq "a card done again counts from when it was last moved to Done" \
 assert_eq "an epic is done in Epic Done" \
   '86400000' "$(evaluate 'm.flowOf({id:"EPIC-1",status:"Epic Done",created:"2026-10-01T00:00:00Z",dates:{"Epic Done":"2026-10-02T00:00:00Z"}}).lead')"
 
+printf "Test group: an epic's progress counts its cards and their points\n"
+
+EPIC_CARDS='[{"status":"Done","complexity":3},{"status":"In Dev","complexity":5},{"status":"Backlog"},{"status":"Deprioritised","complexity":8}]'
+assert_eq "a deprioritised card is left out of the total" \
+  '{"total":3,"done":1,"dropped":1,"points":8,"donePoints":3}' "$(evaluate "m.progressOf($EPIC_CARDS)")"
+assert_eq "the share done is by points when the cards are sized" \
+  '0.375' "$(evaluate "m.progressShare(m.progressOf($EPIC_CARDS))")"
+assert_eq "the share done is by cards when none is sized" \
+  '0.5' "$(evaluate 'm.progressShare(m.progressOf([{status:"Done"},{status:"In CR"}]))')"
+assert_eq "an epic with no cards has done nothing" \
+  '0' "$(evaluate 'm.progressShare(m.progressOf([]))')"
+
 finish

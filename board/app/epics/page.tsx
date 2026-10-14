@@ -14,11 +14,11 @@ export default async function EpicsPage() {
 		return <p className="notice error">{error.message}</p>;
 	}
 
-	const children: Record<string, { id: string; name: string; status: string }[]> = {};
+	const children: Record<string, { id: string; name: string; status: string; complexity?: number | null }[]> = {};
 	for (const card of cards) {
 		if (!card.epic) continue;
 		children[card.epic] ??= [];
-		children[card.epic].push({ id: card.id, name: card.name, status: card.status });
+		children[card.epic].push({ id: card.id, name: card.name, status: card.status, complexity: card.complexity });
 	}
 
 	return (

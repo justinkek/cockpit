@@ -3,7 +3,8 @@
 import type { ReactNode } from "react";
 import type { Lists } from "@/app/fields";
 import { lastMoved } from "@/app/view";
-import { flowOf, span } from "@/lib/metrics";
+import { ProgressMeter } from "@/app/progress";
+import { flowOf, type Progress, progressShare, span } from "@/lib/metrics";
 import {
 	boardColumns,
 	bounces,
@@ -23,6 +24,7 @@ type Context = {
 	sprints: Record<string, string>;
 	projects: Record<string, string>;
 	columns: string[];
+	progress: Record<string, Progress>;
 };
 
 type Column = {
@@ -94,6 +96,20 @@ const COLUMNS: Column[] = [
 		value: (record, context) => (record.epic ? (context.epics[record.epic] ?? record.epic) : null),
 	},
 	{ key: "project", label: "Project", value: projectOf },
+	{
+		key: "progress",
+		label: "Progress",
+		kinds: ["epic"],
+		numeric: true,
+		value: (record, context) => {
+			const progress = context.progress[record.id];
+			return progress && progress.total > 0 ? progressShare(progress) : null;
+		},
+		cell: (record, context) => {
+			const progress = context.progress[record.id];
+			return progress && <ProgressMeter progress={progress} />;
+		},
+	},
 	{
 		key: "sprint",
 		label: "Sprint",
@@ -235,13 +251,14 @@ export function tableColumns(kind: Kind, records: Card[]) {
 	];
 }
 
-export function contextOf(kind: Kind, lists: Lists): Context {
+export function contextOf(kind: Kind, lists: Lists, progress: Record<string, Progress> = {}): Context {
 	return {
 		epics: Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.name])),
 		epicProjects: Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.project])),
 		sprints: Object.fromEntries(lists.sprints.map((sprint) => [sprint.id, sprint.name])),
 		projects: Object.fromEntries(lists.projects.map((project) => [project.id, project.name])),
 		columns: boardColumns(kind),
+		progress,
 	};
 }
 
@@ -276,8 +293,14 @@ export function sortTable(records: Card[], columns: Column[], context: Context, 
 	return keyed.map(({ record }) => record);
 }
 
-export function tableOrder(kind: Kind, records: Card[], lists: Lists, text: string) {
-	return sortTable(records, tableColumns(kind, records), contextOf(kind, lists), parseTableSort(text));
+export function tableOrder(
+	kind: Kind,
+	records: Card[],
+	lists: Lists,
+	text: string,
+	progress: Record<string, Progress> = {},
+) {
+	return sortTable(records, tableColumns(kind, records), contextOf(kind, lists, progress), parseTableSort(text));
 }
 
 function Header({ column, sort, onSort }: { column: Column; sort: TableSort; onSort: (key: string) => void }) {

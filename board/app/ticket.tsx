@@ -10,10 +10,12 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
+import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
 import { tableOrder } from "@/app/table";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
+import type { Progress } from "@/lib/metrics";
 import { type Card, contentSearchFailed, fieldName, kindOf, movedTo } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
@@ -25,6 +27,7 @@ export function Ticket({
 	column,
 	records,
 	attachments = [],
+	progresses = {},
 }: {
 	initial: Card;
 	lists: Lists;
@@ -32,6 +35,7 @@ export function Ticket({
 	column: Card[];
 	records: Card[];
 	attachments?: string[];
+	progresses?: Record<string, Progress>;
 }) {
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
@@ -80,9 +84,9 @@ export function Ticket({
 		if (view?.layout !== "table" || !kindOfRecord) return neighboursIn(column, initial.id, view, found);
 		const tableSort = view.tableSort;
 		return neighboursIn(records, initial.id, view, found, (sorted) =>
-			tableOrder(kindOfRecord, sorted, lists, tableSort),
+			tableOrder(kindOfRecord, sorted, lists, tableSort, progresses),
 		);
-	}, [column, records, initial.id, view, epicNames, inContent, lists]);
+	}, [column, records, initial.id, view, epicNames, inContent, lists, progresses]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);
@@ -302,6 +306,14 @@ export function Ticket({
 					{record.cost_usd != null ? `$${record.cost_usd}` : <span className="empty">-</span>}
 					{record.tokens_k != null && ` · ${record.tokens_k}k tokens`}
 				</dd>
+				{progresses[record.id] && (
+					<>
+						<dt>Progress</dt>
+						<dd>
+							<ProgressMeter progress={progresses[record.id]} wide />
+						</dd>
+					</>
+				)}
 				<dt>Created</dt>
 				<dd>{record.created}</dd>
 				{attachments.length > 0 && (

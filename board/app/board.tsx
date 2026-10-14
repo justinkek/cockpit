@@ -38,6 +38,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Command, type Page, Palette } from "@/app/palette";
+import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
 import { contextOf, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
@@ -57,6 +58,7 @@ import {
 	TOGGLES,
 	type View,
 } from "@/app/view";
+import { type Progress, progressOf } from "@/lib/metrics";
 import {
 	boardColumns,
 	bounces,
@@ -82,6 +84,10 @@ import {
 const HEADER_SORT = "header";
 
 const Names = createContext<Record<string, string>>({});
+
+const Progresses = createContext<Record<string, Progress>>({});
+
+type Child = Named & { status: string; complexity?: number | null };
 
 type Notice = { id: string; text: string } | null;
 
@@ -188,8 +194,10 @@ function Complexity({ stub }: { stub: Stub }) {
 function Signals({ stub }: { stub: Stub }) {
 	const back = bounces(stub);
 	const total = back.reduce((sum, [, count]) => sum + count, 0);
+	const progress = useContext(Progresses)[stub.id];
 	return (
 		<>
+			{progress && progress.total > 0 && <ProgressMeter progress={progress} />}
 			{stub.type === "Timebox" && stub.timebox_mins != null && (
 				<span className="pill" title={`A timebox of ${stub.timebox_mins} minutes`}>
 					{stub.timebox_mins}m
@@ -549,7 +557,7 @@ function Peek({
 }: {
 	stub: Stub;
 	kind: Kind;
-	cards: (Named & { status: string })[];
+	cards: Child[];
 	lists: Lists;
 	handlers: Handlers;
 	notice: Notice;
@@ -607,6 +615,9 @@ function Peek({
 					<h3>
 						Cards <span className="count">{cards.length}</span>
 					</h3>
+					<p className="epic-progress">
+						<ProgressMeter progress={progressOf(cards)} wide />
+					</p>
 					<ol>
 						{cards.map((card) => (
 							<li key={card.id}>
@@ -722,7 +733,7 @@ export function Board({
 	kind?: Kind;
 	preset?: string;
 	lists: Lists;
-	children?: Record<string, (Named & { status: string })[]>;
+	children?: Record<string, Child[]>;
 }) {
 	const epics = lists.epics;
 	const router = useRouter();
@@ -856,7 +867,14 @@ export function Board({
 		return view.hideEmpty ? all.filter((column) => visible.some((stub) => stub.status === column)) : all;
 	}, [stubs, visible, view.hideEmpty, columnsOfKind, preset.id]);
 	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
-	const tableContext = useMemo(() => contextOf(kind, lists), [kind, lists]);
+	const progresses = useMemo(
+		() =>
+			kind === "epic"
+				? Object.fromEntries(stubs.map((stub) => [stub.id, progressOf(children[stub.id] ?? [])]))
+				: {},
+		[kind, stubs, children],
+	);
+	const tableContext = useMemo(() => contextOf(kind, lists, progresses), [kind, lists, progresses]);
 	const tableSort = parseTableSort(view.tableSort);
 	const tableRecords = useMemo(
 		() => (view.layout === "table" ? visible.filter((stub) => columns.includes(stub.status)) : []),
@@ -1459,6 +1477,7 @@ export function Board({
 
 	return (
 		<Names.Provider value={names}>
+			<Progresses.Provider value={progresses}>
 			<MentionContext.Provider value={mentions}>
 			<div className={`board${open ? " peeking" : ""}`}>
 				<div className="toolbar">
@@ -1703,6 +1722,7 @@ export function Board({
 				{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 			</div>
 			</MentionContext.Provider>
+			</Progresses.Provider>
 		</Names.Provider>
 	);
 }

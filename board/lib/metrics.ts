@@ -75,3 +75,35 @@ export function flowOf(record: Dated, now = Date.now()): Flow {
 		age: done == null && created != null ? Math.max(0, now - created) : null,
 	};
 }
+
+export type Progress = { total: number; done: number; dropped: number; points: number; donePoints: number };
+
+export function progressOf(cards: Pick<Card, "status" | "complexity">[]): Progress {
+	const progress: Progress = { total: 0, done: 0, dropped: 0, points: 0, donePoints: 0 };
+	for (const card of cards) {
+		if (card.status === "Deprioritised") {
+			progress.dropped += 1;
+			continue;
+		}
+		const points = card.complexity ?? 0;
+		progress.total += 1;
+		progress.points += points;
+		if (phaseOf(card.status) === "done") {
+			progress.done += 1;
+			progress.donePoints += points;
+		}
+	}
+	return progress;
+}
+
+export function progressShare(progress: Progress): number {
+	if (progress.points > 0) return progress.donePoints / progress.points;
+	return progress.total > 0 ? progress.done / progress.total : 0;
+}
+
+export function progressTitle(progress: Progress): string {
+	const parts = [`${progress.done} of ${progress.total} cards done`];
+	if (progress.points > 0) parts.push(`${progress.donePoints} of ${progress.points} points`);
+	if (progress.dropped > 0) parts.push(`${progress.dropped} deprioritised and left out`);
+	return parts.join(", ");
+}
