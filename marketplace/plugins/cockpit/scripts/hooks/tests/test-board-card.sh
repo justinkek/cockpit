@@ -414,8 +414,10 @@ assert_eq "and --archived lists it" "BUG-2" "$(stub list --archived | cut -f1)"
 stub show BUG-2 Status >/dev/null 2>&1
 assert_eq "an archived record cannot be read as if it were on the board" "3" "$?"
 assert_eq "and the refusal says how to bring it back" "true" "$(stub show BUG-2 Status 2>&1 | grep --quiet 'board-card unarchive BUG-2' && echo true)"
+assert_eq "path names the file where it now lies" "$COCKPIT_BOARD_DIR/archive/cards/BUG-2.md" "$(stub path BUG-2)"
 numbered="$(stub create --name "After the archive")"
 assert_eq "an archived record's number is not given out again" "true" "$([ "${numbered##*-}" -gt 2 ] && echo true)"
+assert_eq "and a record never made, the file it would be" "$COCKPIT_BOARD_DIR/cards/FEAT-999.md" "$(stub path FEAT-999)"
 assert_eq "unarchive brings it back with its comments and attachments" "unarchived BUG-2 true true" \
   "$(stub unarchive BUG-2) $([ -f "$COCKPIT_BOARD_DIR/cards/BUG-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/attachments/BUG-2/flow.svg" ] && echo true)"
 stub unarchive BUG-2 >/dev/null 2>&1

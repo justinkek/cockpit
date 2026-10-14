@@ -1419,8 +1419,14 @@ command_undo() {
 }
 
 command_path() {
+  local id
   if [ -n "${1:-}" ]; then
-    record_file "$(normalise_id "$1")"
+    id="$(normalise_id "$1")"
+    if [ ! -f "$(record_file "$id")" ] && [ -f "$(archive_file "$id")" ]; then
+      archive_file "$id"
+    else
+      record_file "$id"
+    fi
   else
     printf '%s\n' "$BOARD_DIR"
   fi

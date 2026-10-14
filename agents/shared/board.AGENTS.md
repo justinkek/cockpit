@@ -127,7 +127,7 @@ A project has no columns, so `board-card set <id> status` moves it between `Not 
 
 A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domain` (`Tech` or `Bizdev`), `stack` and `card` (the card it was taken from) are each set with `board-card set`, which also accepts them as `reference.<key>`.
 
-`board-card archive <id>` moves a record, its comments and its attachments under `archive/`, where `list` passes it by unless given `--archived`. It refuses a card still linked to another, and any record another one still names as its epic, project, sprint or card, so nothing on the board is left pointing at an id it cannot read. `board-card unarchive <id>` puts an archived record back on the board.
+`board-card archive <id>` moves a record, its comments and its attachments under `archive/`, where `list` passes it by unless given `--archived`. It refuses a card still linked to another, and any record another one still names as its epic, project, sprint or card, so nothing on the board is left pointing at an id it cannot read. `board-card unarchive <id>` puts an archived record back on the board, and `board-card path <id>` names the file a record lies in, archived or not.
 
 `board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity and timebox, in the first column unless `--name` or `--status` say otherwise. An epic or project no longer on the board is left off the copy.
 
