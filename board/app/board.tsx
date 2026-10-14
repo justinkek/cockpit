@@ -32,7 +32,7 @@ import {
 	undoChange,
 } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
-import { Content } from "@/app/content";
+import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
@@ -687,6 +687,8 @@ export function Board({
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const [notice, setNotice] = useState<Notice>(null);
 	const [openId, setOpenId] = useState<string | null>(null);
+	const shownId = useRef(openId);
+	shownId.current = openId;
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
@@ -775,8 +777,7 @@ export function Board({
 					stubs.find((stub) => stub.id === id) ??
 					stubs.find((stub) => kindOf(stub.id) === kind && stub.id.split("-").at(-1) === number);
 				if (!found) return false;
-				setOpenId(found.id);
-				setFocusedId(found.id);
+				if (show(found.id)) setFocusedId(found.id);
 				return true;
 			},
 		};
@@ -808,8 +809,18 @@ export function Board({
 			?.scrollIntoView({ block: "nearest", inline: "nearest" });
 	}, [focusedId]);
 
-	function openCard(id: string | null) {
+	function show(id: string | null) {
+		if (id !== shownId.current && !confirmDiscard()) return false;
 		setOpenId(id);
+		return true;
+	}
+
+	function go(href: string) {
+		if (confirmDiscard()) router.push(href);
+	}
+
+	function openCard(id: string | null) {
+		if (!show(id)) return;
 		if (id) setFocusedId(id);
 	}
 
@@ -907,8 +918,8 @@ export function Board({
 		const from = order.findIndex((stub) => stub.id === (focusedId ?? openId));
 		const index = from < 0 ? (by > 0 ? 0 : order.length - 1) : Math.min(order.length - 1, Math.max(0, from + by));
 		const id = order[index].id;
+		if (openId && !show(id)) return;
 		setFocusedId(id);
-		if (openId) setOpenId(id);
 	}
 
 	function stepColumn(by: number) {
@@ -919,8 +930,8 @@ export function Board({
 		const column = shown[Math.min(shown.length - 1, Math.max(0, from < 0 ? 0 : from + by))];
 		const id = order.find((stub) => stub.status === column)?.id;
 		if (!id) return;
+		if (openId && !show(id)) return;
 		setFocusedId(id);
-		if (openId) setOpenId(id);
 	}
 
 	async function copy(id: string, asLink: boolean) {
@@ -969,7 +980,7 @@ export function Board({
 			actions.push(
 				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(record.id, false) },
 				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(record.id, true) },
-				{ id: "do:page", group: record.id, label: "Open its page", run: () => router.push(`/card/${record.id}`) },
+				{ id: "do:page", group: record.id, label: "Open its page", run: () => go(`/card/${record.id}`) },
 			);
 		}
 		const general: Command[] = [
@@ -1008,7 +1019,7 @@ export function Board({
 				id: "go:other",
 				group: "Board",
 				label: kind === "card" ? "Go to epics" : "Go to cards",
-				run: () => router.push(kind === "card" ? "/epics" : "/"),
+				run: () => go(kind === "card" ? "/epics" : "/"),
 			},
 			{ id: "go:search", group: "Board", label: "Search the board", hint: "/", run: () => search.current?.focus() },
 			{ id: "go:keys", group: "Board", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
@@ -1042,7 +1053,7 @@ export function Board({
 		}
 		if (event.key === "Escape") {
 			if (typing) (event.target as HTMLElement).blur();
-			else if (openId) setOpenId(null);
+			else if (openId) show(null);
 			else if (chosen.length > 0) setSelected(new Set());
 			else setFocusedId(null);
 			return;
@@ -1080,7 +1091,7 @@ export function Board({
 					event.target instanceof HTMLElement && event.target.closest("button, a, summary, [role=dialog]");
 				if (!focusedId || inPanel || (control && !(control as HTMLElement).dataset.card)) return;
 				event.preventDefault();
-				setOpenId(focusedId);
+				show(focusedId);
 				break;
 			}
 			case "s":
@@ -1264,7 +1275,7 @@ export function Board({
 					() => linkCards(stub.id, parent, child, linked),
 					linked ? `Linked ${parent} to ${child}` : `Unlinked ${parent} from ${child}`,
 				),
-			onOpen: setOpenId,
+			onOpen: show,
 		};
 	}
 
@@ -1533,10 +1544,12 @@ export function Board({
 								handlers={handlersFor(open)}
 								notice={notice?.id === open.id ? notice : null}
 								onDismiss={() => setNotice(null)}
-								onClose={() => setOpenId(null)}
+								onClose={() => show(null)}
 								onCopy={() => copy(open.id, true)}
 								onSaved={(saved, span) => {
-									setStubs((current) => current.map((s) => (s.id === saved.id ? saved : s)));
+									const was = open.id;
+									setStubs((current) => current.map((s) => (s.id === saved.id || s.id === was ? saved : s)));
+									if (saved.id !== was) setOpenId((opened) => (opened === was ? saved.id : opened));
 									setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`));
 									router.refresh();
 								}}

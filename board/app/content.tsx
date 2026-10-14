@@ -20,6 +20,29 @@ type Threads = { threads?: CommentThread[]; error?: string };
 
 type Picked = { text: string; top: number; bottom: number; left: number };
 
+const DISCARD = "Discard your changes to the content?";
+
+let unsavedDrafts = 0;
+
+export function confirmDiscard() {
+	return unsavedDrafts === 0 || window.confirm(DISCARD);
+}
+
+function numberOf(id: string) {
+	return id.split("-").at(-1);
+}
+
+function leavesPage(event: MouseEvent) {
+	if (event.defaultPrevented || event.button !== 0) return false;
+	if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+	const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+	if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download")) return false;
+	if (link.target && link.target !== "_self") return false;
+	const to = new URL(link.href, window.location.href);
+	if (to.origin !== window.location.origin) return false;
+	return to.pathname !== window.location.pathname || to.search !== window.location.search;
+}
+
 function when(stamp: string) {
 	const date = new Date(stamp);
 	return Number.isNaN(date.getTime()) ? stamp : date.toLocaleString();
@@ -98,9 +121,12 @@ export function Content({
 	const [editing, setEditing] = useState<string | null>(null);
 	const [base, setBase] = useState("");
 	const [saving, setSaving] = useState(false);
+	const [target, setTarget] = useState<string | null>(null);
 	const hydrated = useHydrated();
 	const seenRevision = useRef(revision);
-	const dirty = editing !== null && editing !== base;
+	const isEditing = editing !== null;
+	const dirty = isEditing && editing !== base;
+	const previous = useRef(id);
 	const [, startTransition] = useTransition();
 	const area = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLElement>(null);
@@ -115,12 +141,17 @@ export function Content({
 
 	useEffect(() => {
 		let live = true;
+		const renamed = previous.current !== id && numberOf(previous.current) === numberOf(id);
+		previous.current = id;
 		setThreads([]);
-		setError("");
 		setSelection(null);
 		setDrafting(null);
 		setReplying(null);
-		setEditing(null);
+		setTarget(null);
+		if (!renamed) {
+			setError("");
+			setEditing(null);
+		}
 		if (!bodyGiven) {
 			setBody("");
 			loadBody(id).then((result) => {
@@ -162,9 +193,8 @@ export function Content({
 	}
 
 	useEffect(() => {
-		if (bodyGiven || seenRevision.current === revision) return;
+		if (bodyGiven || isEditing || seenRevision.current === revision) return;
 		seenRevision.current = revision;
-		if (editing !== null) return;
 		let live = true;
 		loadBody(id).then((result) => {
 			if (live && result.body !== undefined) setBody(result.body);
@@ -172,15 +202,26 @@ export function Content({
 		return () => {
 			live = false;
 		};
-	}, [revision, id, bodyGiven, editing]);
+	}, [revision, id, bodyGiven, isEditing]);
 
 	useEffect(() => {
 		if (!dirty) return;
+		unsavedDrafts++;
 		function warn(event: BeforeUnloadEvent) {
 			event.preventDefault();
 		}
+		function guard(event: MouseEvent) {
+			if (!leavesPage(event) || window.confirm(DISCARD)) return;
+			event.preventDefault();
+			event.stopPropagation();
+		}
 		window.addEventListener("beforeunload", warn);
-		return () => window.removeEventListener("beforeunload", warn);
+		document.addEventListener("click", guard, true);
+		return () => {
+			unsavedDrafts--;
+			window.removeEventListener("beforeunload", warn);
+			document.removeEventListener("click", guard, true);
+		};
 	}, [dirty]);
 
 	function startEditing() {
@@ -190,7 +231,7 @@ export function Content({
 	}
 
 	function stopEditing() {
-		if (dirty && !window.confirm("Discard your changes to the content?")) return;
+		if (dirty && !window.confirm(DISCARD)) return;
 		setEditing(null);
 		setError("");
 	}
@@ -200,10 +241,13 @@ export function Content({
 		const expected = base;
 		setSaving(true);
 		startTransition(async () => {
-			const result = await saveBody(id, expected, text);
+			const result = await saveBody(target ?? id, expected, text);
 			setSaving(false);
 			if (result.error) {
-				setError(result.error);
+				if (result.moved) setTarget(result.moved);
+				setError(
+					result.moved ? `${result.error} - press Save again to save your draft to ${result.moved}` : result.error,
+				);
 				if (result.body !== undefined) {
 					setBody(result.body);
 					setBase(result.body);
@@ -212,6 +256,7 @@ export function Content({
 			}
 			setError("");
 			setEditing(null);
+			setTarget(null);
 			if (result.record) {
 				setBody(result.record.body);
 				onRecord?.(result.record);

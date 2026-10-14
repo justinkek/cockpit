@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
-import { Content } from "@/app/content";
+import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -86,6 +86,10 @@ export function Ticket({
 
 	const dates = Object.entries(record.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 
+	function go(href: string) {
+		if (confirmDiscard()) router.push(href);
+	}
+
 	function save(change: Partial<Card>, request: () => Promise<Result>, label: string) {
 		const before = record;
 		setRecord((current) => ({ ...current, ...change }));
@@ -145,7 +149,7 @@ export function Ticket({
 		() => ({
 			nameOf: mentionNames([...lists.cards, ...lists.epics]),
 			onOpen: (id) => {
-				router.push(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
+				go(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
 				return true;
 			},
 		}),
@@ -156,6 +160,7 @@ export function Ticket({
 	const edits: Edits = { label: record.id, move: handlers.onMove, edit: handlers.onEdit, duplicate };
 
 	function duplicate() {
+		if (!confirmDiscard()) return;
 		setError("");
 		startTransition(async () => {
 			const result = await duplicateCard(record.id);
@@ -187,12 +192,12 @@ export function Ticket({
 					id: "go:board",
 					group: "Board",
 					label: "Show it on the board",
-					run: () => router.push(`${kind === "epic" ? "/epics" : "/"}?open=${record.id}`),
+					run: () => go(`${kind === "epic" ? "/epics" : "/"}?open=${record.id}`),
 				},
 				...themeCommands(),
 				...cardCommands(
 					lists.cards.filter((card) => card.id !== record.id),
-					(id) => router.push(`/card/${id}`),
+					(id) => go(`/card/${id}`),
 				),
 			],
 		};
@@ -212,7 +217,7 @@ export function Ticket({
 			const to = event.key === "j" ? neighbours?.next : neighbours?.previous;
 			if (!to) return;
 			event.preventDefault();
-			router.push(`/card/${to.id}`);
+			go(`/card/${to.id}`);
 		} else if (!command && !event.altKey && !typing && kind && (event.key === "s" || event.key === "e")) {
 			if (event.key === "e" && kind !== "card") return;
 			event.preventDefault();
@@ -303,7 +308,14 @@ export function Ticket({
 					id={record.id}
 					body={record.body}
 					onRecord={setRecord}
-					onSaved={(saved, span) => setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`))}
+					onSaved={(saved, span) => {
+						const shown = undoable(saved.id, span, `Changed the content of ${saved.id}`);
+						setToast(shown);
+						if (saved.id !== initial.id) {
+							carryTo(saved.id, shown);
+							router.replace(`/card/${saved.id}`);
+						}
+					}}
 				/>
 			</MentionContext.Provider>
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
