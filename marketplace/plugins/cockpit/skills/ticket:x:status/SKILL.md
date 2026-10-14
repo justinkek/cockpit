@@ -5,7 +5,7 @@ description: Advance the session's cockpit ticket to a target Status — inferre
 
 # ticket-status
 
-Registering a ticket never moves the card. This skill is the other half: it advances the registered ticket across the board as the session's work progresses.
+Registering a ticket makes one move, and makes it through this skill: a card at `Ready for BR by AI` goes to `In BR by AI` as registration hands on to BR. Every other move is this skill's own, advancing the registered ticket across the board as the session's work progresses.
 
 - **You (the agent) own inference + the move.** Decide the target Status from what the session is doing, and move immediately.
 - **This procedure owns correct execution.** Ordered walk, no skipping, every column's date stamped as the card lands on it.

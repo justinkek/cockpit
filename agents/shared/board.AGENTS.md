@@ -32,7 +32,7 @@ These stay here, because each fires when no skill has been invoked to load them:
 
 ## Cockpit - advance the ticket as you work
 
-Registering a ticket (the `/cockpit:ticket:0:register` skill) only gets it onto the board; it does not move it. As the session's work changes stage, keep the card's `Status` in step with reality - don't leave it parked where it entered.
+Registering a ticket (the `/cockpit:ticket:0:register` skill) gets it onto the board, and its one move is from `Ready for BR by AI` to `In BR by AI` when it hands the card on to BR. As the session's work changes stage, keep the card's `Status` in step with reality - don't leave it parked where it entered.
 
 The walk, the skip list, where to stop and what a scope shift means are in the `cockpit:ticket:x:status` skill. Invoke it whenever the card is behind the work.
 
