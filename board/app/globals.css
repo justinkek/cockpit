@@ -36,6 +36,14 @@
 		--diff-add: #2f8a4c;
 		--diff-del: #c23a2e;
 		--diff-mod: #b07612;
+
+		--code-keyword: #3a63c9;
+		--code-string: #2f7d46;
+		--code-comment: #8b8b94;
+		--code-number: #b4561a;
+		--code-title: #8a45b8;
+		--code-attr: #a2601d;
+		--code-meta: #6e6e78;
 	}
 
 	@media (prefers-color-scheme: dark) {
@@ -54,6 +62,13 @@
 			--diff-add: #5cc27c;
 			--diff-del: #f07a6e;
 			--diff-mod: #e5ad4f;
+			--code-keyword: #82a8ff;
+			--code-string: #8fd19e;
+			--code-comment: #73737d;
+			--code-number: #f0a36b;
+			--code-title: #cfa1f2;
+			--code-attr: #e6c07b;
+			--code-meta: #9b9ba6;
 			--shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 0 0 1px var(--line);
 			--shadow-lift: 0 12px 32px rgb(0 0 0 / 55%), 0 0 0 1px var(--line-strong);
 		}
@@ -75,6 +90,13 @@
 		--diff-add: #5cc27c;
 		--diff-del: #f07a6e;
 		--diff-mod: #e5ad4f;
+		--code-keyword: #82a8ff;
+		--code-string: #8fd19e;
+		--code-comment: #73737d;
+		--code-number: #f0a36b;
+		--code-title: #cfa1f2;
+		--code-attr: #e6c07b;
+		--code-meta: #9b9ba6;
 		--shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 0 0 1px var(--line);
 		--shadow-lift: 0 12px 32px rgb(0 0 0 / 55%), 0 0 0 1px var(--line-strong);
 	}
@@ -1097,47 +1119,156 @@
 		overflow-x: auto;
 	}
 
-	.md-diff {
-		padding: 10px 0;
+	.code-block {
+		margin: 4px 0;
+		min-width: 0;
+		background: var(--lane);
+		border-radius: var(--radius);
 
-		& .diff-lines {
-			display: grid;
-			width: max-content;
-			min-width: 100%;
+		& .md-code {
+			margin: 0;
+			padding-top: 4px;
+			background: none;
 		}
+	}
 
-		& .diff-line {
-			min-height: 1.5em;
-			padding: 0 12px;
-		}
+	.code-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		min-height: 30px;
+		padding: 4px 6px 0 8px;
+	}
 
-		& .add {
-			color: var(--diff-add);
-			background: color-mix(in srgb, var(--diff-add) 12%, transparent);
-		}
+	.code-language {
+		height: 24px;
+		padding: 0 4px;
+		font-size: 11.5px;
+		color: var(--muted);
+		background: none;
+		border: none;
+		border-radius: var(--radius);
+		line-height: 24px;
+	}
 
-		& .del {
-			color: var(--diff-del);
-			background: color-mix(in srgb, var(--diff-del) 12%, transparent);
-		}
+	select.code-language {
+		cursor: pointer;
 
-		& .mod {
-			color: var(--diff-mod);
-			background: color-mix(in srgb, var(--diff-mod) 12%, transparent);
-		}
-
-		& .hunk {
-			color: var(--accent);
-		}
-
-		& .heading {
+		&:hover,
+		&:focus-visible {
 			color: var(--ink);
+			background: var(--surface);
+		}
+	}
+
+	.code-tools {
+		display: inline-flex;
+		align-items: center;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		gap: 2px;
+	}
+
+	.code-tool {
+		height: 24px;
+		padding: 0 8px;
+		font-size: 11.5px;
+		color: var(--muted);
+		background: none;
+		border: none;
+
+		&:hover:not(:disabled) {
+			color: var(--ink);
+			background: var(--surface);
 		}
 
-		& .meta {
-			color: var(--muted);
-			font-weight: 600;
+		&.on {
+			color: var(--ink);
+			background: var(--panel);
+			box-shadow: var(--shadow);
 		}
+
+		&:disabled {
+			opacity: 0.4;
+			cursor: default;
+		}
+	}
+
+	@media (hover: hover) {
+		.code-block .code-tools {
+			opacity: 0;
+			transition: opacity 120ms;
+		}
+
+		.code-block:hover .code-tools,
+		.code-block:focus-within .code-tools {
+			opacity: 1;
+		}
+	}
+
+	.hljs-keyword,
+	.hljs-selector-tag,
+	.hljs-built_in,
+	.hljs-doctag {
+		color: var(--code-keyword);
+	}
+
+	.hljs-string,
+	.hljs-regexp,
+	.hljs-addition,
+	.hljs-selector-attr,
+	.hljs-selector-pseudo {
+		color: var(--code-string);
+	}
+
+	.hljs-comment,
+	.hljs-quote {
+		color: var(--code-comment);
+		font-style: italic;
+	}
+
+	.hljs-number,
+	.hljs-literal,
+	.hljs-symbol,
+	.hljs-bullet,
+	.hljs-variable.constant_ {
+		color: var(--code-number);
+	}
+
+	.hljs-title,
+	.hljs-section,
+	.hljs-name,
+	.hljs-selector-id,
+	.hljs-selector-class {
+		color: var(--code-title);
+	}
+
+	.hljs-attr,
+	.hljs-attribute,
+	.hljs-property,
+	.hljs-type,
+	.hljs-params,
+	.hljs-template-variable {
+		color: var(--code-attr);
+	}
+
+	.hljs-meta,
+	.hljs-operator,
+	.hljs-punctuation {
+		color: var(--code-meta);
+	}
+
+	.hljs-deletion {
+		color: var(--diff-del);
+	}
+
+	.hljs-strong {
+		font-weight: 600;
+	}
+
+	.hljs-emphasis {
+		font-style: italic;
 	}
 
 	.md-details > summary {

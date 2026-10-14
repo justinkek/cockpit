@@ -438,8 +438,8 @@ export function Ticket({
 					id={record.id}
 					body={record.body}
 					onRecord={setRecord}
-					onSaved={(saved, span) => {
-						const shown = undoable(saved.id, span, `Changed the content of ${saved.id}`);
+					onSaved={(saved, span, label) => {
+						const shown = undoable(saved.id, span, label ?? `Changed the content of ${saved.id}`);
 						setToast(shown);
 						if (saved.id !== initial.id) {
 							carryTo(saved.id, shown);

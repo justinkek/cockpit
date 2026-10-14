@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { darkNow, onThemeChange } from "@/app/theme";
 
 async function drawn(id: string, source: string, dark: boolean): Promise<string | null> {
@@ -18,16 +18,18 @@ async function drawn(id: string, source: string, dark: boolean): Promise<string 
 	}
 }
 
-export function Mermaid({ source, style }: { source: string; style?: CSSProperties }) {
+export type Drawing = { svg: string | null; failed: boolean };
+
+export function useMermaidSvg(source: string): Drawing {
 	const id = `mermaid-${useId().replace(/[^A-Za-z0-9]/g, "")}`;
 	const drawCount = useRef(0);
-	const [svg, setSvg] = useState<string | null>(null);
+	const [drawing, setDrawing] = useState<Drawing>({ svg: null, failed: false });
 	useEffect(() => {
 		let live = true;
 		const draw = () => {
 			drawCount.current += 1;
-			return drawn(`${id}-${drawCount.current}`, source, darkNow()).then((result) => {
-				if (live) setSvg(result);
+			return drawn(`${id}-${drawCount.current}`, source, darkNow()).then((svg) => {
+				if (live) setDrawing({ svg, failed: svg === null });
 			});
 		};
 		draw();
@@ -37,11 +39,5 @@ export function Mermaid({ source, style }: { source: string; style?: CSSProperti
 			stop();
 		};
 	}, [id, source]);
-	if (svg === null)
-		return (
-			<pre className="md-code" style={style}>
-				{source}
-			</pre>
-		);
-	return <div className="md-diagram" style={style} dangerouslySetInnerHTML={{ __html: svg }} />;
+	return drawing;
 }

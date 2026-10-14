@@ -1,5 +1,5 @@
 import { createContext, type MouseEvent, type ReactNode, useContext } from "react";
-import { Mermaid } from "@/app/mermaid";
+import { CodeBlock } from "@/app/code-block";
 
 export type Mentions = { nameOf?: (id: string) => string | undefined; onOpen?: (id: string) => boolean };
 
@@ -74,6 +74,7 @@ type Source = {
 	anchors: Anchor[];
 	onAnchor: (thread: string) => void;
 	onCheck?: (line: number, done: boolean) => void;
+	onLanguage?: (line: number, language: string) => void;
 };
 
 function highlight(
@@ -182,19 +183,6 @@ function aliased(lines: string[]): string[] {
 	});
 }
 
-const DIFF_KINDS: [RegExp, string][] = [
-	[/^(?:\+\+\+|---)(?: |$)/, "meta"],
-	[/^={3,}/, "heading"],
-	[/^@@/, "hunk"],
-	[/^\+/, "add"],
-	[/^-/, "del"],
-	[/^!/, "mod"],
-];
-
-function diffKind(line: string) {
-	return DIFF_KINDS.find(([pattern]) => pattern.test(line))?.[1] ?? "same";
-}
-
 function continuesSummary(line: string) {
 	const text = line.trim();
 	return text !== "" && !text.startsWith("```") && !toggleTag.test(text) && !section.test(text);
@@ -301,33 +289,22 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 
 		if (line.startsWith("```")) {
 			const margin = new RegExp(`^[ \\t]{0,${raw.length - line.length}}`);
-			const language = line.slice(3).trim();
+			const language = line.slice(3).trim().split(/\s+/)[0] ?? "";
+			const start = i;
 			const code: string[] = [];
 			i++;
 			while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++].replace(margin, ""));
 			i++;
-			if (language === "mermaid") {
-				blocks.push(<Mermaid key={key} source={code.join("\n")} style={style} />);
-				continue;
-			}
-			if (language === "diff") {
-				blocks.push(
-					<pre key={key} className="md-code md-diff" style={style}>
-						<span className="diff-lines">
-							{code.map((text, n) => (
-								<span key={n} className={`diff-line ${diffKind(text)}`}>
-									{text}
-								</span>
-							))}
-						</span>
-					</pre>,
-				);
-				continue;
-			}
+			const origin = source.origins[start];
+			const onLanguage = source.onLanguage;
 			blocks.push(
-				<pre key={key} className="md-code" style={style}>
-					{code.join("\n")}
-				</pre>,
+				<CodeBlock
+					key={key}
+					language={language}
+					code={code}
+					style={style}
+					onLanguage={onLanguage ? (next) => onLanguage(origin, next) : undefined}
+				/>,
 			);
 			continue;
 		}
@@ -450,12 +427,16 @@ export function Markdown({
 	anchors = [],
 	onAnchor = () => {},
 	onCheck,
+	onLanguage,
 }: {
 	source: string;
 	anchors?: Anchor[];
 	onAnchor?: (thread: string) => void;
 	onCheck?: (line: number, done: boolean) => void;
+	onLanguage?: (line: number, language: string) => void;
 }) {
 	const { lines, origins } = untangled(source.split("\n"));
-	return <div className="md">{blocksOf({ lines, origins, anchors, onAnchor, onCheck }, 0, 0, false).blocks}</div>;
+	return (
+		<div className="md">{blocksOf({ lines, origins, anchors, onAnchor, onCheck, onLanguage }, 0, 0, false).blocks}</div>
+	);
 }

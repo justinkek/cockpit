@@ -252,6 +252,24 @@ export async function checkTodo(id: string, line: number, expected: string, done
 	});
 }
 
+const FENCE = /^(\s*)```(.*)$/;
+
+export async function changeFenceLanguage(
+	id: string,
+	line: number,
+	expected: string,
+	language: string,
+): Promise<Result> {
+	return report(id, async () => {
+		const lines = (await readRecord(id)).body.split("\n");
+		if (lines[line] !== expected || !FENCE.test(expected)) {
+			throw new BoardError("that code block has changed since the page loaded - reload to see it");
+		}
+		lines[line] = expected.replace(FENCE, (_, indent: string) => `${indent}\`\`\`${language.trim()}`);
+		return setField(id, "body", lines.join("\n"));
+	});
+}
+
 export async function saveBody(id: string, expected: string, text: string): Promise<Result & { body?: string }> {
 	let latest: string | undefined;
 	const result = await report(id, async () => {

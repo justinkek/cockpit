@@ -43,22 +43,42 @@ cat >"$WORK/compile.cjs" <<'EOF'
 const fs = require("node:fs");
 const [board, work] = process.argv.slice(2);
 const ts = require(`${board}/node_modules/typescript`);
-const source = fs.readFileSync(`${board}/app/markdown.tsx`, "utf8");
-const rewritten = source.replace('from "@/app/mermaid"', 'from "./mermaid.mjs"');
-if (rewritten === source) {
-	process.stderr.write("markdown.tsx no longer imports @/app/mermaid\n");
-	process.exit(1);
+const rewrites = [
+	["app/markdown.tsx", "markdown.mjs", [['from "@/app/code-block"', 'from "./code-block.mjs"']]],
+	[
+		"app/code-block.tsx",
+		"code-block.mjs",
+		[
+			['from "@/app/mermaid"', 'from "./mermaid.mjs"'],
+			['from "@/app/keys"', 'from "./keys.mjs"'],
+		],
+	],
+];
+for (const [file, out, swaps] of rewrites) {
+	let source = fs.readFileSync(`${board}/${file}`, "utf8");
+	for (const [from, to] of swaps) {
+		if (!source.includes(from)) {
+			process.stderr.write(`${file} no longer imports ${from.slice(6)}\n`);
+			process.exit(1);
+		}
+		source = source.replace(from, to);
+	}
+	const { outputText } = ts.transpileModule(source, {
+		compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+	});
+	fs.writeFileSync(`${work}/${out}`, outputText);
 }
-const { outputText } = ts.transpileModule(rewritten, {
-	compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-});
-fs.writeFileSync(`${work}/markdown.mjs`, outputText);
 EOF
 
 cat >"$WORK/mermaid.mjs" <<'EOF'
-import { jsx } from "react/jsx-runtime";
-export function Mermaid({ source }) {
-	return jsx("pre", { className: "md-code", children: `diagram ${source}` });
+export function useMermaidSvg() {
+	return { svg: null, failed: false };
+}
+EOF
+
+cat >"$WORK/keys.mjs" <<'EOF'
+export async function copyText() {
+	return true;
 }
 EOF
 
@@ -385,6 +405,21 @@ case "$diff_html" in
 *'<span class="diff-line add">+ added</span>'*) assert_ok "and keeps the line as written" ;;
 *) assert_ko "and keeps the line as written" "$diff_html" ;;
 esac
+
+printf "\nTest group: a code block carries a header naming its language\n"
+
+code_html="$(printf '%s' $'```ts title=a\nconst a = 1;\n```\n```\nplain\n```\n```mermaid\ngraph TD\n```' | node "$WORK/outline.mjs" --html)"
+code_languages="$(printf '%s' "$code_html" | grep -oE 'class="code-language">[^<]*' | sed 's/.*>//' | paste -sd '|' -)"
+if [ "$code_languages" = "TypeScript|Plain text|Mermaid" ]; then
+  assert_ok "a known language by its name, an unnamed one as plain text, and only the first word of the fence"
+else
+  assert_ko "a known language by its name, an unnamed one as plain text, and only the first word of the fence" "got '$code_languages' from $code_html"
+fi
+case "$code_html" in
+*'<pre class="md-code">const a = 1;</pre>'*) assert_ok "the code itself is drawn as written until the highlighter loads" ;;
+*) assert_ko "the code itself is drawn as written until the highlighter loads" "$code_html" ;;
+esac
+
 
 printf "\nTest group: an image is drawn, and an attachment is drawn through the app\n"
 

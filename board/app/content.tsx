@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
 	changeComment,
+	changeFenceLanguage,
 	checkTodo,
 	loadBody,
 	loadComments,
@@ -13,6 +14,7 @@ import {
 	saveBody,
 	submitCard,
 } from "@/app/actions";
+import { nameOf } from "@/app/code-block";
 import { useHydrated } from "@/app/fields";
 import { onBoardChange } from "@/app/live";
 import { Markdown } from "@/app/markdown";
@@ -147,7 +149,7 @@ export function Content({
 	body?: string;
 	revision?: string;
 	onRecord?: (record: Card) => void;
-	onSaved?: (record: Card, undo?: Span) => void;
+	onSaved?: (record: Card, undo?: Span, label?: string) => void;
 }) {
 	const [body, setBody] = useState(given ?? "");
 	const [threads, setThreads] = useState<CommentThread[]>([]);
@@ -236,6 +238,31 @@ export function Content({
 			if (result.record) {
 				if (checking.current === 0) setBody(result.record.body);
 				onRecord?.(result.record);
+			}
+		});
+	}
+
+	function changeLanguage(line: number, language: string) {
+		const lines = body.split("\n");
+		const expected = lines[line];
+		if (expected === undefined) return;
+		const before = body;
+		lines[line] = expected.replace(/^(\s*)```.*$/, (_, indent: string) => `${indent}\`\`\`${language}`);
+		setBody(lines.join("\n"));
+		checking.current++;
+		startTransition(async () => {
+			const result = await changeFenceLanguage(id, line, expected, language);
+			checking.current--;
+			if (result.error) {
+				setBody(before);
+				setError(result.error);
+				return;
+			}
+			setError("");
+			if (result.record) {
+				if (checking.current === 0) setBody(result.record.body);
+				onRecord?.(result.record);
+				onSaved?.(result.record, result.undo, `Changed a code block of ${result.record.id} to ${nameOf(language)}`);
 			}
 		});
 	}
@@ -590,7 +617,7 @@ export function Content({
 			)}
 			<div className="content-body" ref={area} hidden={editing !== null}>
 				{body ? (
-					<Markdown source={body} anchors={anchors} onAnchor={reveal} onCheck={check} />
+					<Markdown source={body} anchors={anchors} onAnchor={reveal} onCheck={check} onLanguage={changeLanguage} />
 				) : (
 					<p className="empty">
 						No content.{" "}

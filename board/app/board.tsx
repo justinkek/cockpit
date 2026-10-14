@@ -597,7 +597,7 @@ function Peek({
 	onDismiss: () => void;
 	onClose: () => void;
 	onCopy: () => void;
-	onSaved: (record: Stub, undo?: Span) => void;
+	onSaved: (record: Stub, undo?: Span, label?: string) => void;
 	onDuplicate: () => void;
 	onArchive: () => void;
 }) {
@@ -1759,11 +1759,11 @@ export function Board({
 										onCopy={() => copy(open.id, true)}
 										onDuplicate={() => duplicate(open.id)}
 										onArchive={() => bulkEdits([open.id]).archive?.()}
-										onSaved={(saved, span) => {
+										onSaved={(saved, span, label) => {
 											const was = open.id;
 											setStubs((current) => current.map((s) => (s.id === saved.id || s.id === was ? saved : s)));
 											if (saved.id !== was) setOpenId((opened) => (opened === was ? saved.id : opened));
-											setToast(undoable(saved.id, span, `Changed the content of ${saved.id}`));
+											setToast(undoable(saved.id, span, label ?? `Changed the content of ${saved.id}`));
 											router.refresh();
 										}}
 									/>
