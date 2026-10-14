@@ -14,6 +14,10 @@ else
   cmd="$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 
+command_words="$(hook_argv_words "$cmd")"
+first="$(printf '%s\n' "$command_words" | sed -n '1s/^w //p')"
+subcommand="$(printf '%s\n' "$command_words" | sed -n '2s/^w //p')"
+
 # No session id (shouldn't happen) -> defer rather than brick the session.
 [ -n "$session_id" ] || exit 0
 
@@ -50,7 +54,6 @@ marker="$STATE_DIR/$session_id.ticket"
 # marker is repaired by the next status hop, whereas a missing one is silent.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
   residue="$(printf '%s' "$cmd" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")"
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
 
   # Which script is invoked? Matched anywhere in the command, not just as the
   # first token, so a chained invocation is still recognised. Longest name
@@ -100,7 +103,7 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
 
   # Shape gate: auto-approve only a standalone invocation. Anything chained or
   # redirected defers to the normal prompt — with its sidecar already written.
-  case "$residue" in *'|'*|*'&'*|*';'*|*'<'*|*'>'*|*'`'*|*'$('*) exit 0 ;; esac
+  case "$residue" in *'|'*|*'&'*|*';'*|*'<'*|*'>'*|*'`'*|*'$('*|*$'\n'*) exit 0 ;; esac
   case "$first" in *.cockpit/scripts/ticket-register*) ;; *) exit 0 ;; esac
 
   if command -v jq >/dev/null 2>&1; then
@@ -118,13 +121,10 @@ fi
 # why they are named here one by one rather than by a pattern that would let
 # anything through.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-claim-lock|ticket-waiting-cards'; then
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
   case "$first" in *.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards) exit 0 ;; esac
 fi
 
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'board-card'; then
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
-  subcommand="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $2}' | tr -d '"'"'")"
   case "$first" in
     *.cockpit/scripts/board-card)
       case "$subcommand" in show|list|statuses|path|claim|create) exit 0 ;; esac
@@ -136,7 +136,6 @@ fi
 # Without this, auto-rename is denied by the ticket gate before the rename
 # gate can intercept it — a chicken-and-egg deadlock between the two hooks.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'auto-rename'; then
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
   case "$first" in *.cockpit/scripts/auto-rename) exit 0 ;; esac
 fi
 

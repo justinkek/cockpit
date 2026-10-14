@@ -16,6 +16,10 @@ else
   cmd="$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 
+command_words="$(hook_argv_words "$cmd")"
+first="$(printf '%s\n' "$command_words" | sed -n '1s/^w //p')"
+subcommand="$(printf '%s\n' "$command_words" | sed -n '2s/^w //p')"
+
 # No session id (shouldn't happen) -> defer rather than brick the session.
 [ -n "$session_id" ] || exit 0
 
@@ -43,8 +47,7 @@ if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'auto-rename'; then
 
   # Validate: only auto-approve clean invocations of the auto-rename script.
   residue="$(printf '%s' "$cmd" | sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g")"
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
-  case "$residue" in *'|'*|*'&'*|*';'*|*'<'*|*'>'*|*'`'*|*'$('*) exit 0 ;; esac
+  case "$residue" in *'|'*|*'&'*|*';'*|*'<'*|*'>'*|*'`'*|*'$('*|*$'\n'*) exit 0 ;; esac
   case "$first" in *.cockpit/scripts/auto-rename) ;; *) exit 0 ;; esac
 
   reason="auto-rename (session naming) — allowed"
@@ -65,13 +68,10 @@ fi
 # thing each, which is why they are named here one by one rather than by a
 # pattern that would let anything through.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -qE 'ticket-claim-lock|ticket-waiting-cards'; then
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
   case "$first" in *.cockpit/scripts/ticket-claim-lock|*.cockpit/scripts/ticket-waiting-cards) exit 0 ;; esac
 fi
 
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'board-card'; then
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
-  subcommand="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $2}' | tr -d '"'"'")"
   case "$first" in
     *.cockpit/scripts/board-card)
       case "$subcommand" in show|list|statuses|path|claim|create) exit 0 ;; esac
@@ -83,7 +83,6 @@ fi
 # Without this, ticket-register is denied by the rename gate before the ticket
 # gate can intercept it — a chicken-and-egg deadlock between the two hooks.
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'ticket-register'; then
-  first="$(printf '%s' "$cmd" | sed -E 's/^[[:space:]]*//' | awk '{print $1}' | tr -d '"'"'")"
   case "$first" in
     *.cockpit/scripts/ticket-register|*.cockpit/scripts/ticket-register-type) exit 0 ;;
   esac
