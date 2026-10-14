@@ -468,6 +468,25 @@ assert_eq "and none of it is written to the record" "" "$(grep --extended-regexp
 assert_eq "an epic carries neither" "false" "$(stub show EPIC-1 --json | jq 'has("overrunning")')"
 rm "$COCKPIT_BOARD_DIR"/cards/FEAT-90[1-6].md "$COCKPIT_BOARD_DIR"/cards/TIME-90[45].md
 
+printf "\nTest group: a record whose file does not parse is never written over\n"
+
+printf -- '---\nid: "FEAT-950"\nname: broken\n---\n' > "$COCKPIT_BOARD_DIR/cards/FEAT-950.md"
+broken_before="$(cat "$COCKPIT_BOARD_DIR/cards/FEAT-950.md")"
+other_before="$(cat "$COCKPIT_BOARD_DIR/cards/FEAT-1.md")"
+commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+stub move FEAT-950 Done >/dev/null 2>&1
+assert_eq "a move onto it is refused with an exit code of its own" "8" "$?"
+stub link FEAT-950 FEAT-1 >/dev/null 2>&1
+assert_eq "so is a link from it" "8" "$?"
+stub link FEAT-1 FEAT-950 >/dev/null 2>&1
+assert_eq "and a link to it" "8" "$?"
+assert_eq "it, and the card on the other side of the link, are left as they were, with nothing committed" "true true $commits_before" \
+  "$([ "$(cat "$COCKPIT_BOARD_DIR/cards/FEAT-950.md")" = "$broken_before" ] && echo true) $([ "$(cat "$COCKPIT_BOARD_DIR/cards/FEAT-1.md")" = "$other_before" ] && echo true) $(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+assert_eq "the refusal names the file" "true" "$(stub show FEAT-950 2>&1 | grep --quiet --fixed-strings 'FEAT-950.md does not parse' && echo true)"
+stub list >/dev/null 2>&1
+assert_eq "a list that meets it is refused the same way" "8" "$?"
+rm "$COCKPIT_BOARD_DIR/cards/FEAT-950.md"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

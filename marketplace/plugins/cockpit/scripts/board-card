@@ -40,6 +40,7 @@
 #   5  the board directory could not be locked
 #   6  written, but the board's git repository refused the commit
 #   7  no such section
+#   8  a record whose file does not parse
 #
 set -euo pipefail
 
@@ -201,7 +202,10 @@ archive_file() {
 }
 
 require_record() {
-  [ -f "$(record_file "$1")" ] && return 0
+  if [ -f "$(record_file "$1")" ]; then
+    read_record "$1" >/dev/null
+    return 0
+  fi
   [ ! -f "$(archive_file "$1")" ] || die 3 "$1 is archived - run: board-card unarchive $1"
   die 3 "no record $1 in $(directory_of_kind "$(kind_of "$1")")"
 }
@@ -326,17 +330,25 @@ derived_program='
                         else false end)}
     end;'
 
-read_record() {
-  jq --raw-input --null-input "[inputs] | $parse_program" < "$(record_file "$1")"
+parse_file() {
+  jq --raw-input --null-input "[inputs] | $parse_program" < "$1" 2>/dev/null \
+    || die 8 "${1##*/} does not parse - fix its front matter by hand: $1"
 }
 
+read_record() { parse_file "$(record_file "$1")"; }
+
 write_record() {
-  local id="$1" touch="${2:-}" json file tmp
+  local id="$1" touch="${2:-}" json file tmp current
   json="$(cat)"
   file="$(record_file "$id")"
-  if [ -z "$touch" ] && [ -f "$file" ] \
-    && { read_record "$id"; printf '%s' "$json"; } | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
-    return 0
+  json="$(printf '%s' "$json" | jq --exit-status 'select(type == "object")' 2>/dev/null)" \
+    || die 2 "refused to write $id with nothing in it"
+  if [ -f "$file" ]; then
+    current="$(read_record "$id")" || exit "$?"
+    if [ -z "$touch" ] && { printf '%s' "$current"; printf '%s' "$json"; } \
+      | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
+      return 0
+    fi
   fi
   mkdir -p "$(dirname "$file")"
   tmp="$(mktemp "$(dirname "$file")/.$id.XXXXXX")"
@@ -573,9 +585,13 @@ command_list() {
   require_board
   directory="$(directory_of_kind "$kind")"
   [ "$archived" = false ] || directory="$BOARD_DIR/archive/${directory##*/}"
-  local files=("$directory"/*.md)
+  local files=("$directory"/*.md) records file
   [ -f "${files[0]}" ] || files=(/dev/null)
-  jq --raw-input --null-input "[inputs | {file: input_filename, line: .}] | group_by(.file) | map(map(.line) | $parse_program)" "${files[@]}" \
+  if ! records="$(jq --raw-input --null-input "[inputs | {file: input_filename, line: .}] | group_by(.file) | map(map(.line) | $parse_program)" "${files[@]}" 2>/dev/null)"; then
+    for file in "${files[@]}"; do parse_file "$file" >/dev/null; done
+    die 8 "a record in $directory does not parse"
+  fi
+  printf '%s' "$records" \
     | jq --arg status "$status" --arg epic "$epic" --arg now "$(now)" "$derived_program"'
       map(select(($status == "" or .status == $status) and ($epic == "" or .epic == $epic)))
       | sort_by(.id | split("-") | (.[0]), (.[1] | tonumber))
