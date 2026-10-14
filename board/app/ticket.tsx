@@ -9,7 +9,7 @@ import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { type Page, Palette } from "@/app/palette";
-import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
+import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import { type Card, fieldName, kindOf } from "@/lib/shared";
 
@@ -92,7 +92,7 @@ export function Ticket({
 			}
 			if (!result.record) return;
 			setRecord(result.record);
-			setToast(undoable(result.record.id, result.undo, label.replace(before.id, result.record.id)));
+			setToast(undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id)));
 			if (result.record.id !== before.id) router.replace(`/card/${result.record.id}`);
 		});
 	}

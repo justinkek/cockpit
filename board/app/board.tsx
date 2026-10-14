@@ -35,7 +35,7 @@ import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { type Command, type Page, Palette } from "@/app/palette";
-import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
+import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
 	COLLAPSED,
 	DEFAULT_VIEW,
@@ -786,10 +786,13 @@ export function Board({
 			if (count > 0)
 				setToast(
 					toastOf(
-						label.replace(
-							"{n}",
-							count === 1 ? (result.records[0].record?.id ?? result.records[0].from) : `${count} ${kind}s`,
-						),
+						count === 1
+							? withNewId(
+									label.replace("{n}", result.records[0].from),
+									result.records[0].from,
+									result.records[0].record?.id ?? result.records[0].from,
+								)
+							: label.replace("{n}", `${count} ${kind}s`),
 						result.undo,
 					),
 				);
@@ -1072,7 +1075,7 @@ export function Board({
 			if (fresh) {
 				setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
 				if (fresh.id !== id) setOpenId((opened) => (opened === id ? fresh.id : opened));
-				setToast(undoable(fresh.id, result.undo, label.replace(id, fresh.id)));
+				setToast(undoable(fresh.id, result.undo, withNewId(label, id, fresh.id)));
 			}
 			router.refresh();
 		});

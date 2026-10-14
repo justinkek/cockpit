@@ -18,6 +18,10 @@ export function undoable(
 	return { key: made, text, changes: [{ id, ...span }] };
 }
 
+export function withNewId(text: string, from: string, to: string) {
+	return from === to ? text : `${text}, so it is now ${to}`;
+}
+
 export function toastOf(text: string, changes: Change[] = []): Undoable {
 	made += 1;
 	return { key: made, text, changes };
