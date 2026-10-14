@@ -43,8 +43,8 @@ import { Stages } from "@/app/stages";
 import { contextOf, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
-	COLLAPSED,
-	DEFAULT_VIEW,
+	collapsedIn,
+	defaultView,
 	exceptEpic,
 	type Found,
 	LAYOUTS,
@@ -56,6 +56,7 @@ import {
 	saveView,
 	sorter,
 	TOGGLES,
+	toggledIn,
 	type View,
 } from "@/app/view";
 import { type Progress, progressOf } from "@/lib/metrics";
@@ -801,8 +802,7 @@ export function Board({
 	const router = useRouter();
 	const [stubs, setStubs] = useState(initial);
 	const [view, setView] = useState<View>({
-		...DEFAULT_VIEW,
-		collapsed: COLLAPSED[kind],
+		...defaultView(kind),
 		...(kind === "card" && presetParam ? { preset: presetOf(presetParam).id } : {}),
 	});
 	const [loaded, setLoaded] = useState(false);
@@ -837,7 +837,7 @@ export function Board({
 		if (failure) setNotice({ id: "", text: failure });
 		if (saved || epic || preset)
 			setView({
-				...(saved ?? { ...DEFAULT_VIEW, collapsed: COLLAPSED[kind] }),
+				...(saved ?? defaultView(kind)),
 				...(epic ? { epic } : {}),
 				...(preset ? { preset: presetOf(preset).id } : {}),
 			});
@@ -951,9 +951,9 @@ export function Board({
 			view.layout === "table"
 				? rows
 				: columns
-						.filter((column) => !view.collapsed.includes(column))
+						.filter((column) => !collapsedIn(view).includes(column))
 						.flatMap((column) => visible.filter((stub) => stub.status === column)),
-		[columns, visible, view.collapsed, view.layout, rows],
+		[columns, visible, view.collapsed, view.listCollapsed, view.layout, rows],
 	);
 
 	useEffect(() => {
@@ -1148,7 +1148,7 @@ export function Board({
 						id: `new:${column}`,
 						label: column,
 						run: () => {
-							if (view.collapsed.includes(column)) toggleColumn(column);
+							if (collapsedIn(view).includes(column)) toggleColumn(column);
 							setAddingIn(column);
 						},
 					})),
@@ -1279,9 +1279,9 @@ export function Board({
 					break;
 				}
 				const focused = order.find((stub) => stub.id === target);
-				const column = focused?.status ?? columns.find((c) => !view.collapsed.includes(c)) ?? columns[0];
+				const column = focused?.status ?? columns.find((c) => !collapsedIn(view).includes(c)) ?? columns[0];
 				if (!column) return;
-				if (view.collapsed.includes(column)) toggleColumn(column);
+				if (collapsedIn(view).includes(column)) toggleColumn(column);
 				setAddingIn(column);
 				break;
 			}
@@ -1319,11 +1319,7 @@ export function Board({
 	}
 
 	function toggleColumn(column: string) {
-		update({
-			collapsed: view.collapsed.includes(column)
-				? view.collapsed.filter((c) => c !== column)
-				: [...view.collapsed, column],
-		});
+		update(toggledIn(view, column));
 	}
 
 	function markPending(id: string, on: boolean) {
@@ -1478,7 +1474,7 @@ export function Board({
 		}
 		setStubs((current) => [...current, fresh]);
 		setComposing(false);
-		if (view.collapsed.includes(fresh.status)) toggleColumn(fresh.status);
+		if (collapsedIn(view).includes(fresh.status)) toggleColumn(fresh.status);
 		openCard(fresh.id);
 		setToast(toastOf(`Created ${fresh.id}`));
 		router.refresh();
@@ -1520,7 +1516,7 @@ export function Board({
 		stubs: visible.filter((stub) => stub.status === column),
 		total: stubs.filter((stub) => stub.status === column).length,
 		limit: wipLimit(kind, column),
-		collapsed: view.collapsed.includes(column),
+		collapsed: collapsedIn(view).includes(column),
 		onToggle: () => toggleColumn(column),
 		pending,
 		focusedId,

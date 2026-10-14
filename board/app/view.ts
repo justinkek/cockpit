@@ -22,6 +22,7 @@ export type View = {
 	tableSort: string;
 	layout: Layout;
 	collapsed: string[];
+	listCollapsed: string[];
 };
 
 export const DEFAULT_VIEW: View = {
@@ -37,9 +38,29 @@ export const DEFAULT_VIEW: View = {
 	tableSort: "",
 	layout: "board",
 	collapsed: ["Done", "Deprioritised"],
+	listCollapsed: ["Done", "Deprioritised"],
 };
 
 export const COLLAPSED: Record<Kind, string[]> = { card: ["Done", "Deprioritised"], epic: ["Epic Done"] };
+
+export function defaultView(kind: Kind): View {
+	return { ...DEFAULT_VIEW, collapsed: COLLAPSED[kind], listCollapsed: COLLAPSED[kind] };
+}
+
+export function restoredView(kind: Kind, saved: Partial<View>): View {
+	const collapsed = saved.collapsed ?? COLLAPSED[kind];
+	return { ...defaultView(kind), ...saved, collapsed, listCollapsed: saved.listCollapsed ?? collapsed };
+}
+
+export function collapsedIn(view: View): string[] {
+	return view.layout === "list" ? view.listCollapsed : view.collapsed;
+}
+
+export function toggledIn(view: View, column: string): Partial<View> {
+	const now = collapsedIn(view);
+	const next = now.includes(column) ? now.filter((other) => other !== column) : [...now, column];
+	return view.layout === "list" ? { listCollapsed: next } : { collapsed: next };
+}
 export const TOGGLES = [
 	["blocked", "Blocked"],
 	["claimed", "Claimed"],
@@ -72,7 +93,7 @@ export function storageKey(kind: Kind) {
 export function loadView(kind: Kind): View | null {
 	try {
 		const saved = window.localStorage.getItem(storageKey(kind));
-		return saved ? { ...DEFAULT_VIEW, collapsed: COLLAPSED[kind], ...JSON.parse(saved) } : null;
+		return saved ? restoredView(kind, JSON.parse(saved)) : null;
 	} catch {
 		return null;
 	}
