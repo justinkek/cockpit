@@ -31,7 +31,7 @@ If `~/.local/state/claude-ticket-sessions/<session_id>.ticket` exists, this sess
 
 ### 2. Build the candidate set
 
-The cards an agent can pick up — the four by-AI refinement columns, and `In Dev` for a card someone dragged there without a session on it. An `In … by AI` column is in the set too; the liveness field below is what tells a card whose session ended apart from one a session is still drafting:
+The cards an agent can pick up — the four by-AI refinement columns, and `In Dev` for a card someone dragged there without a session on it. An `In … by AI` column is in the set too; the liveness field below is what tells a card whose session ended apart from one a session is still drafting. A blocked card is left out, because it is waiting on a person rather than an agent:
 
 ```sh
 "$HOME/.cockpit/scripts/ticket-waiting-cards"

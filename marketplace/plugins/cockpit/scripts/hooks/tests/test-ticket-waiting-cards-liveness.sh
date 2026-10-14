@@ -60,6 +60,10 @@ mid_tr="$(card "In TR by AI" "left mid-TR" "" "")"
 in_dev="$(card "In Dev" "held mid-dev" sess-beating "$old_claim")"
 person="$(card "In BR" "a person is reviewing it" sess-beating "$old_claim")"
 backlog="$(card "Backlog" "not yet" "" "")"
+blocked="$(card "Ready for BR by AI" "waiting on an answer" "" "")"
+"$BOARD_CARD" set "$blocked" blocked "waiting on the person" >/dev/null
+blocked_held="$(card "In Dev" "blocked mid-dev" sess-beating "$old_claim")"
+"$BOARD_CARD" set "$blocked_held" blocked "waiting on the person" >/dev/null
 
 touch "$STATE_DIR/sess-beating.alive"
 
@@ -108,6 +112,7 @@ assert_eq "a card left mid-TR is a candidate" "listed" "$(listed "$output" "$mid
 assert_eq "an In Dev card is a candidate" "listed" "$(listed "$output" "$in_dev")"
 assert_eq "a card a person is reviewing is not" "absent" "$(listed "$output" "$person")"
 assert_eq "a backlog card is not" "absent" "$(listed "$output" "$backlog")"
+assert_eq "a blocked card is not, whatever column it waits in" "absent" "$(listed "$output" "$blocked")"
 
 printf "\nTest group: --claimed-by asks which cards one session holds\n"
 
@@ -116,7 +121,8 @@ assert_eq "its card in a by-AI column" "listed" "$(listed "$output" "$beating")"
 assert_eq "its card in a column a person works" "listed" "$(listed "$output" "$person")"
 assert_eq "its card mid-dev" "listed" "$(listed "$output" "$in_dev")"
 assert_eq "and nobody else's" "absent" "$(listed "$output" "$dead")"
-assert_eq "three cards, no more" "3" "$(printf '%s\n' "$output" | grep -c . | tr -d ' ')"
+assert_eq "its blocked card too, because it still holds it" "listed" "$(listed "$output" "$blocked_held")"
+assert_eq "four cards, no more" "4" "$(printf '%s\n' "$output" | grep -c . | tr -d ' ')"
 
 output="$(run_cards --claimed-by 2>&1 || true)"
 assert_contains "refuses an empty session id" "needs a session id" "$output"

@@ -65,7 +65,8 @@ cards="$("$(dirname "$0")/board-card" list --json)"
 printf '%s' "$cards" | jq --raw-output --arg session "$claimed_by" '
   map(select(
       if $session != "" then .session == $session
-      else .status | IN("Ready for BR by AI", "In BR by AI", "Ready for TR by AI", "In TR by AI", "In Dev", "In CR by AI")
+      else (.status | IN("Ready for BR by AI", "In BR by AI", "Ready for TR by AI", "In TR by AI", "In Dev", "In CR by AI"))
+        and ((.blocked // "") == "")
       end))
   | sort_by(.rank // -(.id | split("-") | .[1] | tonumber))
   | .[]

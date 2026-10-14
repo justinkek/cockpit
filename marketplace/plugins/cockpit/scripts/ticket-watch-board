@@ -35,6 +35,7 @@ interval="${TICKET_WATCH_INTERVAL:-60}"
 # ticket-waiting-cards still lists it, so `/copilot` run by hand finds it.
 waiting_filter='
   [ .[]
+    | select((.blocked // "") == "")
     | select(.status == "Ready for BR by AI"
              or .status == "Ready for TR by AI"
              or (.status == "In Dev" and ((.session // "") == ""))) ]

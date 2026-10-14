@@ -103,7 +103,7 @@ Every write `board-card` makes is committed to that repository. Writes that land
 | `sprints/`    | a sprint a card is planned into                            | `SPR-1`                      |
 | `references/` | a reference ticket a complexity figure is compared against | `REF-4`                      |
 
-`ticket-waiting-cards` prints the cards waiting in a by-AI column, one line each in the order they are picked, and `--claimed-by <session-id>` prints the ones a session holds.
+`ticket-waiting-cards` prints the cards waiting in a by-AI column with no `blocked` reason on them, one line each in the order they are picked, and `--claimed-by <session-id>` prints the ones a session holds.
 
 Feature, bug and timebox cards share one number sequence, and `board-card set <id> type` renames a card to its new prefix, carrying its links, comments and claim with it.
 

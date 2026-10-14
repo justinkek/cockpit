@@ -85,6 +85,14 @@ card_in "In Dev" "abandoned before anyone held it" >/dev/null
 output="$(run_watch)"
 assert_contains "an unheld In Dev card is" "1 ticket(s)" "$output"
 
+printf "\nTest group: a blocked card is not waiting\n"
+
+fresh_board blocked
+blocked="$(card_in "Ready for BR by AI" "waiting on an answer")"
+"$BOARD_CARD" set "$blocked" blocked "waiting on the person" >/dev/null
+output="$(run_watch 2)"
+assert_eq "nothing announced for a blocked card" "0" "$(count_events "$output")"
+
 printf "\nTest group: an empty queue is silent\n"
 
 fresh_board empty
