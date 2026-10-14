@@ -839,6 +839,7 @@ printf "\nTest group: the inbox gathers what waits on the person reading it\n"
 
 inbox_board="$TMPDIR/inbox-board"
 inbox() { COCKPIT_BOARD_DIR="$inbox_board" COCKPIT_AUTHOR=justin stub "$@"; }
+agent() { COCKPIT_BOARD_DIR="$inbox_board" COCKPIT_AUTHOR="claude one" stub "$@"; }
 inbox init >/dev/null
 COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Talked about" >/dev/null
 COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Waiting on review" >/dev/null
@@ -849,11 +850,11 @@ printf 'an agent asks' | COCKPIT_NOW=2026-10-14T10:05:00Z inbox comment FEAT-1 -
 printf 'on the epic' | COCKPIT_NOW=2026-10-14T10:06:00Z inbox comment EPIC-1 --author "claude two" >/dev/null
 printf 'gone' | COCKPIT_NOW=2026-10-14T10:07:00Z inbox comment FEAT-1 --author "claude one" >/dev/null
 COCKPIT_AUTHOR="claude one" COCKPIT_BOARD_DIR="$inbox_board" stub uncomment FEAT-1 c3 >/dev/null
-COCKPIT_NOW=2026-10-14T10:10:00Z inbox walk FEAT-2 "Ready for CR" >/dev/null
-COCKPIT_NOW=2026-10-14T10:15:00Z inbox set FEAT-3 blocked "waiting on keys" >/dev/null
+COCKPIT_NOW=2026-10-14T10:10:00Z agent walk FEAT-2 "Ready for CR" >/dev/null
+COCKPIT_NOW=2026-10-14T10:15:00Z agent set FEAT-3 blocked "waiting on keys" >/dev/null
 assert_eq "setting a block stamps when it began" "2026-10-14T10:15:00Z" \
   "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-3 --json | jq --raw-output .blocked_at)"
-COCKPIT_NOW=2026-10-14T11:00:00Z inbox set FEAT-3 blocked "waiting on keys" >/dev/null
+COCKPIT_NOW=2026-10-14T11:00:00Z agent set FEAT-3 blocked "waiting on keys" >/dev/null
 assert_eq "and the same block set again keeps that time" "2026-10-14T10:15:00Z" \
   "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-3 --json | jq --raw-output .blocked_at)"
 listed="$(COCKPIT_NOW=2026-10-14T12:00:00Z inbox inbox --json)"
@@ -880,6 +881,17 @@ assert_eq "clearing a block takes it and its time away" "null null 3" \
   "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-3 --json | jq --raw-output '"\(.blocked) \(.blocked_at)"') $(inbox inbox --json | jq '.items | length')"
 inbox inbox --read yesterday >/dev/null 2>&1
 assert_eq "a read time that is not a time is refused" "2" "$?"
+inbox inbox --author >/dev/null 2>&1
+assert_eq "and so is --author with no name" "2" "$?"
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Mine to move" >/dev/null
+COCKPIT_NOW=2026-10-14T14:00:00Z inbox walk FEAT-4 "Ready for CR" >/dev/null
+COCKPIT_NOW=2026-10-14T14:05:00Z inbox set FEAT-4 blocked "my own block" >/dev/null
+assert_eq "a move and a block record who made them" "justin justin" \
+  "$(COCKPIT_BOARD_DIR="$inbox_board" stub show FEAT-4 --json | jq --raw-output '"\(.moved_by) \(.blocked_by)"')"
+assert_eq "and the reader's own move and block are listed but never unread" "0 blocked FEAT-4 false|waiting FEAT-4 false" \
+  "$(COCKPIT_NOW=2026-10-14T15:00:00Z inbox inbox --json | jq --raw-output '"\(.unread) \([.items[] | select(.id == "FEAT-4") | "\(.kind) \(.id) \(.unread)"] | join("|"))"')"
+assert_eq "while to anyone else they are" "2" \
+  "$(COCKPIT_NOW=2026-10-14T15:00:00Z inbox inbox --json --author "claude one" | jq '[.items[] | select(.id == "FEAT-4" and .unread)] | length')"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

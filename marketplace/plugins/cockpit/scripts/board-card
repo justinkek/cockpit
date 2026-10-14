@@ -938,10 +938,10 @@ set_locked() {
       update_record "$id" --argjson value "$(nullable "$value")" '.due = $value'
       ;;
     blocked)
-      update_record "$id" --argjson value "$(nullable "$value")" --arg at "$(now)" '
-        if $value == null then .blocked = null | del(.blocked_at)
+      update_record "$id" --argjson value "$(nullable "$value")" --arg at "$(now)" --arg by "$(default_author)" '
+        if $value == null then .blocked = null | del(.blocked_at) | del(.blocked_by)
         elif .blocked == $value then .
-        else .blocked = $value | .blocked_at = $at end'
+        else .blocked = $value | .blocked_at = $at | .blocked_by = $by end'
       ;;
     session|prs)
       update_record "$id" --arg field "$field" --argjson value "$(nullable "$value")" '.[$field] = $value'
@@ -1090,9 +1090,10 @@ hop() {
   from="$(read_record "$id" | jq --raw-output '.status')"
   [ "$from" = "$column" ] && return 0
   if is_stamped "$kind" "$column"; then stamped=true; fi
-  update_record "$id" --arg column "$column" --arg stamp "$(now)" --argjson stamped "$stamped" '
+  update_record "$id" --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" '
     .status = $column
     | .moved = $stamp
+    | .moved_by = $by
     | if $stamped and ((.dates // {}) | has($column) | not)
       then .dates = ((.dates // {}) + {($column): $stamp}) else . end'
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
@@ -1709,8 +1710,8 @@ command_inbox() {
         shift
         if [ "$#" -gt 0 ] && [ "${1#--}" = "$1" ]; then stamp="$1"; shift; fi
         ;;
-      --author) author="${2:-}"; shift 2 ;;
-      --limit) limit="${2:-}"; shift 2 ;;
+      --author) [ -n "${2:-}" ] || die 2 "--author needs a name"; author="$2"; shift 2 ;;
+      --limit) [ -n "${2:-}" ] || die 2 "--limit needs a number"; limit="$2"; shift 2 ;;
       *) die 2 "inbox: unknown option '$1'" ;;
     esac
   done
@@ -1747,10 +1748,10 @@ command_inbox() {
         | {kind: "comment", id: .record, name: $by[.record].name, status: $by[.record].status, at, author, text,
            thread, comment: .id, anchor, resolved: ($resolved["\(.record) \(.thread)"] // false)}]
        + [$records[0][] | select(.status as $status | $waiting | index($status))
-          | {kind: "waiting", id, name, status, at: (.dates[.status] // .moved // .created)}]
+          | {kind: "waiting", id, name, status, at: (.dates[.status] // .moved // .created), by: .moved_by}]
        + [$records[0][] | select((.blocked // "") != "")
-          | {kind: "blocked", id, name, status, at: (.blocked_at // .moved // .created), text: .blocked}])
-    | map(. + {unread: ((.at | at_seconds) > $since)})
+          | {kind: "blocked", id, name, status, at: (.blocked_at // .moved // .created), text: .blocked, by: .blocked_by}])
+    | map(. + {unread: ((.at | at_seconds) > $since and .by != $me)})
     | sort_by(.at | at_seconds) | reverse
     | {me: $me, seen: (if $seen == "" then null else $seen end), now: $now,
        unread: (map(select(.unread)) | length), items: .[:$limit]}')" || { rm -rf "$scratch"; return 1; }
