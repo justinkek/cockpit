@@ -44,9 +44,16 @@ if [ -z "$search_root" ]; then
 fi
 [ -n "$search_root" ] || exit 0
 
+guard_not_run() {
+  local note="[cockpit] $guard $1 on this account, so this write to the card went unchecked - run sync.sh plugins --apply"
+  jq --null-input --compact-output --arg note "$note" \
+    '{systemMessage: $note, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $note}}'
+  exit 0
+}
+
 found="$(find "$search_root" -type f -name "$guard" -path '*/hooks/*' -print 2>/dev/null | head -1)"
-[ -n "$found" ] || exit 0
-[ -x "$found" ] || exit 0
+[ -n "$found" ] || guard_not_run "is installed in no plugin"
+[ -x "$found" ] || guard_not_run "is not executable"
 
 printf '%s' "$input" \
   | jq --compact-output --arg content "$content" \

@@ -66,12 +66,21 @@ report "a command that is not the board's is silent" "" "$(run 'echo "Tech Steps
 report "a tool that is not Bash is silent" "" \
   "$(jq --null-input --compact-output '{tool_name:"Write",tool_input:{content:"## Tech Steps"}}' \
     | COCKPIT_PLUGIN_SEARCH_ROOT="$workspace" "$RESOLVER" guard-tech-steps.sh)"
-report "a guard no plugin carries is silent" "" "$(run "$(section_write '"Tech Steps"')" guard-validation-steps.sh)"
+report "a guard no plugin carries says so to the agent and the person" \
+  "[cockpit] guard-validation-steps.sh is installed in no plugin on this account, so this write to the card went unchecked - run sync.sh plugins --apply|PreToolUse|true" \
+  "$(run "$(section_write '"Tech Steps"')" guard-validation-steps.sh \
+    | jq --raw-output '"\(.hookSpecificOutput.additionalContext)|\(.hookSpecificOutput.hookEventName)|\(.systemMessage == .hookSpecificOutput.additionalContext)"')"
+report "a guard missing on another board command stays silent" "" \
+  "$(run "$(section_write Context)" guard-validation-steps.sh)"
+report "a guard missing outside a plugin hook stays silent" "" \
+  "$(bash_call "$(section_write '"Tech Steps"')" | CLAUDE_PLUGIN_ROOT= "$RESOLVER" guard-validation-steps.sh)"
 report "no guard named is silent" "" \
   "$(bash_call "$(section_write '"Tech Steps"')" | COCKPIT_PLUGIN_SEARCH_ROOT="$workspace" "$RESOLVER")"
 
 chmod -x "$guard"
-report "a guard that is not executable is silent" "" "$(run "$(section_write '"Tech Steps"')")"
+report "a guard that is not executable says so" \
+  "[cockpit] guard-tech-steps.sh is not executable on this account, so this write to the card went unchecked - run sync.sh plugins --apply" \
+  "$(run "$(section_write '"Tech Steps"')" | jq --raw-output '.hookSpecificOutput.additionalContext')"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
