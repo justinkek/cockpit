@@ -1315,6 +1315,25 @@
 		}
 	}
 
+	.picker-miss {
+		margin: -8px 0 16px;
+		color: var(--danger);
+	}
+
+	.peek > .notice {
+		position: sticky;
+		top: 44px;
+		z-index: 5;
+		margin: -4px 0 12px;
+	}
+
+	.stub > .notice {
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		margin: 0;
+	}
+
 	.picker,
 	.thread-actions,
 	.body-editor {

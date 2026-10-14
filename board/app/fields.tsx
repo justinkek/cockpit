@@ -18,7 +18,6 @@ export type Handlers = {
 	onMove: (status: string) => void;
 	onEdit: (field: string, value: string, change: Partial<Card>) => void;
 	onLink: (parent: string, child: string, linked: boolean) => void;
-	onError: (message: string) => void;
 	onOpen?: (id: string) => void;
 };
 
@@ -238,63 +237,71 @@ function Picker({
 	label,
 	cards,
 	onPick,
-	onMiss,
 }: {
 	id: string;
 	side: "child" | "parent";
 	label: string;
 	cards: Picked[];
 	onPick: (id: string) => void;
-	onMiss: (text: string) => void;
 }) {
 	const [text, setText] = useState("");
+	const [missed, setMissed] = useState("");
 	const list = useId();
 	const hydrated = useHydrated();
 	function pick(value: string) {
 		const id = idOf(value, cards);
 		if (!id) {
-			onMiss(value);
+			setMissed(`No card is called '${value.trim()}'. Type its id or pick one from the list.`);
 			return;
 		}
+		setMissed("");
 		onPick(id);
 		setText("");
 	}
 	return (
-		<form
-			className="picker"
-			action={submitCard}
-			onSubmit={(event) => {
-				event.preventDefault();
-				if (text.trim()) pick(text);
-			}}
-		>
-			<input type="hidden" name="id" value={id} />
-			<input type="hidden" name="op" value="link" />
-			<input type="hidden" name="side" value={side} />
-			<input
-				name="value"
-				list={list}
-				value={text}
-				aria-label={label}
-				placeholder={`${label}: an id or a name`}
-				onChange={(event) => {
-					const value = event.target.value;
-					const chosen = (event.nativeEvent as InputEvent).inputType === "insertReplacementText";
-					if (chosen && cards.some((card) => card.id === value)) pick(value);
-					else setText(value);
+		<>
+			<form
+				className="picker"
+				action={submitCard}
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (text.trim()) pick(text);
 				}}
-			/>
-			<datalist id={list}>
-				{cards.map((card) => (
-					<option key={card.id} value={card.id}>
-						{card.name}
-					</option>
-				))}
-			</datalist>
-			<button type="submit" disabled={hydrated && !text.trim()}>
-				Link
-			</button>
-		</form>
+			>
+				<input type="hidden" name="id" value={id} />
+				<input type="hidden" name="op" value="link" />
+				<input type="hidden" name="side" value={side} />
+				<input
+					name="value"
+					list={list}
+					value={text}
+					aria-label={label}
+					placeholder={`${label}: an id or a name`}
+					onChange={(event) => {
+						const value = event.target.value;
+						const chosen = (event.nativeEvent as InputEvent).inputType === "insertReplacementText";
+						setMissed("");
+						if (chosen && cards.some((card) => card.id === value)) pick(value);
+						else setText(value);
+					}}
+				/>
+				<datalist id={list}>
+					{cards.map((card) => (
+						<option key={card.id} value={card.id}>
+							{card.name}
+						</option>
+					))}
+				</datalist>
+				<button type="submit" disabled={hydrated && !text.trim()}>
+					Link
+				</button>
+			</form>
+			{missed && (
+				<p className="picker-miss" role="alert">
+					{missed}
+				</p>
+			)}
+		</>
 	);
 }
 
@@ -533,12 +540,11 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 
 export function Links({ record, lists, handlers }: { record: Card; lists: Lists; handlers: Handlers }) {
 	if (kindOf(record.id) !== "card") return null;
-	const { onLink, onError, onOpen } = handlers;
+	const { onLink, onOpen } = handlers;
 	const names = Object.fromEntries(lists.cards.map((card) => [card.id, card.name]));
 	const children = record.dependent_on ?? [];
 	const parents = record.dependency_for ?? [];
 	const linkable = lists.cards.filter((card) => card.id !== record.id);
-	const miss = (text: string) => onError(`no card called '${text}'`);
 	return (
 		<section className="links">
 			<h3>Dependent on</h3>
@@ -556,7 +562,6 @@ export function Links({ record, lists, handlers }: { record: Card; lists: Lists;
 				label="Add a child"
 				cards={linkable.filter((card) => !children.includes(card.id))}
 				onPick={(child) => onLink(record.id, child, true)}
-				onMiss={miss}
 			/>
 			<h3>Dependency for</h3>
 			<Linked
@@ -573,7 +578,6 @@ export function Links({ record, lists, handlers }: { record: Card; lists: Lists;
 				label="Add a parent"
 				cards={linkable.filter((card) => !parents.includes(card.id))}
 				onPick={(parent) => onLink(parent, record.id, true)}
-				onMiss={miss}
 			/>
 		</section>
 	);

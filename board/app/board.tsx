@@ -26,6 +26,20 @@ import { boardColumns, type Kind, kindOf, type Named, phaseOf, type Card as Stub
 
 const Names = createContext<Record<string, string>>({});
 
+type Notice = { id: string; text: string } | null;
+
+function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
+	if (!notice) return null;
+	return (
+		<p className="notice error" role="alert">
+			<span>{notice.text}</span>
+			<button type="button" className="quiet" onClick={onDismiss}>
+				Dismiss
+			</button>
+		</p>
+	);
+}
+
 type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved";
 type Layout = "board" | "list";
 
@@ -340,6 +354,8 @@ function Peek({
 	cards,
 	lists,
 	handlers,
+	notice,
+	onDismiss,
 	onClose,
 }: {
 	stub: Stub;
@@ -347,6 +363,8 @@ function Peek({
 	cards: (Named & { status: string })[];
 	lists: Lists;
 	handlers: Handlers;
+	notice: Notice;
+	onDismiss: () => void;
 	onClose: () => void;
 }) {
 	const dates = Object.entries(stub.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
@@ -368,6 +386,7 @@ function Peek({
 					</button>
 				</span>
 			</header>
+			<NoticeBar notice={notice} onDismiss={onDismiss} />
 			<Title
 				id={stub.id}
 				className="peek-title"
@@ -442,7 +461,7 @@ export function Board({
 	const [loaded, setLoaded] = useState(false);
 	const [dragging, setDragging] = useState<Stub | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
-	const [notice, setNotice] = useState("");
+	const [notice, setNotice] = useState<Notice>(null);
 	const [openId, setOpenId] = useState<string | null>(null);
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [, startTransition] = useTransition();
@@ -535,10 +554,14 @@ export function Board({
 		});
 	}
 
-	function apply(id: string, optimistic: Partial<Stub>, request: () => Promise<{ record?: Stub; error?: string }>) {
+	function apply(
+		id: string,
+		optimistic: Partial<Stub>,
+		request: () => Promise<{ record?: Stub; error?: string }>,
+	) {
 		const before = stubs.find((s) => s.id === id);
 		if (!before) return;
-		setNotice("");
+		setNotice(null);
 		setStubs((current) => current.map((s) => (s.id === id ? { ...s, ...optimistic } : s)));
 		markPending(id, true);
 		startTransition(async () => {
@@ -546,7 +569,7 @@ export function Board({
 			markPending(id, false);
 			if (result.error) {
 				setStubs((current) => current.map((s) => (s.id === id ? before : s)));
-				setNotice(`${id}: ${result.error}`);
+				setNotice({ id, text: `${id}: ${result.error}` });
 				return;
 			}
 			const fresh = result.record;
@@ -586,7 +609,6 @@ export function Board({
 			onEdit: (field, value, change) => apply(stub.id, change, () => editCard(stub.id, field, value)),
 			onLink: (parent, child, linked) =>
 				apply(stub.id, linkChange(stub, parent, child, linked), () => linkCards(stub.id, parent, child, linked)),
-			onError: (message) => setNotice(`${stub.id}: ${message}`),
 			onOpen: setOpenId,
 		};
 	}
@@ -731,14 +753,7 @@ export function Board({
 					)}
 				</div>
 
-				{notice && (
-					<p className="notice error" role="alert">
-						<span>{notice}</span>
-						<button type="button" className="quiet" onClick={() => setNotice("")}>
-							Dismiss
-						</button>
-					</p>
-				)}
+				<NoticeBar notice={open && notice?.id === open.id ? null : notice} onDismiss={() => setNotice(null)} />
 
 				<div className="workspace">
 					<DndContext
@@ -776,6 +791,8 @@ export function Board({
 								cards={children[open.id] ?? []}
 								lists={lists}
 								handlers={handlersFor(open)}
+								notice={notice?.id === open.id ? notice : null}
+								onDismiss={() => setNotice(null)}
 								onClose={() => setOpenId(null)}
 							/>
 						)}

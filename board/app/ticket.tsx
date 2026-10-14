@@ -48,7 +48,6 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 		onEdit: (field, value, change) => save(change, () => editCard(record.id, field, value)),
 		onLink: (parent, child, linked) =>
 			save(linkChange(record, parent, child, linked), () => linkCards(record.id, parent, child, linked)),
-		onError: setError,
 	};
 
 	return (
