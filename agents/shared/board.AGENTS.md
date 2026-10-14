@@ -129,6 +129,8 @@ A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domai
 
 `board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity and timebox, in the first column unless `--name` or `--status` say otherwise.
 
+`board-card history <id>` prints the commits that touched a record, newest first, one line each holding the commit, its time and its subject. `board-card undo <id>` writes the record, its comments and its attachments back as they stood before the last commit that touched them, as a commit of its own, so a second undo takes back the first and any other record that commit changed is left as it is.
+
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 
 ## Claim locks

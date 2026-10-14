@@ -411,6 +411,33 @@ assert_eq "an epic copies too, under the name and column given" "Next month's ch
 stub duplicate "$project" >/dev/null 2>&1
 assert_eq "only a card or an epic is duplicated" "2" "$?"
 
+printf "\nTest group: a record's history, and undoing its last change\n"
+
+undoable="$(stub create --name "First name")"
+stub set "$undoable" name "Second name" >/dev/null
+printf 'a question' | stub comment "$undoable" >/dev/null
+assert_eq "history lists the record's commits, newest first, one line each" "comment $undoable|set $undoable|create $undoable" \
+  "$(stub history "$undoable" | cut -f3 | paste -sd '|' -)"
+assert_eq "each line opens with the commit and its time" "true" \
+  "$(stub history "$undoable" | head -1 | grep --quiet --extended-regexp '^[0-9a-f]{7,}	[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z	' && echo true)"
+assert_eq "undo names the change it took back" "$undoable	undid $(git -C "$COCKPIT_BOARD_DIR" log -1 --format='%h %s')" "$(stub undo "$undoable")"
+assert_eq "undoing a comment takes the comment away" "0" "$(stub comments "$undoable" --json | jq length)"
+assert_eq "an undo is a write of its own" "undo $undoable" "$(last_commit %s)"
+stub undo "$undoable" >/dev/null
+assert_eq "undoing the undo puts the change back" "1" "$(stub comments "$undoable" --json | jq length)"
+assert_eq "and leaves the change before it alone" "Second name" "$(field "$undoable" .name)"
+stub set "$undoable" name "Third name" >/dev/null
+stub undo "$undoable" >/dev/null
+assert_eq "an undo after a set brings the name back" "Second name 1" "$(field "$undoable" .name) $(stub comments "$undoable" --json | jq length)"
+fresh_record="$(stub create --name "Just made")"
+stub undo "$fresh_record" >/dev/null 2>&1
+assert_eq "a record with no earlier version has nothing to undo" "2" "$?"
+stub archive "$undoable" >/dev/null
+assert_eq "an archived record keeps its history" "archive $undoable" "$(stub history "$undoable" | head -1 | cut -f3)"
+stub unarchive "$undoable" >/dev/null
+stub history FEAT-999 >/dev/null 2>&1
+assert_eq "a record the board never held has no history" "3" "$?"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

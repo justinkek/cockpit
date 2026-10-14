@@ -27,6 +27,8 @@
 #   board-card archive <id>
 #   board-card unarchive <id>
 #   board-card duplicate <id> [--name <name>] [--status <column>]
+#   board-card history <id>
+#   board-card undo <id>
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -1256,6 +1258,55 @@ command_duplicate() {
   with_lock duplicate_locked "$id" "$name" "$status"
 }
 
+record_paths() {
+  local id="$1" which="${2:-}" directory
+  directory="$(directory_of_kind "$(kind_of "$id")")"
+  directory="${directory##*/}"
+  printf '%s\n' "$directory/$id.md" "$directory/$id.comments.jsonl" "attachments/$id"
+  [ "$which" = live ] || printf '%s\n' "archive/$directory/$id.md" "archive/$directory/$id.comments.jsonl" "archive/attachments/$id"
+}
+
+require_history() {
+  [ -d "$BOARD_DIR/.git" ] || die 2 "the board at $BOARD_DIR keeps no history - run: board-card init"
+}
+
+command_history() {
+  local id paths=() path log
+  id="$(normalise_id "${1:-}")"
+  require_history
+  while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
+  log="$(TZ=UTC board_git log --format='%h%x09%ad%x09%s' --date=format-local:'%Y-%m-%dT%H:%M:%SZ' -- "${paths[@]}" 2>/dev/null || true)"
+  [ -n "$log" ] || die 3 "no history for $id"
+  printf '%s\n' "$log"
+}
+
+undo_locked() {
+  local id="$1" paths=() path commit
+  while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id" live)
+  commit="$(board_git log -1 --format=%H -- "${paths[@]}")"
+  [ -n "$commit" ] || die 2 "$id has no committed version to go back to"
+  board_git cat-file -e "$commit^:${paths[0]}" 2>/dev/null \
+    || die 2 "$id has no version before $(board_git log -1 --format='%h %s' "$commit"), which made it"
+  while IFS= read -r path; do
+    if board_git cat-file -e "$commit^:$path" 2>/dev/null; then
+      mkdir -p "$BOARD_DIR/$(dirname "$path")"
+      board_git show "$commit^:$path" > "$BOARD_DIR/$path"
+    else
+      rm -f "$BOARD_DIR/$path"
+    fi
+  done < <(board_git diff --name-only --no-renames "$commit^" "$commit" -- "${paths[@]}")
+  touch_record "$id"
+  printf '%s\tundid %s\n' "$id" "$(board_git log -1 --format='%h %s' "$commit")"
+}
+
+command_undo() {
+  local id
+  id="$(normalise_id "${1:-}")"
+  require_record "$id"
+  require_history
+  with_lock undo_locked "$id"
+}
+
 command_path() {
   if [ -n "${1:-}" ]; then
     record_file "$(normalise_id "$1")"
@@ -1292,6 +1343,8 @@ case "$action" in
   archive) command_archive "$@" ;;
   unarchive) command_unarchive "$@" ;;
   duplicate) command_duplicate "$@" ;;
+  history) command_history "$@" ;;
+  undo) command_undo "$@" ;;
   path) command_path "$@" ;;
   *) sed -n '3,/^#   board-card path/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
