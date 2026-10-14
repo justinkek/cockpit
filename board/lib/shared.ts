@@ -220,9 +220,14 @@ export function ago(stamp: string, now = Date.now()) {
 
 const DAY = 86400000;
 
-export function doneWithin(record: Pick<Card, "dates">, days: number, now = Date.now()) {
-	const at = new Date(record.dates?.Done ?? "").getTime();
-	return !Number.isNaN(at) && now - at <= days * DAY;
+export function doneWithin(record: Pick<Card, "dates" | "moved">, days: number, now = Date.now()) {
+	const stamps = [record.dates?.Done, record.moved].map((stamp) => new Date(stamp ?? "").getTime());
+	const at = Math.max(...stamps.filter((stamp) => !Number.isNaN(stamp)));
+	return Number.isFinite(at) && now - at <= days * DAY;
+}
+
+export function movedTo(status: string): Pick<Card, "status" | "moved"> {
+	return { status, moved: new Date().toISOString() };
 }
 
 export type Preset = {

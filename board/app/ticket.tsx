@@ -12,7 +12,7 @@ import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/a
 import { type Page, Palette } from "@/app/palette";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
-import { type Card, contentSearchFailed, fieldName, kindOf } from "@/lib/shared";
+import { type Card, contentSearchFailed, fieldName, kindOf, movedTo } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
 
@@ -136,7 +136,7 @@ export function Ticket({
 	}
 
 	const handlers: Handlers = {
-		onMove: (status) => save({ status }, () => dropCard(record.id, status), `Moved ${record.id} to ${status}`),
+		onMove: (status) => save(movedTo(status), () => dropCard(record.id, status), `Moved ${record.id} to ${status}`),
 		onEdit: (field, value, change) =>
 			save(change, () => editCard(record.id, field, value), `Changed the ${fieldName(field)} of ${record.id}`),
 		onLink: (parent, child, linked) =>

@@ -65,6 +65,7 @@ import {
 	type Kind,
 	kindOf,
 	manualRank,
+	movedTo,
 	type Named,
 	overrunTitle,
 	PRESETS,
@@ -985,7 +986,7 @@ export function Board({
 	function bulkEdits(ids: string[]): Edits {
 		return {
 			label: ids.length === 1 ? ids[0] : `${ids.length} ${kind}s`,
-			move: (column) => runBulk(ids, { op: "move", column }, { status: column }, `Moved {n} to ${column}`),
+			move: (column) => runBulk(ids, { op: "move", column }, movedTo(column), `Moved {n} to ${column}`),
 			edit: (field, value, change) =>
 				runBulk(ids, { op: "set", field, value }, change, `Changed the ${fieldName(field)} of {n}`),
 			archive: () => runBulk(ids, { op: "archive" }, null, "Archived {n}"),
@@ -1330,7 +1331,7 @@ export function Board({
 		const label = stub.status === column ? `Reordered ${id} in ${column}` : `Moved ${id} to ${column}`;
 		apply(
 			id,
-			rank === undefined ? { status: column } : { status: column, rank },
+			rank === undefined ? movedTo(column) : { ...movedTo(column), rank },
 			() => dropCard(id, column, rank),
 			label,
 		);
