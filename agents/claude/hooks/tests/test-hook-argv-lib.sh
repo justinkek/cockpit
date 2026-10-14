@@ -78,5 +78,65 @@ assert_equal "hook_heredoc_body prints nothing for a command with no stdin" \
   "" \
   "$(hook_heredoc_body 'board-card show FEAT-1 Status')"
 
+assert_equal "hook_sole_invocation_words prints the words of a single invocation" \
+  "board-card
+show
+FEAT-1" \
+  "$(hook_sole_invocation_words let-through 'board-card show "FEAT-1"')"
+
+assert_equal "hook_sole_invocation_words lets a pipe into a command that only reads through" \
+  "board-card
+show" \
+  "$(hook_sole_invocation_words let-through 'board-card show | head')"
+
+assert_equal "hook_sole_invocation_words refuses a pipe into a command that writes" \
+  "refused" \
+  "$(hook_sole_invocation_words let-through 'board-card show | tee out' || printf refused)"
+
+assert_equal "hook_sole_invocation_words refuses a pipe when it is approving" \
+  "refused" \
+  "$(hook_sole_invocation_words approve 'board-card show | head' || printf refused)"
+
+assert_equal "hook_sole_invocation_words refuses a chained command" \
+  "refused" \
+  "$(hook_sole_invocation_words let-through 'board-card show; rm x' || printf refused)"
+
+assert_equal "hook_sole_invocation_words refuses a command substitution" \
+  "refused" \
+  "$(hook_sole_invocation_words let-through 'board-card show $(rm x)' || printf refused)"
+
+assert_equal "hook_sole_invocation_words keeps a braced variable in its word" \
+  '${HOME}/x' \
+  "$(hook_sole_invocation_words let-through '${HOME}/x')"
+
+assert_equal "hook_sole_invocation_words lets a quoted here-document through" \
+  "board-card
+comment" \
+  "$(hook_sole_invocation_words let-through "$(printf '%s\n' "board-card comment <<'EOF'" 'body; rm x' 'EOF')")"
+
+assert_equal "hook_sole_invocation_words refuses a here-document when it is approving" \
+  "refused" \
+  "$(hook_sole_invocation_words approve "$(printf '%s\n' "board-card comment <<'EOF'" 'body' 'EOF')" || printf refused)"
+
+assert_equal "hook_word_names_home_script matches the \$HOME spelling of a named script" \
+  "yes" \
+  "$(hook_word_names_home_script '$HOME/.cockpit/scripts/board-card' .cockpit/scripts ticket-read board-card && printf yes || printf no)"
+
+assert_equal "hook_word_names_home_script matches the \${HOME} and ~ spellings" \
+  "yes yes" \
+  "$(hook_word_names_home_script '${HOME}/.cockpit/scripts/board-card' .cockpit/scripts board-card && printf yes || printf no) $(hook_word_names_home_script '~/.cockpit/scripts/board-card' .cockpit/scripts board-card && printf yes || printf no)"
+
+assert_equal "hook_word_names_home_script matches the spelled-out home" \
+  "yes" \
+  "$(hook_word_names_home_script "$HOME/.cockpit/scripts/board-card" .cockpit/scripts board-card && printf yes || printf no)"
+
+assert_equal "hook_word_names_home_script says no to a script it was not given" \
+  "no" \
+  "$(hook_word_names_home_script '$HOME/.cockpit/scripts/board-card' .cockpit/scripts ticket-read && printf yes || printf no)"
+
+assert_equal "hook_word_names_home_script says no to the same name in another directory" \
+  "no" \
+  "$(hook_word_names_home_script '/tmp/.cockpit/scripts/board-card' .cockpit/scripts board-card && printf yes || printf no)"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
