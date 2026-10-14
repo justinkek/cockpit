@@ -1,6 +1,6 @@
 ---
 name: ticket:x:status
-description: Advance the session's cockpit ticket to a target Status — inferred from what the session is actually doing — by walking the board one column at a time, auto-advancing and reporting each move. Use when work reaches a new stage (refinement done, dev started, PR up + gates green, review requested…) and the card is behind where the work actually is.
+description: Advance the session's cockpit ticket to a target Status — inferred from what the session is actually doing — by walking the board one column at a time, auto-advancing and reporting each move. Use when work reaches a new stage (refinement done, dev started, dev committed, review requested…) and the card is behind where the work actually is.
 ---
 
 # ticket-status
@@ -84,7 +84,7 @@ A walk starting anywhere but `In Dev` reads nothing and removes nothing here —
 
 ## Before you move: infer, then advance
 
-1. **Infer the target** from what the session is doing right now — not a static event table. Examples: actively refining scope → `In BR`; writing the diff → `In Dev`; dev finished and the PR open → `In CR by AI`.
+1. **Infer the target** from what the session is doing right now — not a static event table. Examples: actively refining scope → `In BR`; writing the diff → `In Dev`; dev finished and committed → `In CR by AI`; PR up → `Ready for CR`.
 2. **Read the current Status** (step 1 below).
 3. **Move immediately** — no confirmation prompt. Execute the walk.
 
@@ -94,8 +94,9 @@ A walk starting anywhere but `In Dev` reads nothing and removes nothing here —
   1. Name the new concern and why it's distinct from the registered ticket.
   2. Offer to create a new cockpit ticket stub for it, with a handoff prompt in the ticket body that a fresh session can pick up to continue the work.
   3. Return to the registered ticket's scope.
+- **In BR and In TR are left by a person.** Either a person drags the card out, or the agent walks it out on the person's explicit approval given in this session - never on its own inference, because leaving an In-X column is the approval `~/.claude-shared/templates/cockpit-operating-contract.md` names. The content gate in step 3 guards the agent's walk; a drag never passes through it.
 - **Reach In CR by AI, then stop at the human gate.** Dev is not finished until the card is in `In CR by AI`; what follows says where to stop, never that stopping short of it is allowed. The agent auto-advances up to and including `Ready for CR`. `In CR by AI` is where the machine gates run, so the card is carried out of it only once they have finished and the pull request is up - a card still sitting there means something has not cleared. `In CR` onward are human pulls - CR reviews the answer, FR checks the outcome, Validation checks the evidence. Never auto-advance past the first human-gated column.
-- **Close the loop** on a completed task by auto-advancing to `In CR by AI` and reporting the move - don't wait for the user to remember. Landing there runs the machine gates, and clean gates then fire `/cockpit:ticket:4:ready-for-cr` on their own, so the loop closes on a pushed branch with a PR up rather than on a status write. A gate that found something unfixed stops the publish: say what is outstanding instead.
+- **Close the loop** on a completed task by auto-advancing to `In CR by AI` and reporting the move - don't wait for the user to remember. Landing there runs the machine gates, and step 7 of the walk then invokes `/cockpit:ticket:4:ready-for-cr`, so the loop closes on a pushed branch with a PR up rather than on a status write. A gate that left an unfixed defect stops the publish, and the session says what is outstanding instead; an unfixed divergence does not stop it (see step 7).
 
 ## The walk
 
@@ -110,7 +111,7 @@ A walk starting anywhere but `In Dev` reads nothing and removes nothing here —
        - Feature: `## Validation Steps` present with at least one checklist item.
        - Bug: `## Replication/Validation Steps` present with at least one checklist item.
        - Timebox: `## Expected Outcome` present
-     - Leaving **In TR** (Feature and Bug only — Timeboxes skip this column via per-type walk config): `## Tech Steps` present with at least one step (a subsection, a list item or a checklist item). **A split parent is exempt** — a ticket whose `Dependent on` is populated legitimately has none; its sub-tickets carry them.
+     - Leaving **In TR** (Feature and Bug only — Timeboxes skip this column via per-type walk config): `## Tech Steps` present with at least one step (a subsection, a list item, a checklist item or a `<details>` layer toggle). **A split parent is exempt** — a ticket whose `Dependent on` is populated legitimately has none; its sub-tickets carry them.
    - **Prevention review — leaving `In Dev`:** before the first hop out of `In Dev`, read every `Back from` gate subsection and any `Session summary` subsection under `## Details`, and write one `### Preventions` subsection back into that section, the way "A timebox that produced no code" above writes its own, holding **Pattern:** what their `[prevention]` and `[earlier detection]` lines share, **Worth building:** which of them to build and where it goes, and **Follow-up tickets:** the ones to raise. A ticket with no bounces still gets the subsection, saying so. This never blocks the walk - the proposal is what CR reads, not a gate.
    - Otherwise walk the path.
 4. **Walk** the path in one call - it steps every column in order, stamps each date-stamped column on first arrival before the next hop, and refuses with exit 4 a target behind the card:
@@ -120,6 +121,14 @@ A walk starting anywhere but `In Dev` reads nothing and removes nothing here —
    ```
 
    A hand-off that needs something done on a column the walk passes through walks to that column first, does it, then walks on.
+   - **Record column** — first, straight after the walk and before anything else in this step, update the local column state so the status line reflects the current board position:
+
+     ```
+     "$HOME/.cockpit/scripts/ticket-register-column" "<landed-column>"
+     ```
+
+     It runs before the `Done` close-out below because the column watcher disarms on the first poll that reads `Done`, and a column file that does not read `Done` yet makes it tell the session to invoke `/cockpit:ticket:7:done` - a second close-out of a card this run is already closing out.
+
    - **Record model** — for every column in the path that matches one of the entries below, write the corresponding `Model:` field. Value: your model ID from the system prompt (e.g. `claude-opus-4-6`).
 
      ```
@@ -138,18 +147,13 @@ A walk starting anywhere but `In Dev` reads nothing and removes nothing here —
 
    - **On `Done` only** — whether this run moved the card there or found it there, follow `~/.claude-shared/templates/status-done-close-out.md`. It owns the claim release, giving the worktree back, the main checkout pull, the apply that makes it live, and the usage figures.
 
-   - **Record column** — after the walk, update the local column state so the status line reflects the current board position:
-     ```
-     "$HOME/.cockpit/scripts/ticket-register-column" "<landed-column>"
-     ```
-
 5. (continued). **Auto-assign sprint** — if the walk landed on `In Dev` (or passed through Sprint Backlog, even if skipped), follow `~/.claude-shared/templates/sprint-auto-assign.md`. It owns the opt-out for a repo that skips the sprint columns, and the assignment itself.
 6. **Confirm stage** — if the walk landed on `In Dev`, run:
    ```
    "$HOME/.cockpit/scripts/ticket-status-confirm" dev
    ```
    This writes the local stage marker that unlocks file edits (the `require-dev-status.sh` hook gates Edit/Write until this marker exists).
-7. **Run the machine gates** — if the walk landed on `In CR by AI`, follow `~/.claude-shared/templates/status-machine-gates.md`. It owns the review, the level, where the findings land and the tree the step ends on.
+7. **Run the machine gates** — if the walk landed on `In CR by AI`, follow `~/.claude-shared/templates/status-machine-gates.md`. It owns the review, the level, where the findings land and the tree the step ends on. When the gates leave no unfixed defect, invoke `/cockpit:ticket:4:ready-for-cr` - an unfixed divergence from the tech steps does not hold it, and `status-machine-gates.md` says where that goes instead.
 8. **Bring the parent along** — if the ticket's `Dependency for` relation is populated, follow `~/.claude-shared/templates/status-parent-roll-up.md`. An empty relation — skip this step entirely.
 9. **Report** only what the board does not already show - a gate that refused, a walk `board-card` refused, a scope shift. A walk that ran as intended reports nothing.
 
