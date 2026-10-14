@@ -87,10 +87,17 @@ export function flowOf(record: Dated, now = Date.now()): Flow {
 	};
 }
 
-export type Progress = { total: number; done: number; dropped: number; points: number; donePoints: number };
+export type Progress = {
+	total: number;
+	done: number;
+	dropped: number;
+	points: number;
+	donePoints: number;
+	unsized: number;
+};
 
 export function progressOf(cards: Pick<Card, "status" | "complexity">[]): Progress {
-	const progress: Progress = { total: 0, done: 0, dropped: 0, points: 0, donePoints: 0 };
+	const progress: Progress = { total: 0, done: 0, dropped: 0, points: 0, donePoints: 0, unsized: 0 };
 	for (const card of cards) {
 		if (card.status === "Deprioritised") {
 			progress.dropped += 1;
@@ -102,19 +109,27 @@ export function progressOf(cards: Pick<Card, "status" | "complexity">[]): Progre
 		if (phaseOf(card.status) === "done") {
 			progress.done += 1;
 			progress.donePoints += points;
+		} else if (card.complexity == null) {
+			progress.unsized += 1;
 		}
 	}
 	return progress;
 }
 
+export function byPoints(progress: Progress): boolean {
+	return progress.points > 0 && progress.unsized === 0;
+}
+
 export function progressShare(progress: Progress): number {
-	if (progress.points > 0) return progress.donePoints / progress.points;
+	if (byPoints(progress)) return progress.donePoints / progress.points;
 	return progress.total > 0 ? progress.done / progress.total : 0;
 }
 
 export function progressTitle(progress: Progress): string {
 	const parts = [`${progress.done} of ${progress.total} cards done`];
 	if (progress.points > 0) parts.push(`${progress.donePoints} of ${progress.points} points`);
+	if (progress.points > 0 && progress.unsized > 0)
+		parts.push(`${progress.unsized} open ${progress.unsized === 1 ? "card has" : "cards have"} no points, so the bar counts cards`);
 	if (progress.dropped > 0) parts.push(`${progress.dropped} deprioritised and left out`);
 	return parts.join(", ");
 }

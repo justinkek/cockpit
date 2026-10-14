@@ -1,4 +1,4 @@
-import { type Progress, progressShare, progressTitle } from "@/lib/metrics";
+import { byPoints, type Progress, progressShare, progressTitle } from "@/lib/metrics";
 
 export function ProgressMeter({ progress, wide = false }: { progress: Progress; wide?: boolean }) {
 	const share = progressShare(progress);
@@ -23,7 +23,7 @@ export function ProgressMeter({ progress, wide = false }: { progress: Progress; 
 				{wide && progress.total > 0 && (
 					<span className="progress-percent">
 						{" "}
-						· {percent}%{progress.points > 0 && " of points"}
+						· {percent}%{byPoints(progress) && " of points"}
 					</span>
 				)}
 			</span>

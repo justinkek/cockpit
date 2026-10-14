@@ -112,9 +112,13 @@ printf "Test group: an epic's progress counts its cards and their points\n"
 
 EPIC_CARDS='[{"status":"Done","complexity":3},{"status":"In Dev","complexity":5},{"status":"Backlog"},{"status":"Deprioritised","complexity":8}]'
 assert_eq "a deprioritised card is left out of the total" \
-  '{"total":3,"done":1,"dropped":1,"points":8,"donePoints":3}' "$(evaluate "m.progressOf($EPIC_CARDS)")"
-assert_eq "the share done is by points when the cards are sized" \
-  '0.375' "$(evaluate "m.progressShare(m.progressOf($EPIC_CARDS))")"
+  '{"total":3,"done":1,"dropped":1,"points":8,"donePoints":3,"unsized":1}' "$(evaluate "m.progressOf($EPIC_CARDS)")"
+assert_eq "the share done is by points when every open card is sized" \
+  '0.375' "$(evaluate 'm.progressShare(m.progressOf([{status:"Done",complexity:3},{status:"In Dev",complexity:5},{status:"Done"}]))')"
+assert_eq "the share done is by cards when an open card has no points" \
+  '0.3333' "$(evaluate "m.progressShare(m.progressOf($EPIC_CARDS)).toFixed(4)")"
+assert_eq "an unsized open card keeps a sized epic short of done" \
+  '0.5' "$(evaluate 'm.progressShare(m.progressOf([{status:"Done",complexity:3},{status:"Backlog"}]))')"
 assert_eq "the share done is by cards when none is sized" \
   '0.5' "$(evaluate 'm.progressShare(m.progressOf([{status:"Done"},{status:"In CR"}]))')"
 assert_eq "an epic with no cards has done nothing" \
