@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { linkChild, moveCard, unlinkChild, updateField } from "@/app/actions";
 import { Content } from "@/app/content";
-import { BoardError, boardColumns, FIBONACCI, readRecord, type Card as Stub } from "@/lib/board";
+import { BoardError, boardColumns, FIBONACCI, findRenamed, readRecord, type Card as Stub } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +40,10 @@ export default async function StubPage({ params, searchParams }: Props) {
 	try {
 		stub = await readRecord(id);
 	} catch (failure) {
-		if (failure instanceof BoardError) notFound();
-		throw failure;
+		if (!(failure instanceof BoardError)) throw failure;
+		const renamed = await findRenamed(id);
+		if (renamed) redirect(`/card/${renamed}`);
+		notFound();
 	}
 
 	return (

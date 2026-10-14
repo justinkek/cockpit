@@ -570,7 +570,10 @@ export function Board({
 				return;
 			}
 			const fresh = result.record;
-			if (fresh) setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
+			if (fresh) {
+				setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
+				if (fresh.id !== id) setOpenId((opened) => (opened === id ? fresh.id : opened));
+			}
 			router.refresh();
 		});
 	}

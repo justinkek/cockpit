@@ -53,8 +53,24 @@ export async function changeStatus(record: Card, column: string): Promise<void> 
 	await boardCard([forward ? "walk" : "move", record.id, column]);
 }
 
-export async function setField(id: string, field: string, value: string): Promise<void> {
-	await boardCard(["set", id, field, value]);
+export async function setField(id: string, field: string, value: string): Promise<string> {
+	const output = await boardCard(["set", id, field, value]);
+	return output.match(/^renamed \S+ to (\S+)$/m)?.[1] ?? id;
+}
+
+export async function findRenamed(id: string): Promise<string | null> {
+	const match = id.toUpperCase().match(/^(?:FEAT|BUG|TIME)-(\d+)$/);
+	if (!match) return null;
+	for (const prefix of ["FEAT", "BUG", "TIME"]) {
+		const alias = `${prefix}-${match[1]}`;
+		if (alias === id.toUpperCase()) continue;
+		try {
+			return (await readRecord(alias)).id;
+		} catch (error) {
+			if (!(error instanceof BoardError)) throw error;
+		}
+	}
+	return null;
 }
 
 export async function link(parent: string, child: string, linked: boolean): Promise<void> {

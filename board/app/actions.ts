@@ -24,23 +24,24 @@ function refresh(id: string) {
 	revalidatePath(`/card/${id}`);
 }
 
-async function attempt(id: string, change: () => Promise<void>): Promise<never> {
+async function attempt(id: string, change: () => Promise<string | void>): Promise<never> {
 	let failure = "";
+	let current = id;
 	try {
-		await change();
+		current = (await change()) || id;
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		failure = error.message;
 	}
-	refresh(id);
-	redirect(failure ? `/card/${id}?error=${encodeURIComponent(failure)}` : `/card/${id}`);
+	refresh(current);
+	redirect(failure ? `/card/${current}?error=${encodeURIComponent(failure)}` : `/card/${current}`);
 }
 
-async function report(id: string, change: () => Promise<void>): Promise<Result> {
+async function report(id: string, change: () => Promise<string | void>): Promise<Result> {
 	try {
-		await change();
-		refresh(id);
-		return { record: await readRecord(id) };
+		const current = (await change()) || id;
+		refresh(current);
+		return { record: await readRecord(current) };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return { error: error.message };
