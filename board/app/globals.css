@@ -628,6 +628,33 @@
 		padding: 0 12px 0 20px;
 	}
 
+	.drag-handle {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 26px;
+		margin-left: -8px;
+		padding: 0 8px;
+		background: none;
+		border: 1px solid transparent;
+		color: var(--muted);
+		cursor: grab;
+		touch-action: none;
+
+		&:hover {
+			background: var(--lane);
+			border-color: var(--line);
+		}
+
+		&.dragging {
+			opacity: 0.5;
+		}
+
+		& span {
+			color: var(--faint);
+		}
+	}
+
 	.peek-actions {
 		display: flex;
 		align-items: center;
@@ -832,6 +859,14 @@
 		.lane {
 			width: calc(100vw - 48px);
 			scroll-snap-align: start;
+		}
+
+		.drag-handle {
+			cursor: default;
+
+			& span {
+				display: none;
+			}
 		}
 
 		.peek {

@@ -86,6 +86,41 @@ function effectiveRank(stub: Stub) {
 	return stub.rank ?? -ticketNumber(stub);
 }
 
+const FROM_PANEL = "peek:";
+
+function draggedId(active: string | number) {
+	return String(active).replace(FROM_PANEL, "");
+}
+
+function PanelHandle({ id }: { id: string }) {
+	const [covering, setCovering] = useState(false);
+	useEffect(() => {
+		const query = window.matchMedia("(width < 760px)");
+		const update = () => setCovering(query.matches);
+		update();
+		query.addEventListener("change", update);
+		return () => query.removeEventListener("change", update);
+	}, []);
+	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+		id: `${FROM_PANEL}${id}`,
+		disabled: covering,
+	});
+	return (
+		<button
+			ref={setNodeRef}
+			type="button"
+			className={`ident drag-handle${isDragging ? " dragging" : ""}`}
+			title="Drag to a column"
+			{...listeners}
+			{...attributes}
+			aria-roledescription="Drag to a column"
+		>
+			<span aria-hidden="true">⠿</span>
+			{id}
+		</button>
+	);
+}
+
 const collisions: CollisionDetection = (args) => {
 	const within = pointerWithin(args);
 	const card = within.find((hit) => String(hit.id).startsWith("card:"));
@@ -323,7 +358,7 @@ function Peek({
 	return (
 		<aside className="peek" ref={panel} aria-label={`${stub.id} details`}>
 			<header className="peek-head">
-				<span className="ident">{stub.id}</span>
+				<PanelHandle id={stub.id} />
 				<span className="peek-actions">
 					<Link href={`/card/${stub.id}`} className="quiet-link">
 						Open
@@ -552,13 +587,14 @@ export function Board({
 	}
 
 	function onDragStart(event: DragStartEvent) {
-		setDragging(stubs.find((stub) => stub.id === event.active.id) ?? null);
+		const id = draggedId(event.active.id);
+		setDragging(stubs.find((stub) => stub.id === id) ?? null);
 	}
 
 	function onDragEnd(event: DragEndEvent) {
 		setDragging(null);
 		if (!event.over) return;
-		const id = String(event.active.id);
+		const id = draggedId(event.active.id);
 		const place = placement(id, String(event.over.id));
 		if (place) move(id, place.column, place.rank);
 	}
@@ -728,17 +764,17 @@ export function Board({
 								</div>
 							)}
 						</DragOverlay>
+						{open && (
+							<Peek
+								stub={open}
+								kind={kind}
+								cards={children[open.id] ?? []}
+								lists={lists}
+								handlers={handlersFor(open)}
+								onClose={() => setOpenId(null)}
+							/>
+						)}
 					</DndContext>
-					{open && (
-						<Peek
-							stub={open}
-							kind={kind}
-							cards={children[open.id] ?? []}
-							lists={lists}
-							handlers={handlersFor(open)}
-							onClose={() => setOpenId(null)}
-						/>
-					)}
 				</div>
 			</div>
 		</Names.Provider>
