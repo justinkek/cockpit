@@ -581,6 +581,8 @@ function Peek({
 	onClose,
 	onCopy,
 	onSaved,
+	onDuplicate,
+	onArchive,
 }: {
 	stub: Stub;
 	kind: Kind;
@@ -592,6 +594,8 @@ function Peek({
 	onClose: () => void;
 	onCopy: () => void;
 	onSaved: (record: Stub, undo?: Span) => void;
+	onDuplicate: () => void;
+	onArchive: () => void;
 }) {
 	const panel = useRef<HTMLElement>(null);
 	const number = stub.id.split("-").at(-1);
@@ -603,8 +607,19 @@ function Peek({
 			<header className="peek-head">
 				<PanelHandle id={stub.id} />
 				<span className="peek-actions">
-					<button type="button" className="quiet" onClick={onCopy} title="Copy link (Cmd/Ctrl+Shift+.)">
+					<button type="button" className="quiet peek-copy" onClick={onCopy} title="Copy link (Cmd/Ctrl+Shift+.)">
 						Copy link
+					</button>
+					<button type="button" className="quiet" onClick={onDuplicate} title="Make a copy of it in the first column">
+						Duplicate
+					</button>
+					<button
+						type="button"
+						className="quiet"
+						onClick={onArchive}
+						title="Take it off the board - bring it back from the Archive page"
+					>
+						Archive
 					</button>
 					<Link href={`/card/${stub.id}`} className="quiet-link">
 						Open
@@ -1741,6 +1756,8 @@ export function Board({
 								onDismiss={() => setNotice(null)}
 								onClose={() => show(null)}
 								onCopy={() => copy(open.id, true)}
+								onDuplicate={() => duplicate(open.id)}
+								onArchive={() => bulkEdits([open.id]).archive?.()}
 								onSaved={(saved, span) => {
 									const was = open.id;
 									setStubs((current) => current.map((s) => (s.id === saved.id || s.id === was ? saved : s)));

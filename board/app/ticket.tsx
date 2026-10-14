@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
+import { archiveOne, dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
@@ -172,7 +172,27 @@ export function Ticket({
 	);
 
 	const kind = kindOf(record.id);
-	const edits: Edits = { label: record.id, move: handlers.onMove, edit: handlers.onEdit, duplicate };
+	const edits: Edits = {
+		label: record.id,
+		move: handlers.onMove,
+		edit: handlers.onEdit,
+		duplicate: kind ? duplicate : undefined,
+		archive,
+	};
+
+	function archive() {
+		if (!confirmDiscard()) return;
+		setError("");
+		setToast(null);
+		startTransition(async () => {
+			const result = await archiveOne(record.id);
+			if (result.error) {
+				setError(`Could not archive ${record.id}: ${result.error}`);
+				return;
+			}
+			router.push(`/card/${record.id}`);
+		});
+	}
 
 	function duplicate() {
 		if (!confirmDiscard()) return;
@@ -201,6 +221,9 @@ export function Ticket({
 			root: true,
 			items: [
 				...recordCommands(kind, record, lists, edits),
+				...(kind
+					? []
+					: [{ id: "do:archive", group: record.id, label: "Archive", keywords: "remove delete hide", run: archive }]),
 				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
 				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(true) },
 				{
@@ -280,6 +303,21 @@ export function Ticket({
 				{!kind && <span>{recordKindOf(record.id)}</span>}
 				{record.status && <span>{record.status}</span>}
 				{saving && <span className="saving">Saving…</span>}
+				<span className="record-actions">
+					{kind && (
+						<button type="button" className="quiet" onClick={duplicate} title="Make a copy of it in the first column">
+							Duplicate
+						</button>
+					)}
+					<button
+						type="button"
+						className="quiet"
+						onClick={archive}
+						title="Take it off the board - bring it back from the Archive page"
+					>
+						Archive
+					</button>
+				</span>
 				<button
 					type="button"
 					className="chip-toggle palette-open"

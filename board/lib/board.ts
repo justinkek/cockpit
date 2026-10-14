@@ -120,6 +120,20 @@ export async function archiveRecord(id: string): Promise<void> {
 	await boardCard(["archive", id]);
 }
 
+export async function unarchiveRecord(id: string): Promise<void> {
+	await boardCard(["unarchive", id]);
+}
+
+export async function isArchived(id: string): Promise<boolean> {
+	try {
+		const [file, directory] = await Promise.all([boardCard(["path", id]), boardDirectory()]);
+		return file.trim().startsWith(`${directory}/archive/`);
+	} catch (error) {
+		if (error instanceof BoardError) return false;
+		throw error;
+	}
+}
+
 export async function link(parent: string, child: string, linked: boolean): Promise<void> {
 	await boardCard([linked ? "link" : "unlink", parent, child]);
 }

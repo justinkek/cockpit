@@ -25,6 +25,7 @@ import {
 	resolveComment,
 	searchContent,
 	setField,
+	unarchiveRecord,
 	undoSince,
 } from "@/lib/board";
 
@@ -47,6 +48,7 @@ function refresh(id: string) {
 	revalidatePath("/projects");
 	revalidatePath("/sprints");
 	revalidatePath("/references");
+	revalidatePath("/archive");
 	revalidatePath(`/card/${id}`);
 }
 
@@ -141,6 +143,31 @@ export async function duplicateCard(id: string): Promise<Result> {
 	} catch (error) {
 		return failed(id, error);
 	}
+}
+
+export async function archiveOne(id: string): Promise<Failure> {
+	try {
+		await archiveRecord(id);
+		refresh(id);
+		return {};
+	} catch (error) {
+		return failed(id, error);
+	}
+}
+
+export async function submitUnarchive(form: FormData): Promise<void> {
+	const id = text(form, "id");
+	const back = text(form, "back") === "archive" ? "/archive" : `/card/${encodeURIComponent(id)}`;
+	let failure = "";
+	try {
+		await unarchiveRecord(id);
+		refresh(id);
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		failure = `Could not bring ${id} back: ${error.message}`;
+	}
+	if (failure) redirect(`${back}?error=${encodeURIComponent(failure)}`);
+	redirect(back === "/archive" ? `/archive?restored=${encodeURIComponent(id)}` : back);
 }
 
 export async function submitNew(form: FormData): Promise<void> {

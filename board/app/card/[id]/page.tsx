@@ -1,7 +1,19 @@
 import { notFound, redirect } from "next/navigation";
+import { ArchivedRecord } from "@/app/archived";
 import { Ticket } from "@/app/ticket";
 import { progressOf } from "@/lib/metrics";
-import { BoardError, type Card, findRenamed, kindOf, listAttachments, listRecords, phaseOf, readRecord, recordKindOf } from "@/lib/board";
+import {
+	BoardError,
+	type Card,
+	findRenamed,
+	isArchived,
+	kindOf,
+	listAttachments,
+	listRecords,
+	phaseOf,
+	readRecord,
+	recordKindOf,
+} from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +30,11 @@ export default async function CardPage({ params, searchParams }: Props) {
 		record = await readRecord(id);
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
+		const kind = recordKindOf(id.toUpperCase());
+		if (kind && (await isArchived(id))) {
+			const archived = (await listRecords(kind, true)).find((other) => other.id === id.toUpperCase());
+			if (archived) return <ArchivedRecord record={archived} failure={typeof error === "string" ? error : undefined} />;
+		}
 		const renamed = await findRenamed(id);
 		if (renamed) redirect(`/card/${renamed}`);
 		notFound();

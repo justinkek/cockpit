@@ -145,7 +145,7 @@ export function recordCommands(
 		commands.push({ id: "do:duplicate", group, label: "Duplicate", keywords: "copy clone", run: edits.duplicate });
 	}
 	if (edits.archive) {
-		commands.push({ id: "do:archive", group, label: "Archive", keywords: "remove hide", run: edits.archive });
+		commands.push({ id: "do:archive", group, label: "Archive", keywords: "remove delete hide", run: edits.archive });
 	}
 	return commands;
 }

@@ -14,6 +14,7 @@ const LINKS = [
 	{ href: "/projects", label: "Projects" },
 	{ href: "/references", label: "References" },
 	{ href: "/obeya", label: "Obeya" },
+	{ href: "/archive", label: "Archive" },
 ];
 
 function useUnread() {
