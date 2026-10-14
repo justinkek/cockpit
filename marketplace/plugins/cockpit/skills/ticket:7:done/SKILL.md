@@ -11,15 +11,17 @@ Move the registered cockpit ticket to the `Done` column. Two things trigger it: 
 
 ### 1. Guard: valid source status
 
-`"$HOME/.cockpit/scripts/board-card" show <id> Status` reads the card's column, and the column decides whether the walk to `Done` runs:
+`"$HOME/.cockpit/scripts/board-card" show <id> Status Type "Dependent on"` reads the card's column, its type and its sub-tickets. The type and the sub-tickets pick the check step 2 makes, and the column decides whether the walk to `Done` runs:
 
 - **The one the card's walk puts right before `Done`** - `Ready for Validation`, unless the project's `## Ticket walk skip` removes it - carries on to step 2.
 - **`Done`** is the close-out of a card a person dragged there: it skips the merge check and goes straight to step 3.
-- **Any other column** blocks: name it, and say that each column between it and `Done` is a person's pull.
+- **Any other column** blocks: name it and the column the card has to reach first, and stop.
 
-### 2. Check the pull request merged
+### 2. Check the work merged
 
 A Timebox whose `### Timebox output`, read with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Timebox output"`, says it produced no code has no pull request to check, and goes straight to step 3.
+
+A split parent, whose `Dependent on` lists its sub-tickets, has no pull request of its own - the sub-tickets carry the code. It reads each one's column with `"$HOME/.cockpit/scripts/board-card" show <sub-ticket id> Status` instead, and a sub-ticket short of `Done` is a part still open.
 
 Every other card reads its pull requests, and where each one stands:
 
@@ -28,7 +30,7 @@ Every other card reads its pull requests, and where each one stands:
 gh pr view <url> --json state --jq .state
 ```
 
-An empty `PRs`, or any URL answering other than `MERGED`, is work that has not reached the default branch. Name what is missing - no pull request at all, or which one and its state - and ask the person whether to walk to `Done` anyway. Walk only on their yes.
+An empty `PRs`, or any URL answering other than `MERGED`, is work that has not reached the default branch. Name what is missing - no pull request at all, which one and its state, or which sub-ticket and its column - and ask the person whether to walk to `Done` anyway. Walk only on their yes.
 
 ### 3. Walk to Done
 
