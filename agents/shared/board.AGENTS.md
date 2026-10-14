@@ -131,7 +131,7 @@ A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domai
 
 `board-card history <id>` prints the commits that touched a record, newest first, one line each holding the commit, its time and its subject. `board-card undo <id>` writes the record, its comments and its attachments back as they stood before the last commit that touched them, as a commit of its own, so a second undo takes back the first and any other record that commit changed is left as it is.
 
-`show --json` and `list --json` give each card two values worked out at read time and never stored, counting working time as 09:30 to 18:00 UTC on weekdays: `days_in_column`, the whole working days since it reached its current column, and `overrunning`, true once its working minutes from `In Dev` to `Ready for CR` (or now) pass its `timebox_mins` when it is a timebox, or 102 for each point of complexity otherwise.
+`show --json` and `list --json` give each card two values worked out at read time and never stored, counting working time as 09:30 to 18:00 UTC on weekdays: `days_in_column`, the whole working days since it reached its current column (0 in a column Notion never timed: `Backlog`, `Sprint Backlog`, `Daily Plan`, `Deprioritised`, `Done` and every by-AI column but `Ready for TR by AI`), and `overrunning`, true once its working minutes from `In Dev` to `Ready for CR` (or now) pass its `timebox_mins` when it is a timebox, or 102 for each point of complexity otherwise.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 
