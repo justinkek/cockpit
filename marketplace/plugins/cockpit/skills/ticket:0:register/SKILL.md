@@ -15,7 +15,7 @@ Once the card is registered, the column it sits in decides what kind of output i
 
 - **Backlog**: no refinement output at all. The ticket is captured, not committed - never draft validation steps or tech steps for it, and never advance it. A person pulls it into refinement when they decide to.
 - **BR columns** (Ready for BR by AI, In BR by AI, Ready for BR, In BR): only BR output is allowed - validation steps for features, replication/validation steps for bugs, expected outcome for timeboxes, and questions to clarify scope. No tech steps, no file paths, no code snippets, no implementation proposals.
-- **TR columns** (Ready for TR by AI, In TR by AI, Ready for TR, In TR): only TR output is allowed - tech steps and complexity estimation. No file edits; code appears only inside the tech steps written to the card; commands are limited to reading the codebase and the `board-card` calls the TR skill names.
+- **TR columns** (Ready for TR by AI, In TR by AI, Ready for TR, In TR): only TR output is allowed - tech steps and complexity estimation. No file edits, and code appears only inside the tech steps written to the card. Commands either read the codebase or carry out a board step a cockpit skill or template names - nothing that builds, tests, installs or runs the code.
 - **In Dev or later**: implementation is allowed - file edits, code generation, running builds and tests.
 
 `require-dev-status.sh` hard-gates file edits until In Dev.
@@ -156,12 +156,14 @@ Arming is best-effort. A watcher that exits at once with an error line leaves re
 
 ### 4.75. Check for pre-existing PR
 
-Run this step only for a card at `In Dev` or later, and never for a card this run created. A card before `In Dev` has no branch of its own: the branch the session started on belongs to its checkout, not to the ticket, and a PR on it is other work.
+Run this step only for a card at `In Dev` or later, and never for a card this run created.
 
-If the session is in a git repository with a GitHub remote, check whether the current branch already has an open pull request:
+The branch the session sits on proves nothing on its own. Registration can run before `/cockpit:ticket:3:dev` enters the ticket's worktree, and a session started in a worktree of its own can be on any branch, with a PR on it that is other work. Every PR the flow opens links the card's page in its body, as `~/.claude-shared/templates/pull-request-to-ticket.md` writes it, so a PR counts only when its body names this card.
+
+If the session is in a git repository with a GitHub remote, look up the current branch's pull request, keeping it only when its body names the card:
 
 ```sh
-gh pr view --json url -q .url 2>/dev/null
+gh pr view --json url,body --jq 'select(.body | test("/card/<card-id>([^0-9]|$)")) | .url' 2>/dev/null
 ```
 
 If a PR URL is returned, read the card's `PRs` with `board-card show <card-id> PRs`. If it already holds that URL, leave it. Otherwise write it back with the new URL on a line of its own after whatever was there:
@@ -170,7 +172,7 @@ If a PR URL is returned, read the card's `PRs` with `board-card show <card-id> P
 "$HOME/.cockpit/scripts/board-card" set <card-id> prs "<existing urls and the new one>"
 ```
 
-If the command fails (no git repo, no GitHub remote, no open PR), skip silently.
+If the command fails (no git repo, no GitHub remote, no PR on the branch) or prints nothing, skip silently.
 
 ### 4.9. Auto-assign sprint
 
