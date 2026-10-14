@@ -124,13 +124,14 @@ export async function submitCard(form: FormData): Promise<void> {
 	let current = id;
 	let failure = "";
 	try {
-		const value = text(form, "value");
+		const field = text(form, "field");
+		const value = field === "name" ? text(form, "value").replace(/\s*[\r\n]+\s*/g, " ") : text(form, "value");
 		switch (text(form, "op")) {
 			case "move":
 				await changeStatus(await readRecord(id), value);
 				break;
 			case "set":
-				current = await setField(id, text(form, "field"), value);
+				current = await setField(id, field, value);
 				break;
 			case "link": {
 				const other = await cardNamed(value);
