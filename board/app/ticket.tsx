@@ -12,7 +12,7 @@ import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
-import { type Card, fieldName, kindOf } from "@/lib/shared";
+import { type Card, contentSearchFailed, fieldName, kindOf } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
 
@@ -57,7 +57,9 @@ export function Ticket({
 		if (query.length < 2 || !kindOfRecord) return;
 		let live = true;
 		findInContent(kindOfRecord, query).then((result) => {
-			if (live && "ids" in result) setInContent(new Set(result.ids));
+			if (!live) return;
+			if ("ids" in result) setInContent(new Set(result.ids));
+			else setError(contentSearchFailed(kindOfRecord, result.error));
 		});
 		return () => {
 			live = false;

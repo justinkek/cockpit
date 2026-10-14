@@ -105,6 +105,10 @@ export function kindOf(id: string): Kind | null {
 	return null;
 }
 
+export function contentSearchFailed(kind: Kind, error: string) {
+	return `Only the names and ids of the ${kind}s were searched, because their content could not be: ${error}`;
+}
+
 export function phaseOf(column: string): string {
 	if (column === "Backlog" || column === "Deprioritised") return "idle";
 	if (/\b(BR|TR|FD|TD)\b/.test(column) || column.includes("Ticket Breakdown")) return "refine";

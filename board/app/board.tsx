@@ -53,6 +53,7 @@ import {
 import {
 	boardColumns,
 	bounces,
+	contentSearchFailed,
 	dueState,
 	fieldName,
 	type Kind,
@@ -70,6 +71,8 @@ import {
 const Names = createContext<Record<string, string>>({});
 
 type Notice = { id: string; text: string } | null;
+
+const SEARCH_NOTICE = "search";
 
 function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
 	if (!notice) return null;
@@ -734,7 +737,11 @@ export function Board({
 		let live = true;
 		const timer = window.setTimeout(async () => {
 			const result = await findInContent(kind, query);
-			if (live && "ids" in result) setInContent({ query, ids: new Set(result.ids) });
+			if (!live) return;
+			if ("ids" in result) {
+				setInContent({ query, ids: new Set(result.ids) });
+				setNotice((current) => (current?.id === SEARCH_NOTICE ? null : current));
+			} else setNotice({ id: SEARCH_NOTICE, text: contentSearchFailed(kind, result.error) });
 		}, 200);
 		return () => {
 			live = false;
