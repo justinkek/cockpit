@@ -95,8 +95,10 @@ export function Content({
 	useEffect(() => {
 		let live = true;
 		setThreads([]);
+		setError("");
 		setSelection(null);
 		setDrafting(null);
+		setReplying(null);
 		setEditing(null);
 		if (!bodyGiven) {
 			setBody("");
