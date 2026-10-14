@@ -102,6 +102,7 @@ Every write `board-card` makes is committed to that repository. Writes that land
 | `projects/`   | a project an epic belongs to                               | `PRJ-2`                      |
 | `sprints/`    | a sprint a card is planned into                            | `SPR-1`                      |
 | `references/` | a reference ticket a complexity figure is compared against | `REF-4`                      |
+| `milestones/` | a dated marker across the plan, such as a launch           | `MS-1`                       |
 
 `ticket-waiting-cards` prints the cards waiting in a by-AI column with no `blocked` reason on them, one line each in the order they are picked, and `--claimed-by <session-id>` prints the ones a session holds.
 
@@ -124,6 +125,12 @@ A record whose front matter does not parse is never written over or read past: a
 `board-card set <id> timebox_mins <minutes>` gives a card its budget in whole minutes, read back as `Timebox (mins)`, and a timebox card starts with 60 unless `create --timebox-mins` names another. A card whose type is set to `Timebox` starts with 60 too, unless it already holds a budget.
 
 A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as numbers, through `board-card set` or `create --kind sprint --start --end --dev-days --speed`, and an end before the start is refused. A sprint and a reference ticket have no status, so `create` refuses `--status` for either, and `board-card set <id> status ''` clears one either was given before.
+
+An epic takes `start` and `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`), `learning` (free text) and `plan_rank` (a number, lowest first in the plan) through `board-card set`, and its dates through `create --kind epic --start --target` too, and a target before the start is refused.
+
+Setting an epic's `target` holds each of its cards that is neither `Done` nor `Deprioritised` to it: a card with no due date or a later one takes the target as its `due`, marked with `due_from` naming the epic, a due date the target set follows it and is cleared with it, an earlier date of the card's own is left, and `set` prints each card it changed. A card joining or leaving an epic is held to its target or let go the same way, and setting `due` by hand makes the date the card's own again.
+
+A milestone is created with `create --kind milestone --name <name> --date <date>`, moves with `board-card set <id> date`, and comes off the plan with `board-card archive`.
 
 A project has no columns, so `board-card set <id> status` moves it between `Not started`, `In progress` and `Done`, and `priority` (a whole number) and `repo` (a URL) are set the same way or given to `create --kind project`.
 
