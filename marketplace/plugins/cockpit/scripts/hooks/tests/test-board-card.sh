@@ -10,6 +10,8 @@ export COCKPIT_BOARD_DIR="$TMPDIR/board"
 export TICKET_CLAIM_LOCK_DIR="$TMPDIR/claims"
 export TICKET_STATE_DIR="$TMPDIR/state"
 export CLAUDE_SESSION_ID="session-one"
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
 
 pass=0
 fail=0
@@ -27,6 +29,7 @@ assert_eq() {
 
 stub() { bash "$SCRIPTS/board-card" "$@"; }
 field() { stub show "$1" --json | jq --raw-output "$2"; }
+last_commit() { git -C "$COCKPIT_BOARD_DIR" log -1 --format="$1"; }
 
 printf "Test group: a stub is created and read with nothing but the scripts\n"
 
@@ -34,6 +37,8 @@ stub init >/dev/null
 assert_eq "the board is its own git repository" "true" "$([ -d "$COCKPIT_BOARD_DIR/.git" ] && echo true)"
 assert_eq "a feature is numbered with FEAT" "FEAT-1" "$(stub create --name 'Parent: with a colon')"
 assert_eq "a bug is numbered with BUG and shares the sequence" "BUG-2" "$(stub create --name Child --type Bug)"
+assert_eq "a create is committed under its verb and id" "create BUG-2" "$(last_commit %s)"
+assert_eq "a commit carries the board's own identity with no git config to borrow" "board-card" "$(last_commit %an)"
 assert_eq "a new stub starts in Backlog" "Backlog" "$(field FEAT-1 .status)"
 assert_eq "a name with a colon survives the round trip" "Parent: with a colon" "$(field FEAT-1 .name)"
 assert_eq "ticket-read answers for a stub id" "Status	Backlog" "$(bash "$SCRIPTS/ticket-read" FEAT-1 Status)"
@@ -50,6 +55,12 @@ first_stamp="$(field BUG-2 '.dates["In BR"]')"
 assert_eq "a date-stamped column is stamped on arrival" "true" "$([ -n "$first_stamp" ] && [ "$first_stamp" != null ] && echo true)"
 sleep 1
 stub move BUG-2 Backlog >/dev/null
+moved="$(field BUG-2 .moved)"
+assert_eq "a hop into a column with no date stamp still records when it moved" "true" \
+  "$([ "$moved" != null ] && [[ "$moved" > "$first_stamp" ]] && echo true)"
+assert_eq "and stamps no date for that column" "false" "$(field BUG-2 '.dates | has("Backlog")')"
+assert_eq "the move time sits after the creation time in the file" "moved" \
+  "$(sed -n '/^created:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/BUG-2.md" | cut -d: -f1)"
 stub move BUG-2 "In BR" >/dev/null
 assert_eq "re-entering a column keeps the first stamp" "$first_stamp" "$(field BUG-2 '.dates["In BR"]')"
 stub move BUG-2 "In Space" >/dev/null 2>&1
@@ -57,6 +68,7 @@ assert_eq "a column the board does not have is refused" "2" "$?"
 
 stub walk FEAT-1 "In Dev" --skip "Sprint Backlog" >/dev/null
 assert_eq "walk lands on the target" "In Dev" "$(field FEAT-1 .status)"
+assert_eq "a whole walk is one commit" "walk FEAT-1" "$(last_commit %s)"
 assert_eq "walk stamps every stamped column it passes" "Ready for BR In BR Ready for TR In TR Ready for Sprint In Dev" \
   "$(field FEAT-1 '.dates | keys_unsorted | join(" ")')"
 stub walk FEAT-1 "In BR" >/dev/null 2>&1
@@ -90,6 +102,7 @@ stub unlink FEAT-1 BUG-2 >/dev/null
 assert_eq "unlinking empties both sides" "[] []" "$(field FEAT-1 '.dependent_on | tojson') $(field BUG-2 '.dependency_for | tojson')"
 
 stub set BUG-2 rank -12.5 >/dev/null
+assert_eq "a field with no property name of its own still sets cleanly" "0" "$?"
 assert_eq "a rank orders a card within its column" "-12.5" "$(field BUG-2 .rank)"
 stub set BUG-2 rank first >/dev/null 2>&1
 assert_eq "a rank that is not a number is refused" "2" "$?"
@@ -128,6 +141,14 @@ stub set BUG-2 blocked "waiting on the API key" >/dev/null
 assert_eq "blocked holds the reason" "Blocked	waiting on the API key" "$(stub show BUG-2 Blocked)"
 stub set BUG-2 blocked "" >/dev/null
 assert_eq "an empty value clears it" "null" "$(field BUG-2 .blocked)"
+assert_eq "a known property holding nothing prints nothing" "" "$(stub show BUG-2 Blocked "Dependent on")"
+stub show BUG-2 Blocked >/dev/null
+assert_eq "and still succeeds" "0" "$?"
+stub show BUG-2 Status "Dependant on" >/dev/null 2>&1
+assert_eq "a property name the board does not know is refused" "2" "$?"
+assert_eq "and the refusal names it" "true" \
+  "$(stub show BUG-2 Status "Dependant on" 2>&1 | grep --quiet --fixed-strings "'Dependant on'" && echo true)"
+assert_eq "and nothing prints before the refusal" "" "$(stub show BUG-2 Status "Dependant on" 2>/dev/null)"
 stub set BUG-2 prs "https://github.com/o/r/pull/1" >/dev/null
 assert_eq "PRs reads back under its property name" "PRs	https://github.com/o/r/pull/1" "$(stub show BUG-2 PRs)"
 stub set BUG-2 models.Dev claude-opus-5-5 >/dev/null
@@ -144,23 +165,38 @@ printf "\nTest group: a section is written on its own\n"
 
 printf '## Validation Steps\n- [ ] one\n\n## Context\nkept' | stub set BUG-2 body "$(cat)" >/dev/null
 printf -- '- [ ] new step' | stub section BUG-2 "Validation Steps" >/dev/null
-assert_eq "the section is replaced" "- [ ] new step" "$(stub show BUG-2 --section "Validation Steps" | sed -n 2p)"
+assert_eq "the section is replaced, a blank line after its heading" "## Validation Steps
+
+- [ ] new step" "$(stub show BUG-2 --section "Validation Steps")"
 assert_eq "the section after it is kept" "kept" "$(stub show BUG-2 --section Context | sed -n 2p)"
+assert_eq "a section write is committed under its verb and id" "section BUG-2" "$(last_commit %s)"
 printf -- 'step one' | stub section BUG-2 "Tech Steps" --after "Validation Steps" >/dev/null
 assert_eq "a new section lands after the one named" "## Validation Steps|## Tech Steps|## Context" \
   "$(field BUG-2 .body | grep '^## ' | paste -sd '|' -)"
+assert_eq "an added section has a blank line after its heading" "## Tech Steps
+
+step one" "$(stub show BUG-2 --section "Tech Steps")"
 printf 'first bounce' | stub section BUG-2 "Back from CR" --under Details >/dev/null
 assert_eq "--under adds a missing parent and a subsection one level down" "## Details|### Back from CR" \
   "$(field BUG-2 .body | grep '^##' | tail -2 | paste -sd '|' -)"
 printf 'second write' | stub section BUG-2 "Back from CR" --under Details >/dev/null
-assert_eq "--under replaces the subsection it finds" "second write" "$(stub show BUG-2 --section "Back from CR" | sed -n 2p)"
+assert_eq "--under replaces the subsection it finds" "### Back from CR
+
+second write" "$(stub show BUG-2 --section "Back from CR")"
 printf 'other' | stub section BUG-2 "Preventions" --under Details >/dev/null
 assert_eq "a second subsection is added after the first" "### Back from CR|### Preventions" \
   "$(field BUG-2 .body | grep '^###' | paste -sd '|' -)"
+printf '\nalready spaced' | stub section BUG-2 "Preventions" --under Details >/dev/null
+assert_eq "content that opens with a blank line gets no second one" "### Preventions
+
+already spaced" "$(stub show BUG-2 --section "Preventions")"
 printf -- '- [ ] first' | stub section BUG-2 "Replication/Validation Steps" --before "Validation Steps" >/dev/null
 assert_eq "--before puts a new section ahead of the one named" "## Replication/Validation Steps|## Validation Steps" \
   "$(field BUG-2 .body | grep '^## ' | head -2 | paste -sd '|' -)"
-printf -- '' | stub set BUG-2 body "$(field BUG-2 .body | sed '/^## Replication\/Validation Steps$/,/^$/d')" >/dev/null
+assert_eq "a section put ahead has a blank line after its heading" "## Replication/Validation Steps
+
+- [ ] first" "$(stub show BUG-2 --section "Replication/Validation Steps")"
+printf -- '' | stub set BUG-2 body "$(field BUG-2 .body | awk '/^## Replication\/Validation Steps$/ { skip = 1; next } /^## / { skip = 0 } !skip')" >/dev/null
 assert_eq "the sections before Details are untouched" "## Validation Steps|## Tech Steps|## Context|## Details" \
   "$(field BUG-2 .body | grep '^## ' | paste -sd '|' -)"
 stub show BUG-2 --section "Nothing" >/dev/null 2>&1
@@ -173,13 +209,22 @@ printf 'not in the body' | stub comment BUG-2 --anchor "absent words" >/dev/null
 assert_eq "an anchor the body does not hold is refused" "2" "$?"
 assert_eq "a reply joins the thread" "c2" "$(printf 'yes' | stub comment BUG-2 --reply c1 --author claude)"
 assert_eq "the section read carries its comments" "[comment] justin: is this right?" "$(stub show BUG-2 --section "Tech Steps" | grep '^\[comment\]' | head -1)"
+assert_eq "a comment is committed under its verb and id" "comment BUG-2" "$(last_commit %s)"
+printf 'unfixed - from step one' | stub section BUG-2 "Machine gates" --under Details >/dev/null
+assert_eq "a section quoting another section's anchor does not carry its thread" "" \
+  "$(stub show BUG-2 --section "Machine gates" | grep '^\[comment\]')"
+assert_eq "nor does the section holding the quote" "" "$(stub show BUG-2 --section Details | grep '^\[comment\]')"
+assert_eq "the thread stays with the section its anchor first appears in" "[comment] justin: is this right?" \
+  "$(stub show BUG-2 --section "Tech Steps" | grep '^\[comment\]' | head -1)"
 stub resolve BUG-2 c1 >/dev/null
+assert_eq "a resolve is committed under its verb and id" "resolve BUG-2" "$(last_commit %s)"
 assert_eq "a resolved thread leaves the open list" "0" "$(stub comments BUG-2 --json | jq length)"
 assert_eq "and stays in the full list" "1" "$(stub comments BUG-2 --all --json | jq length)"
 
 printf 'diagram' > "$TMPDIR/flow.svg"
 assert_eq "an attachment is copied beside the board and named relative to it" "attachments/BUG-2/flow.svg" "$(stub attach BUG-2 "$TMPDIR/flow.svg")"
 assert_eq "the copy holds the file" "diagram" "$(cat "$COCKPIT_BOARD_DIR/attachments/BUG-2/flow.svg")"
+assert_eq "an attachment is committed under its verb and id" "attach BUG-2" "$(last_commit %s)"
 
 printf "\nTest group: epics have their own columns\n"
 
@@ -200,23 +245,27 @@ printf "\nTest group: a card's id follows its type\n"
 assert_eq "a timebox is numbered with TIME" "TIME-3" "$(stub create --name Spike --type Timebox)"
 stub link FEAT-1 TIME-3 >/dev/null
 printf 'note' | stub comment TIME-3 >/dev/null
-assert_eq "changing the type renames the card" "renamed TIME-3 to FEAT-3" "$(stub set TIME-3 type Feature | head -1)"
+assert_eq "changing the type renames the card" "renamed TIME-3 to FEAT-3" "$(stub set TIME-3 type Feature | sed -n 1p)"
 assert_eq "the old file is gone" "false" "$([ -f "$COCKPIT_BOARD_DIR/cards/TIME-3.md" ] && echo true || echo false)"
 assert_eq "the new file holds its id" "FEAT-3" "$(field FEAT-3 .id)"
 assert_eq "a link to it follows the rename" '["FEAT-3"]' "$(field FEAT-1 '.dependent_on | tojson')"
 assert_eq "its comments follow the rename" "1" "$(stub comments FEAT-3 --json | jq length)"
+assert_eq "the rename is one commit naming every record it touched" "set FEAT-1 FEAT-3 TIME-3" "$(last_commit %s)"
 stub unlink FEAT-1 FEAT-3 >/dev/null
 stub create --name Bad --assignee me >/dev/null 2>&1
 assert_eq "a card has no assignee" "2" "$?"
 
-printf "\nTest group: the record diffs readably\n"
+printf "\nTest group: every write is a commit in the board's own repository\n"
 
-git -C "$COCKPIT_BOARD_DIR" add --all >/dev/null
-git -C "$COCKPIT_BOARD_DIR" -c user.name=t -c user.email=t@t commit --quiet --message base
 stub set BUG-2 epic EPIC-1 >/dev/null
 assert_eq "one field change is one changed line" '-epic: null
-+epic: "EPIC-1"' "$(git -C "$COCKPIT_BOARD_DIR" diff --unified=0 | grep '^[-+][a-z]')"
-assert_eq "the lock never reaches git" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short | grep -v 'cards/BUG-2.md')"
++epic: "EPIC-1"' "$(git -C "$COCKPIT_BOARD_DIR" show --unified=0 --format= HEAD | grep '^[-+][a-z]')"
+assert_eq "nothing is left uncommitted, and the lock never reaches git" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
+commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+stub move BUG-2 "$(field BUG-2 .status)" >/dev/null
+assert_eq "a write that changes nothing still succeeds" "0" "$?"
+assert_eq "and makes no commit" "$commits_before" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+assert_eq "the board is never given a remote" "" "$(git -C "$COCKPIT_BOARD_DIR" remote)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

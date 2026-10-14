@@ -73,6 +73,7 @@ export type Card = {
 	cost_usd?: number | null;
 	tokens_k?: number | null;
 	created: string;
+	moved?: string;
 	rank?: number | null;
 	models?: Record<string, string>;
 	back_from?: Record<string, number>;

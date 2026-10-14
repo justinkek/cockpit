@@ -32,6 +32,7 @@
 #   3  no such record
 #   4  a walk that would go backwards
 #   5  the board directory could not be locked
+#   6  written, but the board's git repository refused the commit
 #   7  no such section
 #
 set -euo pipefail
@@ -195,6 +196,18 @@ require_board() {
   [ -d "$BOARD_DIR/cards" ] || die 3 "no board at $BOARD_DIR - run: board-card init"
 }
 
+commit_board() {
+  [ -d "$BOARD_DIR/.git" ] || return 0
+  local ids
+  git -C "$BOARD_DIR" add --all >/dev/null || die 6 "wrote to $BOARD_DIR but could not stage it"
+  git -C "$BOARD_DIR" diff --cached --quiet && return 0
+  ids="$(git -C "$BOARD_DIR" diff --cached --name-only --no-renames \
+    | sed -n -E 's#^[a-z]+/([A-Z][A-Z0-9]*-[0-9]+)[./].*#\1#p' | awk '!seen[$0]++' | paste -sd ' ' -)"
+  git -C "$BOARD_DIR" -c user.name=board-card -c user.email=board-card@localhost \
+    commit --quiet --message "$action${ids:+ $ids}" >/dev/null \
+    || die 6 "wrote to $BOARD_DIR but could not commit it"
+}
+
 with_lock() {
   local lock="$BOARD_DIR/.lock" tries=0
   until mkdir "$lock" 2>/dev/null; do
@@ -211,6 +224,7 @@ with_lock() {
   trap 'rm -rf "$BOARD_DIR/.lock"' EXIT
   local status=0
   "$@" || status=$?
+  if [ "$status" -eq 0 ]; then commit_board; fi
   rm -rf "$lock"
   trap - EXIT
   return "$status"
@@ -237,7 +251,7 @@ parse_program='
 render_program='
   ["id", "name", "type", "status", "epic", "project", "sprint", "due", "blocked",
    "dependent_on", "dependency_for", "complexity", "session", "claimed_at", "prs", "cost_usd", "tokens_k",
-   "created", "rank", "models", "back_from", "reference", "dates"] as $order
+   "created", "moved", "rank", "models", "back_from", "reference", "dates"] as $order
   | . as $record
   | ($order + ((keys - $order - ["body"]) | sort)) as $keys
   | ["---"]
@@ -351,33 +365,44 @@ command_create() {
   with_lock create_locked "$kind" "$name" "$type" "$status" "$epic" "$body"
 }
 
+PROPERTY_FIELDS='{
+  "Name": "name", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
+  "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Blocked": "blocked", "PRs": "prs",
+  "Agent: Session Id": "session", "Complexity": "complexity",
+  "Dependent on": "dependent_on", "Dependency for": "dependency_for",
+  "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
+  "Cost": "cost_usd", "Tokens": "tokens_k"}'
+
+require_properties() {
+  local unknown
+  unknown="$(jq --null-input --raw-output --argjson fields "$PROPERTY_FIELDS" '
+    [$ARGS.positional[] as $property
+     | select((($fields | has($property)) or ($property | startswith("Date: ") or startswith("Model: ") or startswith("Back from "))) | not)
+     | $property]
+    | .[0] // empty' --args "$@")"
+  [ -z "$unknown" ] || die 2 "no property '$unknown' - one of: $(printf '%s' "$PROPERTY_FIELDS" | jq --raw-output 'keys_unsorted | join(", ")'), Date: <column>, Model: <stage>, Back from <gate>"
+}
+
 property_value() {
   local json="$1" property="$2"
-  printf '%s' "$json" | jq --raw-output --arg property "$property" '
+  printf '%s' "$json" | jq --raw-output --arg property "$property" --argjson fields "$PROPERTY_FIELDS" '
     def text: if type == "array" then join(" ") elif type == "object" then (to_entries | map("\(.key)=\(.value)") | join(" ")) else tostring end;
-    ({"Name": "name", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
-      "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Blocked": "blocked", "PRs": "prs",
-      "Agent: Session Id": "session", "Complexity": "complexity",
-      "Dependent on": "dependent_on", "Dependency for": "dependency_for",
-
-      "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
-      "Cost": "cost_usd", "Tokens": "tokens_k"}[$property] // $property) as $field
-    | if ($property | startswith("Date: ")) then .dates[$property[6:]] // empty
-      elif ($property | startswith("Model: ")) then .models[$property[7:]] // empty
-      elif ($property | startswith("Back from ")) then .back_from[$property[10:]] // empty
-      else .[$field] // empty end
+    if ($property | startswith("Date: ")) then .dates[$property[6:]] // empty
+    elif ($property | startswith("Model: ")) then .models[$property[7:]] // empty
+    elif ($property | startswith("Back from ")) then .back_from[$property[10:]] // empty
+    else .[$fields[$property]] // empty end
     | select(. != [] and . != "" and . != {})
     | text'
 }
 
-section_text() {
+section_lines() {
   local body="$1" heading="$2"
   printf '%s\n' "$body" | awk -v wanted="$heading" '
     /^```/ { fenced = !fenced }
     !fenced && /^#+ / { line = $0; level = length($0) - length(substr($0, index($0, " "))); sub(/^#+ /, "", line)
       if (inside && level <= depth) inside = 0
       if (line == wanted) { inside = 1; depth = level } }
-    inside'
+    inside { print NR "\t" $0 }'
 }
 
 open_comments_json() {
@@ -401,16 +426,19 @@ command_show() {
     return 0
   fi
   if [ "${1:-}" = "--section" ]; then
-    local heading="${2:-}" body threads
+    local heading="${2:-}" body numbered threads
     while [ "${heading#\#}" != "$heading" ]; do heading="${heading#\#}"; done
     heading="${heading# }"
     body="$(printf '%s' "$json" | jq --raw-output '.body')"
-    value="$(section_text "$body" "$heading")"
-    [ -n "$value" ] || die 7 "$id has no section '$heading'"
-    printf '%s\n' "$value"
+    numbered="$(section_lines "$body" "$heading")"
+    [ -n "$numbered" ] || die 7 "$id has no section '$heading'"
+    printf '%s\n' "$numbered" | cut -f2-
     threads="$(open_comments_json "$id")"
-    printf '%s' "$threads" | jq --raw-output --arg section "$value" '
-      .[] | . as $thread | select($thread.anchor != null and ($section | contains($thread.anchor)))
+    printf '%s' "$threads" | jq --raw-output --arg body "$body" \
+      --argjson lines "$(printf '%s\n' "$numbered" | cut -f1 | jq --slurp --compact-output .)" '
+      .[] | . as $thread
+      | select($thread.anchor != null and ($body | contains($thread.anchor)))
+      | select($lines | index($body | split($thread.anchor)[0] | [scan("\n")] | length + 1))
       | .comments[] | "[comment] \(.author): \(.text)"'
     printf '%s' "$threads" | jq --raw-output '
       .[] | select(.anchor == null) | .comments[] | "[comment on the page] \(.author): \(.text)"'
@@ -419,6 +447,7 @@ command_show() {
   if [ "$#" -eq 0 ]; then
     set -- "Name" "Status" "Type" "Epic" "Agent: Session Id" "PRs" "Complexity" "Dependent on" "Dependency for"
   fi
+  require_properties "$@"
   for property in "$@"; do
     value="$(property_value "$json" "$property")"
     [ -n "$value" ] && printf '%s\t%s\n' "$property" "$value"
@@ -480,6 +509,7 @@ property_of_field() {
     name) echo Name ;;
     type) echo Type ;;
     epic) echo Epic ;;
+    project) echo Project ;;
     session) echo "Agent: Session Id" ;;
     blocked) echo Blocked ;;
     prs) echo PRs ;;
@@ -487,7 +517,6 @@ property_of_field() {
     sprint) echo Sprint ;;
     models.*) echo "Model: ${1#models.}" ;;
     back_from.*) echo "Back from ${1#back_from.}" ;;
-    *) echo "$1" ;;
   esac
 }
 
@@ -581,7 +610,7 @@ set_locked() {
 }
 
 command_set() {
-  local id field="${2:-}"
+  local id field="${2:-}" property
   id="$(normalise_id "${1:-}")"
   [ "$#" -ge 3 ] || die 2 "usage: board-card set <id> <field> <value>"
   require_record "$id"
@@ -591,7 +620,8 @@ command_set() {
     printf 'renamed %s to %s\n' "$id" "$RENAMED_TO"
     id="$RENAMED_TO"
   fi
-  command_show "$id" "$(property_of_field "$field")"
+  property="$(property_of_field "$field")"
+  [ -z "$property" ] || command_show "$id" "$property"
 }
 
 section_locked() {
@@ -617,6 +647,7 @@ section_locked() {
     END {
       total = NR
       heading = ENVIRON["HEADING"]; after = ENVIRON["AFTER"]; before = ENVIRON["BEFORE"]; under = ENVIRON["UNDER"]; content = ENVIRON["CONTENT"]
+      gap = (content ~ /^\n/) ? "" : "\n"
       first = 1; last = total; floor = 0; prefix = "##"
       if (under != "") {
         parent = find(under, 1, total, 0)
@@ -630,7 +661,7 @@ section_locked() {
       if (target) {
         stop = section_end(target, last)
         for (k = 1; k <= target; k++) print line[k]
-        if (content != "") print content
+        if (content != "") print gap content
         if (stop < total && line[stop] == "" ) print ""
         for (k = stop + 1; k <= total; k++) print line[k]
         exit
@@ -641,7 +672,7 @@ section_locked() {
         if (anchor) {
           for (k = 1; k < anchor; k++) print line[k]
           print prefix " " heading
-          if (content != "") print content
+          if (content != "") print gap content
           print ""
           for (k = anchor; k <= total; k++) print line[k]
           exit
@@ -656,7 +687,7 @@ section_locked() {
       for (k = 1; k <= insert; k++) print line[k]
       if (insert > 0) print ""
       print prefix " " heading
-      if (content != "") print content
+      if (content != "") print gap content
       if (insert < total) print ""
       for (k = insert + 1; k <= total; k++) if (!(k == insert + 1 && line[k] == "")) print line[k]
     }')"
@@ -702,6 +733,7 @@ hop() {
   if is_stamped "$kind" "$column"; then stamped=true; fi
   update_record "$id" --arg column "$column" --arg stamp "$(now)" --argjson stamped "$stamped" '
     .status = $column
+    | .moved = $stamp
     | if $stamped and ((.dates // {}) | has($column) | not)
       then .dates = ((.dates // {}) + {($column): $stamp}) else . end'
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
@@ -935,15 +967,19 @@ command_resolve() {
   printf 'resolved %s on %s\n' "$comment_id" "$id"
 }
 
+attach_locked() {
+  local directory="$1" source="$2" name="$3"
+  mkdir -p "$directory"
+  cp "$source" "$directory/$name"
+}
+
 command_attach() {
-  local id source="${2:-}" directory name
+  local id source="${2:-}" name
   id="$(normalise_id "${1:-}")"
   [ -f "$source" ] || die 2 "usage: board-card attach <id> <file> - no file at '$source'"
   require_record "$id"
-  directory="$BOARD_DIR/attachments/$id"
-  mkdir -p "$directory"
   name="$(basename "$source")"
-  cp "$source" "$directory/$name"
+  with_lock attach_locked "$BOARD_DIR/attachments/$id" "$source" "$name"
   printf 'attachments/%s/%s\n' "$id" "$name"
 }
 

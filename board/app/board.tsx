@@ -95,9 +95,11 @@ const collisions: CollisionDetection = (args) => {
 
 function lastMoved(stub: Stub) {
 	return (
+		stub.moved ??
 		Object.values(stub.dates ?? {})
 			.sort()
-			.at(-1) ?? stub.created
+			.at(-1) ??
+		stub.created
 	);
 }
 
