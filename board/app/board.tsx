@@ -729,16 +729,22 @@ export function Board({
 	kind = "card",
 	lists,
 	children = {},
+	preset: presetParam,
 }: {
 	initial: Stub[];
 	kind?: Kind;
+	preset?: string;
 	lists: Lists;
 	children?: Record<string, (Named & { status: string })[]>;
 }) {
 	const epics = lists.epics;
 	const router = useRouter();
 	const [stubs, setStubs] = useState(initial);
-	const [view, setView] = useState<View>({ ...DEFAULT_VIEW, collapsed: COLLAPSED[kind] });
+	const [view, setView] = useState<View>({
+		...DEFAULT_VIEW,
+		collapsed: COLLAPSED[kind],
+		...(kind === "card" && presetParam ? { preset: presetOf(presetParam).id } : {}),
+	});
 	const [loaded, setLoaded] = useState(false);
 	const [dragging, setDragging] = useState<Stub | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());

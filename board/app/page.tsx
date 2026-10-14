@@ -3,7 +3,10 @@ import { BoardError, type Card, listRecords } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
-export default async function CardsPage() {
+type Props = { searchParams: Promise<{ view?: string | string[] }> };
+
+export default async function CardsPage({ searchParams }: Props) {
+	const { view } = await searchParams;
 	let cards: Card[];
 	let epics: Card[];
 	let sprints: Card[];
@@ -24,6 +27,7 @@ export default async function CardsPage() {
 		<Board
 			kind="card"
 			initial={cards}
+			preset={typeof view === "string" ? view : undefined}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: epics.map(({ id, name, project }) => ({ id, name, project })),
