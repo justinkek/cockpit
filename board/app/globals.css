@@ -1629,3 +1629,110 @@
 		}
 	}
 }
+
+@layer components {
+	.palette {
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.palette-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0 12px;
+		border-bottom: 1px solid var(--line);
+
+		& input {
+			flex: 1;
+			height: 46px;
+			padding: 0 4px;
+			font-size: 14px;
+			background: none;
+			border: none;
+
+			&:focus {
+				outline: none;
+			}
+		}
+	}
+
+	.stub > .meta .palette-open {
+		margin-left: auto;
+	}
+
+	.palette-crumb {
+		flex: none;
+		max-width: 45%;
+		padding: 2px 8px;
+		border-radius: 4px;
+		background: var(--lane);
+		color: var(--muted);
+		font-size: 12px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.palette-list {
+		list-style: none;
+		margin: 0;
+		padding: 6px;
+		overflow-y: auto;
+		min-height: 0;
+
+		& button {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			width: 100%;
+			height: 34px;
+			padding: 0 10px;
+			background: none;
+			border: none;
+			color: var(--ink);
+			text-align: left;
+
+			&.on {
+				background: var(--lane);
+			}
+		}
+	}
+
+	.palette-label {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.palette-hint {
+		flex: none;
+		color: var(--faint);
+		font: 11.5px var(--mono);
+	}
+
+	.palette-group {
+		display: block;
+		padding: 8px 10px 4px;
+		color: var(--faint);
+		font-size: 11.5px;
+	}
+
+	.palette-empty {
+		padding: 12px 10px;
+		color: var(--faint);
+	}
+
+	@media (width < 760px) {
+		.overlay {
+			padding-top: 56px;
+		}
+
+		.dialog {
+			max-height: calc(100dvh - 72px);
+		}
+	}
+}

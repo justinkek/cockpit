@@ -27,11 +27,6 @@ export function applyTheme(theme: Theme) {
 	window.dispatchEvent(new Event(CHANGED));
 }
 
-export function nextTheme(): Theme {
-	const order: Theme[] = ["system", "light", "dark"];
-	return order[(order.indexOf(savedTheme()) + 1) % order.length];
-}
-
 export function darkNow() {
 	const chosen = document.documentElement.dataset.theme;
 	if (chosen === "dark") return true;

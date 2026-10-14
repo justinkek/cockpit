@@ -1,0 +1,139 @@
+"use client";
+
+import type { Lists } from "@/app/fields";
+import type { Command, Page } from "@/app/palette";
+import { applyTheme } from "@/app/theme";
+import { boardColumns, type Card, FIBONACCI, kindOf, phaseOf, TYPES } from "@/lib/shared";
+
+export type Edits = {
+	label: string;
+	move: (column: string) => void;
+	edit: (field: string, value: string, change: Partial<Card>) => void;
+};
+
+function dot(column: string) {
+	return <span className={`dot phase-${phaseOf(column)}`} aria-hidden="true" />;
+}
+
+export function movePage(kind: "card" | "epic", current: string | undefined, edits: Edits): Page {
+	return {
+		title: `Move ${edits.label} to`,
+		items: boardColumns(kind).map((column) => ({
+			id: `move:${column}`,
+			label: column,
+			icon: dot(column),
+			hint: column === current ? "Current" : undefined,
+			run: () => edits.move(column),
+		})),
+	};
+}
+
+export function epicPage(lists: Lists, current: string | null | undefined, edits: Edits): Page {
+	return {
+		title: `Set the epic of ${edits.label}`,
+		items: [
+			{ id: "epic:none", label: "No epic", run: () => edits.edit("epic", "", { epic: null }) },
+			...lists.epics.map((epic) => ({
+				id: `epic:${epic.id}`,
+				label: epic.name,
+				hint: epic.id === current ? "Current" : epic.id,
+				keywords: epic.id,
+				run: () => edits.edit("epic", epic.id, { epic: epic.id }),
+			})),
+		],
+	};
+}
+
+function choicePage(title: string, items: Command[]): Page {
+	return { title, items };
+}
+
+export function recordCommands(record: Card | null, lists: Lists, edits: Edits | null): Command[] {
+	const kind = record ? kindOf(record.id) : null;
+	if (!kind || !edits) return [];
+	const group = edits.label;
+	const commands: Command[] = [
+		{
+			id: "do:move",
+			group,
+			label: "Move to…",
+			hint: "S",
+			keywords: "status column",
+			next: () => movePage(kind, record?.status, edits),
+		},
+	];
+	if (kind === "card") {
+		commands.push(
+			{ id: "do:epic", group, label: "Set epic…", hint: "E", next: () => epicPage(lists, record?.epic, edits) },
+			{
+				id: "do:type",
+				group,
+				label: "Set type…",
+				next: () =>
+					choicePage(
+						`Set the type of ${edits.label}`,
+						TYPES.map((type) => ({
+							id: `type:${type}`,
+							label: type,
+							hint: type === record?.type ? "Current" : undefined,
+							run: () => edits.edit("type", type, { type }),
+						})),
+					),
+			},
+			{
+				id: "do:sprint",
+				group,
+				label: "Set sprint…",
+				next: () =>
+					choicePage(`Set the sprint of ${edits.label}`, [
+						{ id: "sprint:none", label: "No sprint", run: () => edits.edit("sprint", "", { sprint: null }) },
+						...lists.sprints.map((sprint) => ({
+							id: `sprint:${sprint.id}`,
+							label: sprint.name,
+							hint: sprint.id === record?.sprint ? "Current" : (sprint.start ?? undefined),
+							run: () => edits.edit("sprint", sprint.id, { sprint: sprint.id }),
+						})),
+					]),
+			},
+			{
+				id: "do:complexity",
+				group,
+				label: "Set complexity…",
+				keywords: "points estimate",
+				next: () =>
+					choicePage(`Set the complexity of ${edits.label}`, [
+						{ id: "points:none", label: "Not set", run: () => edits.edit("complexity", "", { complexity: null }) },
+						...FIBONACCI.map((points) => ({
+							id: `points:${points}`,
+							label: String(points),
+							hint: points === record?.complexity ? "Current" : undefined,
+							run: () => edits.edit("complexity", String(points), { complexity: points }),
+						})),
+					]),
+			},
+		);
+	}
+	return commands;
+}
+
+export function themeCommands(): Command[] {
+	return (["system", "light", "dark"] as const).map((theme) => ({
+		id: `theme:${theme}`,
+		group: "Preferences",
+		label: `Theme: ${theme === "system" ? "follow the system" : theme}`,
+		keywords: "appearance dark light mode",
+		run: () => applyTheme(theme),
+	}));
+}
+
+export function cardCommands(cards: { id: string; name: string; status: string }[], open: (id: string) => void) {
+	return cards.map((card) => ({
+		id: `card:${card.id}`,
+		group: "Cards",
+		label: card.name,
+		hint: card.id,
+		keywords: `${card.id} ${card.id.split("-").at(-1)}`,
+		icon: dot(card.status),
+		run: () => open(card.id),
+	}));
+}

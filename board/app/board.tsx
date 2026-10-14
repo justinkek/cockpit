@@ -20,9 +20,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { createCard, dropCard, editCard, linkCards, undoChange } from "@/app/actions";
+import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
+import { type Command, type Page, Palette } from "@/app/palette";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import {
 	boardColumns,
@@ -598,6 +600,7 @@ export function Board({
 	const [addingIn, setAddingIn] = useState<string | null>(null);
 	const [focusedId, setFocusedId] = useState<string | null>(null);
 	const [helpOpen, setHelpOpen] = useState(false);
+	const [palette, setPalette] = useState<Page | null>(null);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
@@ -693,11 +696,79 @@ export function Board({
 		setToast(toastOf(copied ? `Copied ${asLink ? `the link to ${id}` : id}` : `Could not copy ${id}`));
 	}
 
+	function editsFor(id: string): Edits | null {
+		const stub = stubs.find((s) => s.id === id);
+		if (!stub) return null;
+		const handlers = handlersFor(stub);
+		return { label: id, move: handlers.onMove, edit: handlers.onEdit };
+	}
+
+	function rootPage(): Page {
+		const target = openId ?? focusedId;
+		const record = target ? (stubs.find((stub) => stub.id === target) ?? null) : null;
+		const edits = record ? editsFor(record.id) : null;
+		const actions: Command[] = [...recordCommands(record, lists, edits)];
+		if (record) {
+			actions.push(
+				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(record.id, false) },
+				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(record.id, true) },
+				{ id: "do:page", group: record.id, label: "Open its page", run: () => router.push(`/card/${record.id}`) },
+			);
+		}
+		const general: Command[] = [
+			{
+				id: "go:new",
+				group: "Board",
+				label: `New ${kind}…`,
+				hint: "C",
+				next: () => ({
+					title: `New ${kind} in`,
+					items: columns.map((column) => ({
+						id: `new:${column}`,
+						label: column,
+						run: () => {
+							if (view.collapsed.includes(column)) toggleColumn(column);
+							setAddingIn(column);
+						},
+					})),
+				}),
+			},
+			{
+				id: "go:layout",
+				group: "Board",
+				label: view.layout === "board" ? "Show as a list" : "Show as a board",
+				run: () => update({ layout: view.layout === "board" ? "list" : "board" }),
+			},
+			{
+				id: "go:other",
+				group: "Board",
+				label: kind === "card" ? "Go to epics" : "Go to cards",
+				run: () => router.push(kind === "card" ? "/epics" : "/"),
+			},
+			{ id: "go:search", group: "Board", label: "Search the board", hint: "/", run: () => search.current?.focus() },
+			{ id: "go:keys", group: "Board", label: "Keyboard shortcuts", hint: "?", run: () => setHelpOpen(true) },
+			...(filterCount(view) > 0
+				? [{ id: "go:clear", group: "Board", label: "Clear the filters", run: clearFilters }]
+				: []),
+			...themeCommands(),
+		];
+		return { title: "Command menu", root: true, items: [...actions, ...general, ...cardCommands(stubs, openCard)] };
+	}
+
+	function clearFilters() {
+		update({ query: "", types: [], epic: "", blocked: false, claimed: false });
+	}
+
 	useKeys((event) => {
-		if (helpOpen || event.defaultPrevented) return;
+		if (helpOpen || palette || event.defaultPrevented) return;
 		const typing = typingIn(event.target);
 		const command = event.metaKey || event.ctrlKey;
 		const target = openId ?? focusedId;
+		if (command && !event.shiftKey && event.key.toLowerCase() === "k") {
+			event.preventDefault();
+			setPalette(rootPage());
+			return;
+		}
 		if (command && (event.code === "Period" || event.key === "." || event.key === ">")) {
 			if (!target || typing) return;
 			event.preventDefault();
@@ -745,6 +816,15 @@ export function Board({
 				setOpenId(focusedId);
 				break;
 			}
+			case "s":
+			case "e": {
+				const edits = target ? editsFor(target) : null;
+				const record = stubs.find((stub) => stub.id === target);
+				if (!edits || !record || (event.key === "e" && kind !== "card")) return;
+				event.preventDefault();
+				setPalette(event.key === "s" ? movePage(kind, record.status, edits) : epicPage(lists, record.epic, edits));
+				break;
+			}
 			case "c": {
 				event.preventDefault();
 				const focused = order.find((stub) => stub.id === target);
@@ -763,6 +843,9 @@ export function Board({
 		{ keys: ["Enter"], label: "Open the focused card" },
 		{ keys: ["Esc"], label: "Close the card, or clear the focus" },
 		{ keys: ["c"], label: "New card in the focused column" },
+		{ keys: ["Cmd/Ctrl", "K"], label: "Command menu: jump to a card or run an action" },
+		{ keys: ["s"], label: "Move the card to a column" },
+		...(kind === "card" ? [{ keys: ["e"], label: "Set the card's epic" }] : []),
 		{ keys: ["/"], label: "Search" },
 		{ keys: ["Cmd/Ctrl", "."], label: "Copy the card's id" },
 		{ keys: ["Cmd/Ctrl", "Shift", "."], label: "Copy a link to the card" },
@@ -1041,6 +1124,14 @@ export function Board({
 					</select>
 					<button
 						type="button"
+						className="chip-toggle palette-open"
+						onClick={() => setPalette(rootPage())}
+						title="Command menu (Cmd/Ctrl+K)"
+					>
+						Commands
+					</button>
+					<button
+						type="button"
 						className="quiet shortcuts-open"
 						onClick={() => setHelpOpen(true)}
 						title="Keyboard shortcuts (?)"
@@ -1054,15 +1145,7 @@ export function Board({
 						<button
 							type="button"
 							className="quiet"
-							onClick={() =>
-								update({
-									query: "",
-									types: [],
-									epic: "",
-									blocked: false,
-									claimed: false,
-								})
-							}
+							onClick={clearFilters}
 						>
 							Clear {count}
 						</button>
@@ -1117,6 +1200,7 @@ export function Board({
 				</div>
 				<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 				{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
+				{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 			</div>
 		</Names.Provider>
 	);

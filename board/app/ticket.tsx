@@ -3,10 +3,13 @@
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState, useTransition } from "react";
 import { dropCard, editCard, linkCards, undoChange } from "@/app/actions";
+import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
-import { type Undoable, UndoToast, undoable } from "@/app/toast";
-import { type Card, fieldName } from "@/lib/shared";
+import { cardLink, copyText, useKeys } from "@/app/keys";
+import { type Page, Palette } from "@/app/palette";
+import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
+import { type Card, fieldName, kindOf } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: string };
 
@@ -17,6 +20,7 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 	const [saving, startTransition] = useTransition();
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
+	const [palette, setPalette] = useState<Page | null>(null);
 
 	useEffect(() => setRecord(initial), [initial]);
 
@@ -83,6 +87,54 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 			),
 	};
 
+	const kind = kindOf(record.id);
+	const edits: Edits = { label: record.id, move: handlers.onMove, edit: handlers.onEdit };
+
+	async function copy(asLink: boolean) {
+		const copied = await copyText(asLink ? cardLink(record.id) : record.id);
+		setToast(toastOf(copied ? `Copied ${asLink ? `the link to ${record.id}` : record.id}` : `Could not copy ${record.id}`));
+	}
+
+	function rootPage(): Page {
+		return {
+			title: "Command menu",
+			root: true,
+			items: [
+				...recordCommands(record, lists, edits),
+				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
+				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(true) },
+				{
+					id: "go:board",
+					group: "Board",
+					label: "Show it on the board",
+					run: () => router.push(`${kind === "epic" ? "/epics" : "/"}?open=${record.id}`),
+				},
+				...themeCommands(),
+				...cardCommands(
+					lists.cards.filter((card) => card.id !== record.id),
+					(id) => router.push(`/card/${id}`),
+				),
+			],
+		};
+	}
+
+	useKeys((event) => {
+		if (palette || event.defaultPrevented) return;
+		const command = event.metaKey || event.ctrlKey;
+		const typing = typingIn(event.target);
+		if (command && !event.shiftKey && event.key.toLowerCase() === "k") {
+			event.preventDefault();
+			setPalette(rootPage());
+		} else if (command && !typing && (event.code === "Period" || event.key === "." || event.key === ">")) {
+			event.preventDefault();
+			copy(event.shiftKey);
+		} else if (!command && !event.altKey && !typing && kind && (event.key === "s" || event.key === "e")) {
+			if (event.key === "e" && kind !== "card") return;
+			event.preventDefault();
+			setPalette(event.key === "s" ? movePage(kind, record.status, edits) : epicPage(lists, record.epic, edits));
+		}
+	});
+
 	return (
 		<article className="stub">
 			<Title
@@ -96,6 +148,14 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 				{record.type && <span>{record.type}</span>}
 				<span>{record.status}</span>
 				{saving && <span className="saving">Saving…</span>}
+				<button
+					type="button"
+					className="chip-toggle palette-open"
+					onClick={() => setPalette(rootPage())}
+					title="Command menu (Cmd/Ctrl+K)"
+				>
+					Commands
+				</button>
 			</p>
 			{error && (
 				<p className="notice error" role="alert">
@@ -129,6 +189,7 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 
 			<Content id={record.id} body={record.body} onRecord={setRecord} />
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
+			{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 		</article>
 	);
 }
