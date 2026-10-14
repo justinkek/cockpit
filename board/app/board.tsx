@@ -793,6 +793,7 @@ export function Board({
 		if (ids.length === 0) return;
 		const before = stubs.filter((stub) => ids.includes(stub.id));
 		setNotice(null);
+		setToast(null);
 		setStubs((current) =>
 			optimistic === null
 				? current.filter((stub) => !ids.includes(stub.id))
@@ -1089,6 +1090,7 @@ export function Board({
 		const before = stubs.find((s) => s.id === id);
 		if (!before) return;
 		setNotice(null);
+		setToast(null);
 		setStubs((current) => current.map((s) => (s.id === id ? { ...s, ...optimistic } : s)));
 		markPending(id, true);
 		startTransition(async () => {
@@ -1136,7 +1138,7 @@ export function Board({
 				}
 			}
 			setUndoing(false);
-			setToast(null);
+			setToast((current) => (current?.key === shown.key ? null : current));
 			if (failures.length > 0) setNotice({ id: "", text: `Could not undo: ${failures.join("; ")}` });
 			router.refresh();
 		});

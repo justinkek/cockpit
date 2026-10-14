@@ -56,6 +56,7 @@ export function Ticket({
 		const before = record;
 		setRecord((current) => ({ ...current, ...change }));
 		setError("");
+		setToast(null);
 		startTransition(async () => {
 			const result = await request();
 			if (result.error) {
@@ -78,7 +79,7 @@ export function Ticket({
 			const [change] = shown.changes;
 			const result = await undoChange(change.id, { since: change.since, until: change.until });
 			setUndoing(false);
-			setToast(null);
+			setToast((current) => (current?.key === shown.key ? null : current));
 			if (result.error) {
 				setError(`Could not undo: ${result.error}`);
 				return;

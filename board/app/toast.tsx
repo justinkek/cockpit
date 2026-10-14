@@ -29,6 +29,14 @@ export function typingIn(target: EventTarget | null) {
 	);
 }
 
+const TEXT_INPUTS = /^(text|search|email|url|tel|password|number|date|datetime-local|month|week|time)$/;
+
+function editingText(target: EventTarget | null) {
+	if (!(target instanceof HTMLElement)) return false;
+	if (target.isContentEditable || target.tagName === "TEXTAREA") return true;
+	return target instanceof HTMLInputElement && TEXT_INPUTS.test(target.type);
+}
+
 export function UndoToast({
 	toast,
 	busy,
@@ -52,7 +60,7 @@ export function UndoToast({
 	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
 			const { toast: shown, busy: undoing, onUndo: undo } = latest.current;
-			if (!shown || shown.changes.length === 0 || undoing || typingIn(event.target)) return;
+			if (!shown || shown.changes.length === 0 || undoing || editingText(event.target)) return;
 			if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
 				event.preventDefault();
 				undo(shown);
