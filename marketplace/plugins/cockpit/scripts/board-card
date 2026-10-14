@@ -826,7 +826,8 @@ set_locked() {
       prefix_of_type "$value" >/dev/null
       renamed="$(prefix_of_type "$value")-${id##*-}"
       [ "$renamed" = "$id" ] || { [ ! -e "$BOARD_DIR/cards/$renamed.md" ] && [ ! -e "$BOARD_DIR/archive/cards/$renamed.md" ]; } || die 2 "$renamed already exists"
-      update_record "$id" --arg value "$value" '.type = $value'
+      update_record "$id" --arg value "$value" '.type = $value
+        | if $value == "Timebox" and .timebox_mins == null then .timebox_mins = 60 else . end'
       if [ "$renamed" != "$id" ]; then
         rename_card "$id" "$renamed"
         RENAMED_TO="$renamed"

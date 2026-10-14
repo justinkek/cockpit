@@ -319,6 +319,13 @@ assert_eq "create takes a budget of its own" "30" "$(field "$(stub create --name
 assert_eq "a feature starts with none" "null" "$(field "$(stub create --name "No budget")" .timebox_mins)"
 stub set EPIC-1 timebox_mins 30 >/dev/null 2>&1
 assert_eq "only a card has a timebox" "2" "$?"
+turned="$(stub create --name "Becomes a spike")"
+turned="$(stub set "$turned" type Timebox | sed -n 's/^renamed .* to //p')"
+assert_eq "a card turned into a timebox starts with an hour too" "60" "$(field "$turned" .timebox_mins)"
+stub set "$turned" timebox_mins 45 >/dev/null
+turned="$(stub set "$turned" type Feature | sed -n 's/^renamed .* to //p')"
+turned="$(stub set "$turned" type Timebox | sed -n 's/^renamed .* to //p')"
+assert_eq "and one that had a budget keeps it" "45" "$(field "$turned" .timebox_mins)"
 
 printf "\nTest group: a sprint has dates and a capacity\n"
 
