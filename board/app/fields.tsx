@@ -6,6 +6,7 @@ import { submitCard } from "@/app/actions";
 import { CardPicker } from "@/app/card-picker";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { RecordFields } from "@/app/record-fields";
+import { CONFIDENCES } from "@/lib/plan";
 import {
 	boardColumns,
 	bounces,
@@ -527,6 +528,64 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					</dd>
 				</>
 			)}
+			{kind === "epic" && (
+				<>
+					<dt>Start</dt>
+					<dd>
+						<Fallback id={id} op="set" field="start">
+							<TextField
+								type="date"
+								label="Start"
+								value={record.start ?? ""}
+								onCommit={(start) => onEdit("start", start, { start: start || null })}
+							/>
+						</Fallback>
+					</dd>
+					<dt>Target</dt>
+					<dd className="with-link">
+						<Fallback id={id} op="set" field="target">
+							<TextField
+								type="date"
+								label="Target"
+								value={record.target ?? ""}
+								onCommit={(target) => onEdit("target", target, { target: target || null })}
+							/>
+						</Fallback>
+						<Link href={`/plan?open=${id}`} className="quiet-link" aria-label="Open it on the plan">
+							↗
+						</Link>
+					</dd>
+					<dt>Confidence</dt>
+					<dd>
+						<Fallback id={id} op="set" field="confidence">
+							<select
+								name="value"
+								aria-label="Confidence"
+								value={record.confidence ?? ""}
+								onChange={(event) =>
+									onEdit("confidence", event.target.value, { confidence: event.target.value || null })
+								}
+							>
+								<option value="">Not set</option>
+								{CONFIDENCES.map((confidence) => (
+									<option key={confidence}>{confidence}</option>
+								))}
+							</select>
+						</Fallback>
+					</dd>
+					<dt>Learning</dt>
+					<dd>
+						<Fallback id={id} op="set" field="learning">
+							<TextField
+								label="Learning"
+								placeholder="Nothing learnt yet"
+								value={record.learning ?? ""}
+								onCommit={(learning) => onEdit("learning", learning, { learning: learning || null })}
+							/>
+						</Fallback>
+					</dd>
+				</>
+			)}
 			{kind === "card" && (
 				<>
 					<dt>Due</dt>
@@ -543,6 +602,15 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<span className={`pill due due-${due.tone}`} title={due.title} suppressHydrationWarning>
 								{due.label}
 							</span>
+						)}
+						{due?.held && (
+							<Link
+								href={`/plan?open=${due.held}`}
+								className="pill due held"
+								title={`Held to the target of ${due.held} - a new target moves it, and a date set here makes it the card's own`}
+							>
+								{due.held} target
+							</Link>
 						)}
 					</dd>
 					<dt>Blocked</dt>

@@ -58,7 +58,7 @@ export const REFINEMENT_COLUMNS = CARD_COLUMNS.filter((column) => /\b(BR|TR)\b/.
 
 export type Kind = "card" | "epic";
 
-export type RecordKind = Kind | "project" | "sprint" | "reference";
+export type RecordKind = Kind | "project" | "sprint" | "reference" | "milestone";
 
 export const PROJECT_STATUSES = ["Not started", "In progress", "Done"] as const;
 
@@ -87,6 +87,7 @@ export type Card = {
 	project?: string | null;
 	sprint?: string | null;
 	due?: string | null;
+	due_from?: string | null;
 	blocked?: string | null;
 	dependent_on?: string[];
 	dependency_for?: string[];
@@ -116,6 +117,11 @@ export type Card = {
 	domain?: string | null;
 	stack?: string | null;
 	card?: string | null;
+	target?: string | null;
+	confidence?: string | null;
+	learning?: string | null;
+	plan_rank?: number | null;
+	date?: string | null;
 	days_in_column?: number;
 	overrunning?: boolean;
 	comments?: number;
@@ -160,7 +166,7 @@ export function kindOf(id: string): Kind | null {
 	return null;
 }
 
-const RECORD_KINDS: Record<string, RecordKind> = { PRJ: "project", SPR: "sprint", REF: "reference" };
+const RECORD_KINDS: Record<string, RecordKind> = { PRJ: "project", SPR: "sprint", REF: "reference", MS: "milestone" };
 
 export function recordKindOf(id: string): RecordKind | null {
 	return kindOf(id) ?? RECORD_KINDS[id.split("-")[0]] ?? null;
@@ -172,6 +178,7 @@ export function homeOf(id: string): string {
 	if (kind === "project") return "/projects";
 	if (kind === "sprint") return `/sprints?sprint=${id}`;
 	if (kind === "reference") return "/references";
+	if (kind === "milestone") return "/plan";
 	return `/?open=${id}`;
 }
 
@@ -190,7 +197,14 @@ export function phaseOf(column: string): string {
 	return "idle";
 }
 
-const FIELD_NAMES: Record<string, string> = { timebox_mins: "timebox", prs: "PRs", due: "due date" };
+const FIELD_NAMES: Record<string, string> = {
+	timebox_mins: "timebox",
+	prs: "PRs",
+	due: "due date",
+	start: "start date",
+	target: "target date",
+	plan_rank: "place in the plan",
+};
 
 export const MODEL_STAGES = ["BR", "TR", "Dev", "CR"] as const;
 
@@ -199,13 +213,19 @@ export function fieldName(field: string) {
 	return FIELD_NAMES[field] ?? field;
 }
 
-export type DueState = { tone: "overdue" | "soon" | "later"; label: string; title: string };
+export type DueState = { tone: "overdue" | "soon" | "later"; label: string; title: string; held: string | null };
 
 function localDay(date: Date) {
 	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
 }
 
-export function dueState(record: Pick<Card, "due" | "status">, now = new Date()): DueState | null {
+export function dueState(record: Pick<Card, "due" | "status" | "due_from">, now = new Date()): DueState | null {
+	const state = dueOf(record, now);
+	if (!state || !record.due_from) return state;
+	return { ...state, title: `${state.title} - held to the target of ${record.due_from}`, held: record.due_from };
+}
+
+function dueOf(record: Pick<Card, "due" | "status">, now: Date): DueState | null {
 	const day = record.due?.match(/^(\d{4})-(\d{2})-(\d{2})/);
 	if (!day) return null;
 	const due = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
@@ -213,13 +233,14 @@ export function dueState(record: Pick<Card, "due" | "status">, now = new Date())
 	const finished = phaseOf(record.status) === "done" || record.status === "Deprioritised";
 	const date = due.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 	const title = `Due ${due.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
-	if (finished) return { tone: "later", label: date, title };
-	if (days < 0) return { tone: "overdue", label: days === -1 ? "Overdue 1 day" : `Overdue ${-days} days`, title };
-	if (days === 0) return { tone: "soon", label: "Due today", title };
-	if (days === 1) return { tone: "soon", label: "Due tomorrow", title };
+	const held = null;
+	if (finished) return { tone: "later", label: date, title, held };
+	if (days < 0) return { tone: "overdue", label: days === -1 ? "Overdue 1 day" : `Overdue ${-days} days`, title, held };
+	if (days === 0) return { tone: "soon", label: "Due today", title, held };
+	if (days === 1) return { tone: "soon", label: "Due tomorrow", title, held };
 	if (days <= 3)
-		return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title };
-	return { tone: "later", label: `Due ${date}`, title };
+		return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title, held };
+	return { tone: "later", label: `Due ${date}`, title, held };
 }
 
 export const SPLIT_ABOVE = 5;

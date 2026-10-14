@@ -72,8 +72,18 @@ export async function changeStatus(record: Card, column: string): Promise<void> 
 }
 
 export async function setField(id: string, field: string, value: string): Promise<string> {
+	return (await setFieldHolding(id, field, value)).id;
+}
+
+export async function setFieldHolding(
+	id: string,
+	field: string,
+	value: string,
+): Promise<{ id: string; held: string[] }> {
 	const output = await boardCard(["set", id, field, value]);
-	return output.match(/^renamed \S+ to (\S+)$/m)?.[1] ?? id;
+	const current = output.match(/^renamed \S+ to (\S+)$/m)?.[1] ?? id;
+	const held = [...output.matchAll(/^(\S+)\tdue /gm)].map((match) => match[1]).filter((card) => card !== current);
+	return { id: current, held };
 }
 
 export async function findRenamed(id: string): Promise<string | null> {
@@ -143,6 +153,18 @@ export async function lastCommit(id: string): Promise<string | null> {
 		return (await boardCard(["history", id])).split("\t")[0] || null;
 	} catch (error) {
 		if (error instanceof BoardError) return null;
+		throw error;
+	}
+}
+
+export async function commitsOf(id: string): Promise<string[]> {
+	try {
+		return (await boardCard(["history", id]))
+			.split("\n")
+			.filter(Boolean)
+			.map((line) => line.split("\t")[0]);
+	} catch (error) {
+		if (error instanceof BoardError) return [];
 		throw error;
 	}
 }

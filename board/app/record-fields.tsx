@@ -253,13 +253,14 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 	);
 }
 
-function DateField({ record, field, onEdit }: { record: Card; field: "start" | "end"; onEdit: Edit }) {
-	const label = field === "start" ? "Start" : "End";
+function DateField({ record, field, onEdit }: { record: Card; field: "start" | "end" | "date"; onEdit: Edit }) {
+	const label = field === "start" ? "Start" : field === "end" ? "End" : "Date";
 	return (
 		<Fallback id={record.id} op="set" field={field}>
 			<TextField
 				type="date"
 				label={label}
+				required={field === "date"}
 				value={record[field] ?? ""}
 				onCommit={(date) => onEdit(field, date, { [field]: date || null })}
 			/>
@@ -343,6 +344,18 @@ export function RecordFields({ record, lists, onEdit }: { record: Card; lists: L
 			{kind === "project" && <ProjectFields record={record} onEdit={onEdit} />}
 			{kind === "sprint" && <SprintFields record={record} onEdit={onEdit} />}
 			{kind === "reference" && <ReferenceFields record={record} lists={lists} onEdit={onEdit} />}
+			{kind === "milestone" && (
+				<>
+					<dt>Date</dt>
+					<dd className="with-link">
+						<DateField record={record} field="date" onEdit={onEdit} />
+						<Link href="/plan" className="quiet-link" aria-label="Open the plan">
+							↗
+						</Link>
+					</dd>
+					<IconField record={record} onEdit={onEdit} />
+				</>
+			)}
 		</dl>
 	);
 }

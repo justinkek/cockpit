@@ -157,7 +157,14 @@ const COLUMNS: Column[] = [
 		value: (record) => record.due ?? null,
 		cell: (record) => {
 			const due = dueState(record);
-			return due && <span className={`due-${due.tone}`}>{shortDate(record.due)}</span>;
+			return (
+				due && (
+					<span className={`due-${due.tone}`} title={due.title}>
+						{shortDate(record.due)}
+						{due.held && " · target"}
+					</span>
+				)
+			);
 		},
 	},
 	{ key: "prs", label: "PRs", kinds: ["card"], wide: true, value: (record) => record.prs ?? null },

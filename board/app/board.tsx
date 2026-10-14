@@ -22,6 +22,7 @@ import { createContext, useContext, useEffect, useId, useMemo, useRef, useState,
 import {
 	type Bulk,
 	bulkChange,
+	type Change,
 	createCard,
 	dropCard,
 	duplicateCard,
@@ -185,8 +186,9 @@ function DueChip({ stub }: { stub: Stub }) {
 	const due = dueState(stub);
 	if (!due) return null;
 	return (
-		<span className={`pill due due-${due.tone}`} title={due.title} suppressHydrationWarning>
+		<span className={`pill due due-${due.tone}${due.held ? " held" : ""}`} title={due.title} suppressHydrationWarning>
 			{due.label}
+			{due.held && " · target"}
 		</span>
 	);
 }
@@ -1334,7 +1336,14 @@ export function Board({
 	function apply(
 		id: string,
 		optimistic: Partial<Stub>,
-		request: () => Promise<{ record?: Stub; error?: string; moved?: string; archived?: boolean; undo?: Span }>,
+		request: () => Promise<{
+			record?: Stub;
+			error?: string;
+			moved?: string;
+			archived?: boolean;
+			undo?: Span;
+			more?: Change[];
+		}>,
 		label: string,
 	) {
 		const before = stubs.find((s) => s.id === id);
@@ -1358,7 +1367,7 @@ export function Board({
 			if (fresh) {
 				setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
 				if (fresh.id !== id) setOpenId((opened) => (opened === id ? fresh.id : opened));
-				setToast(undoable(fresh.id, result.undo, withNewId(label, id, fresh.id)));
+				setToast(undoable(fresh.id, result.undo, withNewId(label, id, fresh.id), result.more));
 			}
 			router.refresh();
 		});

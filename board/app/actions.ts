@@ -11,6 +11,7 @@ import {
 	type Kind,
 	changeStatus,
 	commentAuthor,
+	commitsOf,
 	createRecord,
 	deleteComment,
 	editComment,
@@ -25,13 +26,15 @@ import {
 	resolveComment,
 	searchContent,
 	setField,
+	setFieldHolding,
 	unarchiveRecord,
 	undoSince,
 } from "@/lib/board";
 
 type Failure = { error?: string; moved?: string; archived?: boolean };
 export type Span = { since: string; until: string };
-type Result = Failure & { record?: Card; undo?: Span };
+export type Change = { id: string } & Span;
+type Result = Failure & { record?: Card; undo?: Span; more?: Change[] };
 type Threads = Failure & { threads?: CommentThread[]; me?: string | null };
 export type NewOptions = {
 	type?: string;
@@ -50,7 +53,19 @@ function refresh(id: string) {
 	revalidatePath("/sprints");
 	revalidatePath("/references");
 	revalidatePath("/archive");
+	revalidatePath("/plan");
 	revalidatePath(`/card/${id}`);
+}
+
+async function heldChanges(held: string[], until: string | undefined): Promise<Change[]> {
+	if (!until || held.length === 0) return [];
+	const changes: Change[] = [];
+	for (const card of [...new Set(held)]) {
+		const [last, before] = await commitsOf(card);
+		if (last === until && before) changes.push({ id: card, since: before, until });
+		refresh(card);
+	}
+	return changes;
 }
 
 async function failed(id: string, error: unknown): Promise<Failure> {
@@ -228,7 +243,64 @@ export async function submitRecord(_previous: string | null, form: FormData): Pr
 }
 
 export async function editCard(id: string, field: string, value: string): Promise<Result> {
-	return report(id, () => setField(id, field, value));
+	const held: string[] = [];
+	const result = await report(id, async () => {
+		const change = await setFieldHolding(id, field, value);
+		held.push(...change.held);
+		return change.id;
+	});
+	return { ...result, more: await heldChanges(held, result.undo?.until) };
+}
+
+export async function planDates(id: string, start: string, target: string): Promise<Result> {
+	const held: string[] = [];
+	const result = await report(id, async () => {
+		const record = await readRecord(id);
+		const steps: [string, string][] = [];
+		if ((record.start ?? "") !== start) steps.push(["start", start]);
+		if ((record.target ?? "") !== target) steps.push(["target", target]);
+		if (start && record.target && start > record.target) steps.reverse();
+		for (const [field, value] of steps) held.push(...(await setFieldHolding(id, field, value)).held);
+	});
+	return { ...result, more: await heldChanges(held, result.undo?.until) };
+}
+
+export type Ranked = { id: string; rank: number };
+
+export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
+	const result: BulkResult = { records: [], undo: [], errors: [] };
+	for (const { id, rank } of order) {
+		const changed = await report(id, () => setField(id, "plan_rank", rankText(rank)));
+		if (changed.error) result.errors.push(`${id}: ${changed.error}`);
+		if (changed.record) result.records.push({ from: id, record: changed.record });
+		if (changed.undo) result.undo.push({ id, ...changed.undo });
+	}
+	return result;
+}
+
+export async function createMilestone(name: string, date: string): Promise<Result> {
+	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
+	if (!typed) return { error: "a milestone needs a name" };
+	try {
+		const id = await createRecord("milestone", typed, "", { fields: { date } });
+		refresh(id);
+		return { record: await readRecord(id) };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
+}
+
+export async function removeMilestone(id: string): Promise<Failure & { undo?: Span }> {
+	try {
+		const since = await lastCommit(id);
+		await archiveRecord(id);
+		refresh(id);
+		const until = await lastCommit(id);
+		return { undo: since && until && until !== since ? { since, until } : undefined };
+	} catch (error) {
+		return failed(id, error);
+	}
 }
 
 export async function linkCards(id: string, parent: string, child: string, linked: boolean): Promise<Result> {

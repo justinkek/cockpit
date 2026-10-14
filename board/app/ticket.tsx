@@ -30,7 +30,17 @@ import { type Page, Palette } from "@/app/palette";
 import { ProgressMeter } from "@/app/progress";
 import { Stages, stampText } from "@/app/stages";
 import { tableOrder } from "@/app/table";
-import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
+import {
+	carryTo,
+	type Change,
+	takeCarried,
+	toastOf,
+	typingIn,
+	type Undoable,
+	UndoToast,
+	undoable,
+	withNewId,
+} from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import type { Progress } from "@/lib/metrics";
 import {
@@ -44,7 +54,7 @@ import {
 	recordKindOf,
 } from "@/lib/shared";
 
-type Result = { record?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span };
+type Result = { record?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span; more?: Change[] };
 
 export function Ticket({
 	initial,
@@ -148,7 +158,7 @@ export function Ticket({
 			}
 			if (!result.record) return;
 			setRecord(result.record);
-			const shown = undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id));
+			const shown = undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id), result.more);
 			setToast(shown);
 			if (result.record.id !== before.id) {
 				carryTo(result.record.id, shown);

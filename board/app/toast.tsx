@@ -12,10 +12,13 @@ export function undoable(
 	id: string,
 	span: { since: string; until: string } | undefined,
 	text: string,
+	more: Change[] = [],
 ): Undoable | null {
 	if (!span) return null;
 	made += 1;
-	return { key: made, text, changes: [{ id, ...span }] };
+	const held =
+		more.length === 0 ? "" : ` and the due date of ${more.length === 1 ? more[0].id : `${more.length} cards`}`;
+	return { key: made, text: `${text}${held}`, changes: [{ id, ...span }, ...more] };
 }
 
 export function withNewId(text: string, from: string, to: string) {

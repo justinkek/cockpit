@@ -12,6 +12,7 @@ const KINDS: { kind: RecordKind; title: string }[] = [
 	{ kind: "project", title: "Projects" },
 	{ kind: "sprint", title: "Sprints" },
 	{ kind: "reference", title: "Reference tickets" },
+	{ kind: "milestone", title: "Milestones" },
 ];
 
 function when(stamp: string | undefined) {
