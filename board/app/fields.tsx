@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { submitCard } from "@/app/actions";
+import { CardPicker } from "@/app/card-picker";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { RecordFields } from "@/app/record-fields";
 import {
@@ -268,6 +269,7 @@ function Picker({
 	const [missed, setMissed] = useState("");
 	const list = useId();
 	const hydrated = useHydrated();
+	if (hydrated) return <CardPicker label={label} cards={cards} onPick={onPick} />;
 	function pick(value: string) {
 		const id = idOf(value, cards);
 		if (!id) {
@@ -312,9 +314,7 @@ function Picker({
 						</option>
 					))}
 				</datalist>
-				<button type="submit" disabled={hydrated && !text.trim()}>
-					Link
-				</button>
+				<button type="submit">Link</button>
 			</form>
 			{missed && (
 				<p className="picker-miss" role="alert">
