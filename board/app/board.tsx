@@ -38,13 +38,14 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Command, type Page, Palette } from "@/app/palette";
+import { contextOf, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
 	COLLAPSED,
 	DEFAULT_VIEW,
 	exceptEpic,
 	type Found,
-	type Layout,
+	LAYOUTS,
 	loadView,
 	matches,
 	NO_EPIC,
@@ -859,12 +860,25 @@ export function Board({
 		return view.hideEmpty ? all.filter((column) => visible.some((stub) => stub.status === column)) : all;
 	}, [stubs, visible, view.hideEmpty, columnsOfKind, preset.id]);
 	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
+	const tableContext = useMemo(() => contextOf(kind, lists), [kind, lists]);
+	const tableSort = parseTableSort(view.tableSort);
+	const tableRecords = useMemo(
+		() => (view.layout === "table" ? visible.filter((stub) => columns.includes(stub.status)) : []),
+		[view.layout, visible, columns],
+	);
+	const fields = useMemo(() => tableColumns(kind, tableRecords), [kind, tableRecords]);
+	const rows = useMemo(
+		() => sortTable(tableRecords, fields, tableContext, parseTableSort(view.tableSort)),
+		[tableRecords, fields, tableContext, view.tableSort],
+	);
 	const order = useMemo(
 		() =>
-			columns
-				.filter((column) => !view.collapsed.includes(column))
-				.flatMap((column) => visible.filter((stub) => stub.status === column)),
-		[columns, visible, view.collapsed],
+			view.layout === "table"
+				? rows
+				: columns
+						.filter((column) => !view.collapsed.includes(column))
+						.flatMap((column) => visible.filter((stub) => stub.status === column)),
+		[columns, visible, view.collapsed, view.layout, rows],
 	);
 
 	useEffect(() => {
@@ -1074,12 +1088,13 @@ export function Board({
 				keywords: "create add",
 				run: () => setComposing(true),
 			},
-			{
-				id: "go:layout",
+			...LAYOUTS.filter(([layout]) => layout !== view.layout).map(([layout, label]) => ({
+				id: `go:layout:${layout}`,
 				group: "Board",
-				label: view.layout === "board" ? "Show as a list" : "Show as a board",
-				run: () => update({ layout: view.layout === "board" ? "list" : "board" }),
-			},
+				label: `Show as a ${label.toLowerCase()}`,
+				keywords: layout === "table" ? "every field property columns" : undefined,
+				run: () => update({ layout }),
+			})),
 			...(kind === "card"
 				? PRESETS.filter((choice) => choice.id !== preset.id).map((choice) => ({
 						id: `go:view:${choice.id}`,
@@ -1479,7 +1494,7 @@ export function Board({
 						</select>
 					)}
 					<div className="segmented" role="group" aria-label="Layout">
-						{(["board", "list"] as const).map((layout) => (
+						{LAYOUTS.map(([layout, label]) => (
 							<button
 								key={layout}
 								type="button"
@@ -1487,7 +1502,7 @@ export function Board({
 								aria-pressed={view.layout === layout}
 								onClick={() => update({ layout })}
 							>
-								{layout === "board" ? "Board" : "List"}
+								{label}
 							</button>
 						))}
 					</div>
@@ -1622,6 +1637,19 @@ export function Board({
 									<Lane key={column} {...groupProps(column)} />
 								))}
 							</div>
+						) : view.layout === "table" ? (
+							<Table
+								kind={kind}
+								records={rows}
+								columns={fields}
+								context={tableContext}
+								sort={tableSort}
+								onSort={(key) => update({ tableSort: nextTableSort(tableSort, key) })}
+								pending={pending}
+								focusedId={focusedId}
+								selected={selected}
+								onOpen={clickCard}
+							/>
 						) : (
 							<div className="list">
 								{columns.map((column) => (

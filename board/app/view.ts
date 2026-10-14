@@ -1,7 +1,13 @@
 import { inPreset, type Kind, manualRank, type Card as Stub } from "@/lib/shared";
 
 export type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved";
-export type Layout = "board" | "list";
+export type Layout = "board" | "list" | "table";
+
+export const LAYOUTS: [Layout, string][] = [
+	["board", "Board"],
+	["list", "List"],
+	["table", "Table"],
+];
 
 export type View = {
 	preset: string;
@@ -12,6 +18,7 @@ export type View = {
 	claimed: boolean;
 	hideEmpty: boolean;
 	sort: Sort;
+	tableSort: string;
 	layout: Layout;
 	collapsed: string[];
 };
@@ -25,6 +32,7 @@ export const DEFAULT_VIEW: View = {
 	claimed: false,
 	hideEmpty: false,
 	sort: "manual",
+	tableSort: "",
 	layout: "board",
 	collapsed: ["Done", "Deprioritised"],
 };
@@ -77,7 +85,7 @@ function ticketNumber(stub: Stub) {
 	return Number(stub.id.split("-").at(-1));
 }
 
-function lastMoved(stub: Stub) {
+export function lastMoved(stub: Stub) {
 	return (
 		stub.moved ??
 		Object.values(stub.dates ?? {})
