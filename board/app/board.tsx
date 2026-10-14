@@ -471,7 +471,7 @@ export function Board({
 		const url = new URL(window.location.href);
 		if (openId) url.searchParams.set("open", openId);
 		else url.searchParams.delete("open");
-		if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
 	}, [openId, loaded]);
 
 	useEffect(() => {
