@@ -44,10 +44,6 @@ export const EPIC_COLUMNS = [
 
 export type Kind = "card" | "epic";
 
-export function walkColumns(kind: Kind) {
-	return kind === "epic" ? EPIC_COLUMNS : CARD_COLUMNS;
-}
-
 export function boardColumns(kind: Kind) {
 	return kind === "epic" ? EPIC_COLUMNS : CARD_BOARD_COLUMNS;
 }

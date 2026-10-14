@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import { type Card, type CommentThread, type Kind, kindOf, walkColumns } from "./shared";
+import type { Card, CommentThread, Kind } from "./shared";
 
 export * from "./shared";
 
@@ -42,11 +42,7 @@ export async function boardDirectory(): Promise<string> {
 }
 
 export async function changeStatus(record: Card, column: string): Promise<void> {
-	const columns = walkColumns(kindOf(record.id) ?? "card");
-	const from = columns.indexOf(record.status);
-	const to = columns.indexOf(column);
-	const forward = from >= 0 && to > from;
-	await boardCard([forward ? "walk" : "move", record.id, column]);
+	await boardCard(["move", record.id, column]);
 }
 
 export async function setField(id: string, field: string, value: string): Promise<string> {
