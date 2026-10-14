@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { submitRecord } from "@/app/actions";
-import { PROJECT_STATUSES } from "@/lib/shared";
+import { DOMAINS, FIBONACCI, PROJECT_STATUSES } from "@/lib/shared";
 
 type Other = "project" | "sprint" | "reference";
 
@@ -27,6 +27,25 @@ function props(kind: Other): ReactNode {
 				</select>
 				<input name="priority" type="number" min={0} aria-label="Priority" placeholder="Priority" />
 				<input name="repo" type="url" aria-label="Repo" placeholder="Repo URL" />
+			</>
+		);
+	}
+	if (kind === "reference") {
+		return (
+			<>
+				<select name="points" aria-label="Points" defaultValue="">
+					<option value="">Points</option>
+					{FIBONACCI.map((points) => (
+						<option key={points}>{points}</option>
+					))}
+				</select>
+				<select name="domain" aria-label="Domain" defaultValue="">
+					<option value="">No domain</option>
+					{DOMAINS.map((domain) => (
+						<option key={domain}>{domain}</option>
+					))}
+				</select>
+				<input name="stack" aria-label="Stack" placeholder="Stack" />
 			</>
 		);
 	}

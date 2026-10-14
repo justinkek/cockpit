@@ -3592,3 +3592,28 @@
 		}
 	}
 }
+
+@layer components {
+	.long-field {
+		width: 100%;
+		min-height: 56px;
+		padding: 6px 8px;
+		font: inherit;
+		color: inherit;
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: var(--radius);
+		resize: vertical;
+
+		&:focus {
+			outline: 2px solid var(--accent-soft);
+			border-color: var(--accent);
+		}
+	}
+
+	.reference-points {
+		min-width: 28px;
+		justify-content: center;
+		font-variant-numeric: tabular-nums;
+	}
+}
