@@ -304,6 +304,29 @@ assert_eq "a feature starts with none" "null" "$(field "$(stub create --name "No
 stub set EPIC-1 timebox_mins 30 >/dev/null 2>&1
 assert_eq "only a card has a timebox" "2" "$?"
 
+printf "\nTest group: a sprint has dates and a capacity\n"
+
+sprint="$(stub create --kind sprint --name "Week 42" --start 2026-10-12 --end 2026-10-16 --dev-days 5 --speed 4)"
+assert_eq "create takes a sprint's dates, dev days and speed" "2026-10-12 2026-10-16 5 4" \
+  "$(field "$sprint" '"\(.start) \(.end) \(.dev_days) \(.speed)"')"
+assert_eq "an end date reads back under its property name" "End Date	2026-10-15" "$(stub set "$sprint" end 2026-10-15)"
+stub set "$sprint" speed 3.5 >/dev/null
+assert_eq "a speed may be part of a point" "3.5" "$(field "$sprint" .speed)"
+stub set "$sprint" start 2026-10-19 >/dev/null 2>&1
+assert_eq "a start after the end is refused" "2" "$?"
+stub set "$sprint" end 2026-11-31 >/dev/null 2>&1
+assert_eq "a day the calendar does not have is refused" "2" "$?"
+stub set "$sprint" dev_days five >/dev/null 2>&1
+assert_eq "dev days are a number" "2" "$?"
+stub set "$sprint" dev_days "" >/dev/null
+assert_eq "an empty value clears it" "null" "$(field "$sprint" .dev_days)"
+stub create --kind sprint --name Backwards --start 2026-10-16 --end 2026-10-12 >/dev/null 2>&1
+assert_eq "create refuses a sprint that ends before it starts" "2" "$?"
+stub set FEAT-1 start 2026-10-12 >/dev/null 2>&1
+assert_eq "only a sprint has dates" "2" "$?"
+stub create --name "Not a sprint" --speed 3 >/dev/null 2>&1
+assert_eq "nor does create give a card a speed" "2" "$?"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

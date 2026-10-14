@@ -5,6 +5,7 @@
 #   board-card init
 #   board-card create [--kind card|epic|project|sprint|reference] --name <name> [--type Feature|Bug|Timebox]
 #                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
+#                     [--start <date>] [--end <date>] [--dev-days <n>] [--speed <n>]
 #   board-card show <id> [--json | --section <heading> | <property>...]
 #   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--json]
 #   board-card statuses [--kind card|epic]
@@ -360,7 +361,7 @@ create_locked() {
 }
 
 command_create() {
-  local kind=card name="" type="Feature" status="" epic="" body="" fields="{}" pairs=() index value timebox="" timebox_given=false
+  local kind=card name="" type="Feature" status="" epic="" body="" fields="{}" pairs=() index value timebox="" timebox_given=false start="" end=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --kind) kind="${2:-}"; shift 2 ;;
@@ -370,6 +371,10 @@ command_create() {
       --epic) epic="${2:-}"; shift 2 ;;
       --icon) pairs+=("icon" "${2:-}"); shift 2 ;;
       --timebox-mins) timebox="${2:-}"; timebox_given=true; shift 2 ;;
+      --start) start="${2:-}"; pairs+=("start" "$start"); shift 2 ;;
+      --end) end="${2:-}"; pairs+=("end" "$end"); shift 2 ;;
+      --dev-days) pairs+=("dev_days" "${2:-}"); shift 2 ;;
+      --speed) pairs+=("speed" "${2:-}"); shift 2 ;;
       --body) [ "${2:-}" = "-" ] || die 2 "--body reads stdin: pass --body -"; body="$(cat)"; shift 2 ;;
       *) die 2 "create: unknown option '$1'" ;;
     esac
@@ -397,6 +402,7 @@ command_create() {
     value="$(field_json "$kind" "${pairs[index]}" "${pairs[index + 1]}")" || exit "$?"
     fields="$(jq --compact-output --arg field "${pairs[index]}" --argjson value "$value" '. + {($field): $value}' <<<"$fields")"
   done
+  check_sprint_span "$start" "$end"
   require_board
   with_lock create_locked "$kind" "$name" "$type" "$status" "$epic" "$body" "$fields"
 }
@@ -407,7 +413,8 @@ PROPERTY_FIELDS='{
   "Agent: Session Id": "session", "Complexity": "complexity", "Timebox (mins)": "timebox_mins",
   "Dependent on": "dependent_on", "Dependency for": "dependency_for",
   "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
-  "Cost": "cost_usd", "Tokens": "tokens_k"}'
+  "Cost": "cost_usd", "Tokens": "tokens_k",
+  "Start Date": "start", "End Date": "end", "Dev Days": "dev_days", "Speed": "speed"}'
 
 require_properties() {
   local unknown
@@ -543,6 +550,10 @@ property_of_field() {
   case "$1" in
     complexity) echo Complexity ;;
     timebox_mins) echo "Timebox (mins)" ;;
+    start) echo "Start Date" ;;
+    end) echo "End Date" ;;
+    dev_days) echo "Dev Days" ;;
+    speed) echo Speed ;;
     name) echo Name ;;
     icon) echo Icon ;;
     type) echo Type ;;
@@ -579,6 +590,11 @@ check_icon() {
            else $pictographs == $joins + 1 end)' >/dev/null || die 2 "an icon is one emoji, not '$1'"
 }
 
+check_sprint_span() {
+  local start="$1" end="$2"
+  [ -z "$start" ] || [ -z "$end" ] || [[ ! "$end" < "$start" ]] || die 2 "a sprint ends on or after the day it starts, and $end is before $start"
+}
+
 field_json() {
   local kind="$1" field="$2" value="$3"
   case "$field" in
@@ -590,6 +606,18 @@ field_json() {
       [ "$kind" = card ] || die 2 "only a card has a timebox, and this is a $kind"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a timebox is a whole number of minutes, not '$value'"
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
+      ;;
+    start|end)
+      [ "$kind" = sprint ] || die 2 "only a sprint has a $field date, and this is a $kind"
+      [ -z "$value" ] || jq --null-input --exit-status --arg value "$value" \
+        'try ($value | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") and ($value + "T00:00:00Z" | fromdateiso8601 | todate | .[:10]) == $value) catch false' >/dev/null \
+        || die 2 "a sprint's $field is a date like 2026-10-12, not '$value'"
+      nullable "$value"
+      ;;
+    dev_days|speed)
+      [ "$kind" = sprint ] || die 2 "only a sprint has $field, and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+(\.[0-9]+)?$' || die 2 "a sprint's $field is a number, not '$value'"
+      if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
     *) die 2 "no field '$field' on a $kind" ;;
   esac
@@ -648,8 +676,12 @@ set_locked() {
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
       ;;
-    icon|timebox_mins)
+    icon|timebox_mins|start|end|dev_days|speed)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
+      case "$field" in
+        start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
+        end) check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
+      esac
       update_record "$id" --arg field "$field" --argjson value "$json" '.[$field] = $value'
       ;;
     epic|project|sprint)
@@ -684,7 +716,7 @@ set_locked() {
       ;;
     status) die 2 "status changes through: board-card move or board-card walk" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, session, body, rank, models.<stage>, reference.<key>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, timebox_mins, start, end, dev_days, speed, session, body, rank, models.<stage>, reference.<key>" ;;
   esac
 }
 
@@ -1108,5 +1140,5 @@ case "$action" in
   attach) command_attach "$@" ;;
   usage) command_usage "$@" ;;
   path) command_path "$@" ;;
-  *) sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  *) sed -n '3,/^#   board-card path/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
