@@ -339,8 +339,8 @@ function Peek({
 					<Link href={`/card/${stub.id}`} className="quiet-link">
 						Open
 					</Link>
-					<button type="button" className="quiet" onClick={onClose} aria-label="Close">
-						Esc
+					<button type="button" className="quiet" onClick={onClose} title="Close (Esc)" aria-keyshortcuts="Escape">
+						Close
 					</button>
 				</span>
 			</header>
