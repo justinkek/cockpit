@@ -251,7 +251,13 @@ with_lock() {
     commit_board unrecorded 2>/dev/null || true
   fi
   local status=0
-  "$@" || status=$?
+  set +e
+  (
+    set -e
+    "$@"
+  )
+  status=$?
+  set -e
   if [ "$status" -eq 0 ]; then
     commit_board "$action" || die 6 "wrote to $BOARD_DIR but could not commit it"
   fi
@@ -355,7 +361,7 @@ write_record() {
     fi
   fi
   mkdir -p "$(dirname "$file")"
-  tmp="$(mktemp "$(dirname "$file")/.$id.XXXXXX")"
+  tmp="$(mktemp "$(dirname "$file")/.$id.XXXXXX" 2>/dev/null)" || die 2 "could not write $id: $(dirname "$file") refused a new file"
   if ! printf '%s' "$json" | jq --raw-output --arg stamp "$(now)" ".updated = \$stamp | $render_program" > "$tmp" || [ ! -s "$tmp" ]; then
     rm -f "$tmp"
     die 2 "refused to write $id with nothing in it"
@@ -851,10 +857,7 @@ set_locked() {
       [ "$renamed" = "$id" ] || { [ ! -e "$BOARD_DIR/cards/$renamed.md" ] && [ ! -e "$BOARD_DIR/archive/cards/$renamed.md" ]; } || die 2 "$renamed already exists"
       update_record "$id" --arg value "$value" '.type = $value
         | if $value == "Timebox" and .timebox_mins == null then .timebox_mins = 60 else . end'
-      if [ "$renamed" != "$id" ]; then
-        rename_card "$id" "$renamed"
-        RENAMED_TO="$renamed"
-      fi
+      [ "$renamed" = "$id" ] || rename_card "$id" "$renamed"
       ;;
     name)
       [ -n "$value" ] || die 2 "a record needs a name"
@@ -907,15 +910,15 @@ set_locked() {
 }
 
 command_set() {
-  local id field="${2:-}" property
+  local id field="${2:-}" property renamed
   id="$(normalise_id "${1:-}")"
   [ "$#" -ge 3 ] || die 2 "usage: board-card set <id> <field> <value>"
   require_record "$id"
-  RENAMED_TO=""
   with_lock set_locked "$id" "$field" "$3"
-  if [ -n "$RENAMED_TO" ]; then
-    printf 'renamed %s to %s\n' "$id" "$RENAMED_TO"
-    id="$RENAMED_TO"
+  if [ "$field" = type ] && [ ! -f "$(record_file "$id")" ]; then
+    renamed="$(prefix_of_type "$3")-${id##*-}"
+    printf 'renamed %s to %s\n' "$id" "$renamed"
+    id="$renamed"
   fi
   property="$(property_of_field "$field")"
   [ -z "$property" ] || command_show "$id" "$property"

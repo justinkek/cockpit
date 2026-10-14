@@ -583,6 +583,21 @@ stub undo "$link_child" --since "$since" >/dev/null
 assert_eq "undo --since takes back a link along with the change after it" "Linked child [] []" \
   "$(field "$link_child" .name) $(field "$link_parent" '.dependent_on | tojson') $(field "$link_child" '.dependency_for | tojson')"
 
+printf "\nTest group: a write the filesystem refuses fails with its status\n"
+
+unwritable="$(stub create --name "Unwritable")"
+chmod a-w "$COCKPIT_BOARD_DIR/cards"
+stub set "$unwritable" name "Never written" >/dev/null 2>&1
+set_status=$?
+stub walk "$unwritable" "In BR" >/dev/null 2>&1
+walk_status=$?
+created="$(stub create --name "Never made" 2>/dev/null)"
+create_status=$?
+chmod u+w "$COCKPIT_BOARD_DIR/cards"
+assert_eq "a set, a walk and a create each fail, and the create prints no id" "true true true " \
+  "$([ "$set_status" -ne 0 ] && echo true) $([ "$walk_status" -ne 0 ] && echo true) $([ "$create_status" -ne 0 ] && echo true) $created"
+assert_eq "the record is left as it was" "Unwritable Backlog" "$(field "$unwritable" .name) $(field "$unwritable" .status)"
+
 claimed="$(stub create --name "Claimed then undone")"
 stub claim "$claimed" >/dev/null
 stub undo "$claimed" >/dev/null
