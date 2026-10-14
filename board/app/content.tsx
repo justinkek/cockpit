@@ -66,6 +66,12 @@ function Stamp({ at, edited }: { at: string; edited?: string }) {
 	);
 }
 
+type Rewrite = { comment: string; thread: string; anchor: string | null; text: string };
+
+function holds(threads: CommentThread[], comment: string) {
+	return threads.some((thread) => thread.comments.some((other) => other.id === comment));
+}
+
 function Composer({
 	placeholder,
 	onSubmit,
@@ -73,6 +79,7 @@ function Composer({
 	autoFocus,
 	initial = "",
 	submitLabel = "Comment",
+	onDraft,
 }: {
 	placeholder: string;
 	onSubmit: (text: string) => void;
@@ -80,6 +87,7 @@ function Composer({
 	autoFocus?: boolean;
 	initial?: string;
 	submitLabel?: string;
+	onDraft?: (text: string) => void;
 }) {
 	const [text, setText] = useState(initial);
 	const box = useRef<HTMLTextAreaElement>(null);
@@ -102,7 +110,10 @@ function Composer({
 				placeholder={placeholder}
 				autoFocus={autoFocus}
 				rows={2}
-				onChange={(event) => setText(event.target.value)}
+				onChange={(event) => {
+					setText(event.target.value);
+					onDraft?.(event.target.value);
+				}}
 				onKeyDown={(event) => {
 					if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit();
 					if (event.key === "Escape") {
@@ -145,7 +156,11 @@ export function Content({
 	const [drafting, setDrafting] = useState<Picked | null>(null);
 	const [focused, setFocused] = useState<string | null>(null);
 	const [replying, setReplying] = useState<string | null>(null);
-	const [rewriting, setRewriting] = useState<string | null>(null);
+	const [rewriting, setRewriting] = useState<Rewrite | null>(null);
+	const [lost, setLost] = useState<Rewrite | null>(null);
+	const rewriteDraft = useRef("");
+	const rewritingNow = useRef(rewriting);
+	rewritingNow.current = rewriting;
 	const [me, setMe] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
 	const [base, setBase] = useState("");
@@ -178,6 +193,7 @@ export function Content({
 		setDrafting(null);
 		setReplying(null);
 		setRewriting(null);
+		setLost(null);
 		setTarget(null);
 		if (!renamed) {
 			setError("");
@@ -303,13 +319,23 @@ export function Content({
 				if (commenting.current > 0) return;
 				const asked = id;
 				loadComments(asked).then((result) => {
-					if (shown.current === asked && commenting.current === 0 && result.threads) setThreads(result.threads);
+					if (shown.current !== asked || commenting.current > 0 || !result.threads) return;
+					setThreads(result.threads);
+					const open = rewritingNow.current;
+					if (open && !holds(result.threads, open.comment)) {
+						setRewriting(null);
+						setLost({ ...open, text: rewriteDraft.current });
+					}
 				});
 			}),
 		[id],
 	);
 
-	function apply(optimistic: (current: CommentThread[]) => CommentThread[], request: () => Promise<Threads>) {
+	function apply(
+		optimistic: (current: CommentThread[]) => CommentThread[],
+		request: () => Promise<Threads>,
+		onFailed?: (fresh: CommentThread[]) => void,
+	) {
 		const before = threads;
 		const asked = id;
 		setThreads(optimistic(before));
@@ -323,7 +349,9 @@ export function Content({
 			if (result.error) {
 				setError(result.error);
 				const fresh = await loadComments(asked);
-				if (shown.current === asked) setThreads(fresh.threads ?? before);
+				if (shown.current !== asked) return;
+				setThreads(fresh.threads ?? before);
+				onFailed?.(fresh.threads ?? before);
 				return;
 			}
 			if (result.threads) setThreads(result.threads);
@@ -352,7 +380,13 @@ export function Content({
 		);
 	}
 
-	function rewrite(comment: string, text: string) {
+	function startRewrite(thread: CommentThread, comment: CommentThread["comments"][number]) {
+		rewriteDraft.current = comment.text;
+		setRewriting({ comment: comment.id, thread: thread.thread, anchor: thread.anchor, text: comment.text });
+	}
+
+	function rewrite(open: Rewrite, text: string) {
+		const comment = open.comment;
 		setRewriting(null);
 		apply(
 			(current) =>
@@ -363,7 +397,20 @@ export function Content({
 					),
 				})),
 			() => changeComment(id, comment, text),
+			(fresh) => {
+				const kept = { ...open, text };
+				rewriteDraft.current = text;
+				if (holds(fresh, comment)) setRewriting(kept);
+				else setLost(kept);
+			},
 		);
+	}
+
+	function repost(draft: Rewrite) {
+		setLost(null);
+		const thread = threads.find((other) => other.thread === draft.thread);
+		if (thread) post(draft.text, undefined, thread.thread);
+		else post(draft.text, draft.anchor ?? undefined);
 	}
 
 	function remove(comment: string) {
@@ -436,7 +483,7 @@ export function Content({
 	const open = threads.filter((thread) => !thread.resolved);
 	const resolved = threads.filter((thread) => thread.resolved);
 	const anchored = open.filter((thread) => thread.anchor);
-	function renderComment(comment: CommentThread["comments"][number]) {
+	function renderComment(thread: CommentThread, comment: CommentThread["comments"][number]) {
 		const pending = comment.id.startsWith("pending-");
 		const mine = !pending && me !== null && comment.author === me;
 		return (
@@ -444,9 +491,9 @@ export function Content({
 				<span className="comment-head">
 					<strong>{comment.author}</strong>
 					<Stamp at={comment.at} edited={comment.edited} />
-					{mine && rewriting !== comment.id && (
+					{mine && rewriting?.comment !== comment.id && (
 						<span className="comment-tools">
-							<button type="button" className="quiet" onClick={() => setRewriting(comment.id)}>
+							<button type="button" className="quiet" onClick={() => startRewrite(thread, comment)}>
 								Edit
 							</button>
 							<button type="button" className="quiet" onClick={() => remove(comment.id)}>
@@ -455,14 +502,17 @@ export function Content({
 						</span>
 					)}
 				</span>
-				{rewriting === comment.id ? (
+				{rewriting?.comment === comment.id ? (
 					<Composer
 						placeholder="Edit your comment…"
 						autoFocus
-						initial={comment.text}
+						initial={rewriting.text}
 						submitLabel="Save"
+						onDraft={(text) => {
+							rewriteDraft.current = text;
+						}}
 						onCancel={() => setRewriting(null)}
-						onSubmit={(text) => rewrite(comment.id, text)}
+						onSubmit={(text) => rewrite(rewriting, text)}
 					/>
 				) : (
 					<Markdown source={comment.text} />
@@ -580,6 +630,20 @@ export function Content({
 			</div>
 
 			{error && <p className="notice error">{error}</p>}
+			{lost && (
+				<div className="notice error lost-draft">
+					<p>The comment you were editing was deleted, so your edit could not be saved. Here is what you wrote:</p>
+					<blockquote className="quoted">{lost.text}</blockquote>
+					<span className="composer-actions">
+						<button type="button" className="quiet" onClick={() => setLost(null)}>
+							Discard
+						</button>
+						<button type="button" onClick={() => repost(lost)}>
+							Post as a new comment
+						</button>
+					</span>
+				</div>
+			)}
 
 			<section className="threads" ref={list}>
 				<h3>Comments {open.length > 0 && <span className="count">{open.length}</span>}</h3>
@@ -596,7 +660,7 @@ export function Content({
 								{thread.anchor}
 							</blockquote>
 						)}
-						{thread.comments.map((comment) => renderComment(comment))}
+						{thread.comments.map((comment) => renderComment(thread, comment))}
 						{replying === thread.thread ? (
 							<Composer
 								placeholder="Reply…"
@@ -638,7 +702,7 @@ export function Content({
 						{resolved.map((thread) => (
 							<article key={thread.thread} data-thread={thread.thread} className="thread resolved">
 								{thread.anchor && <blockquote className="quoted">{thread.anchor}</blockquote>}
-								{thread.comments.map((comment) => renderComment(comment))}
+								{thread.comments.map((comment) => renderComment(thread, comment))}
 								<span className="thread-actions">
 									<button type="button" className="quiet" onClick={() => resolve(thread.thread, false)}>
 										Reopen
