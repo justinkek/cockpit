@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { editCard } from "@/app/actions";
 import { Choice, Fallback, type Handlers, type Lists, TextField } from "@/app/fields";
 import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, recordKindOf } from "@/lib/shared";
 
@@ -249,11 +251,87 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 	);
 }
 
+function DateField({ record, field, onEdit }: { record: Card; field: "start" | "end"; onEdit: Edit }) {
+	const label = field === "start" ? "Start" : "End";
+	return (
+		<Fallback id={record.id} op="set" field={field}>
+			<TextField
+				type="date"
+				label={label}
+				value={record[field] ?? ""}
+				onCommit={(date) => onEdit(field, date, { [field]: date || null })}
+			/>
+		</Fallback>
+	);
+}
+
+function SprintFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
+	return (
+		<>
+			<dt>Start</dt>
+			<dd>
+				<DateField record={record} field="start" onEdit={onEdit} />
+			</dd>
+			<dt>End</dt>
+			<dd>
+				<DateField record={record} field="end" onEdit={onEdit} />
+			</dd>
+			<NumberField record={record} field="dev_days" label="Dev days" placeholder="Working days in it" step="any" onEdit={onEdit} />
+			<NumberField record={record} field="speed" label="Speed" placeholder="Points a day" step="any" onEdit={onEdit} />
+			<IconField record={record} onEdit={onEdit} />
+		</>
+	);
+}
+
+export function SprintDates({ sprint }: { sprint: Card }) {
+	const router = useRouter();
+	const [record, setRecord] = useState(sprint);
+	const [error, setError] = useState("");
+	const [saving, startTransition] = useTransition();
+	useEffect(() => setRecord(sprint), [sprint]);
+	const onEdit: Edit = (field, value, change) => {
+		const before = record;
+		setRecord((current) => ({ ...current, ...change }));
+		setError("");
+		startTransition(async () => {
+			const result = await editCard(record.id, field, value);
+			if (result.error) {
+				setRecord(before);
+				setError(result.error);
+				return;
+			}
+			router.refresh();
+		});
+	};
+	return (
+		<div className="sprint-dates" aria-label={`Dates of ${record.name}`}>
+			<label>
+				<span>Start</span>
+				<DateField record={record} field="start" onEdit={onEdit} />
+			</label>
+			<label>
+				<span>End</span>
+				<DateField record={record} field="end" onEdit={onEdit} />
+			</label>
+			<Link href={`/card/${record.id}`} className="quiet-link">
+				Dev days and speed
+			</Link>
+			{saving && <span className="saving">Saving…</span>}
+			{error && (
+				<p className="notice error" role="alert">
+					{error}
+				</p>
+			)}
+		</div>
+	);
+}
+
 export function RecordFields({ record, lists, onEdit }: { record: Card; lists: Lists; onEdit: Edit }) {
 	const kind = recordKindOf(record.id);
 	return (
 		<dl className="props">
 			{kind === "project" && <ProjectFields record={record} onEdit={onEdit} />}
+			{kind === "sprint" && <SprintFields record={record} onEdit={onEdit} />}
 			{kind === "reference" && <ReferenceFields record={record} lists={lists} onEdit={onEdit} />}
 		</dl>
 	);

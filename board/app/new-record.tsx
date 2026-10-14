@@ -30,6 +30,22 @@ function props(kind: Other): ReactNode {
 			</>
 		);
 	}
+	if (kind === "sprint") {
+		return (
+			<>
+				<label className="new-date">
+					<span>Start</span>
+					<input name="start" type="date" aria-label="Start" />
+				</label>
+				<label className="new-date">
+					<span>End</span>
+					<input name="end" type="date" aria-label="End" />
+				</label>
+				<input name="dev_days" type="number" min={0} step="any" aria-label="Dev days" placeholder="Dev days" />
+				<input name="speed" type="number" min={0} step="any" aria-label="Speed" placeholder="Speed" />
+			</>
+		);
+	}
 	if (kind === "reference") {
 		return (
 			<>

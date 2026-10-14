@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { BurndownChart } from "@/app/burndown";
+import { NewOther } from "@/app/new-record";
 import { SprintPicker } from "@/app/picker";
+import { SprintDates } from "@/app/record-fields";
 import { BoardError, type Card, listRecords, phaseOf } from "@/lib/board";
 import { burndownOf, currentSprint, type Measure, sprintDays } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ sprint?: string | string[]; measure?: string | string[] }> };
+type Props = {
+	searchParams: Promise<{ sprint?: string | string[]; measure?: string | string[]; error?: string | string[] }>;
+};
 
 function sprintLabel(sprint: Card) {
 	if (sprint.start && sprint.end) return `${sprint.name} · ${sprint.start} to ${sprint.end}`;
@@ -31,10 +35,22 @@ export default async function SprintsPage({ searchParams }: Props) {
 		return <p className="notice error">{error.message}</p>;
 	}
 
+	const failure =
+		typeof params.error === "string" ? (
+			<p className="notice error" role="alert">
+				{params.error}
+			</p>
+		) : null;
+
 	if (sprints.length === 0) {
 		return (
 			<section className="report">
-				<h1>Sprints</h1>
+				<header className="report-head">
+					<h1>Sprints</h1>
+					<span className="spacer" />
+					<NewOther kind="sprint" />
+				</header>
+				{failure}
 				<p className="empty">No sprint is on the board yet.</p>
 			</section>
 		);
@@ -77,7 +93,11 @@ export default async function SprintsPage({ searchParams }: Props) {
 						</Link>
 					))}
 				</span>
+				<span className="spacer" />
+				<NewOther kind="sprint" />
 			</header>
+			{failure}
+			<SprintDates sprint={sprint} />
 
 			<div className="stat-row">
 				<div>
