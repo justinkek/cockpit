@@ -86,6 +86,8 @@ export function Content({
 	const area = useRef<HTMLDivElement>(null);
 	const list = useRef<HTMLElement>(null);
 	const checking = useRef(0);
+	const shown = useRef(id);
+	shown.current = id;
 	const bodyGiven = given !== undefined;
 
 	useEffect(() => {
@@ -158,13 +160,16 @@ export function Content({
 
 	function apply(optimistic: (current: CommentThread[]) => CommentThread[], request: () => Promise<Threads>) {
 		const before = threads;
+		const asked = id;
 		setThreads(optimistic(before));
 		setError("");
 		startTransition(async () => {
 			const result = await request();
+			if (shown.current !== asked) return;
 			if (result.error) {
-				setThreads(before);
 				setError(result.error);
+				const fresh = await loadComments(asked);
+				if (shown.current === asked) setThreads(fresh.threads ?? before);
 				return;
 			}
 			if (result.threads) setThreads(result.threads);
@@ -330,50 +335,53 @@ export function Content({
 
 			<section className="threads" ref={list}>
 				<h3>Comments {threads.length > 0 && <span className="count">{threads.length}</span>}</h3>
-				{threads.map((thread) => (
-					<article
-						key={thread.thread}
-						data-thread={thread.thread}
-						className={`thread${focused === thread.thread ? " focused" : ""}`}
-						onMouseEnter={() => setFocused(thread.thread)}
-						onMouseLeave={() => setFocused(null)}
-					>
-						{thread.anchor && (
-							<blockquote className={`quoted${orphaned.includes(thread) ? " orphaned" : ""}`}>
-								{thread.anchor}
-							</blockquote>
-						)}
-						{thread.comments.map((comment) => (
-							<div key={comment.id} className={`comment${comment.id.startsWith("pending-") ? " pending" : ""}`}>
-								<span className="comment-head">
-									<strong>{comment.author}</strong>
-									<time dateTime={comment.at}>{when(comment.at)}</time>
+				{threads.map((thread) => {
+					const sending = thread.thread.startsWith("pending-");
+					return (
+						<article
+							key={thread.thread}
+							data-thread={thread.thread}
+							className={`thread${focused === thread.thread ? " focused" : ""}`}
+							onMouseEnter={() => setFocused(thread.thread)}
+							onMouseLeave={() => setFocused(null)}
+						>
+							{thread.anchor && (
+								<blockquote className={`quoted${orphaned.includes(thread) ? " orphaned" : ""}`}>
+									{thread.anchor}
+								</blockquote>
+							)}
+							{thread.comments.map((comment) => (
+								<div key={comment.id} className={`comment${comment.id.startsWith("pending-") ? " pending" : ""}`}>
+									<span className="comment-head">
+										<strong>{comment.author}</strong>
+										<time dateTime={comment.at}>{when(comment.at)}</time>
+									</span>
+									<Markdown source={comment.text} />
+								</div>
+							))}
+							{replying === thread.thread ? (
+								<Composer
+									placeholder="Reply…"
+									autoFocus
+									onCancel={() => setReplying(null)}
+									onSubmit={(text) => {
+										post(text, undefined, thread.thread);
+										setReplying(null);
+									}}
+								/>
+							) : (
+								<span className="thread-actions">
+									<button type="button" className="quiet" disabled={sending} onClick={() => setReplying(thread.thread)}>
+										Reply
+									</button>
+									<button type="button" className="quiet" disabled={sending} onClick={() => resolve(thread.thread)}>
+										Resolve
+									</button>
 								</span>
-								<Markdown source={comment.text} />
-							</div>
-						))}
-						{replying === thread.thread ? (
-							<Composer
-								placeholder="Reply…"
-								autoFocus
-								onCancel={() => setReplying(null)}
-								onSubmit={(text) => {
-									post(text, undefined, thread.thread);
-									setReplying(null);
-								}}
-							/>
-						) : (
-							<span className="thread-actions">
-								<button type="button" className="quiet" onClick={() => setReplying(thread.thread)}>
-									Reply
-								</button>
-								<button type="button" className="quiet" onClick={() => resolve(thread.thread)}>
-									Resolve
-								</button>
-							</span>
-						)}
-					</article>
-				))}
+							)}
+						</article>
+					);
+				})}
 				<Composer placeholder="Comment on the page…" onSubmit={(text) => post(text)} />
 			</section>
 		</section>

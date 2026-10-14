@@ -1316,6 +1316,7 @@
 	}
 
 	.picker,
+	.thread-actions,
 	.body-editor {
 		& button[disabled] {
 			opacity: 0.5;
