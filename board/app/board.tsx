@@ -42,10 +42,13 @@ import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from
 import {
 	COLLAPSED,
 	DEFAULT_VIEW,
+	exceptEpic,
 	type Found,
 	type Layout,
 	loadView,
 	matches,
+	NO_EPIC,
+	onlyEpic,
 	type Sort,
 	saveView,
 	sorter,
@@ -63,7 +66,9 @@ import {
 	manualRank,
 	type Named,
 	overrunTitle,
+	PRESETS,
 	phaseOf,
+	presetOf,
 	showsOverrun,
 	SPLIT_ABOVE,
 	type Card as Stub,
@@ -720,9 +725,15 @@ export function Board({
 		const saved = loadView(kind);
 		const params = new URLSearchParams(window.location.search);
 		const epic = params.get("epic");
+		const preset = kind === "card" ? params.get("view") : null;
 		const failure = params.get("error");
 		if (failure) setNotice({ id: "", text: failure });
-		if (saved || epic) setView({ ...(saved ?? DEFAULT_VIEW), ...(epic ? { epic } : {}) });
+		if (saved || epic || preset)
+			setView({
+				...(saved ?? { ...DEFAULT_VIEW, collapsed: COLLAPSED[kind] }),
+				...(epic ? { epic } : {}),
+				...(preset ? { preset: presetOf(preset).id } : {}),
+			});
 		const opening = params.get("open")?.toUpperCase();
 		if (opening) {
 			const number = opening.split("-").at(-1);
@@ -744,8 +755,10 @@ export function Board({
 		if (openId) url.searchParams.set("open", openId);
 		else url.searchParams.delete("open");
 		url.searchParams.delete("error");
+		if (kind === "card" && view.preset !== PRESETS[0].id) url.searchParams.set("view", view.preset);
+		else url.searchParams.delete("view");
 		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
-	}, [openId, loaded]);
+	}, [openId, loaded, view.preset]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -794,16 +807,20 @@ export function Board({
 		};
 	}, [lists.cards, lists.epics, stubs, kind]);
 
-	const columnsOfKind = boardColumns(kind);
+	const preset = kind === "card" ? presetOf(view.preset) : PRESETS[0];
+	const columnsOfKind = preset.id === PRESETS[0].id ? boardColumns(kind) : preset.columns;
 	const visible = useMemo(
 		() => stubs.filter((stub) => matches(stub, view, found)).sort(sorter(view.sort)),
 		[stubs, view, found],
 	);
 	const columns = useMemo(() => {
-		const extra = [...new Set(stubs.map((stub) => stub.status))].filter((status) => !columnsOfKind.includes(status));
+		const extra =
+			preset.id === PRESETS[0].id
+				? [...new Set(stubs.map((stub) => stub.status))].filter((status) => !columnsOfKind.includes(status))
+				: [];
 		const all = [...columnsOfKind, ...extra];
 		return view.hideEmpty ? all.filter((column) => visible.some((stub) => stub.status === column)) : all;
-	}, [stubs, visible, view.hideEmpty, columnsOfKind]);
+	}, [stubs, visible, view.hideEmpty, columnsOfKind, preset.id]);
 	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
 	const order = useMemo(
 		() =>
@@ -1026,6 +1043,15 @@ export function Board({
 				label: view.layout === "board" ? "Show as a list" : "Show as a board",
 				run: () => update({ layout: view.layout === "board" ? "list" : "board" }),
 			},
+			...(kind === "card"
+				? PRESETS.filter((choice) => choice.id !== preset.id).map((choice) => ({
+						id: `go:view:${choice.id}`,
+						group: "Board",
+						label: choice.show,
+						keywords: `view ${choice.label} ${choice.title}`,
+						run: () => update({ preset: choice.id }),
+					}))
+				: []),
 			{
 				id: "go:other",
 				group: "Board",
@@ -1296,7 +1322,7 @@ export function Board({
 		const last = lane.at(-1);
 		const result = await createCard(kind, name, column, {
 			type: view.types.length === 1 ? view.types[0] : undefined,
-			epic: view.epic || undefined,
+			epic: onlyEpic(view),
 			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
 		});
 		const fresh = result.record;
@@ -1393,11 +1419,26 @@ export function Board({
 						defaults={{
 							status: columnsOfKind[0],
 							type: kind === "card" && view.types.length === 1 ? view.types[0] : undefined,
-							epic: kind === "card" ? view.epic || undefined : undefined,
+							epic: kind === "card" ? onlyEpic(view) : undefined,
 						}}
 						onOpenChange={setComposing}
 						onCreate={compose}
 					/>
+					{kind === "card" && (
+						<select
+							className="view-pick"
+							value={preset.id}
+							onChange={(event) => update({ preset: event.target.value })}
+							aria-label="View"
+							title={preset.title}
+						>
+							{PRESETS.map((choice) => (
+								<option key={choice.id} value={choice.id} title={choice.title}>
+									{choice.label}
+								</option>
+							))}
+						</select>
+					)}
 					<div className="segmented" role="group" aria-label="Layout">
 						{(["board", "list"] as const).map((layout) => (
 							<button
@@ -1446,11 +1487,21 @@ export function Board({
 						{kind === "card" && (
 							<select value={view.epic} onChange={(event) => update({ epic: event.target.value })} aria-label="Epic">
 								<option value="">All epics</option>
-								{epics.map((epic) => (
-									<option key={epic.id} value={epic.id}>
-										{epic.name}
-									</option>
-								))}
+								<option value={NO_EPIC}>No epic</option>
+								<optgroup label="Only">
+									{epics.map((epic) => (
+										<option key={epic.id} value={epic.id}>
+											{epic.name}
+										</option>
+									))}
+								</optgroup>
+								<optgroup label="All but">
+									{epics.map((epic) => (
+										<option key={epic.id} value={exceptEpic(epic.id)}>
+											Not {epic.name}
+										</option>
+									))}
+								</optgroup>
 							</select>
 						)}
 						{kind === "card" && (

@@ -1,9 +1,10 @@
-import { type Card as Stub, type Kind, manualRank } from "@/lib/shared";
+import { inPreset, type Kind, manualRank, type Card as Stub } from "@/lib/shared";
 
 export type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved";
 export type Layout = "board" | "list";
 
 export type View = {
+	preset: string;
 	query: string;
 	types: string[];
 	epic: string;
@@ -16,6 +17,7 @@ export type View = {
 };
 
 export const DEFAULT_VIEW: View = {
+	preset: "all",
 	query: "",
 	types: [],
 	epic: "",
@@ -32,6 +34,25 @@ export const TOGGLES = [
 	["blocked", "Blocked"],
 	["claimed", "Claimed"],
 ] as const;
+
+export const NO_EPIC = "none";
+
+const EXCEPT = "!";
+
+export function exceptEpic(id: string) {
+	return `${EXCEPT}${id}`;
+}
+
+export function epicPasses(filter: string, epic?: string | null) {
+	if (!filter) return true;
+	if (filter === NO_EPIC) return !epic;
+	if (filter.startsWith(EXCEPT)) return (epic ?? "") !== filter.slice(EXCEPT.length);
+	return (epic ?? "") === filter;
+}
+
+export function onlyEpic(view: View) {
+	return view.epic && view.epic !== NO_EPIC && !view.epic.startsWith(EXCEPT) ? view.epic : undefined;
+}
 
 export function storageKey(kind: Kind) {
 	return kind === "card" ? "cockpit-board-view" : `cockpit-board-view-${kind}`;
@@ -89,7 +110,8 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 	if (query && !`${stub.id} ${stub.name} ${epic}`.toLowerCase().includes(query) && !found.inContent?.has(stub.id))
 		return false;
 	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
-	if (view.epic && (stub.epic ?? "") !== view.epic) return false;
+	if (!epicPasses(view.epic, stub.epic)) return false;
+	if (!inPreset(stub, view.preset)) return false;
 	if (view.blocked && !stub.blocked) return false;
 	if (view.claimed && !stub.session) return false;
 	return true;

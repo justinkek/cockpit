@@ -42,6 +42,20 @@ export const EPIC_COLUMNS = [
 	"Epic Done",
 ];
 
+export const SPRINT_COLUMNS = [
+	"Sprint Backlog",
+	"Daily Plan",
+	"In Dev",
+	"In CR by AI",
+	"Ready for CR",
+	"In CR",
+	"Ready for FR",
+	"In FR",
+	"Ready for Validation",
+];
+
+export const REFINEMENT_COLUMNS = CARD_COLUMNS.filter((column) => /\b(BR|TR)\b/.test(column));
+
 export type Kind = "card" | "epic";
 
 export function boardColumns(kind: Kind) {
@@ -202,4 +216,63 @@ export function ago(stamp: string, now = Date.now()) {
 	const days = Math.round(hours / 24);
 	if (days < 7) return `${days}d ago`;
 	return date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+const DAY = 86400000;
+
+export function doneWithin(record: Pick<Card, "dates">, days: number, now = Date.now()) {
+	const at = new Date(record.dates?.Done ?? "").getTime();
+	return !Number.isNaN(at) && now - at <= days * DAY;
+}
+
+export type Preset = {
+	id: string;
+	label: string;
+	show: string;
+	title: string;
+	columns: string[];
+	keeps?: (record: Card, now: number) => boolean;
+};
+
+export const PRESETS: Preset[] = [
+	{
+		id: "all",
+		label: "All columns",
+		show: "Show every column",
+		title: "Every column of the board",
+		columns: CARD_BOARD_COLUMNS,
+	},
+	{
+		id: "sprint",
+		label: "Sprint Board",
+		show: "Show the Sprint Board",
+		title: "The nine columns from Sprint Backlog to Ready for Validation",
+		columns: SPRINT_COLUMNS,
+	},
+	{
+		id: "week",
+		label: "Current week",
+		show: "Show this week's cards",
+		title: "Every open card, and the cards done in the last 7 days",
+		columns: CARD_BOARD_COLUMNS.filter((column) => column !== "Deprioritised"),
+		keeps: (record, now) => record.status !== "Done" || doneWithin(record, 7, now),
+	},
+	{
+		id: "triage",
+		label: "Refinement triage",
+		show: "Show refinement triage",
+		title: "The cards in a BR or TR column that belong to no epic",
+		columns: REFINEMENT_COLUMNS,
+		keeps: (record) => !record.epic,
+	},
+];
+
+export function presetOf(id: string | null | undefined): Preset {
+	return PRESETS.find((preset) => preset.id === id) ?? PRESETS[0];
+}
+
+export function inPreset(record: Card, id: string, now = Date.now()) {
+	const preset = presetOf(id);
+	if (preset.id === PRESETS[0].id) return true;
+	return preset.columns.includes(record.status) && (preset.keeps?.(record, now) ?? true);
 }
