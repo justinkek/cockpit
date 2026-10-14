@@ -196,16 +196,23 @@ require_board() {
   [ -d "$BOARD_DIR/cards" ] || die 3 "no board at $BOARD_DIR - run: board-card init"
 }
 
+board_git() {
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR
+    git -C "$BOARD_DIR" "$@"
+  )
+}
+
 commit_board() {
+  local subject="$1" ids index_lock="$BOARD_DIR/.git/index.lock"
   [ -d "$BOARD_DIR/.git" ] || return 0
-  local ids
-  git -C "$BOARD_DIR" add --all >/dev/null || die 6 "wrote to $BOARD_DIR but could not stage it"
-  git -C "$BOARD_DIR" diff --cached --quiet && return 0
-  ids="$(git -C "$BOARD_DIR" diff --cached --name-only --no-renames \
+  if [ -n "$(find "$index_lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rm -f "$index_lock"; fi
+  board_git add --all >/dev/null || return 1
+  board_git diff --cached --quiet && return 0
+  ids="$(board_git diff --cached --name-only --no-renames \
     | sed -n -E 's#^[a-z]+/([A-Z][A-Z0-9]*-[0-9]+)[./].*#\1#p' | awk '!seen[$0]++' | paste -sd ' ' -)"
-  git -C "$BOARD_DIR" -c user.name=board-card -c user.email=board-card@localhost \
-    commit --quiet --message "$action${ids:+ $ids}" >/dev/null \
-    || die 6 "wrote to $BOARD_DIR but could not commit it"
+  board_git -c user.name=board-card -c user.email=board-card@localhost -c commit.gpgsign=false \
+    commit --quiet --no-verify --message "$subject${ids:+ $ids}" >/dev/null
 }
 
 with_lock() {
@@ -222,9 +229,14 @@ with_lock() {
     sleep 0.1
   done
   trap 'rm -rf "$BOARD_DIR/.lock"' EXIT
+  if [ -d "$BOARD_DIR/.git" ] && [ -n "$(board_git status --porcelain 2>/dev/null)" ]; then
+    commit_board unrecorded 2>/dev/null || true
+  fi
   local status=0
   "$@" || status=$?
-  if [ "$status" -eq 0 ]; then commit_board; fi
+  if [ "$status" -eq 0 ]; then
+    commit_board "$action" || die 6 "wrote to $BOARD_DIR but could not commit it"
+  fi
   rm -rf "$lock"
   trap - EXIT
   return "$status"
@@ -285,12 +297,18 @@ update_record() {
 }
 
 command_init() {
+  local changed=false
   mkdir -p "$BOARD_DIR/cards" "$BOARD_DIR/epics" "$BOARD_DIR/projects" "$BOARD_DIR/sprints" "$BOARD_DIR/references"
   if [ ! -d "$BOARD_DIR/.git" ]; then
-    git -C "$BOARD_DIR" init --quiet
+    board_git init --quiet
+    changed=true
   fi
   if [ ! -f "$BOARD_DIR/.gitignore" ] || ! grep --quiet '^\*/\.\*$' "$BOARD_DIR/.gitignore"; then
     printf '.lock\n*/.*\n' > "$BOARD_DIR/.gitignore"
+    changed=true
+  fi
+  if [ "$changed" = true ]; then
+    commit_board init || die 6 "made $BOARD_DIR but could not commit it"
   fi
   printf '%s\n' "$BOARD_DIR"
 }
@@ -525,7 +543,6 @@ nullable() { if [ -z "$1" ]; then echo null; else jq --null-input --arg value "$
 rename_card() {
   local from="$1" to="$2" directory file lock_dir marker
   directory="$BOARD_DIR/cards"
-  [ ! -e "$directory/$to.md" ] || die 2 "$to already exists"
   read_record "$from" | jq --arg to "$to" '.id = $to' | write_record "$to"
   rm -f "$directory/$from.md"
   [ -f "$directory/$from.comments.jsonl" ] && mv "$directory/$from.comments.jsonl" "$directory/$to.comments.jsonl"
@@ -562,7 +579,10 @@ set_locked() {
       ;;
     type)
       local renamed
+      [ "$(kind_of "$id")" = card ] || die 2 "only a card has a type, and $id is not a card"
+      prefix_of_type "$value" >/dev/null
       renamed="$(prefix_of_type "$value")-${id##*-}"
+      [ "$renamed" = "$id" ] || [ ! -e "$BOARD_DIR/cards/$renamed.md" ] || die 2 "$renamed already exists"
       update_record "$id" --arg value "$value" '.type = $value'
       if [ "$renamed" != "$id" ]; then
         rename_card "$id" "$renamed"

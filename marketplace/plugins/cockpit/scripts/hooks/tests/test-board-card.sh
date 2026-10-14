@@ -35,6 +35,7 @@ printf "Test group: a stub is created and read with nothing but the scripts\n"
 
 stub init >/dev/null
 assert_eq "the board is its own git repository" "true" "$([ -d "$COCKPIT_BOARD_DIR/.git" ] && echo true)"
+assert_eq "init is committed on its own" "init" "$(last_commit %s)"
 assert_eq "a feature is numbered with FEAT" "FEAT-1" "$(stub create --name 'Parent: with a colon')"
 assert_eq "a bug is numbered with BUG and shares the sequence" "BUG-2" "$(stub create --name Child --type Bug)"
 assert_eq "a create is committed under its verb and id" "create BUG-2" "$(last_commit %s)"
@@ -251,6 +252,19 @@ assert_eq "the new file holds its id" "FEAT-3" "$(field FEAT-3 .id)"
 assert_eq "a link to it follows the rename" '["FEAT-3"]' "$(field FEAT-1 '.dependent_on | tojson')"
 assert_eq "its comments follow the rename" "1" "$(stub comments FEAT-3 --json | jq length)"
 assert_eq "the rename is one commit naming every record it touched" "set FEAT-1 FEAT-3 TIME-3" "$(last_commit %s)"
+stub set FEAT-3 type feature >/dev/null 2>&1
+assert_eq "a type outside the three is refused on set" "2" "$?"
+assert_eq "and the card keeps its file and its type" "FEAT-3 Feature" "$(field FEAT-3 '"\(.id) \(.type)"')"
+stub set EPIC-1 type Bug >/dev/null 2>&1
+assert_eq "only a card has a type" "2" "$?"
+assert_eq "and the epic is not copied in as a card" "true false" \
+  "$([ -f "$COCKPIT_BOARD_DIR/epics/EPIC-1.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/cards/BUG-1.md" ] && echo true || echo false)"
+sed 's/"FEAT-3"/"BUG-3"/' "$COCKPIT_BOARD_DIR/cards/FEAT-3.md" > "$COCKPIT_BOARD_DIR/cards/BUG-3.md"
+stub set FEAT-3 type Bug >/dev/null 2>&1
+assert_eq "a type whose id is already taken is refused" "2" "$?"
+assert_eq "before anything is written" "Feature" "$(field FEAT-3 .type)"
+assert_eq "so a refused write leaves nothing behind" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
+rm "$COCKPIT_BOARD_DIR/cards/BUG-3.md"
 stub unlink FEAT-1 FEAT-3 >/dev/null
 stub create --name Bad --assignee me >/dev/null 2>&1
 assert_eq "a card has no assignee" "2" "$?"
@@ -266,6 +280,42 @@ stub move BUG-2 "$(field BUG-2 .status)" >/dev/null
 assert_eq "a write that changes nothing still succeeds" "0" "$?"
 assert_eq "and makes no commit" "$commits_before" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 assert_eq "the board is never given a remote" "" "$(git -C "$COCKPIT_BOARD_DIR" remote)"
+commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+stub init >/dev/null
+assert_eq "init on a board already made commits nothing" "$commits_before" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+
+printf '\nedited by hand\n' >> "$COCKPIT_BOARD_DIR/cards/FEAT-1.md"
+stub move BUG-2 Backlog >/dev/null
+assert_eq "a change found before a write is committed on its own, ahead of the write" "move BUG-2|unrecorded FEAT-1" \
+  "$(git -C "$COCKPIT_BOARD_DIR" log -2 --format=%s | paste -sd '|' -)"
+
+git init --quiet "$TMPDIR/other"
+GIT_DIR="$TMPDIR/other/.git" GIT_INDEX_FILE="$TMPDIR/other/.git/index" \
+  stub move BUG-2 "In BR" >/dev/null
+assert_eq "a repository named by the caller's git variables never takes the commit" "0" "$(git -C "$TMPDIR/other" rev-list --all --count)"
+assert_eq "the board's own repository does" "move BUG-2" "$(last_commit %s)"
+
+printf '#!/bin/sh\nexit 1\n' > "$COCKPIT_BOARD_DIR/.git/hooks/pre-commit"
+chmod +x "$COCKPIT_BOARD_DIR/.git/hooks/pre-commit"
+git -C "$COCKPIT_BOARD_DIR" config commit.gpgsign true
+stub move BUG-2 Backlog >/dev/null 2>&1
+status=$?
+assert_eq "a commit hook or a signing setting does not stop the commit" "0 move BUG-2" "$status $(last_commit %s)"
+rm "$COCKPIT_BOARD_DIR/.git/hooks/pre-commit"
+git -C "$COCKPIT_BOARD_DIR" config --unset commit.gpgsign
+
+: > "$COCKPIT_BOARD_DIR/.git/index.lock"
+stub set BUG-2 name "Held up" >/dev/null 2>&1
+status=$?
+assert_eq "a write git will not commit still lands, and says so" "6 Held up" "$status $(field BUG-2 .name)"
+rm "$COCKPIT_BOARD_DIR/.git/index.lock"
+: > "$COCKPIT_BOARD_DIR/.git/index.lock"
+touch -t 202001010000 "$COCKPIT_BOARD_DIR/.git/index.lock"
+stub set FEAT-1 name "Later" >/dev/null 2>&1
+assert_eq "a git lock older than a minute is cleared" "0" "$?"
+assert_eq "and the write it held up is committed on its own first" "set FEAT-1|unrecorded BUG-2" \
+  "$(git -C "$COCKPIT_BOARD_DIR" log -2 --format=%s | paste -sd '|' -)"
+assert_eq "leaving nothing uncommitted" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
