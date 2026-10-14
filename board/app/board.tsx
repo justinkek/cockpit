@@ -777,11 +777,18 @@ export function Board({
 	}
 
 	function clickCard(id: string, toggle: boolean) {
-		if (toggle || selected.size > 0) toggleSelected(id);
+		if (toggle || chosen.length > 0) toggleSelected(id);
 		else openCard(id);
 	}
 
-	const chosen = [...selected].filter((id) => stubs.some((stub) => stub.id === id));
+	const chosen = [...selected].filter((id) => order.some((stub) => stub.id === id));
+
+	useEffect(() => {
+		setSelected((current) => {
+			const kept = [...current].filter((id) => order.some((stub) => stub.id === id));
+			return kept.length === current.size ? current : new Set(kept);
+		});
+	}, [order]);
 
 	function targets() {
 		if (chosen.length > 0) return chosen;
@@ -972,7 +979,7 @@ export function Board({
 		if (event.key === "Escape") {
 			if (typing) (event.target as HTMLElement).blur();
 			else if (openId) setOpenId(null);
-			else if (selected.size > 0) setSelected(new Set());
+			else if (chosen.length > 0) setSelected(new Set());
 			else setFocusedId(null);
 			return;
 		}
