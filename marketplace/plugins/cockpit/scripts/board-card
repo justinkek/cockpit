@@ -341,7 +341,7 @@ write_record() {
   local id="$1" touch="${2:-}" json file tmp current
   json="$(cat)"
   file="$(record_file "$id")"
-  json="$(printf '%s' "$json" | jq --exit-status 'select(type == "object")' 2>/dev/null)" \
+  json="$(printf '%s' "$json" | jq --exit-status 'select(type == "object") | .body = ((.body // "") | sub("^\n+"; "") | sub("\n+$"; ""))' 2>/dev/null)" \
     || die 2 "refused to write $id with nothing in it"
   if [ -f "$file" ]; then
     current="$(read_record "$id")" || exit "$?"
@@ -1207,6 +1207,7 @@ resolve_locked() {
   file="$(comments_file "$id")"
   [ -f "$file" ] && jq --exit-status --arg comment "$comment_id" 'select(.id == $comment and .id == .thread)' "$file" >/dev/null \
     || die 3 "no thread $comment_id on $id"
+  if jq --exit-status --arg comment "$comment_id" 'select(.id == $comment and .resolved)' "$file" >/dev/null; then return 0; fi
   tmp="$(mktemp "$(dirname "$file")/.$id.comments.XXXXXX")"
   jq --compact-output --arg comment "$comment_id" 'if .id == $comment then .resolved = true else . end' "$file" > "$tmp"
   mv "$tmp" "$file"
@@ -1224,6 +1225,7 @@ command_resolve() {
 
 attach_locked() {
   local id="$1" source="$2" name="$3"
+  if cmp -s "$source" "$BOARD_DIR/attachments/$id/$name"; then return 0; fi
   mkdir -p "$BOARD_DIR/attachments/$id"
   cp "$source" "$BOARD_DIR/attachments/$id/$name"
   touch_record "$id"

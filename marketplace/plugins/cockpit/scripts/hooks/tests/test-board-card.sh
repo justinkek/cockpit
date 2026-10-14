@@ -229,6 +229,9 @@ printf 'diagram' > "$TMPDIR/flow.svg"
 assert_eq "an attachment is copied beside the board and named relative to it" "attachments/BUG-2/flow.svg" "$(stub attach BUG-2 "$TMPDIR/flow.svg")"
 assert_eq "the copy holds the file" "diagram" "$(cat "$COCKPIT_BOARD_DIR/attachments/BUG-2/flow.svg")"
 assert_eq "an attachment is committed under its verb and id" "attach BUG-2" "$(last_commit %s)"
+commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+stub attach BUG-2 "$TMPDIR/flow.svg" >/dev/null
+assert_eq "attaching the same file again changes nothing and commits nothing" "$commits_before" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 
 printf "\nTest group: epics have their own columns\n"
 
@@ -495,10 +498,15 @@ assert_eq "the stamp sits after the creation and move times in the file" "update
   "$(sed -n '/^moved:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/BUG-2.md" | cut -d: -f1)"
 COCKPIT_NOW=2026-10-14T10:00:00Z stub set BUG-2 name "Stamped" >/dev/null
 assert_eq "a write that changes nothing leaves the stamp alone" "2026-10-14T09:00:00Z" "$(field BUG-2 .updated)"
+COCKPIT_NOW=2026-10-14T10:30:00Z stub set BUG-2 body "$(field BUG-2 .body)"$'\n' >/dev/null
+assert_eq "and so does the same content with a newline after it" "2026-10-14T09:00:00Z" "$(field BUG-2 .updated)"
 printf 'a note' | COCKPIT_NOW=2026-10-14T11:00:00Z stub comment BUG-2 >/dev/null
 assert_eq "a comment counts as a change to its record" "2026-10-14T11:00:00Z" "$(field BUG-2 .updated)"
-COCKPIT_NOW=2026-10-14T12:00:00Z stub resolve BUG-2 "$(stub comments BUG-2 --json | jq --raw-output '.[-1].thread')" >/dev/null
+resolved_thread="$(stub comments BUG-2 --json | jq --raw-output '.[-1].thread')"
+COCKPIT_NOW=2026-10-14T12:00:00Z stub resolve BUG-2 "$resolved_thread" >/dev/null
 assert_eq "and so does resolving one" "2026-10-14T12:00:00Z" "$(field BUG-2 .updated)"
+COCKPIT_NOW=2026-10-14T12:30:00Z stub resolve BUG-2 "$resolved_thread" >/dev/null
+assert_eq "but not resolving it again" "2026-10-14T12:00:00Z" "$(field BUG-2 .updated)"
 fresh="$(COCKPIT_NOW=2026-10-14T13:00:00Z stub create --name Fresh)"
 assert_eq "a new record is stamped when it is made" "2026-10-14T13:00:00Z 2026-10-14T13:00:00Z" "$(field "$fresh" '"\(.created) \(.updated)"')"
 
