@@ -64,5 +64,16 @@ assert_names "and leaves the resolved threads out" \
 assert_absent "and takes no further read before a write" \
   "$TEMPLATE" 'immediately before the write'
 
+printf "\nTest group: a suggestion the card has moved past is resolved\n"
+
+assert_names "an unanswered suggestion counts as accepted past an In-X column" \
+  "$TEMPLATE" 'counts as accepted once a person has moved the card out of an In-X column'
+assert_names "only while the card still carries its default" \
+  "$TEMPLATE" 'so long as the card still carries the default it names'
+assert_names "and the next skill that reads the comments resolves it" \
+  "$TEMPLATE" 'The next skill that reads the comments resolves it'
+assert_names "and an answered thread is closed by the decision template" \
+  "$TEMPLATE" '`## Once it is answered` in `~/.claude-shared/templates/raise-a-decision.md`'
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

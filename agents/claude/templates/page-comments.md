@@ -26,6 +26,12 @@ A comment the draft has answered must not still be open on the card - the review
 
     "$HOME/.cockpit/scripts/board-card" resolve <card-id> <thread-id>
 
-- Resolve only what the draft actually answered. A comment it left open stays open, and the report names it.
+- Resolve only what the draft actually answered, and what the next section counts as accepted. A comment it left open stays open, and the report names it.
 - Do this once, at the end, not per section.
 - No open comments means nothing to resolve.
+
+## A suggestion the card has moved past
+
+A `[suggestion]` this flow posted - its author starts `claude` - with no reply under it counts as accepted once a person has moved the card out of an In-X column after it was posted, so long as the card still carries the default it names. Moving the card on is the approval, as `~/.claude-shared/templates/cockpit-operating-contract.md` sets out. The next skill that reads the comments resolves it, whether or not its draft touched that line.
+
+A thread a person has replied to is closed by `## Once it is answered` in `~/.claude-shared/templates/raise-a-decision.md` instead.

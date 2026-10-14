@@ -31,6 +31,15 @@ Posting is not a pause. The comment is where the decision now lives, so the sess
 
 A caller that names no default has the defect, not the session. Take the option that changes nothing - leave the value unset, leave the page as it was - and say in the comment which one you took.
 
+## Once it is answered
+
+A decision still open after it is made reads as feedback waiting at every later stage, and the PR inherits it. The session that acts on the person's reply closes it:
+
+1. Read the section the answer changes fresh, with `board-card show <card-id> --section <heading>`, and write it back amended with `board-card section` - an approved divergence rewrites its step in `## Tech Steps`. A reply that keeps what the card already says changes nothing here.
+2. Resolve the thread with `"$HOME/.cockpit/scripts/board-card" resolve <card-id> <thread-id>`, where `<thread-id>` is the id on the thread's first line.
+
+A `[suggestion]` nobody replied to is accepted by the card moving on instead, as `~/.claude-shared/templates/page-comments.md` sets out.
+
 ## What is worth a comment
 
 A decision the draft cannot settle: a scope question, a choice between two readings, a constraint that changes the outcome. One comment per decision, posted when it surfaces - never held back to the end, which a session that is stopped never reaches.
