@@ -22,7 +22,8 @@ import { createContext, useContext, useEffect, useId, useMemo, useRef, useState,
 import { createCard, dropCard, editCard, linkCards, undoChange } from "@/app/actions";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
-import { type Undoable, UndoToast, undoable } from "@/app/toast";
+import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
+import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import {
 	boardColumns,
 	dueState,
@@ -252,7 +253,9 @@ function Points({ stubs }: { stubs: Stub[] }) {
 	);
 }
 
-function Card({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOpen: (id: string) => void }) {
+type ItemProps = { stub: Stub; pending: boolean; focused: boolean; onOpen: (id: string) => void };
+
+function Card({ stub, pending, focused, onOpen }: ItemProps) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: stub.id });
 	const drop = useDroppable({ id: `card:${stub.id}` });
 	return (
@@ -269,7 +272,8 @@ function Card({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOpen:
 				type="button"
 				{...listeners}
 				{...attributes}
-				className={`card${pending ? " pending" : ""}`}
+				data-card={stub.id}
+				className={`card${pending ? " pending" : ""}${focused ? " focused" : ""}`}
 				onClick={() => onOpen(stub.id)}
 			>
 				<CardBody stub={stub} />
@@ -345,6 +349,7 @@ function Lane({
 	collapsed,
 	onToggle,
 	pending,
+	focusedId,
 	onOpen,
 	adding,
 }: {
@@ -353,6 +358,7 @@ function Lane({
 	collapsed: boolean;
 	onToggle: () => void;
 	pending: Set<string>;
+	focusedId: string | null;
 	onOpen: (id: string) => void;
 	adding: Adding;
 }) {
@@ -368,7 +374,13 @@ function Lane({
 			{!collapsed && (
 				<ul>
 					{stubs.map((stub) => (
-						<Card key={stub.id} stub={stub} pending={pending.has(stub.id)} onOpen={onOpen} />
+						<Card
+							key={stub.id}
+							stub={stub}
+							pending={pending.has(stub.id)}
+							focused={focusedId === stub.id}
+							onOpen={onOpen}
+						/>
 					))}
 				</ul>
 			)}
@@ -377,7 +389,7 @@ function Lane({
 	);
 }
 
-function ListRow({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOpen: (id: string) => void }) {
+function ListRow({ stub, pending, focused, onOpen }: ItemProps) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: stub.id });
 	const drop = useDroppable({ id: `card:${stub.id}` });
 	return (
@@ -394,7 +406,8 @@ function ListRow({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOp
 				type="button"
 				{...listeners}
 				{...attributes}
-				className={`row${pending ? " pending" : ""}`}
+				data-card={stub.id}
+				className={`row${pending ? " pending" : ""}${focused ? " focused" : ""}`}
 				onClick={() => onOpen(stub.id)}
 			>
 				<span className="ident">{stub.id}</span>
@@ -418,6 +431,7 @@ function ListGroup({
 	collapsed,
 	onToggle,
 	pending,
+	focusedId,
 	onOpen,
 	adding,
 }: {
@@ -426,6 +440,7 @@ function ListGroup({
 	collapsed: boolean;
 	onToggle: () => void;
 	pending: Set<string>;
+	focusedId: string | null;
 	onOpen: (id: string) => void;
 	adding: Adding;
 }) {
@@ -442,7 +457,13 @@ function ListGroup({
 			{!collapsed && (
 				<ul>
 					{stubs.map((stub) => (
-						<ListRow key={stub.id} stub={stub} pending={pending.has(stub.id)} onOpen={onOpen} />
+						<ListRow
+							key={stub.id}
+							stub={stub}
+							pending={pending.has(stub.id)}
+							focused={focusedId === stub.id}
+							onOpen={onOpen}
+						/>
 					))}
 				</ul>
 			)}
@@ -460,6 +481,7 @@ function Peek({
 	notice,
 	onDismiss,
 	onClose,
+	onCopy,
 }: {
 	stub: Stub;
 	kind: Kind;
@@ -469,6 +491,7 @@ function Peek({
 	notice: Notice;
 	onDismiss: () => void;
 	onClose: () => void;
+	onCopy: () => void;
 }) {
 	const dates = Object.entries(stub.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 	const panel = useRef<HTMLElement>(null);
@@ -481,6 +504,9 @@ function Peek({
 			<header className="peek-head">
 				<PanelHandle id={stub.id} />
 				<span className="peek-actions">
+					<button type="button" className="quiet" onClick={onCopy} title="Copy link (Cmd/Ctrl+Shift+.)">
+						Copy link
+					</button>
 					<Link href={`/card/${stub.id}`} className="quiet-link">
 						Open
 					</Link>
@@ -570,6 +596,8 @@ export function Board({
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	const [addingIn, setAddingIn] = useState<string | null>(null);
+	const [focusedId, setFocusedId] = useState<string | null>(null);
+	const [helpOpen, setHelpOpen] = useState(false);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
@@ -604,21 +632,6 @@ export function Board({
 		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
 	}, [openId, loaded]);
 
-	useEffect(() => {
-		function onKey(event: KeyboardEvent) {
-			const typing = event.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName);
-			if (event.key === "Escape") {
-				if (typing) (event.target as HTMLElement).blur();
-				else setOpenId(null);
-			} else if (event.key === "/" && !typing) {
-				event.preventDefault();
-				search.current?.focus();
-			}
-		}
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, []);
-
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
 		useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
@@ -634,6 +647,128 @@ export function Board({
 		return view.hideEmpty ? all.filter((column) => visible.some((stub) => stub.status === column)) : all;
 	}, [stubs, visible, view.hideEmpty, columnsOfKind]);
 	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
+	const order = useMemo(
+		() =>
+			columns
+				.filter((column) => !view.collapsed.includes(column))
+				.flatMap((column) => visible.filter((stub) => stub.status === column)),
+		[columns, visible, view.collapsed],
+	);
+
+	useEffect(() => {
+		if (!focusedId) return;
+		document
+			.querySelector(`[data-card="${CSS.escape(focusedId)}"]`)
+			?.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [focusedId]);
+
+	function openCard(id: string | null) {
+		setOpenId(id);
+		if (id) setFocusedId(id);
+	}
+
+	function step(by: number) {
+		if (order.length === 0) return;
+		const from = order.findIndex((stub) => stub.id === (focusedId ?? openId));
+		const index = from < 0 ? (by > 0 ? 0 : order.length - 1) : Math.min(order.length - 1, Math.max(0, from + by));
+		const id = order[index].id;
+		setFocusedId(id);
+		if (openId) setOpenId(id);
+	}
+
+	function stepColumn(by: number) {
+		const current = order.find((stub) => stub.id === (focusedId ?? openId));
+		const shown = columns.filter((column) => order.some((stub) => stub.status === column));
+		if (shown.length === 0) return;
+		const from = current ? shown.indexOf(current.status) : -1;
+		const column = shown[Math.min(shown.length - 1, Math.max(0, from < 0 ? 0 : from + by))];
+		const id = order.find((stub) => stub.status === column)?.id;
+		if (!id) return;
+		setFocusedId(id);
+		if (openId) setOpenId(id);
+	}
+
+	async function copy(id: string, asLink: boolean) {
+		const copied = await copyText(asLink ? cardLink(id) : id);
+		setToast(toastOf(copied ? `Copied ${asLink ? `the link to ${id}` : id}` : `Could not copy ${id}`));
+	}
+
+	useKeys((event) => {
+		if (helpOpen || event.defaultPrevented) return;
+		const typing = typingIn(event.target);
+		const command = event.metaKey || event.ctrlKey;
+		const target = openId ?? focusedId;
+		if (command && (event.code === "Period" || event.key === "." || event.key === ">")) {
+			if (!target || typing) return;
+			event.preventDefault();
+			copy(target, event.shiftKey);
+			return;
+		}
+		if (event.key === "Escape") {
+			if (typing) (event.target as HTMLElement).blur();
+			else if (openId) setOpenId(null);
+			else setFocusedId(null);
+			return;
+		}
+		if (typing || command || event.altKey) return;
+		const inPanel = event.target instanceof HTMLElement && event.target.closest(".peek") !== null;
+		switch (event.key) {
+			case "/":
+				event.preventDefault();
+				search.current?.focus();
+				break;
+			case "?":
+				event.preventDefault();
+				setHelpOpen(true);
+				break;
+			case "j":
+			case "k":
+				event.preventDefault();
+				step(event.key === "j" ? 1 : -1);
+				break;
+			case "ArrowDown":
+			case "ArrowUp":
+				if (inPanel) return;
+				event.preventDefault();
+				step(event.key === "ArrowDown" ? 1 : -1);
+				break;
+			case "h":
+			case "l":
+				event.preventDefault();
+				stepColumn(event.key === "h" ? -1 : 1);
+				break;
+			case "Enter":
+			case "o": {
+				const control = event.target instanceof HTMLElement && event.target.closest("button, a, summary, [role=dialog]");
+				if (!focusedId || inPanel || (control && !(control as HTMLElement).dataset.card)) return;
+				event.preventDefault();
+				setOpenId(focusedId);
+				break;
+			}
+			case "c": {
+				event.preventDefault();
+				const focused = order.find((stub) => stub.id === target);
+				const column = focused?.status ?? columns.find((c) => !view.collapsed.includes(c)) ?? columns[0];
+				if (!column) return;
+				if (view.collapsed.includes(column)) toggleColumn(column);
+				setAddingIn(column);
+				break;
+			}
+		}
+	});
+
+	const shortcuts: Shortcut[] = [
+		{ keys: ["j", "k"], label: "Next or previous card" },
+		{ keys: ["h", "l"], label: "Previous or next column" },
+		{ keys: ["Enter"], label: "Open the focused card" },
+		{ keys: ["Esc"], label: "Close the card, or clear the focus" },
+		{ keys: ["c"], label: "New card in the focused column" },
+		{ keys: ["/"], label: "Search" },
+		{ keys: ["Cmd/Ctrl", "."], label: "Copy the card's id" },
+		{ keys: ["Cmd/Ctrl", "Shift", "."], label: "Copy a link to the card" },
+		{ keys: ["Cmd/Ctrl", "Z"], label: "Undo the last change" },
+		{ keys: ["?"], label: "Show these shortcuts" },
+	];
 
 	function update(change: Partial<View>) {
 		setView((current) => ({ ...current, ...change }));
@@ -698,19 +833,26 @@ export function Board({
 		setUndoing(true);
 		setNotice(null);
 		startTransition(async () => {
-			const result = await undoChange(shown.id, shown.since);
+			const failures: string[] = [];
+			for (const change of shown.changes) {
+				const result = await undoChange(change.id, change.since);
+				if (result.error) {
+					failures.push(result.error);
+					continue;
+				}
+				const fresh = result.record;
+				if (fresh) {
+					setStubs((current) =>
+						current.some((s) => s.id === change.id)
+							? current.map((s) => (s.id === change.id ? fresh : s))
+							: [...current, fresh],
+					);
+					if (fresh.id !== change.id) setOpenId((opened) => (opened === change.id ? fresh.id : opened));
+				}
+			}
 			setUndoing(false);
 			setToast(null);
-			if (result.error) {
-				setNotice({ id: result.moved ?? shown.id, text: `Could not undo: ${result.error}` });
-				router.refresh();
-				return;
-			}
-			const fresh = result.record;
-			if (fresh) {
-				setStubs((current) => current.map((s) => (s.id === shown.id ? fresh : s)));
-				if (fresh.id !== shown.id) setOpenId((opened) => (opened === shown.id ? fresh.id : opened));
-			}
+			if (failures.length > 0) setNotice({ id: "", text: `Could not undo: ${failures.join("; ")}` });
 			router.refresh();
 		});
 	}
@@ -793,7 +935,8 @@ export function Board({
 		collapsed: view.collapsed.includes(column),
 		onToggle: () => toggleColumn(column),
 		pending,
-		onOpen: setOpenId,
+		focusedId,
+		onOpen: openCard,
 		adding: {
 			open: addingIn === column,
 			onOpenChange: (open: boolean) => setAddingIn(open ? column : null),
@@ -896,6 +1039,14 @@ export function Board({
 						{kind === "card" && <option value="complexity">Complexity</option>}
 						<option value="moved">Last moved</option>
 					</select>
+					<button
+						type="button"
+						className="quiet shortcuts-open"
+						onClick={() => setHelpOpen(true)}
+						title="Keyboard shortcuts (?)"
+					>
+						?
+					</button>
 					<span className="tally">
 						{visible.length}/{stubs.length}
 					</span>
@@ -959,11 +1110,13 @@ export function Board({
 								notice={notice?.id === open.id ? notice : null}
 								onDismiss={() => setNotice(null)}
 								onClose={() => setOpenId(null)}
+								onCopy={() => copy(open.id, true)}
 							/>
 						)}
 					</DndContext>
 				</div>
 				<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
+				{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
 			</div>
 		</Names.Provider>
 	);

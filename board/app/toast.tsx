@@ -2,14 +2,21 @@
 
 import { useEffect, useRef } from "react";
 
-export type Undoable = { key: number; id: string; since: string; text: string };
+export type Change = { id: string; since: string };
+
+export type Undoable = { key: number; text: string; changes: Change[] };
 
 let made = 0;
 
 export function undoable(id: string, since: string | undefined, text: string): Undoable | null {
 	if (!since) return null;
 	made += 1;
-	return { key: made, id, since, text };
+	return { key: made, text, changes: [{ id, since }] };
+}
+
+export function toastOf(text: string, changes: Change[] = []): Undoable {
+	made += 1;
+	return { key: made, text, changes };
 }
 
 export function typingIn(target: EventTarget | null) {
@@ -41,7 +48,7 @@ export function UndoToast({
 	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
 			const { toast: shown, busy: undoing, onUndo: undo } = latest.current;
-			if (!shown || undoing || typingIn(event.target)) return;
+			if (!shown || shown.changes.length === 0 || undoing || typingIn(event.target)) return;
 			if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
 				event.preventDefault();
 				undo(shown);
@@ -55,9 +62,11 @@ export function UndoToast({
 	return (
 		<div className="toast" role="status">
 			<span className="toast-text">{busy ? "Undoing…" : toast.text}</span>
-			<button type="button" className="toast-undo" disabled={busy} onClick={() => onUndo(toast)} title="Undo (Cmd/Ctrl+Z)">
-				Undo
-			</button>
+			{toast.changes.length > 0 && (
+				<button type="button" className="toast-undo" disabled={busy} onClick={() => onUndo(toast)} title="Undo (Cmd/Ctrl+Z)">
+					Undo
+				</button>
+			)}
 			<button type="button" className="quiet" aria-label="Dismiss" onClick={onDismiss}>
 				×
 			</button>

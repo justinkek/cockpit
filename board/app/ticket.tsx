@@ -56,7 +56,8 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 		setUndoing(true);
 		setError("");
 		startTransition(async () => {
-			const result = await undoChange(shown.id, shown.since);
+			const [change] = shown.changes;
+			const result = await undoChange(change.id, change.since);
 			setUndoing(false);
 			setToast(null);
 			if (result.error) {
@@ -65,7 +66,7 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 			}
 			if (!result.record) return;
 			setRecord(result.record);
-			if (result.record.id !== shown.id) router.replace(`/card/${result.record.id}`);
+			if (result.record.id !== change.id) router.replace(`/card/${result.record.id}`);
 			else router.refresh();
 		});
 	}
