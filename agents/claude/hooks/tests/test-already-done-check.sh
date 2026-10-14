@@ -60,6 +60,11 @@ waits_unasked="no"
 printf '%s\n' "$found_section" | grep --ignore-case --word-regexp 'wait' | grep --invert-match --quiet --fixed-strings 'they started' && waits_unasked="yes"
 assert_eq "every line that waits says a person started the session" "no" "$waits_unasked"
 
+attended_line="$(printf '%s\n' "$found_section" | grep --fixed-strings 'A person reads the chat')"
+names_register="no"
+printf '%s' "$attended_line" | grep --quiet --fixed-strings '/cockpit:ticket:0:register' && names_register="yes"
+assert_eq "a BR register started from the person's own message is attended" "yes" "$names_register"
+
 assert_eq "the bare report-and-wait has not come back" "no" "$(holds "$TEMPLATE" 'Report the finding and wait')"
 
 printf "\nTest group: a run that finds its own finding posts nothing new\n"
