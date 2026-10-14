@@ -3705,8 +3705,17 @@
 		flex-wrap: wrap;
 	}
 
-	.peek-actions > * {
-		white-space: nowrap;
+	.peek-actions {
+		gap: 2px;
+
+		& > * {
+			white-space: nowrap;
+		}
+
+		& > button,
+		& > .quiet-link {
+			padding: 0 7px;
+		}
 	}
 
 	@media (width < 760px) {
