@@ -117,3 +117,9 @@ export function phaseOf(column: string): string {
 	if (column === "Done" || column === "Epic Done") return "done";
 	return "idle";
 }
+
+const FIELD_NAMES: Record<string, string> = { timebox_mins: "timebox", prs: "PRs", due: "due date" };
+
+export function fieldName(field: string) {
+	return FIELD_NAMES[field] ?? field;
+}

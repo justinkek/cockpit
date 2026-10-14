@@ -19,10 +19,20 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { dropCard, editCard, linkCards } from "@/app/actions";
+import { dropCard, editCard, linkCards, undoChange } from "@/app/actions";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
-import { boardColumns, type Kind, kindOf, type Named, phaseOf, type Card as Stub, TYPES } from "@/lib/shared";
+import { type Undoable, UndoToast, undoable } from "@/app/toast";
+import {
+	boardColumns,
+	fieldName,
+	type Kind,
+	kindOf,
+	type Named,
+	phaseOf,
+	type Card as Stub,
+	TYPES,
+} from "@/lib/shared";
 
 const Names = createContext<Record<string, string>>({});
 
@@ -464,6 +474,8 @@ export function Board({
 	const [notice, setNotice] = useState<Notice>(null);
 	const [openId, setOpenId] = useState<string | null>(null);
 	const [filtersOpen, setFiltersOpen] = useState(false);
+	const [toast, setToast] = useState<Undoable | null>(null);
+	const [undoing, setUndoing] = useState(false);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
@@ -557,7 +569,8 @@ export function Board({
 	function apply(
 		id: string,
 		optimistic: Partial<Stub>,
-		request: () => Promise<{ record?: Stub; error?: string; moved?: string }>,
+		request: () => Promise<{ record?: Stub; error?: string; moved?: string; undo?: string }>,
+		label: string,
 	) {
 		const before = stubs.find((s) => s.id === id);
 		if (!before) return;
@@ -581,6 +594,28 @@ export function Board({
 			if (fresh) {
 				setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
 				if (fresh.id !== id) setOpenId((opened) => (opened === id ? fresh.id : opened));
+				setToast(undoable(fresh.id, result.undo, label.replace(id, fresh.id)));
+			}
+			router.refresh();
+		});
+	}
+
+	function undo(shown: Undoable) {
+		setUndoing(true);
+		setNotice(null);
+		startTransition(async () => {
+			const result = await undoChange(shown.id, shown.since);
+			setUndoing(false);
+			setToast(null);
+			if (result.error) {
+				setNotice({ id: result.moved ?? shown.id, text: `Could not undo: ${result.error}` });
+				router.refresh();
+				return;
+			}
+			const fresh = result.record;
+			if (fresh) {
+				setStubs((current) => current.map((s) => (s.id === shown.id ? fresh : s)));
+				if (fresh.id !== shown.id) setOpenId((opened) => (opened === shown.id ? fresh.id : opened));
 			}
 			router.refresh();
 		});
@@ -589,7 +624,8 @@ export function Board({
 	function move(id: string, column: string, rank?: number) {
 		const stub = stubs.find((s) => s.id === id);
 		if (!stub || (stub.status === column && rank === undefined)) return;
-		apply(id, rank === undefined ? { status: column } : { status: column, rank }, () => dropCard(id, column, rank));
+		const label = stub.status === column ? `Reordered ${id} in ${column}` : `Moved ${id} to ${column}`;
+		apply(id, rank === undefined ? { status: column } : { status: column, rank }, () => dropCard(id, column, rank), label);
 	}
 
 	function placement(id: string, overId: string): { column: string; rank?: number } | null {
@@ -611,9 +647,15 @@ export function Board({
 	function handlersFor(stub: Stub): Handlers {
 		return {
 			onMove: (column) => move(stub.id, column),
-			onEdit: (field, value, change) => apply(stub.id, change, () => editCard(stub.id, field, value)),
+			onEdit: (field, value, change) =>
+				apply(stub.id, change, () => editCard(stub.id, field, value), `Changed the ${fieldName(field)} of ${stub.id}`),
 			onLink: (parent, child, linked) =>
-				apply(stub.id, linkChange(stub, parent, child, linked), () => linkCards(stub.id, parent, child, linked)),
+				apply(
+					stub.id,
+					linkChange(stub, parent, child, linked),
+					() => linkCards(stub.id, parent, child, linked),
+					linked ? `Linked ${parent} to ${child}` : `Unlinked ${parent} from ${child}`,
+				),
 			onOpen: setOpenId,
 		};
 	}
@@ -803,6 +845,7 @@ export function Board({
 						)}
 					</DndContext>
 				</div>
+				<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 			</div>
 		</Names.Provider>
 	);

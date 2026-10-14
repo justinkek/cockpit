@@ -9,16 +9,18 @@ import {
 	type CommentThread,
 	changeStatus,
 	findRenamed,
+	lastCommit,
 	link,
 	listRecords,
 	readComments,
 	readRecord,
 	resolveComment,
 	setField,
+	undoSince,
 } from "@/lib/board";
 
 type Failure = { error?: string; moved?: string };
-type Result = Failure & { record?: Card };
+type Result = Failure & { record?: Card; undo?: string };
 type Threads = Failure & { threads?: CommentThread[] };
 
 function refresh(id: string) {
@@ -39,7 +41,20 @@ async function failed(id: string, error: unknown): Promise<Failure> {
 
 async function report(id: string, change: () => Promise<string | void>): Promise<Result> {
 	try {
+		const since = await lastCommit(id);
 		const current = (await change()) || id;
+		refresh(current);
+		const after = since ? await lastCommit(current) : null;
+		return { record: await readRecord(current), undo: since && after && after !== since ? since : undefined };
+	} catch (error) {
+		return failed(id, error);
+	}
+}
+
+export async function undoChange(id: string, since: string): Promise<Result> {
+	try {
+		const current = await undoSince(id, since);
+		refresh(id);
 		refresh(current);
 		return { record: await readRecord(current) };
 	} catch (error) {

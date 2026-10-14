@@ -73,6 +73,20 @@ export async function link(parent: string, child: string, linked: boolean): Prom
 	await boardCard([linked ? "link" : "unlink", parent, child]);
 }
 
+export async function lastCommit(id: string): Promise<string | null> {
+	try {
+		return (await boardCard(["history", id])).split("\t")[0] || null;
+	} catch (error) {
+		if (error instanceof BoardError) return null;
+		throw error;
+	}
+}
+
+export async function undoSince(id: string, commit: string): Promise<string> {
+	const output = await boardCard(["undo", id, "--since", commit]);
+	return output.split("\t")[0] || id;
+}
+
 export async function readComments(id: string): Promise<CommentThread[]> {
 	return JSON.parse(await boardCard(["comments", id, "--json"]));
 }
