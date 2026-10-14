@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
+import { darkNow, onThemeChange } from "@/app/theme";
 
 async function drawn(id: string, source: string, dark: boolean): Promise<string | null> {
 	const { default: mermaid } = await import("mermaid");
@@ -23,18 +24,17 @@ export function Mermaid({ source, style }: { source: string; style?: CSSProperti
 	const [svg, setSvg] = useState<string | null>(null);
 	useEffect(() => {
 		let live = true;
-		const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
 		const draw = () => {
 			drawCount.current += 1;
-			return drawn(`${id}-${drawCount.current}`, source, darkScheme.matches).then((result) => {
+			return drawn(`${id}-${drawCount.current}`, source, darkNow()).then((result) => {
 				if (live) setSvg(result);
 			});
 		};
 		draw();
-		darkScheme.addEventListener("change", draw);
+		const stop = onThemeChange(draw);
 		return () => {
 			live = false;
-			darkScheme.removeEventListener("change", draw);
+			stop();
 		};
 	}, [id, source]);
 	if (svg === null)

@@ -35,7 +35,7 @@
 	}
 
 	@media (prefers-color-scheme: dark) {
-		:root {
+		:root:not([data-theme="light"]) {
 			--surface: #101012;
 			--lane: #16161a;
 			--panel: #19191d;
@@ -51,6 +51,28 @@
 			--shadow-lift: 0 12px 32px rgb(0 0 0 / 55%), 0 0 0 1px var(--line-strong);
 		}
 	}
+
+	:root[data-theme="dark"] {
+		color-scheme: dark;
+		--surface: #101012;
+		--lane: #16161a;
+		--panel: #19191d;
+		--raised: #1e1e23;
+		--ink: #e8e8ec;
+		--muted: #9b9ba6;
+		--faint: #6b6b75;
+		--line: #26262c;
+		--line-strong: #34343c;
+		--accent: #7c86e8;
+		--danger: #ec6a5c;
+		--shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 0 0 1px var(--line);
+		--shadow-lift: 0 12px 32px rgb(0 0 0 / 55%), 0 0 0 1px var(--line-strong);
+	}
+
+	:root[data-theme="light"] {
+		color-scheme: light;
+	}
+
 }
 
 @layer base {
@@ -1053,9 +1075,13 @@
 		}
 
 		@media (prefers-color-scheme: dark) {
-			& rect.rect {
+			:root:not([data-theme="light"]) & rect.rect {
 				fill-opacity: 0.3;
 			}
+		}
+
+		:root[data-theme="dark"] & rect.rect {
+			fill-opacity: 0.3;
 		}
 	}
 
@@ -1437,5 +1463,22 @@
 
 	.props .due {
 		flex: none;
+	}
+}
+
+@layer components {
+	.theme-switch {
+		margin-left: auto;
+		width: auto;
+		height: 26px;
+		padding: 0 6px;
+		color: var(--muted);
+		background: none;
+		border-color: transparent;
+
+		&:hover {
+			color: var(--ink);
+			background: var(--lane);
+		}
 	}
 }
