@@ -27,9 +27,9 @@ Backlog
 → Ready for Validation → Done
 ```
 
-**Date-stamped columns** (`board-card` stamps `Date: <col>` on _first_ arrival, in the same call that moves the card). Re-entering a column preserves the original timestamp. Every column above has a `Date:` field EXCEPT `Backlog`, the `… by AI` columns and `Sprint Backlog` / `Daily Plan`. `Backlog` is the entry column, so the card's creation time already is its arrival stamp:
+**Date-stamped columns** (`board-card` stamps `Date: <col>` on _first_ arrival, in the same call that moves the card). Re-entering a column preserves the original timestamp. Every column above has a `Date:` field EXCEPT `Backlog`, the `… by AI` columns but `Ready for TR by AI`, and `Sprint Backlog` / `Daily Plan`. `Backlog` is the entry column, so the card's creation time already is its arrival stamp:
 
-`Ready for BR, In BR, Ready for TR, In TR, Ready for Sprint, In Dev, Ready for CR, In CR, Ready for FR, In FR, Ready for Validation, Done`
+`Ready for BR, In BR, Ready for TR by AI, Ready for TR, In TR, Ready for Sprint, In Dev, Ready for CR, In CR, Ready for FR, In FR, Ready for Validation, Done`
 
 ## Per-project walk config
 
