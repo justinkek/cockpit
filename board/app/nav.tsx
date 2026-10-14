@@ -10,6 +10,7 @@ import type { InboxItem } from "@/lib/shared";
 const LINKS = [
 	{ href: "/", label: "Cards" },
 	{ href: "/epics", label: "Epics" },
+	{ href: "/sprints", label: "Sprints" },
 ];
 
 function useUnread() {

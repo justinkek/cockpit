@@ -107,3 +107,82 @@ export function progressTitle(progress: Progress): string {
 	if (progress.dropped > 0) parts.push(`${progress.dropped} deprioritised and left out`);
 	return parts.join(", ");
 }
+
+function localDay(day: string): Date | null {
+	const match = day.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+}
+
+function dayText(date: Date) {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+const LONGEST_SPRINT = 92;
+
+export function sprintDays(start: string | null | undefined, end: string | null | undefined): string[] {
+	const first = localDay(start ?? "");
+	const last = localDay(end ?? "");
+	if (!first || !last || last < first) return [];
+	const days: string[] = [];
+	for (let day = first, count = 0; day <= last && count < LONGEST_SPRINT; count += 1) {
+		if (day.getDay() !== 0 && day.getDay() !== 6) days.push(dayText(day));
+		day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+	}
+	return days;
+}
+
+export type Measure = "points" | "cards";
+
+export type Burndown = {
+	days: string[];
+	total: number;
+	ideal: number[];
+	remaining: (number | null)[];
+};
+
+type Burnable = Pick<Card, "status" | "complexity" | "dates" | "moved">;
+
+export function burndownOf(
+	sprint: { start?: string | null; end?: string | null },
+	cards: Burnable[],
+	measure: Measure,
+	now = Date.now(),
+): Burndown {
+	const days = sprintDays(sprint.start, sprint.end);
+	const weight = (card: Burnable) => (measure === "points" ? (card.complexity ?? 0) : 1);
+	const counted = cards.filter((card) => card.status !== "Deprioritised");
+	const total = counted.reduce((sum, card) => sum + weight(card), 0);
+	const finished = counted.map((card) => ({ weight: weight(card), at: doneAt(card) }));
+	const left = (at: number) =>
+		finished.reduce((sum, card) => (card.at != null && card.at <= at ? sum : sum + card.weight), 0);
+	const startOf = (day: string) => localDay(day)?.getTime() ?? 0;
+	const endOf = (day: string) => {
+		const date = localDay(day) ?? new Date(0);
+		return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1).getTime();
+	};
+	const steps = days.length;
+	const ideal = Array.from({ length: steps + 1 }, (_, index) =>
+		steps === 0 ? total : Math.round(total * (1 - index / steps) * 100) / 100,
+	);
+	const remaining = Array.from({ length: steps + 1 }, (_, index) => {
+		if (steps === 0) return null;
+		const opened = index === 0 ? startOf(days[0]) : startOf(days[index - 1]);
+		if (opened > now) return null;
+		const at = index === 0 ? startOf(days[0]) : Math.min(endOf(days[index - 1]), now);
+		return left(at);
+	});
+	return { days, total, ideal, remaining };
+}
+
+export function currentSprint<T extends { start?: string | null; end?: string | null }>(
+	sprints: T[],
+	now = new Date(),
+): T | null {
+	const today = dayText(now);
+	const running = sprints.find((sprint) => (sprint.start ?? "") <= today && today <= (sprint.end ?? ""));
+	if (running) return running;
+	const started = sprints
+		.filter((sprint) => sprint.start && sprint.start <= today)
+		.sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""));
+	return started[0] ?? sprints[0] ?? null;
+}

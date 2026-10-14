@@ -110,4 +110,22 @@ assert_eq "the share done is by cards when none is sized" \
 assert_eq "an epic with no cards has done nothing" \
   '0' "$(evaluate 'm.progressShare(m.progressOf([]))')"
 
+printf "Test group: a sprint burns down over its working days\n"
+
+assert_eq "a sprint's days leave out the weekend" \
+  '["2026-10-09","2026-10-12","2026-10-13"]' "$(evaluate 'm.sprintDays("2026-10-09", "2026-10-13")')"
+assert_eq "a sprint that ends before it starts has no days" '[]' "$(evaluate 'm.sprintDays("2026-10-13", "2026-10-09")')"
+
+SPRINT='{"start":"2026-10-12","end":"2026-10-15"}'
+SPRINT_CARDS='[{"status":"Done","complexity":3,"dates":{"Done":"2026-10-12T15:00:00Z"}},{"status":"Done","complexity":2,"moved":"2026-10-13T10:00:00Z","dates":{"Done":"2026-10-01T10:00:00Z"}},{"status":"In Dev","complexity":5,"dates":{"Done":"2026-10-12T09:00:00Z"}},{"status":"Deprioritised","complexity":8}]'
+assert_eq "the points left drop on the day each card was done and stop at now" \
+  '{"days":["2026-10-12","2026-10-13","2026-10-14","2026-10-15"],"total":10,"ideal":[10,7.5,5,2.5,0],"remaining":[10,7,5,5,null]}' \
+  "$(evaluate "m.burndownOf($SPRINT, $SPRINT_CARDS, \"points\", $NOW)")"
+assert_eq "counting cards weighs each card as one" \
+  '[3,2,1,1,null]' "$(evaluate "m.burndownOf($SPRINT, $SPRINT_CARDS, \"cards\", $NOW).remaining")"
+assert_eq "the current sprint is the one today falls in" \
+  'SPR-2' "$(evaluate 'm.currentSprint([{id:"SPR-1",start:"2026-10-01",end:"2026-10-09"},{id:"SPR-2",start:"2026-10-12",end:"2026-10-16"}], new Date(Date.parse("2026-10-14T12:00:00Z"))).id')"
+assert_eq "between sprints the last one started is current" \
+  'SPR-1' "$(evaluate 'm.currentSprint([{id:"SPR-1",start:"2026-10-01",end:"2026-10-09"},{id:"SPR-2",start:"2026-10-19",end:"2026-10-23"}], new Date(Date.parse("2026-10-14T12:00:00Z"))).id')"
+
 finish
