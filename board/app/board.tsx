@@ -73,6 +73,7 @@ import {
 	SPLIT_ABOVE,
 	type Card as Stub,
 	TYPES,
+	wipLimit,
 } from "@/lib/shared";
 
 const Names = createContext<Record<string, string>>({});
@@ -251,6 +252,31 @@ function Points({ stubs }: { stubs: Stub[] }) {
 	);
 }
 
+function LaneCount({ shown, total, limit }: { shown: number; total: number; limit: number | null }) {
+	if (limit == null) return <span className="count">{shown}</span>;
+	const over = total > limit;
+	const hidden = total - shown;
+	return (
+		<>
+			{hidden > 0 && (
+				<span className="count" title={`${shown} shown, ${hidden} hidden by the filters`}>
+					{shown}
+				</span>
+			)}
+			<span
+				className={`wip${over ? " over" : total === limit ? " full" : ""}`}
+				title={
+					over
+						? `${total} cards, over the WIP limit of ${limit} - finish one before pulling another`
+						: `${total} of a WIP limit of ${limit}`
+				}
+			>
+				{total}/{limit}
+			</span>
+		</>
+	);
+}
+
 type ItemProps = {
 	stub: Stub;
 	pending: boolean;
@@ -351,6 +377,8 @@ type Adding = { open: boolean; onOpenChange: (open: boolean) => void; onCreate: 
 function Lane({
 	column,
 	stubs,
+	total,
+	limit,
 	collapsed,
 	onToggle,
 	pending,
@@ -361,6 +389,8 @@ function Lane({
 }: {
 	column: string;
 	stubs: Stub[];
+	total: number;
+	limit: number | null;
 	collapsed: boolean;
 	onToggle: () => void;
 	pending: Set<string>;
@@ -371,11 +401,14 @@ function Lane({
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: column });
 	return (
-		<section ref={setNodeRef} className={`lane${collapsed ? " collapsed" : ""}${isOver ? " over" : ""}`}>
+		<section
+			ref={setNodeRef}
+			className={`lane${collapsed ? " collapsed" : ""}${isOver ? " over" : ""}${limit != null && total > limit ? " over-limit" : ""}`}
+		>
 			<button type="button" className="lane-head" onClick={onToggle} aria-expanded={!collapsed}>
 				<StatusDot status={column} />
 				<span className="lane-name">{column}</span>
-				<span className="count">{stubs.length}</span>
+				<LaneCount shown={stubs.length} total={total} limit={limit} />
 				<Points stubs={stubs} />
 			</button>
 			{!collapsed && (
@@ -446,6 +479,8 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 function ListGroup({
 	column,
 	stubs,
+	total,
+	limit,
 	collapsed,
 	onToggle,
 	pending,
@@ -456,6 +491,8 @@ function ListGroup({
 }: {
 	column: string;
 	stubs: Stub[];
+	total: number;
+	limit: number | null;
 	collapsed: boolean;
 	onToggle: () => void;
 	pending: Set<string>;
@@ -471,7 +508,7 @@ function ListGroup({
 				<span className="caret">{collapsed ? "▸" : "▾"}</span>
 				<StatusDot status={column} />
 				<span className="lane-name">{column}</span>
-				<span className="count">{stubs.length}</span>
+				<LaneCount shown={stubs.length} total={total} limit={limit} />
 				<Points stubs={stubs} />
 			</button>
 			{!collapsed && (
@@ -1394,6 +1431,8 @@ export function Board({
 	const groupProps = (column: string) => ({
 		column,
 		stubs: visible.filter((stub) => stub.status === column),
+		total: stubs.filter((stub) => stub.status === column).length,
+		limit: wipLimit(kind, column),
 		collapsed: view.collapsed.includes(column),
 		onToggle: () => toggleColumn(column),
 		pending,
