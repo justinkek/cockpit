@@ -8,6 +8,18 @@ Read this when the walk lands on `In CR by AI`. Landing on the column is the onl
 
 ## The reviews this project runs
 
+Every review reads the branch's own commits - the range the pull request `/cockpit:ticket:4:ready-for-cr` opens will carry. The card lands here with its work committed, so the working tree holds nothing to read. Find where the branch left the default branch, then read from there to HEAD, in two commands as dev step 5 runs them, because the worktree isolation gate refuses a command substitution:
+
+```
+git merge-base HEAD origin/<default-branch>
+```
+
+```
+git diff <the commit it printed>..HEAD
+```
+
+Pass that same range to the shared review as its target: `/code-review low <the commit it printed>..HEAD`.
+
 `/code-review low` runs on every project, and two more run after it on every project, in this order:
 
     ~/.agents-shared/code-reviews/readability.md
@@ -31,8 +43,8 @@ A project with no `## Extra reviews` section gets the three above and nothing el
 
 ## Where the findings land
 
-- **`PRs` empty - the normal path.** The gates run before the branch is pushed, so on the first pass there is nothing to comment on. Invoke `/code-review low` and fix what it finds here, on the branch, before `/cockpit:ticket:4:ready-for-cr` publishes anything. In an unattended session a finding the session cannot fix follows the finding rule: flag the ticket Blocked, comment, stop.
-- **`PRs` holds a URL - the card came back.** Invoke `/code-review low --comment` so the findings land on that PR as inline comments - that evidence is what human CR reads instead of re-executing the diff.
+- **`PRs` empty - the normal path.** The gates run before the branch is pushed, so on the first pass there is nothing to comment on. Invoke `/code-review low` on the range above and fix what it finds here, on the branch, before `/cockpit:ticket:4:ready-for-cr` publishes anything. In an unattended session a finding the session cannot fix follows the finding rule: flag the ticket Blocked, comment, stop.
+- **`PRs` holds a URL - the card came back.** Invoke `/code-review low --comment` on the range above so the findings land on that PR as inline comments - that evidence is what human CR reads instead of re-executing the diff.
 - **Leave the evidence on the ticket.** With no PR yet, the findings have nowhere durable to land and human CR reads them instead of re-executing the diff. Write a `### Machine gates` subsection into `## Details`, the way `~/.cockpit/skills/ticket:x:back-from-column/SKILL.md` says under "Writing under `## Details`", holding what the review found and what was fixed in response, one line each, and "Nothing found" when it came back clean. Open every line the session did not fix with `unfixed -`, name the review it came from, and keep the `path/to/file.ext:123` the review reported - that is what anchors it beside the line once the PR is up.
 - **End on a clean tree.** A fix made here is a working-tree change, and `cockpit:ticket:4:ready-for-cr` blocks on any uncommitted change - so commit each one through `/cockpit:ticket:4:commit` as it is made, one commit per finding, before this step reports. Leaving them uncommitted hands the next skill a block the gate itself created.
-- **An unfixed line holds the publish only when it is a defect.** A divergence from the tech steps is not one: `divergence-from-tech-steps.md` calls it a human amendment decision, and the person who makes it reads the diff beside it. So publish, then post every unfixed line as an inline comment on the pull request through `/cockpit:ticket:4:cr:comments`, anchored to the `path/to/file.ext:123` the review reported. A finding named in chat instead is a finding the reviewer has to go looking for.
+- **An unfixed line holds the publish only when it is a defect.** A divergence from the tech steps is not one: `divergence-from-tech-steps.md` calls it a human amendment decision, and the person who makes it reads the diff beside it. So publish, then post every unfixed line as an inline comment on the pull request as `/cockpit:ticket:4:ready-for-cr` step 4.5 does, anchored to the `path/to/file.ext:123` the review reported. A finding named in chat instead is a finding the reviewer has to go looking for.
