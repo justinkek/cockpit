@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { dropCard, editCard, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content } from "@/app/content";
@@ -10,24 +10,21 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { type Page, Palette } from "@/app/palette";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
+import { loadView, neighboursIn, type View } from "@/app/view";
 import { type Card, fieldName, kindOf } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
-
-type Near = { id: string; name: string } | null;
-
-export type Neighbours = { previous: Near; next: Near; position: number; total: number } | null;
 
 export function Ticket({
 	initial,
 	lists,
 	failure,
-	neighbours,
+	column,
 }: {
 	initial: Card;
 	lists: Lists;
 	failure?: string;
-	neighbours: Neighbours;
+	column: Card[];
 }) {
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
@@ -37,7 +34,16 @@ export function Ticket({
 	const [undoing, setUndoing] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
 
+	const [view, setView] = useState<View | null>(null);
+
 	useEffect(() => setRecord(initial), [initial]);
+
+	useEffect(() => {
+		const kindOfRecord = kindOf(initial.id);
+		if (kindOfRecord) setView(loadView(kindOfRecord));
+	}, [initial.id]);
+
+	const neighbours = useMemo(() => neighboursIn(column, initial.id, view), [column, initial.id, view]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);

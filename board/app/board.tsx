@@ -27,6 +27,18 @@ import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/
 import { type Command, type Page, Palette } from "@/app/palette";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import {
+	COLLAPSED,
+	DEFAULT_VIEW,
+	type Layout,
+	loadView,
+	matches,
+	type Sort,
+	saveView,
+	sorter,
+	TOGGLES,
+	type View,
+} from "@/app/view";
+import {
 	boardColumns,
 	dueState,
 	fieldName,
@@ -53,62 +65,6 @@ function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
 			</button>
 		</p>
 	);
-}
-
-type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved";
-type Layout = "board" | "list";
-
-type View = {
-	query: string;
-	types: string[];
-	epic: string;
-	blocked: boolean;
-	claimed: boolean;
-	hideEmpty: boolean;
-	sort: Sort;
-	layout: Layout;
-	collapsed: string[];
-};
-
-const DEFAULT_VIEW: View = {
-	query: "",
-	types: [],
-	epic: "",
-	blocked: false,
-	claimed: false,
-	hideEmpty: false,
-	sort: "manual",
-	layout: "board",
-	collapsed: ["Done", "Deprioritised"],
-};
-
-const COLLAPSED: Record<Kind, string[]> = { card: ["Done", "Deprioritised"], epic: ["Epic Done"] };
-const TOGGLES = [
-	["blocked", "Blocked"],
-	["claimed", "Claimed"],
-] as const;
-
-function storageKey(kind: Kind) {
-	return kind === "card" ? "cockpit-board-view" : `cockpit-board-view-${kind}`;
-}
-
-function loadView(kind: Kind): View | null {
-	try {
-		const saved = window.localStorage.getItem(storageKey(kind));
-		return saved ? { ...DEFAULT_VIEW, collapsed: COLLAPSED[kind], ...JSON.parse(saved) } : null;
-	} catch {
-		return null;
-	}
-}
-
-function saveView(kind: Kind, view: View) {
-	try {
-		window.localStorage.setItem(storageKey(kind), JSON.stringify(view));
-	} catch {}
-}
-
-function ticketNumber(stub: Stub) {
-	return Number(stub.id.split("-").at(-1));
 }
 
 const effectiveRank = manualRank;
@@ -154,41 +110,6 @@ const collisions: CollisionDetection = (args) => {
 	if (card) return [card];
 	return within.length > 0 ? within : rectIntersection(args);
 };
-
-function lastMoved(stub: Stub) {
-	return (
-		stub.moved ??
-		Object.values(stub.dates ?? {})
-			.sort()
-			.at(-1) ??
-		stub.created
-	);
-}
-
-function sorter(sort: Sort) {
-	switch (sort) {
-		case "oldest":
-			return (a: Stub, b: Stub) => ticketNumber(a) - ticketNumber(b);
-		case "complexity":
-			return (a: Stub, b: Stub) => (b.complexity ?? -1) - (a.complexity ?? -1) || ticketNumber(b) - ticketNumber(a);
-		case "moved":
-			return (a: Stub, b: Stub) => lastMoved(b).localeCompare(lastMoved(a));
-		case "manual":
-			return (a: Stub, b: Stub) => effectiveRank(a) - effectiveRank(b);
-		default:
-			return (a: Stub, b: Stub) => ticketNumber(b) - ticketNumber(a);
-	}
-}
-
-function matches(stub: Stub, view: View) {
-	const query = view.query.trim().toLowerCase();
-	if (query && !`${stub.id} ${stub.name} ${stub.epic ?? ""}`.toLowerCase().includes(query)) return false;
-	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
-	if (view.epic && (stub.epic ?? "") !== view.epic) return false;
-	if (view.blocked && !stub.blocked) return false;
-	if (view.claimed && !stub.session) return false;
-	return true;
-}
 
 function filterCount(view: View) {
 	return [view.query.trim() !== "", view.types.length > 0, view.epic !== "", view.blocked, view.claimed].filter(Boolean)

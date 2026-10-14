@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { Ticket } from "@/app/ticket";
-import { BoardError, type Card, findRenamed, kindOf, listRecords, manualRank, readRecord } from "@/lib/board";
+import { BoardError, type Card, findRenamed, kindOf, listRecords, readRecord } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -37,21 +37,12 @@ export default async function CardPage({ params, searchParams }: Props) {
 		if (!(failure instanceof BoardError)) throw failure;
 	}
 
-	const kind = kindOf(record.id);
-	const column = (kind === "epic" ? epics : cards)
-		.filter((other) => other.status === record.status)
-		.sort((a, b) => manualRank(a) - manualRank(b));
-	const index = column.findIndex((other) => other.id === record.id);
-	const near = (other?: Card) => (other ? { id: other.id, name: other.name } : null);
-	const neighbours =
-		index < 0
-			? null
-			: { previous: near(column[index - 1]), next: near(column[index + 1]), position: index + 1, total: column.length };
+	const column = (kindOf(record.id) === "epic" ? epics : cards).filter((other) => other.status === record.status);
 
 	return (
 		<Ticket
 			initial={record}
-			neighbours={neighbours}
+			column={column}
 			failure={typeof error === "string" ? error : undefined}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
