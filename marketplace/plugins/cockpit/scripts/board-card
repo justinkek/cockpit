@@ -290,6 +290,42 @@ render_program='
     + (if ($record.body // "") == "" then [] else ["", $record.body] end)
   | join("\n")'
 
+derived_program='
+  def epoch:
+    if type != "string" then null
+    else [capture("^(?<day>[0-9]{4}-[0-9]{2}-[0-9]{2})(?:T(?<time>[0-9]{2}:[0-9]{2}(?::[0-9]{2})?)(?:\\.[0-9]+)?(?<zone>Z|[+-][0-9]{2}:?[0-9]{2})?)?$")
+          | try (((.day + "T" + ((.time // "00:00") | if length == 5 then . + ":00" else . end) + "Z") | fromdateiso8601)
+                 - (if (.zone // "Z") == "Z" then 0
+                    else .zone | (if startswith("-") then -60 else 60 end) * ((.[1:3] | tonumber) * 60 + (.[-2:] | tonumber)) end))
+            catch empty][0]
+    end;
+  def working_minutes:
+    epoch as $seconds
+    | if $seconds == null then null
+      else ($seconds / 86400 | floor) as $day
+        | ($day % 7) as $into_week
+        | (($seconds - $day * 86400) / 60 | floor) as $minute
+        | (5 * ($day / 7 | floor) + ([2, $into_week] | min) + ([0, $into_week - 4] | max)) * 510
+          + (if (($day + 4) % 7) as $weekday | $weekday == 0 or $weekday == 6 then 0 else [0, ([510, $minute - 570] | min)] | max end)
+      end;
+  def derived($now):
+    if (.id // "" | test("^(FEAT|BUG|TIME)-")) | not then .
+    else ($now | working_minutes) as $now_minutes
+      | (.dates // {}) as $dates
+      | ($dates["In Dev"] | working_minutes) as $in_dev
+      | (if $dates["Ready for CR"] == null then $now_minutes else $dates["Ready for CR"] | working_minutes end) as $dev_end
+      | (if $in_dev == null or $dev_end == null then null else [0, $dev_end - $in_dev] | max end) as $dev_minutes
+      | (if .status | IN("Ready for BR", "In BR", "Ready for TR by AI", "Ready for TR", "In TR", "Ready for Sprint",
+                         "In Dev", "Ready for CR", "In CR", "Ready for FR", "In FR", "Ready for Validation")
+         then $dates[.status] | working_minutes else null end) as $since
+      | . + {
+          days_in_column: (if $since == null or $now_minutes == null then 0 else [0, $now_minutes - $since] | max | . / 510 | round end),
+          overrunning: (if $dev_minutes == null then false
+                        elif .type == "Timebox" and (.timebox_mins // 0) > 0 then $dev_minutes > .timebox_mins
+                        elif (.complexity // 0) > 0 then $dev_minutes > .complexity * 102
+                        else false end)}
+    end;'
+
 read_record() {
   jq --raw-input --null-input "[inputs] | $parse_program" < "$(record_file "$1")"
 }
@@ -484,7 +520,7 @@ command_show() {
   require_record "$id"
   json="$(read_record "$id")"
   if [ "${1:-}" = "--json" ]; then
-    printf '%s\n' "$json"
+    printf '%s\n' "$json" | jq --arg now "$(now)" "$derived_program derived(\$now)"
     return 0
   fi
   if [ "${1:-}" = "--section" ]; then
@@ -537,9 +573,10 @@ command_list() {
   local files=("$directory"/*.md)
   [ -f "${files[0]}" ] || files=(/dev/null)
   jq --raw-input --null-input "[inputs | {file: input_filename, line: .}] | group_by(.file) | map(map(.line) | $parse_program)" "${files[@]}" \
-    | jq --arg status "$status" --arg epic "$epic" '
+    | jq --arg status "$status" --arg epic "$epic" --arg now "$(now)" "$derived_program"'
       map(select(($status == "" or .status == $status) and ($epic == "" or .epic == $epic)))
-      | sort_by(.id | split("-") | (.[0]), (.[1] | tonumber))' \
+      | sort_by(.id | split("-") | (.[0]), (.[1] | tonumber))
+      | map(derived($now))' \
     | if [ "$as_json" = true ]; then
         cat
       else

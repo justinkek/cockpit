@@ -438,6 +438,31 @@ stub unarchive "$undoable" >/dev/null
 stub history FEAT-999 >/dev/null 2>&1
 assert_eq "a record the board never held has no history" "3" "$?"
 
+printf "\nTest group: days in the column and overrunning are worked out as Notion did\n"
+
+notion_card() {
+  printf -- '---\nid: "%s"\nname: "From Notion"\ntype: "%s"\nstatus: "%s"\ncomplexity: %s\ntimebox_mins: %s\ndates:\n%b---\n' \
+    "$1" "$2" "$3" "$4" "${6:-null}" "$5" > "$COCKPIT_BOARD_DIR/cards/$1.md"
+}
+notion_card FEAT-901 Feature "In Dev" 8 '  "In Dev": "2026-09-06T17:40:00.000+01:00"\n'
+notion_card FEAT-902 Feature Done 1 '  "In Dev": "2026-08-14T15:35:00.000+01:00"\n  "Ready for CR": "2026-08-15T06:25:00.000+01:00"\n  "Done": "2026-08-15T07:00:00.000+01:00"\n'
+notion_card FEAT-903 Feature Done 5 '  "In Dev": "2026-09-03T10:40:00.000+01:00"\n  "Ready for CR": "2026-09-03T13:02:00.000+01:00"\n'
+notion_card TIME-904 Timebox Done null '  "In Dev": "2026-08-15T08:51:00.000+01:00"\n' 120
+notion_card TIME-905 Timebox Done null '  "In Dev": "2026-08-19T07:41:00.000+01:00"\n  "Ready for CR": "2026-08-19T07:52:00.000+01:00"\n' 60
+notion_card FEAT-906 Feature Backlog null ''
+derived() { COCKPIT_NOW=2026-10-13T16:45:51Z stub show "$1" --json | jq --raw-output '"\(.days_in_column) \(.overrunning)"'; }
+assert_eq "in dev since a Sunday, 27 working days on and past 8 points of time" "27 true" "$(derived FEAT-901)"
+assert_eq "an evening and a Saturday morning count only the evening's last working minutes" "0 true" "$(derived FEAT-902)"
+assert_eq "a few hours on a 5 is not overrunning, and Done counts no days" "0 false" "$(derived FEAT-903)"
+assert_eq "a timebox never handed to review runs on to now" "0 true" "$(derived TIME-904)"
+assert_eq "a timebox closed before the working day began used none of it" "0 false" "$(derived TIME-905)"
+assert_eq "a card that never reached In Dev is not overrunning" "0 false" "$(derived FEAT-906)"
+assert_eq "list carries the same values" "27 true" \
+  "$(COCKPIT_NOW=2026-10-13T16:45:51Z stub list --json | jq --raw-output '.[] | select(.id == "FEAT-901") | "\(.days_in_column) \(.overrunning)"')"
+assert_eq "and none of it is written to the record" "" "$(grep --extended-regexp '^(days_in_column|overrunning):' "$COCKPIT_BOARD_DIR/cards/FEAT-901.md")"
+assert_eq "an epic carries neither" "false" "$(stub show EPIC-1 --json | jq 'has("overrunning")')"
+rm "$COCKPIT_BOARD_DIR"/cards/FEAT-90[1-6].md "$COCKPIT_BOARD_DIR"/cards/TIME-90[45].md
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null
