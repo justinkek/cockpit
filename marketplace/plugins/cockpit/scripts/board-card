@@ -1454,7 +1454,7 @@ undo_locked() {
   current="$(parse_file "$current_file")" || exit "$?"
   restored="$(board_git show "$commit^:$before_file" | jq --raw-input --null-input "[inputs] | $parse_program" 2>/dev/null)" \
     || die 8 "$before_file as it stood before $subject does not parse"
-  live="$(for path in "$BOARD_DIR"/cards/*.md; do if [ -f "$path" ]; then basename "$path" .md; fi; done \
+  live="$(for path in "$BOARD_DIR"/cards/*.md; do path="${path##*/}"; printf '%s\n' "${path%.md}"; done \
     | jq --raw-input --null-input --arg id "$before_id" --argjson archived "$archived" "$live_cards_program")"
   restored="$(printf '%s' "$restored" | jq --argjson live "$live" "$following_program")"
   while IFS= read -r path; do changed+=("$path"); done < <(board_git diff --name-only --no-renames "$commit^" "$commit" -- "${paths[@]}")
