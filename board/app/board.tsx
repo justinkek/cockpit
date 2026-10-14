@@ -19,7 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { dropCard, editCard, linkCards, undoChange } from "@/app/actions";
+import { createCard, dropCard, editCard, linkCards, undoChange } from "@/app/actions";
 import { Content } from "@/app/content";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
@@ -278,6 +278,67 @@ function Card({ stub, pending, onOpen }: { stub: Stub; pending: boolean; onOpen:
 	);
 }
 
+function QuickAdd({
+	column,
+	open,
+	onOpenChange,
+	onCreate,
+}: {
+	column: string;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onCreate: (name: string) => Promise<boolean>;
+}) {
+	const [name, setName] = useState("");
+	const [busy, setBusy] = useState(false);
+	const box = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (open) box.current?.focus();
+	}, [open]);
+	if (!open) {
+		return (
+			<button type="button" className="quick-add-open" onClick={() => onOpenChange(true)}>
+				+ New in {column}
+			</button>
+		);
+	}
+	return (
+		<form
+			className="quick-add"
+			onSubmit={async (event) => {
+				event.preventDefault();
+				if (!name.trim() || busy) return;
+				setBusy(true);
+				const made = await onCreate(name.trim());
+				setBusy(false);
+				if (made) setName("");
+				box.current?.focus();
+			}}
+		>
+			<input
+				ref={box}
+				value={name}
+				aria-label={`New card name in ${column}`}
+				placeholder="Name, then Enter"
+				disabled={busy}
+				onChange={(event) => setName(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") {
+						event.stopPropagation();
+						setName("");
+						onOpenChange(false);
+					}
+				}}
+				onBlur={() => {
+					if (!name.trim() && !busy) onOpenChange(false);
+				}}
+			/>
+		</form>
+	);
+}
+
+type Adding = { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (name: string) => Promise<boolean> };
+
 function Lane({
 	column,
 	stubs,
@@ -285,6 +346,7 @@ function Lane({
 	onToggle,
 	pending,
 	onOpen,
+	adding,
 }: {
 	column: string;
 	stubs: Stub[];
@@ -292,6 +354,7 @@ function Lane({
 	onToggle: () => void;
 	pending: Set<string>;
 	onOpen: (id: string) => void;
+	adding: Adding;
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: column });
 	return (
@@ -309,6 +372,7 @@ function Lane({
 					))}
 				</ul>
 			)}
+			{!collapsed && <QuickAdd column={column} {...adding} />}
 		</section>
 	);
 }
@@ -355,6 +419,7 @@ function ListGroup({
 	onToggle,
 	pending,
 	onOpen,
+	adding,
 }: {
 	column: string;
 	stubs: Stub[];
@@ -362,6 +427,7 @@ function ListGroup({
 	onToggle: () => void;
 	pending: Set<string>;
 	onOpen: (id: string) => void;
+	adding: Adding;
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: column });
 	return (
@@ -380,6 +446,7 @@ function ListGroup({
 					))}
 				</ul>
 			)}
+			{!collapsed && <QuickAdd column={column} {...adding} />}
 		</section>
 	);
 }
@@ -502,6 +569,7 @@ export function Board({
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
+	const [addingIn, setAddingIn] = useState<string | null>(null);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
@@ -686,6 +754,25 @@ export function Board({
 		};
 	}
 
+	async function create(column: string, name: string): Promise<boolean> {
+		setNotice(null);
+		const lane = visible.filter((stub) => stub.status === column);
+		const last = lane.at(-1);
+		const result = await createCard(kind, name, column, {
+			type: view.types.length === 1 ? view.types[0] : undefined,
+			epic: view.epic || undefined,
+			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
+		});
+		const fresh = result.record;
+		if (!fresh) {
+			setNotice({ id: column, text: `Could not create the card: ${result.error ?? "board-card made nothing"}` });
+			return false;
+		}
+		setStubs((current) => [...current, fresh]);
+		router.refresh();
+		return true;
+	}
+
 	function onDragStart(event: DragStartEvent) {
 		const id = draggedId(event.active.id);
 		setDragging(stubs.find((stub) => stub.id === id) ?? null);
@@ -707,6 +794,11 @@ export function Board({
 		onToggle: () => toggleColumn(column),
 		pending,
 		onOpen: setOpenId,
+		adding: {
+			open: addingIn === column,
+			onOpenChange: (open: boolean) => setAddingIn(open ? column : null),
+			onCreate: (name: string) => create(column, name),
+		},
 	});
 
 	return (

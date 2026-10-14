@@ -7,7 +7,9 @@ import {
 	BoardError,
 	type Card,
 	type CommentThread,
+	type Kind,
 	changeStatus,
+	createRecord,
 	findRenamed,
 	lastCommit,
 	link,
@@ -72,12 +74,35 @@ async function threadsAfter(id: string, change: () => Promise<void>): Promise<Th
 	}
 }
 
+function rankText(rank: number) {
+	return rank.toFixed(6).replace(/\.?0+$/, "");
+}
+
 export async function dropCard(id: string, column: string, rank?: number): Promise<Result> {
 	return report(id, async () => {
 		const record = await readRecord(id);
 		if (record.status !== column) await changeStatus(record, column);
-		if (rank !== undefined) await setField(id, "rank", rank.toFixed(6).replace(/\.?0+$/, ""));
+		if (rank !== undefined) await setField(id, "rank", rankText(rank));
 	});
+}
+
+export async function createCard(
+	kind: Kind,
+	name: string,
+	status: string,
+	options: { type?: string; epic?: string; rank?: number } = {},
+): Promise<Result> {
+	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
+	if (!typed) return { error: "a new card needs a name" };
+	try {
+		const id = await createRecord(kind, typed, status, options);
+		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
+		refresh(id);
+		return { record: await readRecord(id) };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
 }
 
 export async function editCard(id: string, field: string, value: string): Promise<Result> {
