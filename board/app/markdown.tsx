@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Mermaid } from "@/app/mermaid";
 
 type Anchor = { text: string; thread: string };
 
@@ -115,10 +116,15 @@ function blocksOf(
 
 		if (line.startsWith("```")) {
 			const margin = new RegExp(`^[ \\t]{0,${raw.length - line.length}}`);
+			const language = line.slice(3).trim();
 			const code: string[] = [];
 			i++;
 			while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++].replace(margin, ""));
 			i++;
+			if (language === "mermaid") {
+				blocks.push(<Mermaid key={key} source={code.join("\n")} style={style} />);
+				continue;
+			}
 			blocks.push(
 				<pre key={key} className="md-code" style={style}>
 					{code.join("\n")}
