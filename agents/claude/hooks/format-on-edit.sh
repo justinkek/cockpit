@@ -30,12 +30,20 @@ project_prettier() {
   done
 }
 
+pinned_prettier() {
+  local status
+  npx --yes --prefer-offline "prettier@$prettier_version" "$@" 2>/dev/null && return 0
+  status=$?
+  [ "$status" -eq 2 ] && return "$status"
+  npx --yes --prefer-offline=false "prettier@$prettier_version" "$@" 2>/dev/null
+}
+
 format_with_prettier() {
   local local_prettier
   if local_prettier="$(project_prettier)"; then
     "$local_prettier" --ignore-unknown --write "$fp" 2>/dev/null
   else
-    npx --yes --prefer-offline "prettier@$prettier_version" --ignore-unknown --write "$fp" 2>/dev/null
+    pinned_prettier --ignore-unknown --write "$fp"
   fi || echo "[format] warning: prettier format failed for $fp" >&2
 }
 

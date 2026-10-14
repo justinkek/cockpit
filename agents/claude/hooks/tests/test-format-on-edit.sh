@@ -56,7 +56,12 @@ write_prettier_stub() {
 printf '%s %s\n' "$0" "$*" >> "$FORMAT_CALLS"
 target="${!#}"
 case "$target" in
-  *broken*) exit 1 ;;
+  *broken*) exit 2 ;;
+  *stale*)
+    case " $* " in
+      *" --prefer-offline "*) exit 1 ;;
+    esac
+    ;;
 esac
 case " $* " in
   *" --ignore-unknown "*) exit 0 ;;
@@ -96,6 +101,7 @@ make_repository "$PRETTIER_PROJECT"
 printf '{}\n' > "$PRETTIER_PROJECT/.prettierrc"
 printf '* text=auto\n' > "$PRETTIER_PROJECT/.gitattributes"
 printf '{}\n' > "$PRETTIER_PROJECT/broken.json"
+printf '{}\n' > "$PRETTIER_PROJECT/stale.json"
 
 PLAIN_PROJECT="$TEMPORARY_DIRECTORY/plain-project"
 make_repository "$PLAIN_PROJECT"
@@ -151,10 +157,23 @@ warnings_from_edit "$INSTALLED_PROJECT/packages/web/README.md" >/dev/null
 calls="$(cat "$CALLS")"
 assert_contains "a markdown edit there uses the repository's own prettier too" "$INSTALLED_PROJECT/node_modules/.bin/prettier --ignore-unknown --write" "$calls"
 
+printf "\nTest group: a cache that predates the pinned version is refreshed rather than failing every edit\n"
+
+warnings="$(warnings_from_edit "$PRETTIER_PROJECT/stale.json")"
+assert_empty "an edit whose cached packument lacks the pin prints no warning" "$warnings"
+assert_contains "the first call reads the cache" "$STUBS/npx --yes --prefer-offline prettier@" "$(sed -n 1p "$CALLS")"
+assert_contains "and the second asks the registry for the same version" "$STUBS/npx --yes --prefer-offline=false $non_markdown_spec " "$(sed -n 2p "$CALLS")"
+
 printf "\nTest group: a prettier that fails is still reported\n"
 
 warnings="$(warnings_from_edit "$PRETTIER_PROJECT/broken.json")"
 assert_contains "a failed format names the file" "prettier format failed for $PRETTIER_PROJECT/broken.json" "$warnings"
+calls_made="$(grep --count --fixed-strings -- "$STUBS/npx" "$CALLS")"
+if [ "$calls_made" -eq 1 ]; then
+  assert_ok "a file prettier refused is not fetched again from the registry"
+else
+  assert_ko "a file prettier refused is not fetched again from the registry" "npx ran $calls_made times"
+fi
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
