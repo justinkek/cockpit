@@ -81,4 +81,4 @@ Safe to repeat: both totals are recomputed from the session usage files and over
 "$HOME/.cockpit/scripts/board-card" usage <id>
 ```
 
-It writes `cost_usd` and `tokens_k` onto the card and prints them. A `cost_usd` of `null` stays blank on the card, which signals that cost data was unavailable.
+It writes `cost_usd` and `tokens_k` onto the card and prints them. Either can come back `null`, and each is worked out on its own: `cost_usd` is `null` when no session that worked the card recorded a cost, and `tokens_k` when none recorded a token count. A `null` stays blank on the card, which signals that figure was unavailable - never write `0` in its place. Both `null` means no session on this machine left usage for the card at all; say so in the run report rather than reading it as a card that cost nothing.
