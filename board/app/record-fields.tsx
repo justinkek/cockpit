@@ -294,6 +294,7 @@ export function SprintDates({ sprint }: { sprint: Card }) {
 			if (result.error) {
 				setRecord(before);
 				setError(result.error);
+				if (result.archived) router.refresh();
 				return;
 			}
 			router.refresh();

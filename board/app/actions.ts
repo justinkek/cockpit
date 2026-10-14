@@ -29,7 +29,7 @@ import {
 	undoSince,
 } from "@/lib/board";
 
-type Failure = { error?: string; moved?: string };
+type Failure = { error?: string; moved?: string; archived?: boolean };
 export type Span = { since: string; until: string };
 type Result = Failure & { record?: Card; undo?: Span };
 type Threads = Failure & { threads?: CommentThread[]; me?: string | null };
@@ -55,6 +55,11 @@ function refresh(id: string) {
 
 async function failed(id: string, error: unknown): Promise<Failure> {
 	if (!(error instanceof BoardError)) throw error;
+	const archived = error.message.match(/^(\S+) is archived - run: /)?.[1];
+	if (archived === id) {
+		return { error: `${id} was archived elsewhere, so this change was not saved - bring it back to change it`, archived: true };
+	}
+	if (archived) return { error: `${archived} is archived - bring it back from its page first` };
 	const missing = error.message.match(/^no record (\S+) in /)?.[1];
 	if (!missing) return { error: error.message };
 	if (missing !== id) return { error: `${missing} is not on the board` };

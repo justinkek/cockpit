@@ -18,7 +18,7 @@ import { loadView, neighboursIn, type View } from "@/app/view";
 import type { Progress } from "@/lib/metrics";
 import { type Card, contentSearchFailed, fieldName, homeOf, kindOf, movedTo, phaseOf, recordKindOf } from "@/lib/shared";
 
-type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
+type Result = { record?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span };
 
 export function Ticket({
 	initial,
@@ -115,7 +115,9 @@ export function Ticket({
 			if (result.error) {
 				setRecord(before);
 				setError(result.error);
-				if (result.moved) router.replace(`/card/${result.moved}?error=${encodeURIComponent(result.error)}`);
+				if (result.moved || result.archived) {
+					router.replace(`/card/${result.moved ?? before.id}?error=${encodeURIComponent(result.error)}`);
+				}
 				return;
 			}
 			if (!result.record) return;

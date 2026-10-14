@@ -1337,7 +1337,7 @@ export function Board({
 	function apply(
 		id: string,
 		optimistic: Partial<Stub>,
-		request: () => Promise<{ record?: Stub; error?: string; moved?: string; undo?: Span }>,
+		request: () => Promise<{ record?: Stub; error?: string; moved?: string; archived?: boolean; undo?: Span }>,
 		label: string,
 	) {
 		const before = stubs.find((s) => s.id === id);
@@ -1353,10 +1353,8 @@ export function Board({
 				const moved = result.moved;
 				setStubs((current) => current.map((s) => (s.id === id ? before : s)));
 				setNotice({ id: moved ?? id, text: moved ? result.error : `${id}: ${result.error}` });
-				if (moved) {
-					setOpenId((opened) => (opened === id ? moved : opened));
-					router.refresh();
-				}
+				if (moved) setOpenId((opened) => (opened === id ? moved : opened));
+				if (moved || result.archived) router.refresh();
 				return;
 			}
 			const fresh = result.record;
