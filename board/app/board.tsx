@@ -32,6 +32,7 @@ import {
 	fieldName,
 	type Kind,
 	kindOf,
+	manualRank,
 	type Named,
 	phaseOf,
 	type Card as Stub,
@@ -110,9 +111,7 @@ function ticketNumber(stub: Stub) {
 	return Number(stub.id.split("-").at(-1));
 }
 
-function effectiveRank(stub: Stub) {
-	return stub.rank ?? -ticketNumber(stub);
-}
+const effectiveRank = manualRank;
 
 const FROM_PANEL = "peek:";
 

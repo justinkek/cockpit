@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useState, useTransition } from "react";
 import { dropCard, editCard, linkCards, undoChange } from "@/app/actions";
@@ -13,7 +14,21 @@ import { type Card, fieldName, kindOf } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: string };
 
-export function Ticket({ initial, lists, failure }: { initial: Card; lists: Lists; failure?: string }) {
+type Near = { id: string; name: string } | null;
+
+export type Neighbours = { previous: Near; next: Near; position: number; total: number } | null;
+
+export function Ticket({
+	initial,
+	lists,
+	failure,
+	neighbours,
+}: {
+	initial: Card;
+	lists: Lists;
+	failure?: string;
+	neighbours: Neighbours;
+}) {
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
 	const [error, setError] = useState(failure ?? "");
@@ -128,6 +143,11 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 		} else if (command && !typing && (event.code === "Period" || event.key === "." || event.key === ">")) {
 			event.preventDefault();
 			copy(event.shiftKey);
+		} else if (!command && !event.altKey && !typing && (event.key === "j" || event.key === "k")) {
+			const to = event.key === "j" ? neighbours?.next : neighbours?.previous;
+			if (!to) return;
+			event.preventDefault();
+			router.push(`/card/${to.id}`);
 		} else if (!command && !event.altKey && !typing && kind && (event.key === "s" || event.key === "e")) {
 			if (event.key === "e" && kind !== "card") return;
 			event.preventDefault();
@@ -137,6 +157,27 @@ export function Ticket({ initial, lists, failure }: { initial: Card; lists: List
 
 	return (
 		<article className="stub">
+			{neighbours && (
+				<nav className="neighbours" aria-label={`Cards in ${record.status}`}>
+					{neighbours.previous ? (
+						<Link href={`/card/${neighbours.previous.id}`} title={`Previous: ${neighbours.previous.name} (k)`} rel="prev">
+							‹ {neighbours.previous.id}
+						</Link>
+					) : (
+						<span className="empty">‹</span>
+					)}
+					<span className="neighbours-at">
+						{neighbours.position} of {neighbours.total} in {record.status}
+					</span>
+					{neighbours.next ? (
+						<Link href={`/card/${neighbours.next.id}`} title={`Next: ${neighbours.next.name} (j)`} rel="next">
+							{neighbours.next.id} ›
+						</Link>
+					) : (
+						<span className="empty">›</span>
+					)}
+				</nav>
+			)}
 			<Title
 				id={record.id}
 				className="title-input"

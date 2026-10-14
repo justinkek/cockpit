@@ -145,3 +145,7 @@ export function dueState(record: Pick<Card, "due" | "status">, now = new Date())
 	if (days <= 3) return { tone: "soon", label: `Due ${due.toLocaleDateString(undefined, { weekday: "short" })}`, title };
 	return { tone: "later", label: `Due ${date}`, title };
 }
+
+export function manualRank(record: Pick<Card, "id" | "rank">) {
+	return record.rank ?? -Number(record.id.split("-").at(-1));
+}
