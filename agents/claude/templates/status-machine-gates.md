@@ -18,6 +18,14 @@ git merge-base HEAD origin/<default-branch>
 git diff <the commit it printed>..HEAD
 ```
 
+Then list what that range holds before any review reads it:
+
+```
+git log --no-merges --oneline <the commit it printed>..HEAD
+```
+
+Every line it prints has to be this ticket's own work. Cut from the local HEAD, the branch also holds every commit that HEAD had beyond the remote, and each review below would read them as this ticket's diff. On a commit that is not this ticket's, name it and stop before the first review, as step 2.4 of `/cockpit:ticket:4:ready-for-cr` stops before the push. In an unattended session that stop follows the finding rule: flag the ticket Blocked, comment, stop.
+
 Pass that same range to the shared review as its target: `/code-review low <the commit it printed>..HEAD`.
 
 `/code-review low` runs on every project, and two more run after it on every project, in this order:
