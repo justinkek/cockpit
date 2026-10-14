@@ -41,8 +41,8 @@ export function Stages({ record }: { record: Card }) {
 			<h3>Stages</h3>
 			<FlowLine record={record} />
 			<ol>
-				{stages.map((stage) => (
-					<li key={stage.column} className={stage.current ? "current" : undefined}>
+				{stages.map((stage, index) => (
+					<li key={`${index}-${stage.column}`} className={stage.current ? "current" : undefined}>
 						<span className={`dot phase-${phaseOf(stage.column)}`} aria-hidden="true" />
 						<span className="stage-name">
 							<span>{stage.column}</span>
@@ -63,9 +63,13 @@ export function Stages({ record }: { record: Card }) {
 							{stage.ms == null ? "" : span(stage.ms)}
 							{stage.current && " · now"}
 						</span>
-						<time dateTime={stage.at} title={new Date(stage.at).toLocaleString()} suppressHydrationWarning>
-							{stampText(stage.at)}
-						</time>
+						{stage.at ? (
+							<time dateTime={stage.at} title={new Date(stage.at).toLocaleString()} suppressHydrationWarning>
+								{stampText(stage.at)}
+							</time>
+						) : (
+							<span />
+						)}
 					</li>
 				))}
 			</ol>

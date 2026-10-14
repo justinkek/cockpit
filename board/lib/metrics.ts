@@ -30,26 +30,37 @@ export function span(ms: number): string {
 	return `${Math.round(minutes / 60 / 24)}d`;
 }
 
-export type Stage = { column: string; at: string; ms: number | null; current: boolean };
+export type Stage = { column: string; at: string | null; ms: number | null; current: boolean };
 
 type Dated = Pick<Card, "dates" | "status" | "moved" | "created">;
 
+type Entry = { column: string; at: string | null; time: number | null };
+
 export function stagesOf(record: Dated, now = Date.now()): Stage[] {
-	const entries = Object.entries(record.dates ?? {})
+	const entries: Entry[] = Object.entries(record.dates ?? {})
 		.map(([column, at]) => ({ column, at, time: timeOf(at) }))
 		.filter((entry): entry is { column: string; at: string; time: number } => entry.time != null)
 		.sort((a, b) => a.time - b.time || walkIndex(a.column) - walkIndex(b.column));
-	const finished = phaseOf(record.status) === "done";
+	const last = entries.at(-1);
 	const moved = timeOf(record.moved);
+	if (record.status && last?.column !== record.status && (last || moved != null)) {
+		const known = moved != null && (last?.time == null || moved >= last.time);
+		entries.push({ column: record.status, at: known ? (record.moved ?? null) : null, time: known ? moved : null });
+	}
+	const finished = phaseOf(record.status) === "done";
 	return entries.map((entry, index) => {
 		const next = entries[index + 1];
-		if (next) return { column: entry.column, at: entry.at, ms: Math.max(0, next.time - entry.time), current: false };
-		if (finished && phaseOf(entry.column) === "done")
-			return { column: entry.column, at: entry.at, ms: null, current: false };
-		if (entry.column === record.status)
-			return { column: entry.column, at: entry.at, ms: Math.max(0, now - entry.time), current: true };
-		const end = moved != null && moved > entry.time ? moved : null;
-		return { column: entry.column, at: entry.at, ms: end == null ? null : end - entry.time, current: false };
+		if (next) {
+			const ms = next.time != null && entry.time != null ? Math.max(0, next.time - entry.time) : null;
+			return { column: entry.column, at: entry.at, ms, current: false };
+		}
+		if (finished) return { column: entry.column, at: entry.at, ms: null, current: false };
+		return {
+			column: entry.column,
+			at: entry.at,
+			ms: entry.time == null ? null : Math.max(0, now - entry.time),
+			current: true,
+		};
 	});
 }
 

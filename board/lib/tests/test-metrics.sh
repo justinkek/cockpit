@@ -78,9 +78,19 @@ assert_eq "the column a card is in runs to now" \
   "$(evaluate "m.stagesOf($OPEN_CARD, $NOW).map((s) => [s.column, s.ms, s.current])")"
 
 UNSTAMPED='{"id":"FEAT-3","status":"Sprint Backlog","created":"2026-10-13T09:00:00Z","moved":"2026-10-14T11:00:00Z","dates":{"Ready for Sprint":"2026-10-14T09:00:00Z"}}'
-assert_eq "the last stamped stage ends when the card moved to a column that stamps no date" \
-  '[["Ready for Sprint",7200000,false]]' \
+assert_eq "a column that stamps no date runs from when the card moved into it to now" \
+  '[["Ready for Sprint",7200000,false],["Sprint Backlog",3600000,true]]' \
   "$(evaluate "m.stagesOf($UNSTAMPED, $NOW).map((s) => [s.column, s.ms, s.current])")"
+
+BACK='{"id":"BUG-6","status":"In CR","created":"2026-10-12T09:00:00Z","moved":"2026-10-14T06:30:00Z","dates":{"In CR":"2026-10-13T09:00:00Z","Done":"2026-10-13T12:00:00Z"}}'
+assert_eq "a card moved back to an earlier column ends on that column, running to now" \
+  '[["In CR",10800000,false],["Done",66600000,false],["In CR",19800000,true]]' \
+  "$(evaluate "m.stagesOf($BACK, $NOW).map((s) => [s.column, s.ms, s.current])")"
+
+UNMOVED='{"id":"BUG-7","status":"In Dev","created":"2026-10-12T09:00:00Z","dates":{"In Dev":"2026-10-13T09:00:00Z","In CR":"2026-10-13T12:00:00Z"}}'
+assert_eq "a card back in a column with no record of when keeps that column last with no duration" \
+  '[["In Dev",10800000,false],["In CR",null,false],["In Dev",null,true]]' \
+  "$(evaluate "m.stagesOf($UNMOVED, $NOW).map((s) => [s.column, s.ms, s.current])")"
 
 TIED='{"id":"FEAT-5","status":"Done","created":"2026-10-01T09:00:00Z","dates":{"Done":"2026-10-02T09:00:00Z","In CR":"2026-10-02T09:00:00Z","Ready for Validation":"2026-10-02T09:00:00Z"}}'
 assert_eq "stages reached in the same minute keep the order of the board's columns" \
