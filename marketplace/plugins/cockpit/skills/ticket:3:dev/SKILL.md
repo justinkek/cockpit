@@ -27,7 +27,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 3. **Advance to In Dev.** Use the `cockpit:ticket:x:status` skill to walk the board from the current status to `In Dev`. This handles intermediate hops, date stamps, and skip-list filtering.
 
-4. **Unlock file edits.** Run:
+4. **Unlock file edits.** When step 3 ran, read the column it left the card in first, with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. A gate in the walk can refuse a hop and leave the card short of `In Dev` - out of `Backlog`, or out of `In BR` or `In TR` with a section missing. Anything short of `In Dev` keeps file edits locked: name the column and what the walk refused, and stop. On `In Dev`, run:
 
    ```
    "$HOME/.cockpit/scripts/ticket-status-confirm" dev
