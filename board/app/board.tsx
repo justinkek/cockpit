@@ -19,9 +19,10 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
-import { dropCard, editCard } from "@/app/actions";
+import { dropCard, editCard, linkCards } from "@/app/actions";
 import { Content } from "@/app/content";
-import { boardColumns, FIBONACCI, type Kind, type Named, phaseOf, type Card as Stub, TYPES } from "@/lib/shared";
+import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
+import { boardColumns, type Kind, type Named, phaseOf, type Card as Stub, TYPES } from "@/lib/shared";
 
 const Names = createContext<Record<string, string>>({});
 
@@ -298,38 +299,21 @@ function ListGroup({
 	);
 }
 
-function Ids({ ids, onOpen }: { ids?: string[]; onOpen: (id: string) => void }) {
-	if (!ids || ids.length === 0) return <span className="empty">None</span>;
-	return (
-		<>
-			{ids.map((id) => (
-				<button key={id} type="button" className="ident-link" onClick={() => onOpen(id)}>
-					{id}
-				</button>
-			))}
-		</>
-	);
-}
-
 function Peek({
 	stub,
 	kind,
 	cards,
+	lists,
+	handlers,
 	onClose,
-	onMove,
-	onEdit,
-	onOpen,
 }: {
 	stub: Stub;
 	kind: Kind;
 	cards: (Named & { status: string })[];
+	lists: Lists;
+	handlers: Handlers;
 	onClose: () => void;
-	onMove: (id: string, column: string) => void;
-	onEdit: (id: string, field: string, value: string) => void;
-	onOpen: (id: string) => void;
 }) {
-	const names = useContext(Names);
-	const columns = boardColumns(kind);
 	const dates = Object.entries(stub.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 	return (
 		<aside className="peek" aria-label={`${stub.id} details`}>
@@ -344,75 +328,12 @@ function Peek({
 					</button>
 				</span>
 			</header>
-			<h2 className="peek-title">{stub.name}</h2>
+			<Title className="peek-title" value={stub.name} onCommit={(name) => handlers.onEdit("name", name, { name })} />
+			<Fields record={stub} lists={lists} handlers={handlers} />
+			<Links record={stub} lists={lists} handlers={handlers} />
 			<dl className="props">
-				<dt>Status</dt>
-				<dd>
-					<select value={stub.status} onChange={(event) => onMove(stub.id, event.target.value)}>
-						{!columns.includes(stub.status) && <option disabled>{stub.status}</option>}
-						{columns.map((column) => (
-							<option key={column}>{column}</option>
-						))}
-					</select>
-				</dd>
-				{kind === "card" && (
-					<>
-						<dt>Type</dt>
-						<dd>
-							<select value={stub.type} onChange={(event) => onEdit(stub.id, "type", event.target.value)}>
-								{TYPES.map((type) => (
-									<option key={type}>{type}</option>
-								))}
-							</select>
-						</dd>
-						<dt>Complexity</dt>
-						<dd>
-							<select
-								value={stub.complexity ?? ""}
-								onChange={(event) => onEdit(stub.id, "complexity", event.target.value)}
-							>
-								<option value="" disabled>
-									Not set
-								</option>
-								{FIBONACCI.map((points) => (
-									<option key={points} value={points}>
-										{points}
-									</option>
-								))}
-							</select>
-						</dd>
-						<dt>Epic</dt>
-						<dd>
-							{stub.epic ? (
-								<Link href={`/epics?open=${stub.epic}`}>{names[stub.epic] ?? stub.epic}</Link>
-							) : (
-								<span className="empty">None</span>
-							)}
-						</dd>
-						<dt>Blocked</dt>
-						<dd>{stub.blocked ?? <span className="empty">No</span>}</dd>
-					</>
-				)}
 				<dt>Claimed by</dt>
 				<dd>{stub.session ?? <span className="empty">Nobody</span>}</dd>
-				{kind === "card" && (
-					<>
-						<dt>Dependent on</dt>
-						<dd>
-							<Ids ids={stub.dependent_on} onOpen={onOpen} />
-						</dd>
-						<dt>Dependency for</dt>
-						<dd>
-							<Ids ids={stub.dependency_for} onOpen={onOpen} />
-						</dd>
-					</>
-				)}
-				{stub.prs && (
-					<>
-						<dt>PRs</dt>
-						<dd className="wrap">{stub.prs}</dd>
-					</>
-				)}
 				{stub.cost_usd != null && (
 					<>
 						<dt>Cost</dt>
@@ -461,14 +382,15 @@ function Peek({
 export function Board({
 	initial,
 	kind = "card",
-	epics = [],
+	lists,
 	children = {},
 }: {
 	initial: Stub[];
 	kind?: Kind;
-	epics?: Named[];
+	lists: Lists;
 	children?: Record<string, (Named & { status: string })[]>;
 }) {
+	const epics = lists.epics;
 	const router = useRouter();
 	const [stubs, setStubs] = useState(initial);
 	const [view, setView] = useState<View>({ ...DEFAULT_VIEW, collapsed: COLLAPSED[kind] });
@@ -599,9 +521,15 @@ export function Board({
 		return { column: target.status, rank: (before + effectiveRank(target)) / 2 };
 	}
 
-	function edit(id: string, field: string, value: string) {
-		const optimistic = field === "complexity" ? { complexity: Number(value) } : { [field]: value };
-		apply(id, optimistic as Partial<Stub>, () => editCard(id, field, value));
+	function handlersFor(stub: Stub): Handlers {
+		return {
+			onMove: (column) => move(stub.id, column),
+			onEdit: (field, value, change) => apply(stub.id, change, () => editCard(stub.id, field, value)),
+			onLink: (parent, child, linked) =>
+				apply(stub.id, linkChange(stub, parent, child, linked), () => linkCards(stub.id, parent, child, linked)),
+			onError: (message) => setNotice(`${stub.id}: ${message}`),
+			onOpen: setOpenId,
+		};
 	}
 
 	function onDragStart(event: DragStartEvent) {
@@ -787,10 +715,9 @@ export function Board({
 							stub={open}
 							kind={kind}
 							cards={children[open.id] ?? []}
+							lists={lists}
+							handlers={handlersFor(open)}
 							onClose={() => setOpenId(null)}
-							onMove={move}
-							onEdit={edit}
-							onOpen={setOpenId}
 						/>
 					)}
 				</div>

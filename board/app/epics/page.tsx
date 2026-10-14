@@ -6,8 +6,9 @@ export const dynamic = "force-dynamic";
 export default async function EpicsPage() {
 	let cards: Card[];
 	let epics: Card[];
+	let projects: Card[];
 	try {
-		[cards, epics] = await Promise.all([listRecords("card"), listRecords("epic")]);
+		[cards, epics, projects] = await Promise.all([listRecords("card"), listRecords("epic"), listRecords("project")]);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return <p className="notice error">{error.message}</p>;
@@ -24,5 +25,17 @@ export default async function EpicsPage() {
 		children[card.epic].push({ id: card.id, name: card.name, status: card.status });
 	}
 
-	return <Board kind="epic" initial={epics} children={children} />;
+	return (
+		<Board
+			kind="epic"
+			initial={epics}
+			children={children}
+			lists={{
+				cards: [],
+				epics: epics.map(({ id, name }) => ({ id, name })),
+				sprints: [],
+				projects: projects.map(({ id, name }) => ({ id, name })),
+			}}
+		/>
+	);
 }

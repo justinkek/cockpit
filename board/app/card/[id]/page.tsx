@@ -38,10 +38,12 @@ export default async function CardPage({ params }: Props) {
 	return (
 		<Ticket
 			initial={record}
-			cards={cards.map(({ id, name, status }) => ({ id, name, status }))}
-			epics={epics.map(({ id, name }) => ({ id, name }))}
-			sprints={sprints.map(({ id, name, start, end }) => ({ id, name, start, end }))}
-			projects={projects.map(({ id, name }) => ({ id, name }))}
+			lists={{
+				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
+				epics: epics.map(({ id, name }) => ({ id, name })),
+				sprints: sprints.map(({ id, name, start, end }) => ({ id, name, start, end })),
+				projects: projects.map(({ id, name }) => ({ id, name })),
+			}}
 		/>
 	);
 }
