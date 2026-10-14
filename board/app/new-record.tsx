@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { submitRecord } from "@/app/actions";
+import { EmojiPicker } from "@/app/emoji-picker";
 import { DOMAINS, FIBONACCI, PROJECT_STATUSES } from "@/lib/shared";
 
 type Other = "project" | "sprint" | "reference";
@@ -70,6 +71,7 @@ function props(kind: Other): ReactNode {
 
 export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label?: string }) {
 	const [open, setOpen] = useState(false);
+	const [icon, setIcon] = useState("");
 	const frame = useRef<HTMLDetailsElement>(null);
 	const name = useRef<HTMLInputElement>(null);
 
@@ -120,14 +122,17 @@ export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label
 				}}
 			>
 				<input type="hidden" name="kind" value={kind} />
-				<input
-					ref={name}
-					name="name"
-					className="new-name"
-					aria-label="Name"
-					placeholder={`${kind[0].toUpperCase()}${kind.slice(1)} name`}
-					required
-				/>
+				<span className="new-title">
+					<EmojiPicker name="icon" value={icon} onPick={setIcon} />
+					<input
+						ref={name}
+						name="name"
+						className="new-name"
+						aria-label="Name"
+						placeholder={`${kind[0].toUpperCase()}${kind.slice(1)} name`}
+						required
+					/>
+				</span>
 				<div className="new-props">{props(kind)}</div>
 				<span className="composer-actions">
 					<button type="button" className="quiet" onClick={() => setOpen(false)}>

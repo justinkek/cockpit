@@ -40,6 +40,7 @@ export type NewOptions = {
 	body?: string;
 	project?: string;
 	timeboxMins?: string;
+	icon?: string;
 };
 
 function refresh(id: string) {
@@ -122,7 +123,10 @@ export async function createCard(
 	try {
 		id = await createRecord(kind, typed, status, {
 			...options,
-			fields: kind === "card" && options.timeboxMins ? { timebox_mins: options.timeboxMins } : undefined,
+			fields: {
+				...(kind === "card" && options.timeboxMins ? { timebox_mins: options.timeboxMins } : {}),
+				...(options.icon ? { icon: options.icon } : {}),
+			},
 		});
 		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
 		if (options.project) await setField(id, "project", options.project);
@@ -177,6 +181,7 @@ export async function submitNew(form: FormData): Promise<void> {
 		epic: text(form, "epic") || undefined,
 		project: text(form, "project") || undefined,
 		timeboxMins: text(form, "timebox_mins") || undefined,
+		icon: text(form, "icon") || undefined,
 		body: typeof form.get("body") === "string" ? String(form.get("body")).replace(/\r\n/g, "\n") : undefined,
 	});
 	const made = result.record?.id ?? result.moved;

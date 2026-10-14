@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { editCard } from "@/app/actions";
+import { EmojiPicker } from "@/app/emoji-picker";
 import { Choice, Fallback, type Handlers, type Lists, TextField } from "@/app/fields";
 import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, recordKindOf } from "@/lib/shared";
 
@@ -15,12 +16,7 @@ function IconField({ record, onEdit }: { record: Card; onEdit: Edit }) {
 			<dt>Icon</dt>
 			<dd>
 				<Fallback id={record.id} op="set" field="icon">
-					<TextField
-						label="Icon"
-						placeholder="No icon - one emoji"
-						value={record.icon ?? ""}
-						onCommit={(icon) => onEdit("icon", icon, { icon: icon || null })}
-					/>
+					<EmojiPicker value={record.icon ?? ""} onPick={(icon) => onEdit("icon", icon, { icon: icon || null })} />
 				</Fallback>
 			</dd>
 		</>

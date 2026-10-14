@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { type NewOptions, submitNew } from "@/app/actions";
+import { EmojiPicker } from "@/app/emoji-picker";
 import type { Lists } from "@/app/fields";
 import { boardColumns, type Kind, TYPES } from "@/lib/shared";
 
@@ -28,6 +29,7 @@ export function NewRecord({
 	const [epic, setEpic] = useState(defaults.epic ?? "");
 	const [project, setProject] = useState("");
 	const [timebox, setTimebox] = useState("60");
+	const [icon, setIcon] = useState("");
 	const [body, setBody] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
@@ -85,6 +87,7 @@ export function NewRecord({
 			epic: kind === "card" ? epic || undefined : undefined,
 			project: project || undefined,
 			timeboxMins: kind === "card" && type === "Timebox" ? timebox.trim() || undefined : undefined,
+			icon: icon || undefined,
 			body: body.trim() ? body : undefined,
 		});
 		setBusy(false);
@@ -96,6 +99,7 @@ export function NewRecord({
 		setBody("");
 		setProject("");
 		setTimebox("60");
+		setIcon("");
 	}
 
 	return (
@@ -139,17 +143,20 @@ export function NewRecord({
 				}}
 			>
 				<input type="hidden" name="kind" value={kind} />
-				<input
-					ref={box}
-					name="name"
-					className="new-name"
-					aria-label="Name"
-					placeholder={`${kind === "card" ? "Card" : "Epic"} name`}
-					required
-					value={name}
-					disabled={busy}
-					onChange={changed(setName)}
-				/>
+				<span className="new-title">
+					<EmojiPicker name="icon" value={icon} onPick={setIcon} />
+					<input
+						ref={box}
+						name="name"
+						className="new-name"
+						aria-label="Name"
+						placeholder={`${kind === "card" ? "Card" : "Epic"} name`}
+						required
+						value={name}
+						disabled={busy}
+						onChange={changed(setName)}
+					/>
+				</span>
 				<div className="new-props">
 					<select name="status" aria-label="Status" value={status} onChange={changed(setStatus)}>
 						{columns.map((column) => (

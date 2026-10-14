@@ -3724,3 +3724,143 @@
 		}
 	}
 }
+
+@layer components {
+	.new-title {
+		display: flex;
+		gap: 6px;
+		min-width: 0;
+
+		& .new-name {
+			flex: 1;
+			min-width: 0;
+		}
+
+		& .emoji-current {
+			height: 34px;
+			width: 34px;
+			justify-content: center;
+			padding: 0;
+
+			& .emoji-current-label {
+				display: none;
+			}
+		}
+	}
+
+	.emoji-picker {
+		position: relative;
+		display: inline-flex;
+		min-width: 0;
+	}
+
+	.emoji-current {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		height: 28px;
+		padding: 0 8px;
+		font-size: 16px;
+		line-height: 1;
+		color: var(--ink);
+		background: var(--panel);
+		border: 1px solid var(--line);
+
+		&:hover {
+			border-color: var(--line-strong);
+		}
+
+		&.empty {
+			color: var(--faint);
+		}
+	}
+
+	.emoji-current-label {
+		font-size: 12px;
+		color: var(--muted);
+	}
+
+	.emoji-panel {
+		position: absolute;
+		top: calc(100% + 6px);
+		left: 0;
+		z-index: 40;
+		width: min(332px, calc(100vw - 32px));
+		display: grid;
+		gap: 8px;
+		padding: 10px;
+		background: var(--panel);
+		border-radius: 10px;
+		box-shadow: var(--shadow-lift);
+	}
+
+	.emoji-tools,
+	.emoji-own {
+		display: flex;
+		gap: 6px;
+
+		& input {
+			flex: 1;
+			min-width: 0;
+		}
+
+		& button:disabled {
+			opacity: 0.5;
+			cursor: default;
+		}
+	}
+
+	.emoji-grid-scroll {
+		max-height: 240px;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+
+		& section + section {
+			margin-top: 8px;
+		}
+
+		& h4 {
+			margin: 0 0 4px;
+			font-size: 11px;
+			font-weight: 500;
+			color: var(--faint);
+		}
+	}
+
+	.emoji-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+		gap: 2px;
+
+		& button {
+			height: 34px;
+			padding: 0;
+			font-size: 19px;
+			line-height: 1;
+			background: none;
+			border: 1px solid transparent;
+
+			&:hover,
+			&:focus-visible {
+				background: var(--lane);
+				outline: none;
+			}
+
+			&.on {
+				background: var(--accent-soft);
+				border-color: var(--accent);
+			}
+		}
+	}
+
+	@media (width < 760px) {
+		.emoji-panel {
+			position: fixed;
+			top: 56px;
+			left: 16px;
+			right: 16px;
+			width: auto;
+			max-height: calc(100dvh - 72px);
+		}
+	}
+}

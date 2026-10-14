@@ -3,6 +3,7 @@
 import type { Lists } from "@/app/fields";
 import type { Command, Page } from "@/app/palette";
 import { applyTheme } from "@/app/theme";
+import { EMOJI } from "@/lib/emoji";
 import { boardColumns, type Card, FIBONACCI, phaseOf, TIMEBOXES, TYPES, timeboxText } from "@/lib/shared";
 
 export type Edits = {
@@ -141,6 +142,23 @@ export function recordCommands(
 			},
 		);
 	}
+	commands.push({
+		id: "do:icon",
+		group,
+		label: "Set icon…",
+		keywords: "emoji",
+		next: () =>
+			choicePage(`Set the icon of ${edits.label}`, [
+				{ id: "icon:none", label: "No icon", run: () => edits.edit("icon", "", { icon: null }) },
+				...EMOJI.map((entry) => ({
+					id: `icon:${entry.emoji}`,
+					label: `${entry.emoji}  ${entry.words.split(" ")[0]}`,
+					keywords: entry.words,
+					hint: entry.emoji === record?.icon ? "Current" : undefined,
+					run: () => edits.edit("icon", entry.emoji, { icon: entry.emoji }),
+				})),
+			]),
+	});
 	if (edits.duplicate) {
 		commands.push({ id: "do:duplicate", group, label: "Duplicate", keywords: "copy clone", run: edits.duplicate });
 	}

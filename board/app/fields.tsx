@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { submitCard } from "@/app/actions";
+import { EmojiPicker } from "@/app/emoji-picker";
 import { RecordFields } from "@/app/record-fields";
 import {
 	boardColumns,
@@ -417,12 +418,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					<dt>Icon</dt>
 					<dd>
 						<Fallback id={id} op="set" field="icon">
-							<TextField
-								label="Icon"
-								placeholder="No icon - one emoji"
-								value={record.icon ?? ""}
-								onCommit={(icon) => onEdit("icon", icon, { icon: icon || null })}
-							/>
+							<EmojiPicker value={record.icon ?? ""} onPick={(icon) => onEdit("icon", icon, { icon: icon || null })} />
 						</Fallback>
 					</dd>
 				</>
