@@ -41,7 +41,15 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
    Read its exit status. A non-zero one means the remote reference is still whatever the last successful fetch left, and the call below cuts the branch off exactly that reference. So name what the fetch printed and stop - carrying on from a base of unknown age is the user's call, not the agent's. Never cut the branch on a failed fetch.
 
-   Then call `EnterWorktree` with `name` set to the branch this ticket's work belongs on, in the same conventional form as a commit message's subject - `feat/agents-use-worktrees`. The diff is then written off the main checkout.
+   A session already in a worktree cannot make the call below - it refuses a second create - and being in one says nothing about whose work it holds. A session started in a worktree of its own sits on a branch that may carry anything. So before the call, and before any rename, read which branch it is on:
+
+   ```
+   git branch --show-current
+   ```
+
+   In the main checkout, go on to the call. In a worktree, skip the call and the rename only when that prints this ticket's own branch, the name the call would be given. On any other branch, say which one it is and stop - building the ticket there, or leaving the worktree for one of its own, is the user's call. Never rename a worktree's branch to make it read as this ticket's own: the rename below is for the branch the call just cut, and no other. The fetch above still runs on a skip, because the checks below read the default branch off the remote.
+
+   Otherwise call `EnterWorktree` with `name` set to the branch this ticket's work belongs on, in the same conventional form as a commit message's subject - `feat/agents-use-worktrees`. The diff is then written off the main checkout.
 
    The call names the branch after the worktree with a prefix of its own, so rename it to the name you passed:
 
@@ -52,14 +60,6 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
    A branch of that name an earlier session on this ticket left behind makes the rename fail. Say which branch is in the way, and stop - the pull request lookup is by branch name, so carrying on under the auto-prefixed name opens a second pull request for the one ticket.
 
    Worktree and branch then read as the same name wherever either is shown.
-
-   A session already in a worktree cannot make the call - it refuses a second create - and being in one says nothing about whose work it holds. A session started in a worktree of its own sits on a branch that may carry anything. Read which branch it is on:
-
-   ```
-   git branch --show-current
-   ```
-
-   Skip the call and the rename only when that prints this ticket's own branch, the name the call would have been given. On any other branch, say which one it is and stop - building the ticket there, or leaving the worktree for one of its own, is the user's call. The fetch above still runs on a skip, because the checks below read the default branch off the remote.
 
    Where the new branch starts is set by `worktree.baseRef`, which nothing here pins - `origin/<default-branch>` on its default, the local HEAD when it is set the other way. So read the base off the branch rather than name a reference the branch may not have been cut from. In a repo where commits land on main directly, check the main checkout for commits that never left it before building on that base:
 
@@ -81,17 +81,17 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
    git log origin/<default-branch>..HEAD --oneline
    ```
 
-   A branch just cut lists nothing, and this ticket's own branch lists only the commits earlier sessions on the ticket made. Anything else is other work the ticket would be built on top of, and its pull request would carry it. Name those commits and stop - stacking the ticket on that branch, or waiting for that branch to merge first, is the user's call.
+   This ticket's own branch lists only the commits earlier sessions on the ticket made. A branch just cut off `origin/<default-branch>` lists nothing, but one cut off the local HEAD lists whatever that HEAD held beyond the remote. Anything other than this ticket's own commits is work the ticket would be built on top of, and its pull request would carry it. Name those commits and stop - pushing them first, stacking the ticket on that branch, or waiting for that branch to merge, is the user's call.
 
 6. **Read the tech steps off the ticket.** Read them with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"`, which prints the open comments anchored in them too. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the card lands In Dev, and the amendment exists only on the card. When the steps read back differ from the drafted ones, say what changed before writing any code.
 
-   Then check the base holds every file the tech steps' file tree marks `!` - a file the steps change rather than create, so one that must already exist. One command per file:
+   Then check the branch itself holds every file the tech steps' file tree marks `!` or `-` - a file the steps edit or remove, so one that must already exist. Check `HEAD`, not a remote reference, because the branch may not have been cut from one. One command per file:
 
    ```
-   git cat-file -e origin/<default-branch>:<path>
+   git cat-file -e HEAD:<path>
    ```
 
-   A non-zero exit means the steps were written against a tree this branch was not cut from, such as a branch whose work has not merged yet. Name the missing files and stop before the first edit - building there would create what the steps say to change.
+   A non-zero exit means the steps were written against a tree this branch does not hold - a branch whose work has not merged yet, or a local HEAD that had fallen behind the remote when the branch was cut off it. Name the missing files and stop before the first edit - building there would create what the steps say to change. A `-` file this ticket's own earlier commits already removed is done, not missing.
 
 7. **Report.** Confirm dev is active and file edits are unlocked.
 
