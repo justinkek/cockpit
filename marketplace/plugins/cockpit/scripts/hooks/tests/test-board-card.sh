@@ -604,6 +604,15 @@ timed="$(stub create --name "Waiting for TR by AI")"
 COCKPIT_NOW=2026-10-05T10:00:00Z stub move "$timed" "Ready for TR by AI" >/dev/null
 assert_eq "a move into Ready for TR by AI stamps it, so its days count" "2026-10-05T10:00:00Z 6" \
   "$(field "$timed" '.dates["Ready for TR by AI"]') $(COCKPIT_NOW=2026-10-13T10:00:00Z stub show "$timed" --json | jq '.days_in_column')"
+bounced="$(stub create --name "Bounced back from review")"
+stub set "$bounced" complexity 2 >/dev/null
+COCKPIT_NOW=2026-10-01T10:00:00Z stub move "$bounced" "In Dev" >/dev/null
+COCKPIT_NOW=2026-10-01T11:00:00Z stub move "$bounced" "Ready for CR" >/dev/null
+COCKPIT_NOW=2026-10-12T10:00:00Z stub move "$bounced" "In Dev" >/dev/null
+bounced_derived() { COCKPIT_NOW="$1" stub show "$bounced" --json | jq --raw-output '"\(.days_in_column) \(.overrunning)"'; }
+assert_eq "a card back in a column counts its days from when it came back, not from its first stamp" "0 false" "$(bounced_derived 2026-10-12T11:00:00Z)"
+assert_eq "and its first stamp stays as it was" "2026-10-01T10:00:00Z" "$(field "$bounced" '.dates["In Dev"]')"
+assert_eq "back in dev, the time since it returned adds to its first stint" "0 true" "$(bounced_derived 2026-10-12T12:30:00Z)"
 
 printf "\nTest group: a record whose file does not parse is never written over\n"
 

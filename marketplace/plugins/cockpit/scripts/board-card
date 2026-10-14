@@ -318,10 +318,14 @@ derived_program='
       | (.dates // {}) as $dates
       | ($dates["In Dev"] | working_minutes) as $in_dev
       | (if $dates["Ready for CR"] == null then $now_minutes else $dates["Ready for CR"] | working_minutes end) as $dev_end
-      | (if $in_dev == null or $dev_end == null then null else [0, $dev_end - $in_dev] | max end) as $dev_minutes
+      | (.moved | working_minutes) as $moved
+      | (if .status == "In Dev" and $dates["Ready for CR"] != null and $moved != null and $now_minutes != null
+            and $moved > ($dates["Ready for CR"] | working_minutes)
+         then [0, $now_minutes - $moved] | max else 0 end) as $back_in_dev
+      | (if $in_dev == null or $dev_end == null then null else ([0, $dev_end - $in_dev] | max) + $back_in_dev end) as $dev_minutes
       | (if .status | IN("Ready for BR", "In BR", "Ready for TR by AI", "Ready for TR", "In TR", "Ready for Sprint",
                          "In Dev", "Ready for CR", "In CR", "Ready for FR", "In FR", "Ready for Validation")
-         then $dates[.status] | working_minutes else null end) as $since
+         then [$dates[.status] | working_minutes, $moved] | map(select(. != null)) | max else null end) as $since
       | . + {
           days_in_column: (if $since == null or $now_minutes == null then 0 else [0, $now_minutes - $since] | max | . / 510 | round end),
           overrunning: (if $dev_minutes == null then false
