@@ -16,15 +16,19 @@ function savedTheme(): Theme {
 	}
 }
 
-export function applyTheme(theme: Theme) {
+function showTheme(theme: Theme) {
 	const root = document.documentElement;
 	if (theme === "system") delete root.dataset.theme;
 	else root.dataset.theme = theme;
+	window.dispatchEvent(new Event(CHANGED));
+}
+
+export function applyTheme(theme: Theme) {
 	try {
 		if (theme === "system") window.localStorage.removeItem(KEY);
 		else window.localStorage.setItem(KEY, theme);
 	} catch {}
-	window.dispatchEvent(new Event(CHANGED));
+	showTheme(theme);
 }
 
 export function darkNow() {
@@ -48,7 +52,15 @@ export function ThemeSwitch() {
 	const [theme, setTheme] = useState<Theme>("system");
 	useEffect(() => {
 		setTheme(savedTheme());
-		return onThemeChange(() => setTheme(savedTheme()));
+		function fromAnotherTab(event: StorageEvent) {
+			if (event.key === KEY || event.key === null) showTheme(savedTheme());
+		}
+		window.addEventListener("storage", fromAnotherTab);
+		const stop = onThemeChange(() => setTheme(savedTheme()));
+		return () => {
+			window.removeEventListener("storage", fromAnotherTab);
+			stop();
+		};
 	}, []);
 	return (
 		<select
