@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Burndown } from "@/lib/metrics";
 
+type Dates = { start?: string | null; end?: string | null };
+
 const WIDTH = 600;
 const HEIGHT = 200;
 
@@ -19,6 +21,16 @@ function pointLabel(burndown: Burndown, index: number) {
 	return index === 0 ? "Sprint start" : `End of ${dayLabel(burndown.days[index - 1], true)}`;
 }
 
+function noDays(sprint: Dates) {
+	const start = sprint.start || null;
+	const end = sprint.end || null;
+	if (!start && !end) return "This sprint has no start and end dates, so it has nothing to burn down over.";
+	if (!end) return "This sprint has no end date, so it has nothing to burn down over.";
+	if (!start) return "This sprint has no start date, so it has nothing to burn down over.";
+	if (end < start) return "This sprint ends before it starts, so it has nothing to burn down over.";
+	return "This sprint has no working days, so it has nothing to burn down over.";
+}
+
 function amount(value: number) {
 	return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
@@ -26,16 +38,17 @@ function amount(value: number) {
 export function BurndownChart({
 	burndown,
 	unit,
+	sprint,
 	compact = false,
 }: {
 	burndown: Burndown;
 	unit: string;
+	sprint: Dates;
 	compact?: boolean;
 }) {
 	const [at, setAt] = useState<number | null>(null);
 	const steps = burndown.days.length;
-	if (steps === 0)
-		return <p className="empty">This sprint has no start and end dates, so it has nothing to burn down over.</p>;
+	if (steps === 0) return <p className="empty">{noDays(sprint)}</p>;
 	const top = Math.max(1, burndown.total, ...burndown.remaining.map((value) => value ?? 0));
 	const x = (index: number) => (index / steps) * WIDTH;
 	const y = (value: number) => HEIGHT - (value / top) * HEIGHT;

@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 type Props = { searchParams: Promise<{ sprint?: string | string[]; measure?: string | string[] }> };
 
 function sprintLabel(sprint: Card) {
-	return sprint.start ? `${sprint.name} · ${sprint.start} to ${sprint.end ?? "?"}` : sprint.name;
+	if (sprint.start && sprint.end) return `${sprint.name} · ${sprint.start} to ${sprint.end}`;
+	if (sprint.start) return `${sprint.name} · from ${sprint.start}`;
+	if (sprint.end) return `${sprint.name} · until ${sprint.end}`;
+	return sprint.name;
 }
 
 function today() {
@@ -111,7 +114,7 @@ export default async function SprintsPage({ searchParams }: Props) {
 						in this burndown - burn down by cards to count {unsized === 1 ? "it" : "them"}.
 					</p>
 				)}
-				<BurndownChart burndown={burndown} unit={unit} />
+				<BurndownChart burndown={burndown} unit={unit} sprint={sprint} />
 			</div>
 
 			<div className="report-card">

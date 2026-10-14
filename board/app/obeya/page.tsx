@@ -162,8 +162,8 @@ export default async function ObeyaPage() {
 						{sprint ? `Sprint ${sprint.name}` : "Sprint"}
 						<Link href={sprint ? `/sprints?sprint=${sprint.id}` : "/sprints"}>Open the burndown</Link>
 					</h2>
-					{burndown ? (
-						<BurndownChart burndown={burndown} unit="Points" compact />
+					{sprint && burndown ? (
+						<BurndownChart burndown={burndown} unit="Points" sprint={sprint} compact />
 					) : (
 						<p className="empty">No sprint is on the board yet.</p>
 					)}
