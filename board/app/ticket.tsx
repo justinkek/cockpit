@@ -10,6 +10,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
+import { tableOrder } from "@/app/table";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import { type Card, contentSearchFailed, fieldName, kindOf, movedTo } from "@/lib/shared";
@@ -21,12 +22,14 @@ export function Ticket({
 	lists,
 	failure,
 	column,
+	records,
 	attachments = [],
 }: {
 	initial: Card;
 	lists: Lists;
 	failure?: string;
 	column: Card[];
+	records: Card[];
 	attachments?: string[];
 }) {
 	const router = useRouter();
@@ -70,10 +73,15 @@ export function Ticket({
 
 	const epicNames = useMemo(() => Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.name])), [lists.epics]);
 	const inContent = found?.query === query ? found.ids : undefined;
-	const neighbours = useMemo(
-		() => neighboursIn(column, initial.id, view, { names: epicNames, inContent }),
-		[column, initial.id, view, epicNames, inContent],
-	);
+	const neighbours = useMemo(() => {
+		const kindOfRecord = kindOf(initial.id);
+		const found = { names: epicNames, inContent };
+		if (view?.layout !== "table" || !kindOfRecord) return neighboursIn(column, initial.id, view, found);
+		const tableSort = view.tableSort;
+		return neighboursIn(records, initial.id, view, found, (sorted) =>
+			tableOrder(kindOfRecord, sorted, lists, tableSort),
+		);
+	}, [column, records, initial.id, view, epicNames, inContent, lists]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);

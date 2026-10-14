@@ -78,6 +78,8 @@ import {
 	wipLimit,
 } from "@/lib/shared";
 
+const HEADER_SORT = "header";
+
 const Names = createContext<Record<string, string>>({});
 
 type Notice = { id: string; text: string } | null;
@@ -872,6 +874,7 @@ export function Board({
 		() => sortTable(tableRecords, fields, tableContext, parseTableSort(view.tableSort)),
 		[tableRecords, fields, tableContext, view.tableSort],
 	);
+	const headerSort = view.layout === "table" ? fields.find((column) => column.key === tableSort?.key) : undefined;
 	const order = useMemo(
 		() =>
 			view.layout === "table"
@@ -1584,10 +1587,16 @@ export function Board({
 						Hide empty
 					</button>
 					<select
-						value={view.sort}
-						onChange={(event) => update({ sort: event.target.value as Sort })}
+						value={headerSort ? HEADER_SORT : view.sort}
+						onChange={(event) => update({ sort: event.target.value as Sort, ...(headerSort ? { tableSort: "" } : {}) })}
 						aria-label="Sort"
+						title={headerSort ? "The table is sorted by a column header - pick a sort here to clear it" : undefined}
 					>
+						{headerSort && (
+							<option value={HEADER_SORT} disabled>
+								By {headerSort.label}
+							</option>
+						)}
 						<option value="manual">Manual</option>
 						<option value="newest">Newest</option>
 						<option value="oldest">Oldest</option>

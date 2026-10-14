@@ -39,12 +39,14 @@ export default async function CardPage({ params, searchParams }: Props) {
 		if (!(failure instanceof BoardError)) throw failure;
 	}
 
-	const column = (kindOf(record.id) === "epic" ? epics : cards).filter((other) => other.status === record.status);
+	const records = kindOf(record.id) === "epic" ? epics : cards;
+	const column = records.filter((other) => other.status === record.status);
 
 	return (
 		<Ticket
 			initial={record}
 			column={column}
+			records={records}
 			failure={typeof error === "string" ? error : undefined}
 			attachments={attachments.map((file) => file.slice(file.lastIndexOf("/") + 1))}
 			lists={{

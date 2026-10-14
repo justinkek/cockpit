@@ -129,8 +129,14 @@ export type Near = { id: string; name: string } | null;
 
 export type Neighbours = { previous: Near; next: Near; position: number; total: number } | null;
 
-export function neighboursIn(column: Stub[], id: string, view: View | null, found: Found = {}): Neighbours {
-	const sorted = [...column].sort(sorter(view?.sort ?? "manual"));
+export function neighboursIn(
+	column: Stub[],
+	id: string,
+	view: View | null,
+	found: Found = {},
+	arrange: (sorted: Stub[]) => Stub[] = (sorted) => sorted,
+): Neighbours {
+	const sorted = arrange([...column].sort(sorter(view?.sort ?? "manual")));
 	const filtered = view ? sorted.filter((stub) => matches(stub, view, found)) : sorted;
 	const lane = filtered.some((stub) => stub.id === id) ? filtered : sorted;
 	const index = lane.findIndex((stub) => stub.id === id);

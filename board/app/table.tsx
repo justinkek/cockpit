@@ -255,6 +255,10 @@ export function sortTable(records: Card[], columns: Column[], context: Context, 
 	return keyed.map(({ record }) => record);
 }
 
+export function tableOrder(kind: Kind, records: Card[], lists: Lists, text: string) {
+	return sortTable(records, tableColumns(kind, records), contextOf(kind, lists), parseTableSort(text));
+}
+
 function Header({ column, sort, onSort }: { column: Column; sort: TableSort; onSort: (key: string) => void }) {
 	const on = sort?.key === column.key;
 	return (
