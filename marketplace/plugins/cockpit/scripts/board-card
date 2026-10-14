@@ -781,23 +781,16 @@ field_json() {
   esac
 }
 
-rename_card() {
-  local from="$1" to="$2" directory file lock_dir marker
-  directory="$BOARD_DIR/cards"
-  read_record "$from" | jq --arg to "$to" '.id = $to' | write_record "$to"
-  rm -f "$directory/$from.md"
-  [ -f "$directory/$from.comments.jsonl" ] && mv "$directory/$from.comments.jsonl" "$directory/$to.comments.jsonl"
-  [ -d "$BOARD_DIR/attachments/$from" ] && mv "$BOARD_DIR/attachments/$from" "$BOARD_DIR/attachments/$to"
-  for file in "$BOARD_DIR"/cards/*.md "$BOARD_DIR"/references/*.md; do
-    [ -f "$file" ] || continue
-    grep --quiet --fixed-strings "\"$from\"" "$file" || continue
-    local other="${file##*/}"
+follow_rename() {
+  local from="$1" to="$2" file other lock_dir marker
+  while IFS= read -r file; do
+    other="${file##*/}"
     other="${other%.md}"
     update_record "$other" --arg from "$from" --arg to "$to" '
       (if has("dependent_on") then .dependent_on |= map(if . == $from then $to else . end) else . end)
       | (if has("dependency_for") then .dependency_for |= map(if . == $from then $to else . end) else . end)
       | if .card == $from then .card = $to else . end'
-  done
+  done < <(grep --files-with-matches --fixed-strings "\"$from\"" "$BOARD_DIR"/cards/*.md "$BOARD_DIR"/references/*.md 2>/dev/null || true)
   lock_dir="${TICKET_CLAIM_LOCK_DIR:-$HOME/.local/state/claude-ticket-claims}"
   [ -d "$lock_dir/$from" ] && [ ! -e "$lock_dir/$to" ] && mv "$lock_dir/$from" "$lock_dir/$to"
   for marker in "$TICKET_STATE_DIR"/*.ticket; do
@@ -805,6 +798,16 @@ rename_card() {
     [ "$(cat "$marker")" = "$from" ] && printf '%s\n' "$to" > "$marker"
   done
   return 0
+}
+
+rename_card() {
+  local from="$1" to="$2" directory
+  directory="$BOARD_DIR/cards"
+  read_record "$from" | jq --arg to "$to" '.id = $to' | write_record "$to"
+  rm -f "$directory/$from.md"
+  [ -f "$directory/$from.comments.jsonl" ] && mv "$directory/$from.comments.jsonl" "$directory/$to.comments.jsonl"
+  [ -d "$BOARD_DIR/attachments/$from" ] && mv "$BOARD_DIR/attachments/$from" "$BOARD_DIR/attachments/$to"
+  follow_rename "$from" "$to"
 }
 
 unnest_reference_program='
@@ -1377,12 +1380,26 @@ command_duplicate() {
   with_lock duplicate_locked "$id" "$name" "$status"
 }
 
+card_aliases() {
+  if [ "$(kind_of "$1")" = card ]; then
+    printf '%s\n' "FEAT-${1##*-}" "BUG-${1##*-}" "TIME-${1##*-}"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
 record_paths() {
-  local id="$1" which="${2:-}" directory
+  local id="$1" which="${2:-}" directory alias
   directory="$(directory_of_kind "$(kind_of "$id")")"
   directory="${directory##*/}"
-  printf '%s\n' "$directory/$id.md" "$directory/$id.comments.jsonl" "attachments/$id"
-  [ "$which" = live ] || printf '%s\n' "archive/$directory/$id.md" "archive/$directory/$id.comments.jsonl" "archive/attachments/$id"
+  while IFS= read -r alias; do
+    if [ "$which" = main ]; then
+      printf '%s\n' "$directory/$alias.md" "archive/$directory/$alias.md"
+    else
+      printf '%s\n' "$directory/$alias.md" "$directory/$alias.comments.jsonl" "attachments/$alias" \
+        "archive/$directory/$alias.md" "archive/$directory/$alias.comments.jsonl" "archive/attachments/$alias"
+    fi
+  done < <(card_aliases "$id")
 }
 
 require_history() {
@@ -1399,30 +1416,76 @@ command_history() {
   printf '%s\n' "$log"
 }
 
+live_cards_program='
+  [inputs | select(test("^(FEAT|BUG|TIME)-[0-9]+$")) | {key: (split("-")[1]), value: .}] | from_entries
+  | if ($id | test("^(FEAT|BUG|TIME)-")) then
+      if $archived then del(.[$id | split("-")[1]]) else . + {($id | split("-")[1]): $id} end
+    else . end'
+
+following_program='
+  def live: if type == "string" and test("^(FEAT|BUG|TIME)-[0-9]+$") then ($live[split("-")[1]] // .) else . end;
+  (if (.dependent_on | type) == "array" then .dependent_on |= map(live) else . end)
+  | (if (.dependency_for | type) == "array" then .dependency_for |= map(live) else . end)
+  | if .card != null then .card |= live else . end'
+
 undo_locked() {
-  local id="$1" paths=() path commit
-  while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id" live)
+  local id="$1" paths=() changed=() path commit subject before_file="" before_id archived=false current_file current restored live reference
+  while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
   commit="$(board_git log -1 --format=%H -- "${paths[@]}")"
   [ -n "$commit" ] || die 2 "$id has no committed version to go back to"
-  board_git cat-file -e "$commit^:${paths[0]}" 2>/dev/null \
-    || die 2 "$id has no version before $(board_git log -1 --format='%h %s' "$commit"), which made it"
+  subject="$(board_git log -1 --format='%h %s' "$commit")"
   while IFS= read -r path; do
+    if board_git cat-file -e "$commit^:$path" 2>/dev/null; then before_file="$path"; fi
+  done < <(record_paths "$id" main)
+  [ -n "$before_file" ] || die 2 "$id has no version before $subject, which made it"
+  before_id="${before_file##*/}"
+  before_id="${before_id%.md}"
+  case "$before_file" in archive/*) archived=true ;; esac
+  current_file="$(record_file "$id")"
+  [ -f "$current_file" ] || current_file="$(archive_file "$id")"
+  current="$(parse_file "$current_file")" || exit "$?"
+  restored="$(board_git show "$commit^:$before_file" | jq --raw-input --null-input "[inputs] | $parse_program" 2>/dev/null)" \
+    || die 8 "$before_file as it stood before $subject does not parse"
+  live="$(for path in "$BOARD_DIR"/cards/*.md; do if [ -f "$path" ]; then basename "$path" .md; fi; done \
+    | jq --raw-input --null-input --arg id "$before_id" --argjson archived "$archived" "$live_cards_program")"
+  restored="$(printf '%s' "$restored" | jq --argjson live "$live" "$following_program")"
+  while IFS= read -r path; do changed+=("$path"); done < <(board_git diff --name-only --no-renames "$commit^" "$commit" -- "${paths[@]}")
+  if [ "$before_file" = "${current_file#"$BOARD_DIR/"}" ] \
+    && ! printf '%s\n' "${changed[@]}" | grep --quiet --invert-match --extended-regexp '^(archive/)?[a-z]+/[A-Z]+-[0-9]+\.md$' \
+    && { printf '%s' "$current"; printf '%s' "$restored"; } | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
+    die 2 "nothing to undo on $id: before $subject it held what it holds now, once renamed cards are followed"
+  fi
+  if [ "$archived" = true ]; then
+    [ "$current_file" = "$(archive_file "$id")" ] || require_unnamed "$id"
+  else
+    while IFS= read -r reference; do
+      [ -f "$(record_file "$reference")" ] || die 2 "undoing $subject would bring back $reference, which is not on the board"
+    done < <(printf '%s' "$restored" | jq --raw-output --argjson current "$current" '
+      . as $restored | ("epic", "project", "sprint", "card") as $field
+      | select($restored[$field] != null and $restored[$field] != $current[$field]) | $restored[$field]')
+  fi
+  for path in "${changed[@]}"; do
     if board_git cat-file -e "$commit^:$path" 2>/dev/null; then
       mkdir -p "$BOARD_DIR/$(dirname "$path")"
       board_git show "$commit^:$path" > "$BOARD_DIR/$path"
     else
       rm -f "$BOARD_DIR/$path"
     fi
-  done < <(board_git diff --name-only --no-renames "$commit^" "$commit" -- "${paths[@]}")
-  touch_record "$id"
-  printf '%s\tundid %s\n' "$id" "$(board_git log -1 --format='%h %s' "$commit")"
+  done
+  [ "$archived" = true ] || printf '%s' "$restored" | write_record "$before_id" touch
+  [ "$before_id" = "$id" ] || follow_rename "$id" "$before_id"
+  printf '%s\tundid %s\n' "$before_id" "$subject"
 }
 
 command_undo() {
   local id
   id="$(normalise_id "${1:-}")"
-  require_record "$id"
   require_history
+  if [ ! -f "$(record_file "$id")" ] && [ -f "$(archive_file "$id")" ]; then
+    parse_file "$(archive_file "$id")" >/dev/null
+  else
+    require_record "$id"
+  fi
   with_lock undo_locked "$id"
 }
 

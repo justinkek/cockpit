@@ -490,6 +490,39 @@ stub unarchive "$undoable" >/dev/null
 stub history FEAT-999 >/dev/null 2>&1
 assert_eq "a record the board never held has no history" "3" "$?"
 
+printf "\nTest group: history and undo follow a record across a rename and the archive\n"
+
+renamed_parent="$(stub create --name "Parent of a renamed card")"
+renamed="$(stub create --name "Renamed card")"
+stub set "$renamed" name "Renamed card, named again" >/dev/null
+stub link "$renamed_parent" "$renamed" >/dev/null
+as_bug="$(stub set "$renamed" type Bug | sed -n 's/^renamed .* to //p')"
+assert_eq "history under the new id reaches back past the rename" "set|link|set|create" \
+  "$(stub history "$as_bug" | cut -f3 | cut -d' ' -f1 | paste -sd '|' -)"
+stub undo "$renamed_parent" >/dev/null 2>&1
+assert_eq "a card whose last change only followed another's new id has nothing to undo" "2" "$?"
+assert_eq "and keeps its link at the id that card holds now" "[\"$as_bug\"]" "$(field "$renamed_parent" '.dependent_on | tojson')"
+assert_eq "undoing the rename gives the card its old id back" "$renamed	undid" "$(stub undo "$as_bug" | cut -d' ' -f1)"
+assert_eq "with its old type, under its old file alone" "Feature true false" \
+  "$(field "$renamed" .type) $([ -f "$COCKPIT_BOARD_DIR/cards/$renamed.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/cards/$as_bug.md" ] && echo true || echo false)"
+assert_eq "and the link to it follows it back" "[\"$renamed\"]" "$(field "$renamed_parent" '.dependent_on | tojson')"
+stub unlink "$renamed_parent" "$renamed" >/dev/null
+stub archive "$renamed" >/dev/null
+stub undo "$renamed" >/dev/null
+assert_eq "undoing an archive puts the record back on the board" "$COCKPIT_BOARD_DIR/cards/$renamed.md" "$(stub path "$renamed")"
+stub archive "$renamed" >/dev/null
+stub unarchive "$renamed" >/dev/null
+stub undo "$renamed" >/dev/null
+assert_eq "and undoing an unarchive puts it back in the archive" "$COCKPIT_BOARD_DIR/archive/cards/$renamed.md" "$(stub path "$renamed")"
+stub unarchive "$renamed" >/dev/null
+named_epic="$(stub create --kind epic --name "Back from the archive")"
+stub archive "$named_epic" >/dev/null
+stub unarchive "$named_epic" >/dev/null
+stub set "$renamed" epic "$named_epic" >/dev/null
+stub undo "$named_epic" >/dev/null 2>&1
+assert_eq "but not while another record names it" "2 $COCKPIT_BOARD_DIR/epics/$named_epic.md" "$? $(stub path "$named_epic")"
+stub set "$renamed" epic "" >/dev/null
+
 printf "\nTest group: days in the column and overrunning are worked out as Notion did\n"
 
 notion_card() {
