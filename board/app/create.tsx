@@ -27,6 +27,7 @@ export function NewRecord({
 	const [type, setType] = useState(defaults.type ?? "Feature");
 	const [epic, setEpic] = useState(defaults.epic ?? "");
 	const [project, setProject] = useState("");
+	const [timebox, setTimebox] = useState("60");
 	const [body, setBody] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState("");
@@ -83,6 +84,7 @@ export function NewRecord({
 			type: kind === "card" ? type : undefined,
 			epic: kind === "card" ? epic || undefined : undefined,
 			project: project || undefined,
+			timeboxMins: kind === "card" && type === "Timebox" ? timebox.trim() || undefined : undefined,
 			body: body.trim() ? body : undefined,
 		});
 		setBusy(false);
@@ -93,6 +95,7 @@ export function NewRecord({
 		setName("");
 		setBody("");
 		setProject("");
+		setTimebox("60");
 	}
 
 	return (
@@ -159,6 +162,19 @@ export function NewRecord({
 								<option key={option}>{option}</option>
 							))}
 						</select>
+					)}
+					{kind === "card" && type === "Timebox" && (
+						<label className="new-timebox">
+							<input
+								name="timebox_mins"
+								type="number"
+								min={1}
+								aria-label="Timebox (mins)"
+								value={timebox}
+								onChange={changed(setTimebox)}
+							/>
+							<span>min</span>
+						</label>
 					)}
 					{kind === "card" && (
 						<select name="epic" aria-label="Epic" value={epic} onChange={changed(setEpic)}>

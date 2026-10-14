@@ -70,6 +70,13 @@ export function boardColumns(kind: Kind) {
 
 export const FIBONACCI = [0, 1, 2, 3, 5, 8, 13, 21, 34];
 
+export const TIMEBOXES = [15, 30, 45, 60, 90, 120, 180, 240];
+
+export function timeboxText(minutes: number) {
+	if (minutes < 60 || minutes % 60 !== 0) return `${minutes} min`;
+	return minutes === 60 ? "1 hour" : `${minutes / 60} hours`;
+}
+
 export type Card = {
 	id: string;
 	name: string;

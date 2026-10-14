@@ -32,7 +32,14 @@ type Failure = { error?: string; moved?: string };
 export type Span = { since: string; until: string };
 type Result = Failure & { record?: Card; undo?: Span };
 type Threads = Failure & { threads?: CommentThread[]; me?: string | null };
-export type NewOptions = { type?: string; epic?: string; rank?: number; body?: string; project?: string };
+export type NewOptions = {
+	type?: string;
+	epic?: string;
+	rank?: number;
+	body?: string;
+	project?: string;
+	timeboxMins?: string;
+};
 
 function refresh(id: string) {
 	revalidatePath("/");
@@ -111,7 +118,10 @@ export async function createCard(
 	if (!typed) return { error: `a new ${kind} needs a name` };
 	let id = "";
 	try {
-		id = await createRecord(kind, typed, status, options);
+		id = await createRecord(kind, typed, status, {
+			...options,
+			fields: kind === "card" && options.timeboxMins ? { timebox_mins: options.timeboxMins } : undefined,
+		});
 		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
 		if (options.project) await setField(id, "project", options.project);
 		refresh(id);
@@ -139,6 +149,7 @@ export async function submitNew(form: FormData): Promise<void> {
 		type: text(form, "type") || undefined,
 		epic: text(form, "epic") || undefined,
 		project: text(form, "project") || undefined,
+		timeboxMins: text(form, "timebox_mins") || undefined,
 		body: typeof form.get("body") === "string" ? String(form.get("body")).replace(/\r\n/g, "\n") : undefined,
 	});
 	const made = result.record?.id ?? result.moved;

@@ -77,7 +77,9 @@ import {
 	showsOverrun,
 	SPLIT_ABOVE,
 	type Card as Stub,
+	TIMEBOXES,
 	TYPES,
+	timeboxText,
 	wipLimit,
 } from "@/lib/shared";
 
@@ -732,6 +734,23 @@ function BulkBar({
 						{lists.sprints.map((sprint) => (
 							<option key={sprint.id} value={sprint.id}>
 								{sprint.name}
+							</option>
+						))}
+					</select>
+					<select
+						aria-label="Set the timebox of the selected cards"
+						defaultValue="-"
+						onChange={pick((minutes) =>
+							edits.edit("timebox_mins", minutes, { timebox_mins: minutes ? Number(minutes) : null }),
+						)}
+					>
+						<option value="-" disabled>
+							Timebox…
+						</option>
+						<option value="">No timebox</option>
+						{TIMEBOXES.map((minutes) => (
+							<option key={minutes} value={minutes}>
+								{timeboxText(minutes)}
 							</option>
 						))}
 					</select>

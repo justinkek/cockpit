@@ -3,7 +3,7 @@
 import type { Lists } from "@/app/fields";
 import type { Command, Page } from "@/app/palette";
 import { applyTheme } from "@/app/theme";
-import { boardColumns, type Card, FIBONACCI, phaseOf, TYPES } from "@/lib/shared";
+import { boardColumns, type Card, FIBONACCI, phaseOf, TIMEBOXES, TYPES, timeboxText } from "@/lib/shared";
 
 export type Edits = {
 	label: string;
@@ -114,6 +114,28 @@ export function recordCommands(
 							label: String(points),
 							hint: points === record?.complexity ? "Current" : undefined,
 							run: () => edits.edit("complexity", String(points), { complexity: points }),
+						})),
+					]),
+			},
+			{
+				id: "do:timebox",
+				group,
+				label: "Set timebox…",
+				keywords: "minutes budget time",
+				next: () =>
+					choicePage(`Set the timebox of ${edits.label}`, [
+						{ id: "timebox:none", label: "No timebox", run: () => edits.edit("timebox_mins", "", { timebox_mins: null }) },
+						...TIMEBOXES.map((minutes) => ({
+							id: `timebox:${minutes}`,
+							label: timeboxText(minutes),
+							keywords: `${minutes} minutes`,
+							hint:
+								minutes === record?.timebox_mins
+									? "Current"
+									: timeboxText(minutes).endsWith("min")
+										? undefined
+										: `${minutes} min`,
+							run: () => edits.edit("timebox_mins", String(minutes), { timebox_mins: minutes }),
 						})),
 					]),
 			},

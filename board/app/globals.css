@@ -3654,3 +3654,18 @@
 		}
 	}
 }
+
+@layer components {
+	.new-timebox {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		flex: 0 1 120px;
+		color: var(--muted);
+
+		& input {
+			flex: 1;
+			width: 0;
+		}
+	}
+}

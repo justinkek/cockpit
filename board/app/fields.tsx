@@ -468,24 +468,20 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</select>
 						</Fallback>
 					</dd>
-					{record.type === "Timebox" && (
-						<>
-							<dt>Timebox (mins)</dt>
-							<dd>
-								<Fallback id={id} op="set" field="timebox_mins">
-									<TextField
-										type="number"
-										label="Timebox (mins)"
-										placeholder="No budget"
-										value={record.timebox_mins == null ? "" : String(record.timebox_mins)}
-										onCommit={(value) =>
-											onEdit("timebox_mins", value, { timebox_mins: value === "" ? null : Number(value) })
-										}
-									/>
-								</Fallback>
-							</dd>
-						</>
-					)}
+					<dt>Timebox (mins)</dt>
+					<dd>
+						<Fallback id={id} op="set" field="timebox_mins">
+							<TextField
+								type="number"
+								label="Timebox (mins)"
+								placeholder={record.type === "Timebox" ? "No budget" : "No timebox"}
+								value={record.timebox_mins == null ? "" : String(record.timebox_mins)}
+								onCommit={(value) =>
+									onEdit("timebox_mins", value, { timebox_mins: value === "" ? null : Number(value) })
+								}
+							/>
+						</Fallback>
+					</dd>
 					<dt>Epic</dt>
 					<dd className="with-link">
 						<Fallback id={id} op="set" field="epic">
