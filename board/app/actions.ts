@@ -37,6 +37,9 @@ export type NewOptions = { type?: string; epic?: string; rank?: number; body?: s
 function refresh(id: string) {
 	revalidatePath("/");
 	revalidatePath("/epics");
+	revalidatePath("/projects");
+	revalidatePath("/sprints");
+	revalidatePath("/references");
 	revalidatePath(`/card/${id}`);
 }
 
@@ -141,6 +144,39 @@ export async function submitNew(form: FormData): Promise<void> {
 	const made = result.record?.id ?? result.moved;
 	if (made) redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
 	redirect(`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kind}: ${result.error}`)}`);
+}
+
+const HOMES = { project: "/projects", sprint: "/sprints", reference: "/references" } as const;
+
+const CREATED_WITH = ["icon", "start", "end", "dev_days", "speed", "priority", "repo"];
+
+const SET_AFTER = ["points", "domain", "stack", "why", "description", "card"];
+
+export async function submitRecord(form: FormData): Promise<void> {
+	const kind = text(form, "kind");
+	if (!(kind === "project" || kind === "sprint" || kind === "reference")) redirect("/");
+	const home = HOMES[kind];
+	const name = text(form, "name").replace(/\s*[\r\n]+\s*/g, " ");
+	const back = (error: string) => redirect(`${home}?error=${encodeURIComponent(`Could not create the ${kind}: ${error}`)}`);
+	if (!name) back(`a new ${kind} needs a name`);
+	const fields = Object.fromEntries(CREATED_WITH.map((field) => [field, text(form, field)]).filter(([, value]) => value));
+	let id = "";
+	let failure = "";
+	try {
+		id = await createRecord(kind, name, text(form, "status"), { fields });
+		for (const field of SET_AFTER) {
+			const value = text(form, field);
+			if (value) await setField(id, field, value);
+		}
+		refresh(id);
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		failure = id ? `${id} was created, but ${error.message}` : error.message;
+	}
+	if (!id) back(failure);
+	const query = failure ? `error=${encodeURIComponent(failure)}` : "";
+	if (kind === "sprint") redirect(`/sprints?sprint=${encodeURIComponent(id)}${query ? `&${query}` : ""}`);
+	redirect(`/card/${encodeURIComponent(id)}${query ? `?${query}` : ""}`);
 }
 
 export async function editCard(id: string, field: string, value: string): Promise<Result> {

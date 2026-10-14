@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { submitCard } from "@/app/actions";
+import { RecordFields } from "@/app/record-fields";
 import {
 	boardColumns,
 	bounces,
@@ -52,7 +53,7 @@ export function useHydrated() {
 	);
 }
 
-function Fallback({
+export function Fallback({
 	id,
 	op,
 	field,
@@ -84,20 +85,24 @@ function Fallback({
 	);
 }
 
-function TextField({
+export function TextField({
 	value,
 	onCommit,
 	label,
 	placeholder,
 	type = "text",
 	required,
+	min = 1,
+	step,
 }: {
 	value: string;
 	onCommit: (value: string) => void;
 	label: string;
 	placeholder?: string;
-	type?: "text" | "date" | "number";
+	type?: "text" | "date" | "number" | "url";
 	required?: boolean;
+	min?: number;
+	step?: string;
 }) {
 	const [draft, setDraft] = useState(value);
 	const cancelled = useRef(false);
@@ -116,7 +121,8 @@ function TextField({
 			aria-label={label}
 			placeholder={placeholder}
 			value={draft}
-			min={type === "number" ? 1 : undefined}
+			min={type === "number" ? min : undefined}
+			step={type === "number" ? step : undefined}
 			onChange={(event) => setDraft(event.target.value)}
 			onKeyDown={(event) => {
 				if (event.key === "Enter") {
@@ -203,7 +209,7 @@ export function Title({
 	);
 }
 
-function Choice({
+export function Choice({
 	value,
 	options,
 	label,
@@ -369,6 +375,7 @@ function pullRequests(prs: string) {
 export function Fields({ record, lists, handlers }: { record: Card; lists: Lists; handlers: Handlers }) {
 	const { onMove, onEdit } = handlers;
 	const kind = kindOf(record.id);
+	if (!kind) return <RecordFields record={record} lists={lists} onEdit={onEdit} />;
 	const columns = kind ? boardColumns(kind) : [];
 	const sprintOptions = lists.sprints.map((sprint) => ({
 		id: sprint.id,

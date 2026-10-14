@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Card, CommentThread, Inbox, Kind } from "./shared";
+import type { Card, CommentThread, Inbox, Kind, RecordKind } from "./shared";
 
 export * from "./shared";
 
@@ -32,8 +32,10 @@ async function boardCard(args: string[], input?: string): Promise<string> {
 	}
 }
 
-export async function listRecords(kind: Kind | "project" | "sprint"): Promise<Card[]> {
-	const records: Card[] = JSON.parse(await boardCard(["list", "--kind", kind, "--json"]));
+export async function listRecords(kind: RecordKind, archived = false): Promise<Card[]> {
+	const args = ["list", "--kind", kind, "--json"];
+	if (archived) args.push("--archived");
+	const records: Card[] = JSON.parse(await boardCard(args));
 	return records.map((record) => ({ ...record, body: "" }));
 }
 
@@ -89,15 +91,21 @@ export async function findRenamed(id: string): Promise<string | null> {
 	return null;
 }
 
+export type CreateOptions = { type?: string; epic?: string; body?: string; fields?: Record<string, string> };
+
 export async function createRecord(
-	kind: Kind,
+	kind: RecordKind,
 	name: string,
 	status: string,
-	options: { type?: string; epic?: string; body?: string } = {},
+	options: CreateOptions = {},
 ): Promise<string> {
-	const args = ["create", "--kind", kind, "--name", name, "--status", status];
+	const args = ["create", "--kind", kind, "--name", name];
+	if (status) args.push("--status", status);
 	if (kind === "card" && options.type) args.push("--type", options.type);
 	if (kind === "card" && options.epic) args.push("--epic", options.epic);
+	for (const [field, value] of Object.entries(options.fields ?? {})) {
+		if (value) args.push(`--${field.replace(/_/g, "-")}`, value);
+	}
 	if (options.body) args.push("--body", "-");
 	return (await boardCard(args, options.body)).trim().split("\n").at(-1) ?? "";
 }

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { Ticket } from "@/app/ticket";
 import { progressOf } from "@/lib/metrics";
-import { BoardError, type Card, findRenamed, kindOf, listAttachments, listRecords, readRecord } from "@/lib/board";
+import { BoardError, type Card, findRenamed, kindOf, listAttachments, listRecords, phaseOf, readRecord, recordKindOf } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -47,8 +47,23 @@ export default async function CardPage({ params, searchParams }: Props) {
 		epics.map((epic) => [epic.id, progressOf(cards.filter((card) => card.epic === epic.id))]),
 	);
 
+	const kind = recordKindOf(record.id);
+	const epicsInProject = new Set(epics.filter((epic) => epic.project === record.id).map((epic) => epic.id));
+	const members =
+		kind === "project"
+			? [
+					...epics.filter((epic) => epicsInProject.has(epic.id)),
+					...cards.filter((card) => card.project === record.id || (!card.project && card.epic && epicsInProject.has(card.epic))),
+				]
+			: kind === "sprint"
+				? cards.filter((card) => card.sprint === record.id)
+				: [];
+
 	return (
 		<Ticket
+			members={members
+				.map(({ id, name, status }) => ({ id, name, status }))
+				.sort((a, b) => Number(phaseOf(a.status) === "done") - Number(phaseOf(b.status) === "done"))}
 			progresses={progresses}
 			initial={record}
 			column={column}

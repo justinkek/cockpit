@@ -3515,3 +3515,80 @@
 		}
 	}
 }
+
+@layer components {
+	.report-head .new-panel {
+		left: auto;
+		right: 0;
+	}
+
+	.new-props input {
+		flex: 1 1 120px;
+		max-width: 100%;
+	}
+
+	.record-list {
+		list-style: none;
+		margin: 0 -14px -14px;
+		padding: 0;
+
+		& li {
+			display: grid;
+			grid-template-columns: 64px minmax(0, 1fr) auto;
+			align-items: center;
+			gap: 10px;
+			min-height: 34px;
+			padding: 4px 14px;
+			border-top: 1px solid var(--line);
+		}
+	}
+
+	.record-meta {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--muted);
+		font-size: 12px;
+		white-space: nowrap;
+	}
+
+	.members {
+		& ol {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: grid;
+			gap: 6px;
+		}
+
+		& li {
+			display: grid;
+			grid-template-columns: 10px minmax(0, 1fr) auto;
+			gap: 8px;
+			align-items: center;
+		}
+
+		& a {
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	@media (width < 760px) {
+		.record-list li {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 2px;
+			padding: 6px 14px;
+
+			& .ident {
+				display: none;
+			}
+		}
+
+		.record-meta {
+			white-space: normal;
+			flex-wrap: wrap;
+		}
+	}
+}

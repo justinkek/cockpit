@@ -11,6 +11,7 @@ const LINKS = [
 	{ href: "/", label: "Cards" },
 	{ href: "/epics", label: "Epics" },
 	{ href: "/sprints", label: "Sprints" },
+	{ href: "/projects", label: "Projects" },
 	{ href: "/obeya", label: "Obeya" },
 ];
 

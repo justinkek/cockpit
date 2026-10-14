@@ -58,6 +58,12 @@ export const REFINEMENT_COLUMNS = CARD_COLUMNS.filter((column) => /\b(BR|TR)\b/.
 
 export type Kind = "card" | "epic";
 
+export type RecordKind = Kind | "project" | "sprint" | "reference";
+
+export const PROJECT_STATUSES = ["Not started", "In progress", "Done"] as const;
+
+export const DOMAINS = ["Tech", "Bizdev"] as const;
+
 export function boardColumns(kind: Kind) {
 	return kind === "epic" ? EPIC_COLUMNS : CARD_BOARD_COLUMNS;
 }
@@ -93,6 +99,16 @@ export type Card = {
 	dates?: Record<string, string>;
 	start?: string | null;
 	end?: string | null;
+	dev_days?: number | null;
+	speed?: number | null;
+	priority?: number | null;
+	repo?: string | null;
+	points?: number | null;
+	why?: string | null;
+	description?: string | null;
+	domain?: string | null;
+	stack?: string | null;
+	card?: string | null;
 	days_in_column?: number;
 	overrunning?: boolean;
 	comments?: number;
@@ -135,6 +151,21 @@ export function kindOf(id: string): Kind | null {
 	if (/^(FEAT|BUG|TIME)-/.test(id)) return "card";
 	if (id.startsWith("EPIC-")) return "epic";
 	return null;
+}
+
+const RECORD_KINDS: Record<string, RecordKind> = { PRJ: "project", SPR: "sprint", REF: "reference" };
+
+export function recordKindOf(id: string): RecordKind | null {
+	return kindOf(id) ?? RECORD_KINDS[id.split("-")[0]] ?? null;
+}
+
+export function homeOf(id: string): string {
+	const kind = recordKindOf(id);
+	if (kind === "epic") return `/epics?open=${id}`;
+	if (kind === "project") return "/projects";
+	if (kind === "sprint") return `/sprints?sprint=${id}`;
+	if (kind === "reference") return "/references";
+	return `/?open=${id}`;
 }
 
 export function contentSearchFailed(kind: Kind, error: string) {

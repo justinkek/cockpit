@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
-import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
+import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
@@ -16,7 +16,7 @@ import { tableOrder } from "@/app/table";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import type { Progress } from "@/lib/metrics";
-import { type Card, contentSearchFailed, fieldName, kindOf, movedTo } from "@/lib/shared";
+import { type Card, contentSearchFailed, fieldName, homeOf, kindOf, movedTo, phaseOf, recordKindOf } from "@/lib/shared";
 
 type Result = { record?: Card; error?: string; moved?: string; undo?: Span };
 
@@ -28,6 +28,7 @@ export function Ticket({
 	records,
 	attachments = [],
 	progresses = {},
+	members = [],
 }: {
 	initial: Card;
 	lists: Lists;
@@ -36,6 +37,7 @@ export function Ticket({
 	records: Card[];
 	attachments?: string[];
 	progresses?: Record<string, Progress>;
+	members?: Picked[];
 }) {
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
@@ -205,7 +207,7 @@ export function Ticket({
 					id: "go:board",
 					group: "Board",
 					label: "Show it on the board",
-					run: () => go(`${kind === "epic" ? "/epics" : "/"}?open=${record.id}`),
+					run: () => go(homeOf(record.id)),
 				},
 				...themeCommands(),
 				...cardCommands(
@@ -275,7 +277,8 @@ export function Ticket({
 			<p className="meta">
 				<span>{record.id}</span>
 				{record.type && <span>{record.type}</span>}
-				<span>{record.status}</span>
+				{!kind && <span>{recordKindOf(record.id)}</span>}
+				{record.status && <span>{record.status}</span>}
 				{saving && <span className="saving">Saving…</span>}
 				<button
 					type="button"
@@ -298,14 +301,35 @@ export function Ticket({
 			<Fields record={record} lists={lists} handlers={handlers} />
 			<Links record={record} lists={lists} handlers={handlers} />
 
+			{members.length > 0 && (
+				<section className="timeline members">
+					<h3>
+						{recordKindOf(record.id) === "project" ? "Epics and cards" : "Cards"} <span className="count">{members.length}</span>
+					</h3>
+					<ol>
+						{members.map((member) => (
+							<li key={member.id}>
+								<span className={`dot phase-${phaseOf(member.status)}`} aria-hidden="true" />
+								<Link href={`/card/${member.id}`}>{member.name}</Link>
+								<span className="ident">{member.id}</span>
+							</li>
+						))}
+					</ol>
+				</section>
+			)}
+
 			<dl className="facts">
-				<dt>Claimed by</dt>
-				<dd>{record.session ?? <span className="empty">nobody</span>}</dd>
-				<dt>Cost</dt>
-				<dd>
-					{record.cost_usd != null ? `$${record.cost_usd}` : <span className="empty">-</span>}
-					{record.tokens_k != null && ` · ${record.tokens_k}k tokens`}
-				</dd>
+				{kind && (
+					<>
+						<dt>Claimed by</dt>
+						<dd>{record.session ?? <span className="empty">nobody</span>}</dd>
+						<dt>Cost</dt>
+						<dd>
+							{record.cost_usd != null ? `$${record.cost_usd}` : <span className="empty">-</span>}
+							{record.tokens_k != null && ` · ${record.tokens_k}k tokens`}
+						</dd>
+					</>
+				)}
 				{progresses[record.id] && (
 					<>
 						<dt>Progress</dt>
@@ -329,7 +353,7 @@ export function Ticket({
 					</>
 				)}
 			</dl>
-			<Stages record={record} />
+			{kind && <Stages record={record} />}
 
 			<MentionContext.Provider value={mentions}>
 				<Content
