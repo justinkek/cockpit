@@ -38,6 +38,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Command, type Page, Palette } from "@/app/palette";
+import { Stages } from "@/app/stages";
 import { contextOf, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
@@ -557,7 +558,6 @@ function Peek({
 	onCopy: () => void;
 	onSaved: (record: Stub, undo?: Span) => void;
 }) {
-	const dates = Object.entries(stub.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 	const panel = useRef<HTMLElement>(null);
 	const number = stub.id.split("-").at(-1);
 	useEffect(() => {
@@ -618,20 +618,7 @@ function Peek({
 					</ol>
 				</section>
 			)}
-			{dates.length > 0 && (
-				<section className="timeline">
-					<h3>Activity</h3>
-					<ol>
-						{dates.map(([column, stamp]) => (
-							<li key={column}>
-								<StatusDot status={column} />
-								<span>{column}</span>
-								<time dateTime={stamp}>{new Date(stamp).toLocaleString()}</time>
-							</li>
-						))}
-					</ol>
-				</section>
-			)}
+			<Stages record={stub} />
 			<Content id={stub.id} revision={stub.updated} onSaved={onSaved} />
 		</aside>
 	);

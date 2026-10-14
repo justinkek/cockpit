@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { Lists } from "@/app/fields";
 import { lastMoved } from "@/app/view";
+import { flowOf, span } from "@/lib/metrics";
 import {
 	boardColumns,
 	bounces,
@@ -185,6 +186,26 @@ const COLUMNS: Column[] = [
 		label: "Days in column",
 		numeric: true,
 		value: (record) => record.days_in_column ?? null,
+	},
+	{
+		key: "lead",
+		label: "Lead time",
+		numeric: true,
+		value: (record) => flowOf(record).lead,
+		cell: (record) => {
+			const lead = flowOf(record).lead;
+			return lead != null && span(lead);
+		},
+	},
+	{
+		key: "cycle",
+		label: "Cycle time",
+		numeric: true,
+		value: (record) => flowOf(record).cycle,
+		cell: (record) => {
+			const cycle = flowOf(record).cycle;
+			return cycle != null && <span suppressHydrationWarning>{span(cycle)}</span>;
+		},
 	},
 	{ key: "created", label: "Created", value: (record) => record.created, cell: (record) => <Stamp stamp={record.created} /> },
 	{

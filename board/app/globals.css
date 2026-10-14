@@ -2719,3 +2719,97 @@
 		}
 	}
 }
+
+@layer components {
+	.flow-line {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 14px;
+		margin: -4px 0 12px;
+		color: var(--muted);
+		font-size: 12px;
+
+		& strong {
+			color: var(--ink);
+			font-weight: 500;
+			font-variant-numeric: tabular-nums;
+		}
+	}
+
+	.timeline.stages li {
+		grid-template-columns: 14px minmax(0, 1fr) auto auto;
+		align-items: start;
+
+		& .dot {
+			margin-top: 3px;
+		}
+
+		&.current .stage-span {
+			color: var(--accent);
+		}
+	}
+
+	.stage-name {
+		display: grid;
+		gap: 4px;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.stage-bar {
+		display: block;
+		height: 3px;
+		border-radius: 2px;
+		background: var(--lane);
+		overflow: hidden;
+
+		& span {
+			display: block;
+			height: 100%;
+			border-radius: 2px;
+			background: var(--phase-idle);
+
+			&.phase-refine {
+				background: var(--phase-refine);
+			}
+
+			&.phase-planned {
+				background: var(--phase-planned);
+			}
+
+			&.phase-dev {
+				background: var(--phase-dev);
+			}
+
+			&.phase-review {
+				background: var(--phase-review);
+			}
+
+			&.phase-validate {
+				background: var(--phase-validate);
+			}
+
+			&.phase-done {
+				background: var(--phase-done);
+			}
+		}
+	}
+
+	.stage-span {
+		font-variant-numeric: tabular-nums;
+		text-align: right;
+		white-space: nowrap;
+	}
+
+	.timeline.stages time {
+		white-space: nowrap;
+		min-width: 92px;
+		text-align: right;
+	}
+
+	@media (width < 760px) {
+		.timeline.stages time {
+			min-width: 0;
+		}
+	}
+}

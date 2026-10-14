@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { dropCard, duplicateCard, editCard, findInContent, linkCards, type Span, undoChange } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
@@ -10,6 +10,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
+import { Stages } from "@/app/stages";
 import { tableOrder } from "@/app/table";
 import { carryTo, takeCarried, toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
@@ -93,8 +94,6 @@ export function Ticket({
 	useEffect(() => {
 		if (failure) setError(failure);
 	}, [failure]);
-
-	const dates = Object.entries(record.dates ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
 
 	function go(href: string) {
 		if (confirmDiscard()) router.push(href);
@@ -317,13 +316,8 @@ export function Ticket({
 						</dd>
 					</>
 				)}
-				{dates.map(([column, stamp]) => (
-					<Fragment key={column}>
-						<dt>Date: {column}</dt>
-						<dd>{stamp}</dd>
-					</Fragment>
-				))}
 			</dl>
+			<Stages record={record} />
 
 			<MentionContext.Provider value={mentions}>
 				<Content
