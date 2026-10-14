@@ -7,7 +7,7 @@
 #                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
 #                     [--start <date>] [--end <date>] [--dev-days <n>] [--speed <n>] [--priority <n>] [--repo <url>]
 #   board-card show <id> [--json | --section <heading> | <property>...]
-#   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--json]
+#   board-card list [--kind card|epic|project|sprint|reference] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
 #   board-card statuses [--kind card|epic]
 #   board-card set <id> <field> <value>
 #   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
@@ -24,6 +24,9 @@
 #   board-card resolve <id> <comment-id>
 #   board-card attach <id> <file>
 #   board-card usage <id>
+#   board-card archive <id>
+#   board-card unarchive <id>
+#   board-card duplicate <id> [--name <name>] [--status <column>]
 #   board-card path [<id>]
 #
 # Exit codes:
@@ -189,8 +192,16 @@ record_file() { printf '%s/%s.md\n' "$(directory_of_kind "$(kind_of "$1")")" "$1
 
 comments_file() { printf '%s/%s.comments.jsonl\n' "$(directory_of_kind "$(kind_of "$1")")" "$1"; }
 
+archive_file() {
+  local directory
+  directory="$(directory_of_kind "$(kind_of "$1")")"
+  printf '%s/archive/%s/%s.md\n' "$BOARD_DIR" "${directory##*/}" "$1"
+}
+
 require_record() {
-  [ -f "$(record_file "$1")" ] || die 3 "no record $1 in $(directory_of_kind "$(kind_of "$1")")"
+  [ -f "$(record_file "$1")" ] && return 0
+  [ ! -f "$(archive_file "$1")" ] || die 3 "$1 is archived - run: board-card unarchive $1"
+  die 3 "no record $1 in $(directory_of_kind "$(kind_of "$1")")"
 }
 
 require_board() {
@@ -211,7 +222,7 @@ commit_board() {
   board_git add --all >/dev/null || return 1
   board_git diff --cached --quiet && return 0
   ids="$(board_git diff --cached --name-only --no-renames \
-    | sed -n -E 's#^[a-z]+/([A-Z][A-Z0-9]*-[0-9]+)[./].*#\1#p' | awk '!seen[$0]++' | paste -sd ' ' -)"
+    | sed -n -E 's#^(archive/)?[a-z]+/([A-Z][A-Z0-9]*-[0-9]+)[./].*#\2#p' | awk '!seen[$0]++' | paste -sd ' ' -)"
   board_git -c user.name=board-card -c user.email=board-card@localhost -c commit.gpgsign=false \
     commit --quiet --no-verify --message "$subject${ids:+ $ids}" >/dev/null
 }
@@ -325,7 +336,7 @@ next_id() {
   prefix="$(prefix_of_kind "$kind")"
   [ "$kind" = card ] && prefix="$(prefix_of_type "$type")"
   directory="$(directory_of_kind "$kind")"
-  for file in "$directory"/*.md; do
+  for file in "$directory"/*.md "$BOARD_DIR/archive/${directory##*/}"/*.md; do
     [ -f "$file" ] || continue
     number="${file##*/}"
     number="${number%.md}"
@@ -505,12 +516,13 @@ command_show() {
 }
 
 command_list() {
-  local kind=card status="" epic="" as_json=false directory
+  local kind=card status="" epic="" as_json=false archived=false directory
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --kind) kind="${2:-}"; shift 2 ;;
       --status) status="${2:-}"; shift 2 ;;
       --epic) epic="$(normalise_id "${2:-}")"; shift 2 ;;
+      --archived) archived=true; shift ;;
       --json) as_json=true; shift ;;
       *) die 2 "list: unknown option '$1'" ;;
     esac
@@ -519,6 +531,7 @@ command_list() {
   [ -n "$status" ] && require_column "$kind" "$status"
   require_board
   directory="$(directory_of_kind "$kind")"
+  [ "$archived" = false ] || directory="$BOARD_DIR/archive/${directory##*/}"
   local files=("$directory"/*.md)
   [ -f "${files[0]}" ] || files=(/dev/null)
   jq --raw-input --null-input "[inputs | {file: input_filename, line: .}] | group_by(.file) | map(map(.line) | $parse_program)" "${files[@]}" \
@@ -729,7 +742,7 @@ set_locked() {
       [ "$(kind_of "$id")" = card ] || die 2 "only a card has a type, and $id is not a card"
       prefix_of_type "$value" >/dev/null
       renamed="$(prefix_of_type "$value")-${id##*-}"
-      [ "$renamed" = "$id" ] || [ ! -e "$BOARD_DIR/cards/$renamed.md" ] || die 2 "$renamed already exists"
+      [ "$renamed" = "$id" ] || { [ ! -e "$BOARD_DIR/cards/$renamed.md" ] && [ ! -e "$BOARD_DIR/archive/cards/$renamed.md" ]; } || die 2 "$renamed already exists"
       update_record "$id" --arg value "$value" '.type = $value'
       if [ "$renamed" != "$id" ]; then
         rename_card "$id" "$renamed"
@@ -1172,6 +1185,77 @@ command_usage() {
   printf '%s\n' "$usage"
 }
 
+archive_locked() {
+  local id="$1" direction="$2" directory from to
+  directory="$(directory_of_kind "$(kind_of "$id")")"
+  directory="${directory##*/}"
+  from="$BOARD_DIR"
+  to="$BOARD_DIR/archive"
+  if [ "$direction" = archive ]; then
+    touch_record "$id"
+  else
+    from="$BOARD_DIR/archive"
+    to="$BOARD_DIR"
+  fi
+  mkdir -p "$to/$directory"
+  mv "$from/$directory/$id.md" "$to/$directory/$id.md"
+  if [ -f "$from/$directory/$id.comments.jsonl" ]; then mv "$from/$directory/$id.comments.jsonl" "$to/$directory/$id.comments.jsonl"; fi
+  if [ -d "$from/attachments/$id" ]; then
+    mkdir -p "$to/attachments"
+    mv "$from/attachments/$id" "$to/attachments/$id"
+  fi
+  if [ "$direction" = unarchive ]; then touch_record "$id"; fi
+  printf '%sd %s\n' "$direction" "$id"
+}
+
+command_archive() {
+  local id links
+  id="$(normalise_id "${1:-}")"
+  require_record "$id"
+  links="$(read_record "$id" | jq --raw-output '[(.dependent_on // [])[], (.dependency_for // [])[]] | join(", ")')"
+  [ -z "$links" ] || die 2 "$id is linked to $links - run board-card unlink first"
+  with_lock archive_locked "$id" archive
+}
+
+command_unarchive() {
+  local id
+  id="$(normalise_id "${1:-}")"
+  [ -f "$(archive_file "$id")" ] || die 3 "no archived record $id"
+  [ ! -e "$(record_file "$id")" ] || die 2 "$id is on the board already"
+  with_lock archive_locked "$id" unarchive
+}
+
+duplicate_locked() {
+  local id="$1" name="$2" status="$3" kind source fields
+  kind="$(kind_of "$id")"
+  source="$(read_record "$id")"
+  fields="$(printf '%s' "$source" | jq --compact-output '
+    {project, icon, timebox_mins, complexity: (if .complexity == 0 then null else .complexity end)}
+    | with_entries(select(.value != null))')"
+  create_locked "$kind" "$name" "$(printf '%s' "$source" | jq --raw-output '.type // ""')" "$status" \
+    "$(printf '%s' "$source" | jq --raw-output '.epic // ""')" "$(printf '%s' "$source" | jq --raw-output '.body // ""')" "$fields"
+}
+
+command_duplicate() {
+  local id name="" status="" kind
+  id="$(normalise_id "${1:-}")"
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --name) name="${2:-}"; shift 2 ;;
+      --status) status="${2:-}"; shift 2 ;;
+      *) die 2 "duplicate: unknown option '$1'" ;;
+    esac
+  done
+  kind="$(kind_of "$id")"
+  has_board "$kind" || die 2 "only a card or an epic is duplicated, and $id is a $kind"
+  require_record "$id"
+  [ -n "$name" ] || name="Copy of $(read_record "$id" | jq --raw-output '.name')"
+  [ -n "$status" ] || status="$(column_at "$kind" 0)"
+  require_column "$kind" "$status"
+  with_lock duplicate_locked "$id" "$name" "$status"
+}
+
 command_path() {
   if [ -n "${1:-}" ]; then
     record_file "$(normalise_id "$1")"
@@ -1205,6 +1289,9 @@ case "$action" in
   resolve) command_resolve "$@" ;;
   attach) command_attach "$@" ;;
   usage) command_usage "$@" ;;
+  archive) command_archive "$@" ;;
+  unarchive) command_unarchive "$@" ;;
+  duplicate) command_duplicate "$@" ;;
   path) command_path "$@" ;;
   *) sed -n '3,/^#   board-card path/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

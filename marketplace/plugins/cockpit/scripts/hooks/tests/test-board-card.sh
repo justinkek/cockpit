@@ -378,6 +378,39 @@ stub set REF-90 stack Shell >/dev/null
 assert_eq "a record written the old way is repaired on its next write" "5 set the old way false" \
   "$(field REF-90 '"\(.points) \(.why) \(has("reference"))"')"
 
+printf "\nTest group: a record is archived and brought back, or copied\n"
+
+assert_eq "archive moves a record off the board" "archived BUG-2" "$(stub archive BUG-2)"
+assert_eq "its file, comments and attachments all go under archive/" "true true true false" \
+  "$([ -f "$COCKPIT_BOARD_DIR/archive/cards/BUG-2.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/archive/cards/BUG-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/archive/attachments/BUG-2/flow.svg" ] && echo true) $([ -e "$COCKPIT_BOARD_DIR/cards/BUG-2.md" ] && echo true || echo false)"
+assert_eq "an archive is committed under its verb and id" "archive BUG-2" "$(last_commit %s)"
+assert_eq "list leaves it out" "" "$(stub list | cut -f1 | grep --line-regexp BUG-2)"
+assert_eq "and --archived lists it" "BUG-2" "$(stub list --archived | cut -f1)"
+stub show BUG-2 Status >/dev/null 2>&1
+assert_eq "an archived record cannot be read as if it were on the board" "3" "$?"
+assert_eq "and the refusal says how to bring it back" "true" "$(stub show BUG-2 Status 2>&1 | grep --quiet 'board-card unarchive BUG-2' && echo true)"
+numbered="$(stub create --name "After the archive")"
+assert_eq "an archived record's number is not given out again" "true" "$([ "${numbered##*-}" -gt 2 ] && echo true)"
+assert_eq "unarchive brings it back with its comments and attachments" "unarchived BUG-2 true true" \
+  "$(stub unarchive BUG-2) $([ -f "$COCKPIT_BOARD_DIR/cards/BUG-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/attachments/BUG-2/flow.svg" ] && echo true)"
+stub unarchive BUG-2 >/dev/null 2>&1
+assert_eq "a record on the board is not archived to bring back" "3" "$?"
+stub link FEAT-1 BUG-2 >/dev/null
+stub archive BUG-2 >/dev/null 2>&1
+assert_eq "a linked card is not archived" "2" "$?"
+stub unlink FEAT-1 BUG-2 >/dev/null
+
+copy="$(stub duplicate BUG-2)"
+assert_eq "a copy is a new card of the same type" "BUG" "${copy%%-*}"
+assert_eq "named after the one it copies" "Copy of $(field BUG-2 .name)" "$(field "$copy" .name)"
+assert_eq "with its body and complexity" "true $(field BUG-2 .complexity)" "$(stub show BUG-2 --json | jq --arg body "$(field "$copy" .body)" '.body == $body') $(field "$copy" .complexity)"
+assert_eq "starting in the first column, with no comments of its own" "Backlog 0" "$(field "$copy" .status) $(stub comments "$copy" --json | jq length)"
+assert_eq "a duplicate is committed under its verb and the new id" "duplicate $copy" "$(last_commit %s)"
+named="$(stub duplicate EPIC-1 --name "Next month's chores" --status "Ready for FD")"
+assert_eq "an epic copies too, under the name and column given" "Next month's chores|Ready for FD" "$(field "$named" '"\(.name)|\(.status)"')"
+stub duplicate "$project" >/dev/null 2>&1
+assert_eq "only a card or an epic is duplicated" "2" "$?"
+
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set BUG-2 name "Stamped" >/dev/null

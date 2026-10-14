@@ -125,6 +125,10 @@ A project has no columns, so `board-card set <id> status` moves it between `Not 
 
 A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domain` (`Tech` or `Bizdev`), `stack` and `card` (the card it was taken from) are each set with `board-card set`, which also accepts them as `reference.<key>`.
 
+`board-card archive <id>` moves a record, its comments and its attachments under `archive/`, where `list` passes it by unless given `--archived`, and refuses a card still linked to another. `board-card unarchive <id>` puts an archived record back on the board.
+
+`board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity and timebox, in the first column unless `--name` or `--status` say otherwise.
+
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 
 ## Claim locks
