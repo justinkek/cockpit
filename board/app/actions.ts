@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import {
 	addComment,
 	BoardError,
@@ -22,19 +21,6 @@ function refresh(id: string) {
 	revalidatePath("/");
 	revalidatePath("/epics");
 	revalidatePath(`/card/${id}`);
-}
-
-async function attempt(id: string, change: () => Promise<string | void>): Promise<never> {
-	let failure = "";
-	let current = id;
-	try {
-		current = (await change()) || id;
-	} catch (error) {
-		if (!(error instanceof BoardError)) throw error;
-		failure = error.message;
-	}
-	refresh(current);
-	redirect(failure ? `/card/${current}?error=${encodeURIComponent(failure)}` : `/card/${current}`);
 }
 
 async function report(id: string, change: () => Promise<string | void>): Promise<Result> {
@@ -59,31 +45,6 @@ async function threadsAfter(id: string, change: () => Promise<void>): Promise<Th
 	}
 }
 
-export async function moveCard(formData: FormData) {
-	const id = String(formData.get("id"));
-	const column = String(formData.get("status"));
-	await attempt(id, async () => changeStatus(await readRecord(id), column));
-}
-
-export async function updateField(formData: FormData) {
-	const id = String(formData.get("id"));
-	const field = String(formData.get("field"));
-	const value = String(formData.get("value") ?? "");
-	await attempt(id, () => setField(id, field, value));
-}
-
-export async function linkChild(formData: FormData) {
-	const id = String(formData.get("id"));
-	const child = String(formData.get("child")).trim();
-	await attempt(id, () => link(id, child, true));
-}
-
-export async function unlinkChild(formData: FormData) {
-	const id = String(formData.get("id"));
-	const child = String(formData.get("child"));
-	await attempt(id, () => link(id, child, false));
-}
-
 export async function dropCard(id: string, column: string, rank?: number): Promise<Result> {
 	return report(id, async () => {
 		const record = await readRecord(id);
@@ -94,6 +55,14 @@ export async function dropCard(id: string, column: string, rank?: number): Promi
 
 export async function editCard(id: string, field: string, value: string): Promise<Result> {
 	return report(id, () => setField(id, field, value));
+}
+
+export async function linkCards(id: string, parent: string, child: string, linked: boolean): Promise<Result> {
+	return report(id, async () => {
+		const other = parent === id ? child : parent;
+		await link(parent, child, linked);
+		refresh(other);
+	});
 }
 
 const TODO = /- \[( |x)\] /;

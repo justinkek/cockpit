@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { dropCard, editCard } from "@/app/actions";
 import { Content } from "@/app/content";
-import { boardColumns, FIBONACCI, type Kind, type Named, phaseOf, type Card as Stub } from "@/lib/shared";
+import { boardColumns, FIBONACCI, type Kind, type Named, phaseOf, type Card as Stub, TYPES } from "@/lib/shared";
 
 const Names = createContext<Record<string, string>>({});
 
@@ -53,7 +53,6 @@ const DEFAULT_VIEW: View = {
 };
 
 const COLLAPSED: Record<Kind, string[]> = { card: ["Done", "Deprioritised"], epic: ["Epic Done"] };
-const TYPES = ["Feature", "Bug", "Timebox"] as const;
 const TOGGLES = [
 	["blocked", "Blocked"],
 	["claimed", "Claimed"],

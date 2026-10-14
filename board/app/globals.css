@@ -738,17 +738,6 @@
 		overflow-y: auto;
 	}
 
-	.edit {
-		display: grid;
-		grid-template-columns: 110px 1fr auto;
-		gap: 8px;
-		align-items: center;
-
-		& label {
-			color: var(--muted);
-		}
-	}
-
 	.links {
 		& ul {
 			list-style: none;
@@ -834,14 +823,6 @@
 
 			& .row-meta {
 				display: none;
-			}
-		}
-
-		.edit {
-			grid-template-columns: 1fr auto;
-
-			& label {
-				grid-column: 1 / -1;
 			}
 		}
 
@@ -1155,5 +1136,87 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.title-input {
+		width: 100%;
+		height: auto;
+		margin: 0 -7px;
+		padding: 2px 6px;
+		font-size: 1.35rem;
+		font-weight: 700;
+		background: transparent;
+		border-color: transparent;
+
+		&:hover {
+			border-color: var(--line);
+		}
+	}
+
+	.stub .props {
+		margin: 0;
+
+		& input {
+			width: 100%;
+		}
+	}
+
+	.saving {
+		color: var(--faint);
+	}
+
+	.links .linked-name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--muted);
+	}
+
+	.picker {
+		display: flex;
+		gap: 8px;
+		margin: 0 0 16px;
+
+		& input {
+			flex: 1;
+		}
+	}
+
+	.content-head {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: -10px;
+	}
+
+	.body-editor {
+		display: grid;
+		gap: 6px;
+
+		& textarea {
+			width: 100%;
+			padding: 8px 10px;
+			font: 12.5px/1.55 var(--mono);
+			color: inherit;
+			tab-size: 4;
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			resize: vertical;
+
+			&:focus {
+				outline: 2px solid var(--accent-soft);
+				border-color: var(--accent);
+			}
+		}
+	}
+
+	.picker,
+	.body-editor {
+		& button[disabled] {
+			opacity: 0.5;
+			cursor: default;
+		}
 	}
 }

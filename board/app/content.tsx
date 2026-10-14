@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { checkTodo, loadBody, loadComments, postComment, resolveThread } from "@/app/actions";
+import { checkTodo, editCard, loadBody, loadComments, postComment, resolveThread } from "@/app/actions";
 import { Markdown } from "@/app/markdown";
 import type { Card, CommentThread } from "@/lib/shared";
 
@@ -76,6 +76,7 @@ export function Content({
 	const [drafting, setDrafting] = useState<string | null>(null);
 	const [focused, setFocused] = useState<string | null>(null);
 	const [replying, setReplying] = useState<string | null>(null);
+	const [editing, setEditing] = useState<string | null>(null);
 	const [, startTransition] = useTransition();
 	const area = useRef<HTMLDivElement>(null);
 	const checking = useRef(0);
@@ -90,6 +91,7 @@ export function Content({
 		setThreads([]);
 		setSelection(null);
 		setDrafting(null);
+		setEditing(null);
 		if (!bodyGiven) {
 			setBody("");
 			loadBody(id).then((result) => {
@@ -130,6 +132,22 @@ export function Content({
 		});
 	}
 
+	function saveBody(text: string) {
+		startTransition(async () => {
+			const result = await editCard(id, "body", text);
+			if (result.error) {
+				setError(result.error);
+				return;
+			}
+			setError("");
+			setEditing(null);
+			if (result.record) {
+				setBody(result.record.body);
+				onRecord?.(result.record);
+			}
+		});
+	}
+
 	function apply(request: Promise<{ threads?: CommentThread[]; error?: string }>) {
 		startTransition(async () => {
 			const result = await request;
@@ -159,7 +177,45 @@ export function Content({
 
 	return (
 		<section className="content">
-			<div className="content-body" ref={area} onMouseUp={onMouseUp}>
+			{editing === null ? (
+				<div className="content-head">
+					<button type="button" className="quiet" onClick={() => setEditing(body)}>
+						Edit content
+					</button>
+				</div>
+			) : (
+				<form
+					className="body-editor"
+					onSubmit={(event) => {
+						event.preventDefault();
+						saveBody(editing);
+					}}
+				>
+					<textarea
+						aria-label="Content"
+						value={editing}
+						autoFocus
+						rows={Math.min(40, Math.max(8, editing.split("\n").length + 1))}
+						onChange={(event) => setEditing(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.currentTarget.form?.requestSubmit();
+							if (event.key === "Escape") {
+								event.stopPropagation();
+								setEditing(null);
+							}
+						}}
+					/>
+					<span className="composer-actions">
+						<button type="button" className="quiet" onClick={() => setEditing(null)}>
+							Cancel
+						</button>
+						<button type="submit" disabled={editing === body}>
+							Save
+						</button>
+					</span>
+				</form>
+			)}
+			<div className="content-body" ref={area} onMouseUp={onMouseUp} hidden={editing !== null}>
 				{body ? (
 					<Markdown source={body} anchors={anchors} onAnchor={setFocused} onCheck={check} />
 				) : (

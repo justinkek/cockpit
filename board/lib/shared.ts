@@ -57,6 +57,7 @@ export const FIBONACCI = [0, 1, 2, 3, 5, 8, 13, 21, 34];
 export type Card = {
 	id: string;
 	name: string;
+	icon?: string | null;
 	type?: "Feature" | "Bug" | "Timebox";
 	status: string;
 	epic?: string | null;
@@ -67,6 +68,7 @@ export type Card = {
 	dependent_on?: string[];
 	dependency_for?: string[];
 	complexity?: number | null;
+	timebox_mins?: number | null;
 	session?: string | null;
 	claimed_at?: string | null;
 	prs?: string | null;
@@ -74,10 +76,13 @@ export type Card = {
 	tokens_k?: number | null;
 	created: string;
 	moved?: string;
+	updated?: string;
 	rank?: number | null;
 	models?: Record<string, string>;
 	back_from?: Record<string, number>;
 	dates?: Record<string, string>;
+	start?: string | null;
+	end?: string | null;
 	body: string;
 };
 
@@ -91,6 +96,16 @@ export type CommentThread = {
 };
 
 export type Named = { id: string; name: string };
+
+export type Sprint = Named & { start?: string | null; end?: string | null };
+
+export const TYPES = ["Feature", "Bug", "Timebox"] as const;
+
+export function kindOf(id: string): Kind | null {
+	if (/^(FEAT|BUG|TIME)-/.test(id)) return "card";
+	if (id.startsWith("EPIC-")) return "epic";
+	return null;
+}
 
 export function phaseOf(column: string): string {
 	if (column === "Backlog" || column === "Deprioritised") return "idle";
