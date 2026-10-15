@@ -629,6 +629,7 @@ export function Plan({
 	const scroller = useRef<HTMLDivElement>(null);
 	const dndId = useId();
 	const live = useRef({ ppd: SCALES.weeks as number, first: 0 });
+	const latest = useRef<Record<string, number>>({});
 	const loaded = useRef(false);
 
 	const pendingNow = useRef(pending);
@@ -784,8 +785,14 @@ export function Plan({
 		setToast(null);
 		setEpics((current) => current.map((epic) => (epic.id === id ? { ...epic, ...optimistic } : epic)));
 		markPending(id, true);
+		const mine = (latest.current[id] ?? 0) + 1;
+		latest.current[id] = mine;
 		startTransition(async () => {
 			const result = await request();
+			if (latest.current[id] !== mine) {
+				if (result.error) setNotice({ id, text: `${id}: ${result.error}` });
+				return;
+			}
 			markPending(id, false);
 			if (result.error) {
 				setEpics((current) => current.map((epic) => (epic.id === id ? before : epic)));
@@ -877,7 +884,7 @@ export function Plan({
 	}
 
 	function beginDrag(event: ReactPointerEvent<HTMLElement>, base: Omit<Drag, "delta" | "moved">) {
-		if (event.button !== 0 || pending.has(base.id)) return;
+		if (event.button !== 0) return;
 		event.stopPropagation();
 		const element = event.currentTarget;
 		const pointer = event.pointerId;
