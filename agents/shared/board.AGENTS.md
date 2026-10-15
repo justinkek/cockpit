@@ -128,7 +128,7 @@ A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as n
 
 An epic takes `start` and `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`), `learning` (free text) and `plan_rank` (a number, lowest first in the plan) through `board-card set`, and its dates through `create --kind epic --start --target` too, and a target before the start is refused.
 
-Setting an epic's `target` holds each of its cards that is neither `Done` nor `Deprioritised` to it: a card with no due date or a later one takes the target as its `due`, marked with `due_from` naming the epic, a due date the target set follows it and is cleared with it, an earlier date of the card's own is left, and `set` prints each card it changed. A card joining or leaving an epic is held to its target or let go the same way, and setting `due` by hand makes the date the card's own again.
+Setting an epic's `target` holds each of its cards that is neither `Done` nor `Deprioritised` to it: a card with no due date or a later one takes the target as its `due`, marked with `due_from` naming the epic, a later date of the card's own is kept as `due_own` and given back once the target moves past it or lets the card go, a due date the target set follows it and is cleared with it, an earlier date of the card's own is left, and `set` prints each card it changed. A card joining or leaving an epic is held to its target or let go the same way, and setting `due` by hand makes the date the card's own again.
 
 A milestone is created with `create --kind milestone --name <name> --date <date>`, moves with `board-card set <id> date`, and comes off the plan with `board-card archive`.
 

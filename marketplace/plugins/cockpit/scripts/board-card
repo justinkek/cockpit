@@ -831,12 +831,13 @@ date_json() {
 }
 
 held_program='
+  def released: .due = (.due_own // null) | del(.due_from, .due_own);
   def held($target):
-    (if .due_from != null and .due_from != .epic then .due = null | del(.due_from) else . end)
+    (if .due_from != null and .due_from != .epic then released else . end)
     | if .epic == null or .status == "Done" or .status == "Deprioritised" then .
-      elif $target == null then (if .due_from == .epic then .due = null | del(.due_from) else . end)
-      elif .due_from == .epic then .due = $target
-      elif .due == null or (.due | tostring | .[:10]) > $target then .due = $target | .due_from = .epic
+      elif $target == null then (if .due_from == .epic then released else . end)
+      elif .due_from == .epic then (if .due_own != null and (.due_own | tostring | .[:10]) <= $target then released else .due = $target end)
+      elif .due == null or (.due | tostring | .[:10]) > $target then (if .due != null then .due_own = .due else . end) | .due = $target | .due_from = .epic
       else . end;
   held($target)'
 
@@ -1054,7 +1055,7 @@ set_locked() {
       ;;
     due)
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]{4}-[0-9]{2}-[0-9]{2}' || die 2 "due is a date, not '$value'"
-      update_record "$id" --argjson value "$(nullable "$value")" '.due = $value | del(.due_from)'
+      update_record "$id" --argjson value "$(nullable "$value")" '.due = $value | del(.due_from, .due_own)'
       ;;
     blocked)
       update_record "$id" --argjson value "$(nullable "$value")" --arg at "$(now)" --arg by "$(default_author)" '

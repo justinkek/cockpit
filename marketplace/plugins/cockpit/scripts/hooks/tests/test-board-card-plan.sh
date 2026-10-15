@@ -115,9 +115,14 @@ assert_eq "an earlier target pulls in the card's own date too, and takes it over
   "FEAT-2=2026-10-25@EPIC-3 FEAT-3=2026-10-25@EPIC-3 FEAT-4=2026-10-25@EPIC-3" "$(dues | sed 's/^.*FEAT-2/FEAT-2/; s/ FEAT-5.*//')"
 stub set FEAT-4 due 2026-10-20 >/dev/null
 assert_eq "a due date set by hand is the card's own again" "2026-10-20@-" "$(field FEAT-4 '"\(.due)@\(.due_from // "-")"')"
+stub set EPIC-3 target 2027-01-15 >/dev/null
+assert_eq "a target moved past a card's own date gives the card its own date back" \
+  "FEAT-2=2027-01-15@EPIC-3 FEAT-3=2026-12-31@- FEAT-4=2026-10-20@-" "$(dues | sed 's/^.*FEAT-2/FEAT-2/; s/ FEAT-5.*//')"
+stub set EPIC-3 target 2026-12-10 >/dev/null
 stub set EPIC-3 target "" >/dev/null
-assert_eq "clearing the target clears the due dates it set, and only those" \
-  "FEAT-2=-@- FEAT-3=-@- FEAT-4=2026-10-20@-" "$(dues | sed 's/^.*FEAT-2/FEAT-2/; s/ FEAT-5.*//')"
+assert_eq "clearing the target clears the due dates it set, and gives back the ones it took over" \
+  "FEAT-2=-@- FEAT-3=2026-12-31@- FEAT-4=2026-10-20@-" "$(dues | sed 's/^.*FEAT-2/FEAT-2/; s/ FEAT-5.*//')"
+stub set FEAT-3 due "" >/dev/null
 
 printf "\nTest group: a card moving between epics follows the target it lands under\n"
 
@@ -129,6 +134,12 @@ stub set FEAT-2 epic "" >/dev/null
 assert_eq "a card leaving every epic drops the due date the target set" "null@-" "$(field FEAT-2 '"\(.due)@\(.due_from // "-")"')"
 stub create --name "Born held" --epic EPIC-3 >/dev/null
 assert_eq "a card created in an epic with a target starts held to it" "2026-11-20@EPIC-3" "$(field FEAT-7 '"\(.due)@\(.due_from // "-")"')"
+stub create --name "Own date" >/dev/null
+stub set FEAT-8 due 2026-12-31 >/dev/null
+stub set FEAT-8 epic EPIC-3 >/dev/null
+assert_eq "a card joining an epic whose target is earlier than its own date is held to the target" "2026-11-20@EPIC-3" "$(field FEAT-8 '"\(.due)@\(.due_from // "-")"')"
+stub set FEAT-8 epic "" >/dev/null
+assert_eq "and leaving it gets its own date back" "2026-12-31@-" "$(field FEAT-8 '"\(.due)@\(.due_from // "-")"')"
 stub set FEAT-3 epic EPIC-2 >/dev/null
 assert_eq "a held card moving to another epic takes the new target" "2026-11-05@EPIC-2" "$(field FEAT-3 '"\(.due)@\(.due_from // "-")"')"
 stub set EPIC-1 target "" >/dev/null
