@@ -94,11 +94,11 @@ PLAN_CARDS='[{"epic":"EPIC-1","status":"In Dev","complexity":13},{"epic":"EPIC-1
 rows="p.planOf($EPICS, $PLAN_CARDS, 7, 3, $TODAY)"
 assert_eq "the plan order is the plan rank, then the target, then the id" 'EPIC-1,EPIC-2,EPIC-5,EPIC-4,EPIC-3' \
   "$(evaluate "p.planOrder($EPICS).map((e) => e.id).join()")"
-assert_eq "the first epic runs from today for its points at the pace, here past its target" '{"begin":20740,"projected":20753,"late":2}' \
+assert_eq "the first epic runs from today for its points at the pace, its last day of work its projected end, here past its target" '{"begin":20740,"projected":20752,"late":1}' \
   "$(evaluate "pick($rows[\"EPIC-1\"], \"begin projected late\")")"
-assert_eq "the next one starts when the one ahead ends" '{"begin":20753,"projected":20756,"late":0}' \
+assert_eq "the next one starts the day after the one ahead ends" '{"begin":20753,"projected":20755,"late":0}' \
   "$(evaluate "pick($rows[\"EPIC-2\"], \"begin projected late\")")"
-assert_eq "an epic waits for its own start date" '{"begin":20788,"projected":20793,"late":0}' \
+assert_eq "an epic waits for its own start date" '{"begin":20788,"projected":20792,"late":0}' \
   "$(evaluate "pick($rows[\"EPIC-5\"], \"begin projected late\")")"
 assert_eq "the pace a target needs counts the points of every epic ahead of it" '6.2' "$(evaluate "$rows[\"EPIC-2\"].needed")"
 assert_eq "an epic projected late with no worse confidence than on track is flagged at risk" 'true,false' \
@@ -112,10 +112,12 @@ assert_eq "a worse confidence is not flagged again" 'false' \
   "$(evaluate 'p.planOf([{id:"EPIC-1",status:"In FD",target:"2026-10-15",confidence:"At risk - no plan"}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], 7, 3, '"$TODAY"')["EPIC-1"].atRisk')"
 assert_eq "a target in the past needs more than any pace" 'true,1' \
   "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",target:"2026-10-01"}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], 7, 3, '"$TODAY"')).map((r) => [r.needed === Infinity, r.late > 0 ? 1 : 0]).flat().join()')"
-assert_eq "an epic whose cards are all done ends today and takes no time from the plan" '20740,20766' \
+assert_eq "an epic whose cards are all done ends today and takes no time from the plan" '20740,20765' \
   "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",plan_rank:1},{id:"EPIC-2",status:"In FD",plan_rank:2},{id:"EPIC-3",status:"In FD",plan_rank:3}], [{epic:"EPIC-1",status:"In Dev",complexity:13},{epic:"EPIC-2",status:"Done",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:13}], 7, 3, '"$TODAY"')).map((r) => r.projected).slice(1).join()')"
 assert_eq "a start after the target is read as backwards" 'true' \
   "$(evaluate 'p.planOf([{id:"EPIC-1",status:"In FD",start:"2026-11-01",target:"2026-10-20"}], [], 7, 3, '"$TODAY"')["EPIC-1"].backwards')"
+assert_eq "an epic whose points fit exactly by its target ends on it, not a day late" '{"projected":20746,"late":0}' \
+  "$(evaluate 'pick(p.planOf([{id:"EPIC-1",status:"In FD",target:"2026-10-20"}], [{epic:"EPIC-1",status:"Backlog",complexity:7}], 7, 3, '"$TODAY"')["EPIC-1"], "projected late")')"
 assert_eq "a pace of zero is held above zero rather than dividing by it" 'true' \
   "$(evaluate 'Number.isFinite(p.planOf([{id:"EPIC-1",status:"In FD"}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], 0, 3, '"$TODAY"')["EPIC-1"].projected)')"
 

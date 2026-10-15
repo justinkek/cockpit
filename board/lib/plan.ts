@@ -165,8 +165,9 @@ export function planOf(
 			row.projected = today;
 		} else if (remaining.open > 0) {
 			row.begin = Math.max(cursor, start ?? cursor);
-			row.projected = row.begin + Math.ceil(remaining.points / perDay);
-			cursor = row.projected;
+			const days = Math.ceil(remaining.points / perDay);
+			row.projected = row.begin + Math.max(0, days - 1);
+			cursor = row.begin + days;
 			ahead += remaining.points;
 			row.late = target != null ? Math.max(0, row.projected - target) : 0;
 			if (target != null && remaining.points > 0) {

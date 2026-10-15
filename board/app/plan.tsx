@@ -1188,13 +1188,12 @@ export function Plan({
 		const target = row.target;
 		const ends: number[] = [];
 		const pieces: ReactNode[] = [];
-		const run = row.begin != null && row.projected != null && row.projected > row.begin;
-		if (run && row.begin != null && row.projected != null) {
+		if (row.begin != null && row.projected != null && row.remaining.points > 0) {
 			pieces.push(
 				<span
 					key="run"
 					className="plan-run"
-					style={{ left: x(row.begin), width: x(row.projected) - x(row.begin) }}
+					style={{ left: x(row.begin), width: x(row.projected + 1) - x(row.begin) }}
 					title={`Scheduled from ${short(row.begin)} to ${short(row.projected)} at ${pace(rate.perWeek)} points a week`}
 				/>,
 			);
