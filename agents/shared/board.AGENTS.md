@@ -118,6 +118,8 @@ A card id is accepted wherever a ticket URL was: `ticket-register` records it, `
 
 A comment sits in `<id>.comments.jsonl` beside its record, one line each. `board-card comment <id> --anchor <text>` pins it to that text in the content, `--reply <comment-id>` adds it to a thread, and no flag puts it on the whole page. `board-card comments <id>` lists the open threads and `board-card resolve` closes one. `show --section` prints the open comments anchored inside that section.
 
+The board keeps the names that are the person's own in `me` at its root, one a line: `board-card me` prints them, `board-card me <name>...` sets the whole list, and `board-card me ''` puts back the default of the login name and `Justin Kek (Notion)`. `board-card inbox` takes a comment under any of those names, or under the name it writes as, as the reader's own and leaves it out, never counts a move or a block made under one as unread, and a comment written under one name on the list can be edited or deleted under another.
+
 Every write stamps `updated` on the record it changes, a comment or an attachment included, and a write that changes nothing leaves the stamp as it was.
 
 A record whose front matter does not parse is never written over or read past: any command that reaches it, `list` included, exits 8 and names the file, which is then fixed by hand.

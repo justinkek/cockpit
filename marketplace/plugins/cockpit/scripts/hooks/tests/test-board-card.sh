@@ -948,5 +948,27 @@ assert_eq "and the reader's own move and block are listed but never unread" "0 b
 assert_eq "while to anyone else they are" "2" \
   "$(COCKPIT_NOW=2026-10-14T15:00:00Z inbox inbox --json --author "claude one" | jq '[.items[] | select(.id == "FEAT-4" and .unread)] | length')"
 
+
+printf "\nTest group: the inbox takes every name on the board's list of the person's own as theirs\n"
+
+assert_eq "until set, the list is the login name and the name Notion wrote comments under" "someone|Justin Kek (Notion)" \
+  "$(USER=someone inbox me | paste -sd '|' -)"
+printf 'carried over from Notion' | COCKPIT_NOW=2026-10-14T16:00:00Z inbox comment FEAT-2 --author "Justin Kek (Notion)" >/dev/null
+notion_comments() { COCKPIT_NOW=2026-10-14T16:30:00Z inbox inbox --json | jq '[.items[] | select(.kind == "comment" and .author == "Justin Kek (Notion)")] | length'; }
+assert_eq "a comment under a name on the list is never an inbox item" "0" "$(notion_comments)"
+assert_eq "and the inbox names the whole list as its reader" "true" \
+  "$(inbox inbox --json | jq '.me | index("Justin Kek (Notion)") != null and index("justin") != null')"
+assert_eq "the list is set by naming every name on it" "justin|J. Kek" "$(inbox me justin "J. Kek" | paste -sd '|' -)"
+assert_eq "and kept at the board's root" "justin|J. Kek" "$(paste -sd '|' - < "$inbox_board/me")"
+assert_eq "so a name taken off it is someone else again" "1" "$(notion_comments)"
+inbox me justin "" >/dev/null 2>&1
+assert_eq "an empty name among others is refused" "2" "$?"
+inbox me "Justin Kek (Notion)" justin >/dev/null
+printf 'edited here' | inbox comment FEAT-2 --edit c1 --author justin >/dev/null 2>&1
+assert_eq "a comment under one name on the list is edited under another" "0 edited here" "$? $(inbox comments FEAT-2 --json | jq --raw-output '.[0].comments[0].text')"
+printf 'not mine' | inbox comment FEAT-2 --edit c1 --author "claude one" >/dev/null 2>&1
+assert_eq "but never under a name off it" "2" "$?"
+assert_eq "an empty value puts the default list back" "someone|Justin Kek (Notion)" "$(USER=someone inbox me "" | paste -sd '|' -)"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
