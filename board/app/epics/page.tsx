@@ -1,5 +1,5 @@
 import { Board } from "@/app/board";
-import { BoardError, type Card, listRecords } from "@/lib/board";
+import { BoardError, type Card, listRecords, readViews, type SavedView } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -7,8 +7,14 @@ export default async function EpicsPage() {
 	let cards: Card[];
 	let epics: Card[];
 	let projects: Card[];
+	let views: SavedView[];
 	try {
-		[cards, epics, projects] = await Promise.all([listRecords("card"), listRecords("epic"), listRecords("project")]);
+		[cards, epics, projects, views] = await Promise.all([
+			listRecords("card"),
+			listRecords("epic"),
+			listRecords("project"),
+			readViews("epic"),
+		]);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return <p className="notice error">{error.message}</p>;
@@ -35,6 +41,7 @@ export default async function EpicsPage() {
 	return (
 		<Board
 			kind="epic"
+			views={views}
 			initial={epics}
 			children={children}
 			lists={{

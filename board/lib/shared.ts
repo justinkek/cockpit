@@ -161,6 +161,8 @@ export type Inbox = { me: string[]; seen: string | null; now: string; unread: nu
 
 export type Named = { id: string; name: string };
 
+export type SavedView = { name: string; kind: Kind; view: Record<string, unknown> };
+
 export type Sprint = Named & { start?: string | null; end?: string | null };
 
 export const TYPES = ["Feature", "Bug", "Timebox"] as const;

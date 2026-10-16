@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Card, CommentThread, Inbox, Kind, RecordKind } from "./shared";
+import type { Card, CommentThread, Inbox, Kind, RecordKind, SavedView } from "./shared";
 
 export * from "./shared";
 
@@ -63,6 +63,19 @@ export async function meNames(): Promise<string[]> {
 	const names = (await boardCard(["me"])).split("\n").filter(Boolean);
 	const author = commentAuthor();
 	return author && !names.includes(author) ? [...names, author] : names;
+}
+
+export async function readViews(kind: Kind): Promise<SavedView[]> {
+	const views: SavedView[] = JSON.parse(await boardCard(["views", "--json"]));
+	return views.filter((view) => view.kind === kind);
+}
+
+export async function saveNamedView(kind: Kind, name: string, view: Record<string, unknown>): Promise<void> {
+	await boardCard(["views", "save", name, "--kind", kind], JSON.stringify(view));
+}
+
+export async function deleteNamedView(kind: Kind, name: string): Promise<void> {
+	await boardCard(["views", "delete", name, "--kind", kind]);
 }
 
 export async function readInboxUpTo(stamp: string): Promise<void> {

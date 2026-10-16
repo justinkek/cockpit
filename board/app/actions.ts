@@ -14,6 +14,7 @@ import {
 	commitsOf,
 	createRecord,
 	deleteComment,
+	deleteNamedView,
 	editComment,
 	duplicateRecord,
 	findRenamed,
@@ -25,6 +26,9 @@ import {
 	readComments,
 	readInboxUpTo,
 	readRecord,
+	readViews,
+	type SavedView,
+	saveNamedView,
 	resolveComment,
 	searchContent,
 	setField,
@@ -428,6 +432,32 @@ export async function changeComment(id: string, comment: string, text: string): 
 
 export async function removeComment(id: string, comment: string): Promise<Threads> {
 	return threadsAfter(id, () => deleteComment(id, comment));
+}
+
+export async function storeView(
+	kind: Kind,
+	name: string,
+	view: Record<string, unknown>,
+): Promise<{ views?: SavedView[]; error?: string }> {
+	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
+	if (!typed) return { error: "a saved view needs a name" };
+	try {
+		await saveNamedView(kind, typed, view);
+		return { views: await readViews(kind) };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
+}
+
+export async function forgetView(kind: Kind, name: string): Promise<{ views?: SavedView[]; error?: string }> {
+	try {
+		await deleteNamedView(kind, name);
+		return { views: await readViews(kind) };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
 }
 
 export async function markInboxRead(stamp: string): Promise<Failure> {

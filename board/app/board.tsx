@@ -40,8 +40,10 @@ import {
 	editCard,
 	findInContent,
 	finishEpic,
+	forgetView,
 	linkCards,
 	type Span,
+	storeView,
 	undoChange,
 } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
@@ -69,6 +71,7 @@ import {
 	groupingOf,
 	LAYOUTS,
 	loadView,
+	restoredView,
 	matches,
 	NO_EPIC,
 	onlyEpic,
@@ -95,6 +98,7 @@ import {
 	movedTo,
 	type Named,
 	overrunTitle,
+	type SavedView,
 	PRESETS,
 	phaseOf,
 	presetOf,
@@ -836,7 +840,9 @@ export function Board({
 	lists,
 	children = {},
 	preset: presetParam,
+	views = [],
 }: {
+	views?: SavedView[];
 	initial: Stub[];
 	kind?: Kind;
 	preset?: string;
@@ -868,12 +874,16 @@ export function Board({
 	const [helpOpen, setHelpOpen] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [saved, setSaved] = useState(views);
+	const [savingView, startSavingView] = useTransition();
 	const [inContent, setInContent] = useState<{ query: string; ids: Set<string> } | null>(null);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
 	const dndId = useId();
 
 	useEffect(() => setStubs(initial), [initial]);
+
+	useEffect(() => setSaved(views), [views]);
 
 	useEffect(() => {
 		const saved = loadView(kind);
@@ -1256,6 +1266,14 @@ export function Board({
 						run: () => update({ preset: choice.id }),
 					}))
 				: []),
+			...saved.map((other) => ({
+				id: `go:saved:${other.name}`,
+				group: "Board",
+				label: `Show the saved view ${other.name}`,
+				keywords: "view saved recall",
+				run: () => recallView(other.name),
+			})),
+			{ id: "go:save-view", group: "Board", label: "Save this view as…", keywords: "view name", run: saveCurrentView },
 			{
 				id: "go:other",
 				group: "Board",
@@ -1390,6 +1408,47 @@ export function Board({
 
 	function update(change: Partial<View>) {
 		setView((current) => ({ ...current, ...change }));
+	}
+
+	function viewToSave(): Record<string, unknown> {
+		const { collapsed, listCollapsed, ...rest } = view;
+		return rest;
+	}
+
+	function recallView(name: string) {
+		const chosen = saved.find((other) => other.name === name);
+		if (!chosen) return;
+		setView(
+			restoredView(kind, { ...(chosen.view as Partial<View>), collapsed: view.collapsed, listCollapsed: view.listCollapsed }),
+		);
+		setToast(toastOf(`Showing the saved view ${name}`));
+	}
+
+	function saveCurrentView() {
+		const name = window.prompt("Save the filters, grouping, sort and layout as a view called", currentView ?? "");
+		if (name === null || !name.trim()) return;
+		const typed = name.trim();
+		if (saved.some((other) => other.name === typed) && !window.confirm(`Replace the saved view ${typed}?`)) return;
+		startSavingView(async () => {
+			const result = await storeView(kind, typed, viewToSave());
+			if (result.error) setNotice({ id: "", text: `Could not save the view: ${result.error}` });
+			if (result.views) {
+				setSaved(result.views);
+				setToast(toastOf(`Saved the view ${typed}`));
+			}
+		});
+	}
+
+	function deleteView(name: string) {
+		if (!window.confirm(`Delete the saved view ${name}?`)) return;
+		startSavingView(async () => {
+			const result = await forgetView(kind, name);
+			if (result.error) setNotice({ id: "", text: `Could not delete the view: ${result.error}` });
+			if (result.views) {
+				setSaved(result.views);
+				setToast(toastOf(`Deleted the view ${name}`));
+			}
+		});
 	}
 
 	function toggleType(type: string) {
@@ -1664,6 +1723,9 @@ export function Board({
 	}
 
 	const count = filterCount(view);
+	const currentView = saved.find(
+		(other) => JSON.stringify(restoredView(kind, other.view as Partial<View>)) === JSON.stringify(restoredView(kind, viewToSave() as Partial<View>)),
+	)?.name;
 	const groupProps = (column: string, swimlane?: Swimlane, index = 0) => ({
 		column,
 		dropId: swimlane ? `swim:${index}:${column}` : undefined,
@@ -1715,6 +1777,43 @@ export function Board({
 									))}
 								</select>
 							)}
+							<select
+								className="view-pick saved-views"
+								value=""
+								disabled={savingView}
+								onChange={(event) => {
+									const [action, name] = event.target.value.split(/:(.*)/s);
+									event.target.value = "";
+									if (action === "recall") recallView(name);
+									else if (action === "save") saveCurrentView();
+									else if (action === "delete") deleteView(name);
+								}}
+								aria-label="Saved views"
+								title="Name the filters, grouping, sort and layout, kept on the board, and bring them back"
+							>
+								<option value="" disabled>
+									{currentView ? `View: ${currentView}` : "Saved views"}
+								</option>
+								{saved.length > 0 && (
+									<optgroup label="Show">
+										{saved.map((other) => (
+											<option key={other.name} value={`recall:${other.name}`}>
+												{other.name}
+											</option>
+										))}
+									</optgroup>
+								)}
+								<option value="save:">{currentView ? `Save as… (now ${currentView})` : "Save this view as…"}</option>
+								{saved.length > 0 && (
+									<optgroup label="Delete">
+										{saved.map((other) => (
+											<option key={other.name} value={`delete:${other.name}`}>
+												Delete {other.name}
+											</option>
+										))}
+									</optgroup>
+								)}
+							</select>
 							<select
 								className="view-pick"
 								value={groupBy}

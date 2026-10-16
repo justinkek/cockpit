@@ -1,5 +1,5 @@
 import { Board } from "@/app/board";
-import { BoardError, type Card, listRecords, manualRank } from "@/lib/board";
+import { BoardError, type Card, listRecords, readViews, type SavedView, manualRank } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +11,14 @@ export default async function CardsPage({ searchParams }: Props) {
 	let epics: Card[];
 	let sprints: Card[];
 	let projects: Card[];
+	let views: SavedView[];
 	try {
-		[cards, epics, sprints, projects] = await Promise.all([
+		[cards, epics, sprints, projects, views] = await Promise.all([
 			listRecords("card"),
 			listRecords("epic"),
 			listRecords("sprint"),
 			listRecords("project"),
+			readViews("card"),
 		]);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
@@ -26,6 +28,7 @@ export default async function CardsPage({ searchParams }: Props) {
 	return (
 		<Board
 			kind="card"
+			views={views}
 			initial={cards}
 			preset={typeof view === "string" ? view : undefined}
 			lists={{
