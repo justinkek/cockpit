@@ -59,6 +59,7 @@ CLAIM_LOCK="${TICKET_CLAIM_LOCK:-$here/ticket-claim-lock}"
 DONE_USAGE="${TICKET_DONE_USAGE:-$here/ticket-done-usage}"
 COMMIT_DELAY="${COCKPIT_COMMIT_DELAY:-3}"
 flush_now=false
+flush_keys=""
 
 CARD_COLUMNS=(
   "Backlog"
@@ -250,29 +251,206 @@ commit_board() {
     commit --quiet --no-verify --message "$subject${ids:+ $ids}" >/dev/null
 }
 
-pending_file() { printf '%s/.git/board-card-pending\n' "$BOARD_DIR"; }
+case "$BOARD_DIR" in
+  /*) board_root="$BOARD_DIR" ;;
+  *) board_root="$PWD/$BOARD_DIR" ;;
+esac
+held_file="$board_root/.git/board-card-held"
+record_path_pattern='^(archive/)?[a-z]+/([A-Z][A-Z0-9]*-[0-9]+)[./]'
+held_lines=()
+batch_ids=()
+batch_paths=()
+dirty=()
 
-flush_pending() {
-  local pending last actions
-  pending="$(pending_file)"
-  [ -s "$pending" ] || return 0
-  last="$(tail -n 1 "$pending" | cut -f1)"
-  if [ "$flush_now" != true ] && [ "$COMMIT_DELAY" != 0 ] && [ $(($(date +%s) - ${last:-0})) -lt "$COMMIT_DELAY" ]; then
-    return 2
-  fi
-  actions="$(cut -f2 "$pending" | awk '!seen[$0]++' | paste -sd ',' - | sed 's/,/, /g')"
-  commit_board "$actions" || return 1
-  rm -f "$pending"
+board_index_git() {
+  local index="$1"
+  shift
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR
+    GIT_INDEX_FILE="$index" git -C "$BOARD_DIR" "$@"
+  )
 }
 
-hold_commit() {
-  [ -n "$(board_git status --porcelain 2>/dev/null)" ] || return 0
-  printf '%s\t%s\n' "$(date +%s)" "$action" >> "$(pending_file)"
+dirty_paths() {
+  local line
+  dirty=()
+  while IFS= read -r -d '' line; do dirty+=("${line:3}"); done \
+    < <(board_git status --porcelain -z --untracked-files=all --no-renames 2>/dev/null)
+}
+
+snapshot_tree() {
+  local index="$board_root/.git/board-card-snapshot"
+  if [ -f "$board_root/.git/index" ]; then cp "$board_root/.git/index" "$index" || return 1; else rm -f "$index"; fi
+  board_index_git "$index" add --all >/dev/null 2>&1 || return 1
+  board_index_git "$index" write-tree 2>/dev/null
+}
+
+record_id_of() {
+  [[ "$1" =~ $record_path_pattern ]] || return 1
+  REPLY="${BASH_REMATCH[2]}"
+}
+
+key_of_id() {
+  case "$1" in
+    FEAT-* | BUG-* | TIME-*) REPLY="card-${1##*-}" ;;
+    *) REPLY="$1" ;;
+  esac
+}
+
+key_of_path() {
+  if record_id_of "$1"; then key_of_id "$REPLY"; else REPLY="$1"; fi
+}
+
+commit_paths() {
+  local subject="$1" tree="$2" lock="$board_root/.git/index.lock" head base meta path ids=" " entries=() built commit
+  local old_mode new_mode old_sha new_sha status
+  shift 2
+  [ "$#" -gt 0 ] || return 0
+  head="$(board_git rev-parse --quiet --verify HEAD 2>/dev/null)" || head=""
+  base="$head"
+  [ -n "$base" ] || base="$(board_git hash-object -t tree /dev/null)"
+  while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+    read -r old_mode new_mode old_sha new_sha status <<<"${meta#:}"
+    if [ "$status" = D ]; then entries+=("0 $old_sha"$'\t'"$path"); else entries+=("$new_mode $new_sha"$'\t'"$path"); fi
+    if record_id_of "$path"; then
+      case "$ids" in *" $REPLY "*) ;; *) ids+="$REPLY " ;; esac
+    fi
+  done < <(board_git --literal-pathspecs diff-tree -z -r --raw --no-renames "$base" "$tree" -- "$@")
+  [ "${#entries[@]}" -gt 0 ] || return 0
+  ids="${ids# }"
+  ids="${ids% }"
+  if [ -e "$lock" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rm -f "$lock"; fi
+  set -o noclobber
+  if ! { : > "$lock"; } 2>/dev/null; then
+    set +o noclobber
+    return 1
+  fi
+  set +o noclobber
+  if { [ ! -f "$board_root/.git/index" ] || cp "$board_root/.git/index" "$lock"; } \
+    && if [ -n "$head" ]; then board_index_git "$lock" read-tree -m "$head"; else board_index_git "$lock" read-tree --empty; fi \
+    && printf '%s\0' "${entries[@]}" | board_index_git "$lock" update-index -z --index-info \
+    && built="$(board_index_git "$lock" write-tree)" \
+    && commit="$(board_git -c user.name=board-card -c user.email=board-card@localhost -c commit.gpgsign=false \
+      commit-tree "$built" ${head:+-p "$head"} -m "$subject${ids:+ $ids}")" \
+    && board_git update-ref -m "commit: $subject" HEAD "$commit" "$head" \
+    && mv "$lock" "$board_root/.git/index"; then
+    return 0
+  fi
+  rm -f "$lock"
+  return 1
+}
+
+load_held() {
+  local line
+  held_lines=()
+  [ -s "$held_file" ] || return 0
+  while IFS= read -r line; do held_lines+=("$line"); done < "$held_file"
+}
+
+save_held() {
+  if [ "${#held_lines[@]}" -gt 0 ]; then
+    printf '%s\n' "${held_lines[@]}" > "$held_file"
+  else
+    rm -f "$held_file"
+  fi
+}
+
+list_batches() {
+  local line id seen=$'\n'
+  batch_ids=()
+  for line in ${held_lines[@]+"${held_lines[@]}"}; do
+    id="${line%%$'\t'*}"
+    case "$seen" in *$'\n'"$id"$'\n'*) continue ;; esac
+    seen+="$id"$'\n'
+    batch_ids+=("$id")
+  done
+}
+
+batch_info() {
+  local line rest stamp verb path seen=$'\n'
+  batch_paths=()
+  batch_actions=""
+  batch_keys=" "
+  batch_last=0
+  for line in ${held_lines[@]+"${held_lines[@]}"}; do
+    [ "${line%%$'\t'*}" = "$1" ] || continue
+    rest="${line#*$'\t'}"
+    stamp="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    verb="${rest%%$'\t'*}"
+    path="${rest#*$'\t'}"
+    [ "$stamp" -le "$batch_last" ] || batch_last="$stamp"
+    case ", $batch_actions, " in *", $verb, "*) ;; *) batch_actions="${batch_actions:+$batch_actions, }$verb" ;; esac
+    case "$seen" in *$'\n'"$path"$'\n'*) continue ;; esac
+    seen+="$path"$'\n'
+    batch_paths+=("$path")
+    key_of_path "$path"
+    case "$batch_keys" in *" $REPLY "*) ;; *) batch_keys+="$REPLY " ;; esac
+  done
+}
+
+commit_batch() {
+  local line kept=()
+  batch_info "$1"
+  commit_paths "$batch_actions" "$2" ${batch_paths[@]+"${batch_paths[@]}"} || return 1
+  for line in ${held_lines[@]+"${held_lines[@]}"}; do
+    [ "${line%%$'\t'*}" = "$1" ] || kept+=("$line")
+  done
+  held_lines=(${kept[@]+"${kept[@]}"})
+  save_held
+}
+
+flush_held() {
+  local tree="$1" now="$2" id line path held_paths=$'\n' unrecorded=() failed=0 due
+  list_batches
+  for id in ${batch_ids[@]+"${batch_ids[@]}"}; do
+    batch_info "$id"
+    due=false
+    if [ "$flush_now" = true ] || [ "$COMMIT_DELAY" = 0 ] || [ $((now - batch_last)) -ge "$COMMIT_DELAY" ]; then due=true; fi
+    if [ -n "$flush_keys" ]; then
+      case "$batch_keys" in *" $flush_keys "*) due=true ;; esac
+    fi
+    if [ "$due" = true ]; then commit_batch "$id" "$tree" || failed=1; fi
+  done
+  for line in ${held_lines[@]+"${held_lines[@]}"}; do held_paths+="${line##*$'\t'}"$'\n'; done
+  for path in ${dirty[@]+"${dirty[@]}"}; do
+    case "$held_paths" in *$'\n'"$path"$'\n'*) continue ;; esac
+    unrecorded+=("$path")
+  done
+  commit_paths unrecorded "$tree" ${unrecorded[@]+"${unrecorded[@]}"} || failed=1
+  return "$failed"
+}
+
+hold_write() {
+  local before="$1" stamp="$2" keys=" " count=0 id key batch="" overlapping=() path
+  shift 2
+  for path in "$@"; do
+    key_of_path "$path"
+    case "$keys" in *" $REPLY "*) ;; *) keys+="$REPLY " count=$((count + 1)) ;; esac
+  done
+  list_batches
+  for id in ${batch_ids[@]+"${batch_ids[@]}"}; do
+    batch_info "$id"
+    for path in "$@"; do
+      key_of_path "$path"
+      case "$batch_keys" in *" $REPLY "*) overlapping+=("$id"); break ;; esac
+    done
+  done
+  if [ "${#overlapping[@]}" -eq 1 ] && [ "$count" -eq 1 ]; then
+    batch_info "${overlapping[0]}"
+    [ "$batch_keys" != "$keys" ] || batch="${overlapping[0]}"
+  fi
+  if [ -z "$batch" ]; then
+    for id in ${overlapping[@]+"${overlapping[@]}"}; do commit_batch "$id" "$before" || return 1; done
+    batch="$stamp.$$"
+  fi
+  for path in "$@"; do held_lines+=("$batch"$'\t'"$stamp"$'\t'"$action"$'\t'"$path"); done
+  save_held
   ( sleep "$COMMIT_DELAY"; exec bash "$here/$(basename "$0")" flush ) </dev/null >/dev/null 2>&1 &
 }
 
 with_lock() {
-  local lock="$BOARD_DIR/.lock" tries=0 held=0
+  local lock="$BOARD_DIR/.lock" tries=0 before="" after="" path changed=()
   until mkdir "$lock" 2>/dev/null; do
     tries=$((tries + 1))
     if [ "$tries" -ge 50 ]; then
@@ -286,9 +464,13 @@ with_lock() {
   done
   trap 'rm -rf "$BOARD_DIR/.lock"' EXIT
   if [ -d "$BOARD_DIR/.git" ]; then
-    flush_pending 2>/dev/null || held=$?
-    if [ "$held" -ne 2 ] && [ -n "$(board_git status --porcelain 2>/dev/null)" ]; then
-      commit_board unrecorded 2>/dev/null || true
+    load_held
+    dirty_paths
+    if [ "${#held_lines[@]}" -gt 0 ] || [ "${#dirty[@]}" -gt 0 ]; then
+      before="$(snapshot_tree)" || before=""
+      [ -z "$before" ] || flush_held "$before" "$(date +%s)" 2>/dev/null || true
+    else
+      before=HEAD
     fi
   fi
   local status=0
@@ -299,11 +481,21 @@ with_lock() {
   )
   status=$?
   set -e
-  if [ "$status" -eq 0 ] && [ -d "$BOARD_DIR/.git" ]; then
+  if [ "$status" -eq 0 ] && [ -d "$BOARD_DIR/.git" ] && [ "$action" != flush ]; then
     if [ "$COMMIT_DELAY" = 0 ] || [ "$flush_now" = true ]; then
       commit_board "$action" || die 6 "wrote to $BOARD_DIR but could not commit it"
-    elif [ "$action" != flush ]; then
-      hold_commit
+    elif [ -n "$before" ]; then
+      if [ "${#held_lines[@]}" -gt 0 ]; then
+        after="$(snapshot_tree)" || die 6 "wrote to $BOARD_DIR but could not commit it"
+        while IFS= read -r -d '' path; do changed+=("$path"); done \
+          < <(board_git diff-tree -z -r --name-only --no-renames "$before" "$after")
+      else
+        dirty_paths
+        changed=(${dirty[@]+"${dirty[@]}"})
+      fi
+      if [ "${#changed[@]}" -gt 0 ]; then
+        hold_write "$before" "$(date +%s)" "${changed[@]}" || die 6 "wrote to $BOARD_DIR but could not commit it"
+      fi
     fi
   fi
   rm -rf "$lock"
@@ -1663,8 +1855,9 @@ command_history() {
   local id paths=() path log
   id="$(normalise_id "${1:-}")"
   require_history
-  if [ -s "$(pending_file)" ]; then
-    flush_now=true
+  if [ -s "$held_file" ]; then
+    key_of_id "$id"
+    flush_keys="$REPLY"
     with_lock true
   fi
   while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
@@ -1813,7 +2006,7 @@ command_flush() {
     --now) flush_now=true ;;
     *) die 2 "flush takes nothing but --now, not '$1'" ;;
   esac
-  [ -d "$BOARD_DIR/.git" ] && [ -s "$(pending_file)" ] || return 0
+  [ -d "$BOARD_DIR/.git" ] && [ -s "$held_file" ] || return 0
   with_lock true
 }
 
