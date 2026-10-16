@@ -38,6 +38,7 @@ import {
 	rankPlan,
 	removeMilestone,
 	resolveThread,
+	setBoardTracks,
 	type Span,
 	undoChange,
 } from "@/app/actions";
@@ -739,6 +740,7 @@ export function Plan({
 	initial,
 	cards,
 	milestones: initialMilestones,
+	tracks: initialTracks,
 	projects,
 	sprints,
 	today: todayText,
@@ -747,6 +749,7 @@ export function Plan({
 	initial: Card[];
 	cards: Card[];
 	milestones: Card[];
+	tracks: number;
 	projects: Project[];
 	sprints: Pick<Card, "start" | "end" | "speed">[];
 	today: string;
@@ -767,6 +770,7 @@ export function Plan({
 	const [legendOpen, setLegendOpen] = useState(false);
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const [trackCounts, setTrackCounts] = useState<Record<string, number>>({});
+	const [boardCount, setBoardCount] = useState(initialTracks);
 	const [saving, startTransition] = useTransition();
 	const scroller = useRef<HTMLDivElement>(null);
 	const dndId = useId();
@@ -787,6 +791,7 @@ export function Plan({
 	);
 	useEffect(() => setMilestones(initialMilestones), [initialMilestones]);
 	useEffect(() => setTrackCounts({}), [projects]);
+	useEffect(() => setBoardCount(initialTracks), [initialTracks]);
 
 	useEffect(() => {
 		setPrefs(loadPrefs());
@@ -827,6 +832,7 @@ export function Plan({
 		return all;
 	}, [projects, speeds, trackCounts, projectOf]);
 	const teamName = (team: string) => projectOf[team]?.name ?? team;
+	const allocated = projects.reduce((sum, project) => sum + tracksOf(project.id), 0);
 	const homeless = epics.filter((epic) => !epic.project || !projectOf[epic.project]);
 
 	const shown = useMemo(() => {
@@ -1010,6 +1016,14 @@ export function Plan({
 	function changeTracks(team: string, count: number) {
 		const before = tracksOf(team);
 		if (count < 0 || count === before) return;
+		if (count > before && allocated - before + count > boardCount) {
+			setToast(null);
+			setNotice({
+				id: "",
+				text: `${teamName(team)} cannot take ${tracksText(count)}: the projects' shares would add up to ${allocated - before + count}, over the board's ${tracksText(boardCount)}. Raise the board's tracks first, or take one from another project.`,
+			});
+			return;
+		}
 		const label =
 			count === 0 ? `Took every track from ${teamName(team)}` : `Gave ${teamName(team)} ${tracksText(count)}`;
 		setNotice(null);
@@ -1023,6 +1037,31 @@ export function Plan({
 				return;
 			}
 			setToast(undoable(team, result.undo, label));
+			router.refresh();
+		});
+	}
+
+	function changeBoardTracks(count: number) {
+		const before = boardCount;
+		if (count < 1 || count === before) return;
+		setToast(null);
+		if (count < allocated) {
+			setNotice({
+				id: "",
+				text: `The projects' shares add up to ${allocated}, so the board needs at least ${tracksText(allocated)} - take a track from a project first.`,
+			});
+			return;
+		}
+		setNotice(null);
+		setBoardCount(count);
+		startTransition(async () => {
+			const result = await setBoardTracks(count);
+			if (result.error) {
+				setBoardCount(before);
+				setNotice({ id: "", text: `The board's tracks: ${result.error}` });
+				return;
+			}
+			if (result.tracks) setBoardCount(result.tracks);
 			router.refresh();
 		});
 	}
@@ -1770,6 +1809,41 @@ export function Plan({
 							</span>
 						</span>
 						<span className="plan-speed-from">{speedFrom(rate)}</span>
+					</div>
+					<div title="How many epics you can run at once across the board, shared out between the projects by hand">
+						<span className="stat-label">Tracks</span>
+						<span className="stat-value plan-board-tracks">
+							<span className="plan-tracks-step" role="group" aria-label="The board's tracks">
+								<button
+									type="button"
+									className="quiet"
+									disabled={boardCount <= Math.max(1, allocated)}
+									aria-label="One track fewer for the board"
+									title={
+										boardCount <= allocated
+											? "Every track is given to a project - take one from a project first"
+											: "One track fewer for the board"
+									}
+									onClick={() => changeBoardTracks(boardCount - 1)}
+								>
+									−
+								</button>
+								<span className="plan-tracks-count">{boardCount}</span>
+								<button
+									type="button"
+									className="quiet"
+									aria-label="One track more for the board"
+									title="One track more for the board, to give a project"
+									onClick={() => changeBoardTracks(boardCount + 1)}
+								>
+									+
+								</button>
+							</span>
+						</span>
+						<span className="plan-speed-from">
+							{allocated} given to projects
+							{boardCount > allocated ? ` · ${boardCount - allocated} unallocated` : " · none unallocated"}
+						</span>
 					</div>
 					<div title="Open tickets with neither a TR complexity nor a TD estimate, left out of every sum and date">
 						<span className="stat-label">Unsized</span>

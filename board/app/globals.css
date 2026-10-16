@@ -4736,6 +4736,11 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.plan-board-tracks {
+		display: flex;
+		align-items: center;
+	}
+
 	.plan-tracks {
 		display: inline-flex;
 		align-items: center;

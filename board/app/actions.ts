@@ -6,6 +6,7 @@ import {
 	addComment,
 	archiveRecord,
 	BoardError,
+	boardTracks,
 	type Card,
 	type CommentThread,
 	type Kind,
@@ -275,6 +276,17 @@ export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 		if (changed.undo) result.undo.push({ id, ...changed.undo });
 	}
 	return result;
+}
+
+export async function setBoardTracks(count: number): Promise<{ tracks?: number; error?: string }> {
+	try {
+		const tracks = await boardTracks(String(count));
+		revalidatePath("/plan");
+		return { tracks };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
 }
 
 export async function createMilestone(name: string, date: string): Promise<Result> {
