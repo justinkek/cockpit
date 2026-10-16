@@ -160,7 +160,8 @@ export function teamOf(record: Pick<Card, "project">, known: Record<string, unkn
 
 type Worked = Sized & Pick<Card, "epic" | "dates" | "moved">;
 
-function startedAt(epic: Pick<Card, "dates">, cards: Worked[]): number | null {
+function startedAt(epic: Pick<Card, "dates">, all: Worked[]): number | null {
+	const cards = all.filter((card) => card.type !== "Timebox");
 	const stamps = [
 		timeOf(epic.dates?.["Tickets In Dev"]),
 		...cards.map((card) => timeOf(card.dates?.["In Dev"])),
@@ -173,7 +174,10 @@ export function inProgressOf(epic: Pick<Card, "status" | "dates">, cards: Worked
 	if (epic.status === "Epic Done") return false;
 	if (epic.status === "Tickets In Dev") return true;
 	return cards.some(
-		(card) => card.status !== "Deprioritised" && (card.status === "Done" || card.dates?.["In Dev"] != null),
+		(card) =>
+			card.type !== "Timebox" &&
+			card.status !== "Deprioritised" &&
+			(card.status === "Done" || card.dates?.["In Dev"] != null),
 	);
 }
 

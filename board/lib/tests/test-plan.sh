@@ -164,6 +164,11 @@ assert_eq "a second track lets both run from today with no pause" '1@20740:null,
 assert_eq "an epic in progress that waits for its own start date is not paused" 'null' \
   "$(evaluate 'p.planOf([{id:"EPIC-1",status:"Tickets In Dev",start:"2026-10-20"}], [{epic:"EPIC-1",status:"In Dev",complexity:5}], 7, '"$TODAY"')["EPIC-1"].pausedUntil')"
 
+assert_eq "a timebox in dev or done never puts its epic in progress" 'false,false' \
+  "$(evaluate '[[{epic:"EPIC-1",type:"Timebox",status:"In Dev",dates:{"In Dev":"2026-10-12T10:00:00Z"}}],[{epic:"EPIC-1",type:"Timebox",status:"Done"}]].map((cards) => p.inProgressOf({status:"In FD"}, cards)).join()')"
+assert_eq "while a feature or a bug that reached In Dev does" 'true,true' \
+  "$(evaluate '[[{epic:"EPIC-1",type:"Feature",status:"In Dev",dates:{"In Dev":"2026-10-12T10:00:00Z"}}],[{epic:"EPIC-1",type:"Bug",status:"Done"}]].map((cards) => p.inProgressOf({status:"In FD"}, cards)).join()')"
+
 printf "\nTest group: an epic pinned to a track waits for it\n"
 
 PINNED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","rank":1,"track":2},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2,"track":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-1","rank":4,"track":5}]'
