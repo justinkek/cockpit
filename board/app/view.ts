@@ -14,6 +14,7 @@ export type View = {
 	query: string;
 	types: string[];
 	epic: string;
+	labels: string[];
 	blocked: boolean;
 	claimed: boolean;
 	overrunning: boolean;
@@ -30,6 +31,7 @@ export const DEFAULT_VIEW: View = {
 	query: "",
 	types: [],
 	epic: "",
+	labels: [],
 	blocked: false,
 	claimed: false,
 	overrunning: false,
@@ -146,6 +148,7 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 		return false;
 	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
 	if (!epicPasses(view.epic, stub.epic)) return false;
+	if (view.labels.length > 0 && !(stub.labels ?? []).some((label) => view.labels.includes(label))) return false;
 	if (!inPreset(stub, view.preset)) return false;
 	if (view.blocked && !stub.blocked) return false;
 	if (view.claimed && !stub.session) return false;

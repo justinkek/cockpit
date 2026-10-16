@@ -54,7 +54,7 @@ import { type Command, type Page, Palette } from "@/app/palette";
 import { EstimateFacts, EstimatePill } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
-import { contextOf, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
+import { contextOf, LabelPills, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
 	collapsedIn,
@@ -192,6 +192,7 @@ function filterCount(view: View) {
 		view.query.trim() !== "",
 		view.types.length > 0,
 		view.epic !== "",
+		view.labels.length > 0,
 		view.blocked,
 		view.claimed,
 		view.overrunning,
@@ -321,6 +322,7 @@ function CardBody({ stub }: { stub: Stub }) {
 				<Signals stub={stub} />
 				<DueChip stub={stub} />
 				<EpicPill epic={stub.epic} />
+				<LabelPills labels={stub.labels} />
 			</span>
 		</>
 	);
@@ -531,6 +533,7 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 					<Signals stub={stub} />
 					<DueChip stub={stub} />
 					<EpicPill epic={stub.epic} />
+					<LabelPills labels={stub.labels} />
 					{stub.type && <TypeMark type={stub.type} />}
 					<span
 						className={`points${(stub.complexity ?? 0) > SPLIT_ABOVE ? " split" : ""}`}
@@ -941,6 +944,10 @@ export function Board({
 		};
 	}, [lists.cards, lists.epics, stubs, kind]);
 
+	const labels = useMemo(
+		() => [...new Set([...stubs.flatMap((stub) => stub.labels ?? []), ...view.labels])].sort(),
+		[stubs, view.labels],
+	);
 	const preset = kind === "card" ? presetOf(view.preset) : PRESETS[0];
 	const columnsOfKind = preset.id === PRESETS[0].id ? boardColumns(kind) : preset.columns;
 	const visible = useMemo(
@@ -1227,7 +1234,7 @@ export function Board({
 	}
 
 	function clearFilters() {
-		update({ query: "", types: [], epic: "", blocked: false, claimed: false, overrunning: false });
+		update({ query: "", types: [], epic: "", labels: [], blocked: false, claimed: false, overrunning: false });
 	}
 
 	useKeys((event) => {
@@ -1348,6 +1355,10 @@ export function Board({
 
 	function toggleType(type: string) {
 		update({ types: view.types.includes(type) ? view.types.filter((t) => t !== type) : [...view.types, type] });
+	}
+
+	function toggleLabel(label: string) {
+		update({ labels: view.labels.includes(label) ? view.labels.filter((l) => l !== label) : [...view.labels, label] });
 	}
 
 	function toggleColumn(column: string) {
@@ -1711,6 +1722,22 @@ export function Board({
 											))}
 										</optgroup>
 									</select>
+								)}
+								{labels.length > 0 && (
+									<div className="chips" role="group" aria-label="Label">
+										{labels.map((label) => (
+											<button
+												key={label}
+												type="button"
+												className={`chip-toggle label${view.labels.includes(label) ? " on" : ""}`}
+												aria-pressed={view.labels.includes(label)}
+												title={`Only the ${kind}s labelled ${label}`}
+												onClick={() => toggleLabel(label)}
+											>
+												{label}
+											</button>
+										))}
+									</div>
 								)}
 								{kind === "card" && (
 									<div className="chips">

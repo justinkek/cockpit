@@ -37,6 +37,19 @@ type Column = {
 	cell?: (record: Card, context: Context) => ReactNode;
 };
 
+export function LabelPills({ labels }: { labels?: string[] | null }) {
+	if (!labels || labels.length === 0) return null;
+	return (
+		<>
+			{labels.map((label) => (
+				<span key={label} className="pill label">
+					{label}
+				</span>
+			))}
+		</>
+	);
+}
+
 function projectOf(record: Card, context: Context) {
 	const id = record.project ?? (record.epic ? context.epicProjects[record.epic] : null);
 	return id ? (context.projects[id] ?? id) : null;
@@ -102,6 +115,13 @@ const COLUMNS: Column[] = [
 		kinds: ["card"],
 		value: (record) => (record.urgent ? 1 : null),
 		cell: (record) => record.urgent && <span className="pill urgent">Urgent</span>,
+	},
+	{
+		key: "labels",
+		label: "Labels",
+		wide: true,
+		value: (record) => (record.labels ?? []).join(", ") || null,
+		cell: (record) => <LabelPills labels={record.labels} />,
 	},
 	{
 		key: "progress",

@@ -567,6 +567,14 @@
 			border-color: var(--danger);
 			background: color-mix(in srgb, var(--danger) 12%, transparent);
 		}
+
+		&.label {
+			border-style: dashed;
+		}
+	}
+
+	.chip-toggle.label {
+		border-style: dashed;
 	}
 
 	select.urgent-pick {

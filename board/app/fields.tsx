@@ -374,6 +374,10 @@ function Linked({
 	);
 }
 
+export function labelsOf(text: string) {
+	return [...new Set(text.split(",").map((label) => label.trim()).filter(Boolean))];
+}
+
 function pullRequests(prs: string) {
 	return prs.match(/https?:\/\/[^\s,]+/g) ?? [];
 }
@@ -580,6 +584,21 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 								value={record.project}
 								options={lists.projects}
 								onChange={(project) => onEdit("project", project, { project: project || null })}
+							/>
+						</Fallback>
+					</dd>
+				</>
+			)}
+			{kind && (
+				<>
+					<dt>Labels</dt>
+					<dd>
+						<Fallback id={id} op="set" field="labels">
+							<TextField
+								label="Labels"
+								placeholder="No labels, or a list split by commas"
+								value={(record.labels ?? []).join(", ")}
+								onCommit={(labels) => onEdit("labels", labels, { labels: labelsOf(labels) })}
 							/>
 						</Fallback>
 					</dd>
