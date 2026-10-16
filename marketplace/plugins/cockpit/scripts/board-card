@@ -651,9 +651,18 @@ next_id() {
   printf '%s-%s\n' "$prefix" "$((highest + 1))"
 }
 
+front_matter_values() {
+  local key="$1"
+  shift
+  [ "$#" -gt 0 ] || return 0
+  awk -v key="$key: " 'FNR == 1 { fences = 0 } /^---$/ { fences++; next } fences == 1 && index($0, key) == 1 { print FILENAME "\t" substr($0, length(key) + 1) }' "$@"
+}
+
 last_epic_rank() {
-  { grep --no-filename '^rank: ' "$BOARD_DIR"/epics/*.md 2>/dev/null || true; } \
-    | jq --raw-input --null-input '[inputs | ltrimstr("rank: ") | tonumber? // empty] | max // 0 | floor'
+  local file files=()
+  for file in "$BOARD_DIR"/epics/*.md; do [ ! -f "$file" ] || files+=("$file"); done
+  front_matter_values rank ${files[@]+"${files[@]}"} \
+    | jq --raw-input --null-input '[inputs | split("\t")[1] | tonumber? // empty] | max // 0 | floor'
 }
 
 create_locked() {
@@ -2208,7 +2217,7 @@ shares() {
     id="${file##*/}"
     id="${id%.md}"
     [ "$id" != "$leave" ] || continue
-    value="$(sed -n 's/^tracks: \([0-9][0-9]*\)$/\1/p' "$file")"
+    value="$(front_matter_values tracks "$file" | cut -f2 | grep --extended-regexp '^[0-9]+$' || true)"
     [ -z "$value" ] || printf '%s\t%s\n' "$id" "$value"
   done
 }

@@ -72,6 +72,8 @@ assert_eq "an epic created with its target before its start is refused" "2" \
   "$(refused create --kind epic --project PRJ-1 --name Bad --start 2026-10-31 --target 2026-10-01)"
 
 assert_eq "the next epic created is ranked below the lowest" "-1" "$(field EPIC-2 .rank)"
+stub set EPIC-2 body "rank: 99" >/dev/null
+assert_eq "a line in an epic's content that reads like a rank is never taken for one" "0" "$(field "$(stub create --kind epic --name "After the content" --project PRJ-1)" .rank)"
 
 printf "\nTest group: migrate gives every epic one rank, the plan's order first\n"
 
@@ -237,6 +239,8 @@ stub set "$tracked" tracks "" >/dev/null
 assert_eq "an empty share clears it, giving that project none" "null" "$(field "$tracked" .tracks)"
 assert_eq "no tracks at all is refused for the board too" "2" "$(refused tracks 0)"
 assert_eq "an empty count reads as the shares again" "3" "$(stub tracks "")"
+stub set "$tracked" body "tracks: 9" >/dev/null
+assert_eq "a line in a project's content that reads like a share is never counted as one" "3" "$(stub tracks)"
 assert_eq "the epics with no project have no count of their own any more" "2" "$(refused no-project-tracks 2)"
 
 printf "\nTest group: migrate gives each project with open epics a share and sets the board's count\n"
