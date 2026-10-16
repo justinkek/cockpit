@@ -841,6 +841,32 @@ assert_eq "and the write it held up is committed on its own first" "set FEAT-1|u
   "$(git -C "$COCKPIT_BOARD_DIR" log -2 --format=%s | paste -sd '|' -)"
 assert_eq "leaving nothing uncommitted" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 
+printf "\nTest group: a named view is kept at the board's root\n"
+
+assert_eq "a board with no views lists none" "" "$(stub views)"
+assert_eq "and gives an empty list as JSON" "[]" "$(stub views --json | jq --compact-output .)"
+printf '{"preset":"sprint","groupBy":"epic"}' | stub views save "My sprint" >/dev/null
+assert_eq "a saved view is listed under the board it belongs to" "card	My sprint" "$(stub views)"
+assert_eq "and holds the view it was given" "sprint epic" "$(stub views --json | jq --raw-output '.[0].view | "\(.preset) \(.groupBy)"')"
+assert_eq "and is committed in the board's repository" "views" "$(last_commit %s)"
+printf '{"layout":"list"}' | stub views save "My sprint" --kind epic >/dev/null
+assert_eq "a view of the same name on the epics board is a view of its own" "card	My sprint|epic	My sprint" "$(stub views | paste -sd '|' -)"
+printf '{"preset":"week"}' | stub views save "My sprint" >/dev/null
+assert_eq "saving under a name taken replaces that view" "week|1" \
+  "$(stub views --json | jq --raw-output '[.[] | select(.kind == "card")] | "\(.[0].view.preset)|\(length)"')"
+printf 'not json' | stub views save Broken >/dev/null 2>&1
+assert_eq "a view that is not a JSON object is refused" "2" "$?"
+printf '{}' | stub views save "" >/dev/null 2>&1
+assert_eq "a view with no name is refused" "2" "$?"
+printf '{}' | stub views save Other --kind sprint >/dev/null 2>&1
+assert_eq "a view for a board that has none is refused" "2" "$?"
+stub views delete Nowhere >/dev/null 2>&1
+assert_eq "deleting a view not there is refused" "3" "$?"
+stub views delete "My sprint" --kind epic >/dev/null
+assert_eq "a deleted view leaves the others" "card	My sprint" "$(stub views)"
+stub views delete "My sprint" >/dev/null
+assert_eq "and the file goes with the last of them" "false" "$([ -f "$COCKPIT_BOARD_DIR/views.json" ] && echo true || echo false)"
+
 printf "\nTest group: search finds the cards whose content holds the text\n"
 
 found_one="$(printf 'Unblocked by the Wiring Fix\n' | stub create --epic EPIC-1 --name "Searched for" --body - | tail -1)"

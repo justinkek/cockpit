@@ -39,6 +39,7 @@
 #   board-card path [<id>]
 #   board-card tracks [<n> | '']
 #   board-card me [<name>... | '']
+#   board-card views [--json] | views save <name> [--kind card|epic] < <json> | views delete <name> [--kind card|epic]
 #   board-card migrate
 #
 # Exit codes:
@@ -2154,6 +2155,60 @@ command_me() {
   me_names
 }
 
+views_json() { if [ -f "$BOARD_DIR/views.json" ]; then cat "$BOARD_DIR/views.json"; else printf '[]\n'; fi; }
+
+views_save_locked() {
+  views_json | jq --arg name "$1" --arg kind "$2" --argjson view "$3" \
+    '[.[] | select(.name != $name or .kind != $kind)] + [{name: $name, kind: $kind, view: $view}]' > "$BOARD_DIR/views.json.new"
+  mv "$BOARD_DIR/views.json.new" "$BOARD_DIR/views.json"
+}
+
+views_delete_locked() {
+  views_json | jq --arg name "$1" --arg kind "$2" '[.[] | select(.name != $name or .kind != $kind)]' > "$BOARD_DIR/views.json.new"
+  if [ "$(jq length "$BOARD_DIR/views.json.new")" -eq 0 ]; then
+    rm -f "$BOARD_DIR/views.json" "$BOARD_DIR/views.json.new"
+  else
+    mv "$BOARD_DIR/views.json.new" "$BOARD_DIR/views.json"
+  fi
+}
+
+command_views() {
+  local verb="${1:-}" name="" kind=card view
+  require_board
+  case "$verb" in
+    "" | --json)
+      [ "$#" -le 1 ] || die 2 "usage: board-card views [--json]"
+      if [ "$verb" = --json ]; then views_json; else views_json | jq --raw-output '.[] | "\(.kind)\t\(.name)"'; fi
+      return 0
+      ;;
+    save | delete) shift ;;
+    *) die 2 "usage: board-card views [--json] | views save <name> [--kind card|epic] < <json> | views delete <name> [--kind card|epic]" ;;
+  esac
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --kind) kind="${2:-}"; shift 2 ;;
+      *)
+        [ -z "$name" ] || die 2 "a view takes one name, not '$name' and '$1'"
+        name="$1"
+        shift
+        ;;
+    esac
+  done
+  [ -n "$name" ] || die 2 "a view needs a name"
+  [ "$name" = "${name//$'\n'/}" ] || die 2 "a view's name is one line, not '$name'"
+  case "$kind" in card | epic) ;; *) die 2 "a view belongs to the card board or the epics board, not '$kind'" ;; esac
+  if [ "$verb" = delete ]; then
+    views_json | jq --exit-status --arg name "$name" --arg kind "$kind" 'any(.[]; .name == $name and .kind == $kind)' >/dev/null \
+      || die 3 "no $kind view is called '$name'"
+    with_lock views_delete_locked "$name" "$kind"
+    return 0
+  fi
+  view="$(jq --compact-output 'if type == "object" then . else error("not an object") end' 2>/dev/null)" \
+    || die 2 "a view is one JSON object on stdin"
+  [ -n "$view" ] || die 2 "a view is one JSON object on stdin"
+  with_lock views_save_locked "$name" "$kind" "$view"
+}
+
 inbox_read_locked() {
   printf '%s\n' "$1" > "$BOARD_DIR/inbox-seen"
 }
@@ -2390,5 +2445,6 @@ case "$action" in
   tracks) command_tracks "$@" ;;
   migrate) command_migrate "$@" ;;
   me) command_me "$@" ;;
+  views) command_views "$@" ;;
   *) sed -n '3,/^#   board-card migrate/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
