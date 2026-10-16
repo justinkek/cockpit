@@ -422,7 +422,7 @@ function Handle({ id, name, onKey }: { id: string; name: string; onKey: (event: 
 			{...listeners}
 			onKeyDown={onKey}
 			aria-label={`Reorder ${name} - drag, or Alt and an arrow key`}
-			title="Drag to change its place in the plan (Alt+↑/↓)"
+			title="Drag onto another epic to rank it just above or below that one, and the row moves to where that priority schedules it (Alt+↑/↓)"
 		>
 			<svg viewBox="0 0 8 14" aria-hidden="true">
 				<circle cx="2" cy="2" r="1.2" />
@@ -916,14 +916,25 @@ export function Plan({
 				first.name.localeCompare(second.name)
 			);
 		});
+		const last = Number.POSITIVE_INFINITY;
+		const placed = (epic: Card) => {
+			const row = committedRows[epic.id];
+			return [row?.done ? 1 : 0, row?.track ?? last, row?.refineStart ?? row?.begin ?? row?.doneDay ?? last];
+		};
+		const cascade = (list: Card[]) =>
+			[...list].sort((a, b) => {
+				const first = placed(a);
+				const second = placed(b);
+				return first[0] - second[0] || first[1] - second[1] || first[2] - second[2];
+			});
 		return keys.map((key) => ({
 			id: key,
 			team: key as string | null,
 			name: projectOf[key].name,
 			icon: projectOf[key].icon ?? null,
-			epics: ordered.filter((epic) => epic.project === key),
+			epics: cascade(ordered.filter((epic) => epic.project === key)),
 		}));
-	}, [epics, prefs.grouped, projectOf]);
+	}, [epics, prefs.grouped, projectOf, committedRows]);
 
 	const visualOrder = groups.flatMap((group) => group.epics.map((epic) => ({ id: epic.id, group: group.id })));
 
