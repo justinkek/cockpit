@@ -48,6 +48,9 @@ export type AverageSpeed = {
 	source: "measured" | "sprint" | "default";
 	points: number;
 	weeks: number;
+	tickets: number;
+	uncounted: number;
+	timeboxes: number;
 };
 
 type Delivered = Sized & Pick<Card, "dates" | "moved">;
@@ -61,20 +64,31 @@ export function averageSpeedOf(
 	const windowStart = end - AVERAGE_SPEED_WEEKS * 7 * DAY;
 	let first = Number.POSITIVE_INFINITY;
 	let points = 0;
+	let tickets = 0;
+	let uncounted = 0;
+	let timeboxes = 0;
 	for (const card of cards) {
 		if (splitParent(card)) continue;
 		const at = doneAt(card);
 		if (at == null || at > end) continue;
 		first = Math.min(first, at);
-		if (at >= windowStart) points += pointsOf(card) ?? 0;
+		if (at < windowStart) continue;
+		const complexity = card.type === "Timebox" ? null : positive(card.complexity);
+		if (card.type === "Timebox") timeboxes += 1;
+		else if (complexity == null) uncounted += 1;
+		else {
+			points += complexity;
+			tickets += 1;
+		}
 	}
+	const counts = { tickets, uncounted, timeboxes };
 	if (points > 0) {
 		const weeks = Math.min(AVERAGE_SPEED_WEEKS, Math.max(1, (end - Math.max(windowStart, first)) / (7 * DAY)));
-		return { perWeek: points / weeks, source: "measured", points, weeks: Math.round(weeks * 10) / 10 };
+		return { perWeek: points / weeks, source: "measured", points, weeks: Math.round(weeks * 10) / 10, ...counts };
 	}
 	const speed = currentSprint(sprints, now)?.speed ?? 0;
-	if (speed > 0) return { perWeek: speed * 5, source: "sprint", points: 0, weeks: 0 };
-	return { perWeek: DEFAULT_AVERAGE_SPEED, source: "default", points: 0, weeks: 0 };
+	if (speed > 0) return { perWeek: speed * 5, source: "sprint", points: 0, weeks: 0, ...counts };
+	return { perWeek: DEFAULT_AVERAGE_SPEED, source: "default", points: 0, weeks: 0, ...counts };
 }
 
 export type Remaining = {

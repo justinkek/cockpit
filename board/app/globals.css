@@ -4721,6 +4721,12 @@
 		display: none;
 	}
 
+	.plan-speed-from {
+		color: var(--muted);
+		font-size: 11.5px;
+		font-variant-numeric: tabular-nums;
+	}
+
 	.plan-tracks {
 		display: inline-flex;
 		align-items: center;

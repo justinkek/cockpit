@@ -73,20 +73,22 @@ assert_eq "an epic with no cards has nothing left" \
   '{"points":0,"complexity":0,"fromEstimate":0,"estimate":0,"open":0,"tickets":0,"sized":0,"estimated":0,"unsized":0,"done":0,"dropped":0}' \
   "$(evaluate 'p.remainingOf([])')"
 
-printf "\nTest group: the average speed is the points done a week, or the sprint's speed, or a default\n"
+printf "\nTest group: the average speed is the TR complexity done a week, or the sprint's speed, or a default\n"
 
 DONE='[{"status":"Done","complexity":5,"dates":{"Done":"2026-10-12T10:00:00Z"}},{"status":"Done","complexity":3,"dates":{"Done":"2026-09-10T10:00:00Z"}},{"status":"Done","dates":{"Done":"2026-08-01T10:00:00Z"}},{"status":"In Dev","complexity":8,"dates":{"Done":"2026-10-13T10:00:00Z"}}]'
 assert_eq "six weeks of done cards make the average speed, an older one counting only to start the window" \
-  '{"perWeek":1.3333333333333333,"source":"measured","points":8,"weeks":6}' "$(evaluate "p.averageSpeedOf($DONE, [], $NOW)")"
+  '{"perWeek":1.3333333333333333,"source":"measured","points":8,"weeks":6,"tickets":2,"uncounted":0,"timeboxes":0}' "$(evaluate "p.averageSpeedOf($DONE, [], $NOW)")"
 assert_eq "a board done for under six weeks divides by the weeks it has" \
-  '{"perWeek":4,"source":"measured","points":8,"weeks":2}' \
+  '{"perWeek":4,"source":"measured","points":8,"weeks":2,"tickets":1,"uncounted":0,"timeboxes":0}' \
   "$(evaluate 'p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-09-30T12:00:00Z"}}], [], '"$NOW"')')"
-assert_eq "a done card counts its estimate when it has no complexity, and nothing when it has neither" '3' \
-  "$(evaluate 'p.averageSpeedOf([{status:"Done",estimate:3,dates:{Done:"2026-10-01T12:00:00Z"}},{status:"Done",dates:{Done:"2026-10-02T12:00:00Z"}}], [], '"$NOW"').points')"
+assert_eq "a done card counts only its TR complexity, and one without it or a timebox is counted apart, whatever its estimate" '{"points":5,"tickets":1,"uncounted":2,"timeboxes":1}' \
+  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:5,estimate:8,dates:{Done:"2026-10-01T12:00:00Z"}},{status:"Done",estimate:3,dates:{Done:"2026-10-01T12:00:00Z"}},{status:"Done",dates:{Done:"2026-10-02T12:00:00Z"}},{status:"Done",type:"Timebox",complexity:2,dates:{Done:"2026-10-03T12:00:00Z"}}], [], '"$NOW"'), "points tickets uncounted timeboxes")')"
+assert_eq "a board done only without complexity has no measured speed" 'default' \
+  "$(evaluate 'p.averageSpeedOf([{status:"Done",estimate:3,dates:{Done:"2026-10-01T12:00:00Z"}}], [], '"$NOW"').source')"
 assert_eq "with nothing done, the current sprint's speed a day makes the average speed a week" \
-  '{"perWeek":12.5,"source":"sprint","points":0,"weeks":0}' \
+  '{"perWeek":12.5,"source":"sprint","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0}' \
   "$(evaluate 'p.averageSpeedOf([], [{start:"2026-10-12",end:"2026-10-23",speed:2.5}], '"$NOW"')')"
-assert_eq "with no sprint speed either, the average speed is the default" '{"perWeek":10,"source":"default","points":0,"weeks":0}' \
+assert_eq "with no sprint speed either, the average speed is the default" '{"perWeek":10,"source":"default","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0}' \
   "$(evaluate 'p.averageSpeedOf([], [{start:"2026-10-12",end:"2026-10-23",speed:0}], '"$NOW"')')"
 
 printf "\nTest group: epics are scheduled one after another in plan order\n"

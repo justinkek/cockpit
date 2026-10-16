@@ -61,6 +61,7 @@ import {
 	type Row,
 	remainingOf,
 	spanOf,
+	type AverageSpeed,
 	type Team,
 	type TrackSpeed,
 	trackSpeedsOf,
@@ -474,13 +475,25 @@ function tracksText(count: number) {
 	return count === 1 ? "1 track" : `${count} tracks`;
 }
 
+function speedFrom(speed: AverageSpeed) {
+	const counted =
+		speed.source === "measured"
+			? `${figure(speed.points)} pts from ${speed.tickets} ${speed.tickets === 1 ? "ticket" : "tickets"}, last ${figure(speed.weeks)} ${speed.weeks === 1 ? "week" : "weeks"}`
+			: "nothing with TR complexity done in the last 6 weeks";
+	const beside = [
+		speed.uncounted > 0 ? `${speed.uncounted} done without complexity` : "",
+		speed.timeboxes > 0 ? `${speed.timeboxes} ${speed.timeboxes === 1 ? "timebox" : "timeboxes"}` : "",
+	].filter(Boolean);
+	return [counted, ...beside].join(" + ");
+}
+
 function speedText(speed: TrackSpeed) {
 	if (speed.source === "overall") {
 		const from =
 			speed.speed.source === "measured" ? "measured" : speed.speed.source === "sprint" ? "sprint speed" : "default";
 		return {
 			short: "overall average, no history",
-			title: `This project has no finished points in the last six weeks, so it takes the board's overall average speed a track (${from})`,
+			title: `No ticket of this project with a TR complexity was done in the last six weeks, so it takes the board's overall average speed a track (${from})`,
 		};
 	}
 	const split =
@@ -489,7 +502,7 @@ function speedText(speed: TrackSpeed) {
 			: ", with no more than one epic in progress on average";
 	return {
 		short: "measured",
-		title: `${speed.speed.points} points done in the last ${speed.speed.weeks} ${speed.speed.weeks === 1 ? "week" : "weeks"}${split}`,
+		title: `${speedFrom(speed.speed)}${split}`,
 	};
 }
 
@@ -1357,10 +1370,10 @@ export function Plan({
 	const planEnd = Math.max(...open_rows.map((row) => row.projected ?? Number.NEGATIVE_INFINITY));
 	const rateTitle =
 		rate.source === "measured"
-			? `${rate.points} points done in the last ${rate.weeks} ${rate.weeks === 1 ? "week" : "weeks"}`
+			? `The TR complexity of the tickets done in the last ${rate.weeks} ${rate.weeks === 1 ? "week" : "weeks"}, a week - a ticket done without one, or a timebox, is counted beside it and not in it`
 			: rate.source === "sprint"
-				? "Nothing was done in the last six weeks, so this is the current sprint's speed a day times five"
-				: "Nothing was done in the last six weeks and no sprint has a speed, so this is the default";
+				? "No ticket with a TR complexity was done in the last six weeks, so this is the current sprint's speed a day times five"
+				: "No ticket with a TR complexity was done in the last six weeks and no sprint has a speed, so this is the default";
 
 	const nameOf = (id: string) => epics.find((epic) => epic.id === id)?.name ?? id;
 	const trackNotes = Object.values(committedRows).flatMap((row) => {
@@ -1765,6 +1778,7 @@ export function Plan({
 								{rate.source === "measured" ? "measured" : rate.source === "sprint" ? "sprint speed" : "default"}
 							</span>
 						</span>
+						<span className="plan-speed-from">{speedFrom(rate)}</span>
 					</div>
 					<div title="Open tickets with neither a TR complexity nor a TD estimate, left out of every sum and date">
 						<span className="stat-label">Unsized</span>
