@@ -252,19 +252,6 @@ export async function editCard(id: string, field: string, value: string): Promis
 	return { ...result, more: await heldChanges(held, result.undo?.until) };
 }
 
-export async function planDates(id: string, start: string, target: string): Promise<Result> {
-	const held: string[] = [];
-	const result = await report(id, async () => {
-		const record = await readRecord(id);
-		const steps: [string, string][] = [];
-		if ((record.start ?? "") !== start) steps.push(["start", start]);
-		if ((record.target ?? "") !== target) steps.push(["target", target]);
-		if (start && record.target && start > record.target) steps.reverse();
-		for (const [field, value] of steps) held.push(...(await setFieldHolding(id, field, value)).held);
-	});
-	return { ...result, more: await heldChanges(held, result.undo?.until) };
-}
-
 export type Ranked = { id: string; rank: number };
 
 export async function rankPlan(order: Ranked[]): Promise<BulkResult> {

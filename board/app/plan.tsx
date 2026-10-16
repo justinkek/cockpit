@@ -32,7 +32,6 @@ import {
 	dropCard,
 	editCard,
 	loadComments,
-	planDates,
 	postComment,
 	type Ranked,
 	rankPlan,
@@ -77,7 +76,7 @@ const HOLD = 280;
 
 type Project = { id: string; name: string; icon?: string | null; priority?: number | null; tracks?: number | null };
 type Prefs = { scale: Scale; grouped: boolean };
-type Mode = "move" | "start" | "target" | "draw" | "milestone";
+type Mode = "target" | "draw" | "milestone";
 type Drag = {
 	mode: Mode;
 	id: string;
@@ -131,21 +130,9 @@ function figure(points: number) {
 }
 
 function moved(drag: Drag): { start: number | null; target: number | null } {
-	const by = drag.delta;
-	if (drag.mode === "draw") {
-		const from = drag.anchor ?? 0;
-		return { start: Math.min(from, from + by), target: Math.max(from, from + by) };
-	}
-	if (drag.mode === "start" && drag.start != null) {
-		return { start: Math.min(drag.start + by, drag.target ?? Number.POSITIVE_INFINITY), target: drag.target };
-	}
-	if (drag.mode === "target" && drag.target != null) {
-		return { start: drag.start, target: Math.max(drag.target + by, drag.start ?? Number.NEGATIVE_INFINITY) };
-	}
-	return {
-		start: drag.start == null ? null : drag.start + by,
-		target: drag.target == null ? null : drag.target + by,
-	};
+	const from = drag.mode === "draw" ? drag.anchor : drag.target;
+	if (from == null) return { start: drag.start, target: drag.target };
+	return { start: drag.start, target: Math.max(from + drag.delta, drag.start ?? Number.NEGATIVE_INFINITY) };
 }
 
 type IconName = "none" | "good" | "plan" | "risk" | "done" | "projected" | "milestone" | "target" | "late";
@@ -1068,26 +1055,17 @@ export function Plan({
 		});
 	}
 
-	function commitDates(id: string, start: number | null, target: number | null, label: string) {
+	function commitTarget(id: string, target: number | null, label: string) {
 		const epic = epics.find((one) => one.id === id);
 		if (!epic) return;
-		const startText = start == null ? "" : dayText(start);
 		const targetText = target == null ? "" : dayText(target);
-		if (startText === (epic.start ?? "") && targetText === (epic.target ?? "")) return;
-		apply(
-			id,
-			{ start: startText || null, target: targetText || null },
-			() => planDates(id, startText, targetText),
-			label,
-		);
+		if (targetText === (epic.target ?? "")) return;
+		apply(id, { target: targetText || null }, () => editCard(id, "target", targetText), label);
 	}
 
-	function datesLabel(id: string, start: number | null, target: number | null, mode: Mode) {
-		if (mode === "start") return `Moved the start of ${id} to ${start == null ? "nothing" : short(start)}`;
-		if (mode === "target") return `Moved the target of ${id} to ${target == null ? "nothing" : short(target)}`;
-		const from = start == null ? "no start" : short(start);
-		const to = target == null ? "no target" : short(target);
-		return `${mode === "draw" ? "Planned" : "Moved"} ${id} to ${from} - ${to}`;
+	function targetLabel(id: string, target: number | null, mode: Mode) {
+		const day = target == null ? "nothing" : short(target);
+		return mode === "draw" ? `Gave ${id} a target of ${day}` : `Moved the target of ${id} to ${day}`;
 	}
 
 	function dropped(state: Drag) {
@@ -1107,7 +1085,7 @@ export function Plan({
 			return;
 		}
 		const next = moved(state);
-		commitDates(state.id, next.start, next.target, datesLabel(state.id, next.start, next.target, state.mode));
+		commitTarget(state.id, next.target, targetLabel(state.id, next.target, state.mode));
 	}
 
 	function beginDrag(event: ReactPointerEvent<HTMLElement>, base: Omit<Drag, "delta" | "moved">) {
@@ -1499,16 +1477,11 @@ export function Plan({
 					style={{ left, width: Math.max(right - left, 6) }}
 					title={
 						row.backwards
-							? `Its start, ${short(start)}, is after its target, ${short(target)} - drag an end to fix it`
-							: `${short(start)} to ${short(target)} - drag to move it, or drag an end`
+							? `It started ${short(start)}, after its target of ${short(target)} - drag to move the target`
+							: `Started ${short(start)}, target ${short(target)} - drag to move the target`
 					}
-					onPointerDown={(event) => beginDrag(event, { mode: "move", id: epic.id, start, target, anchor: null })}
+					onPointerDown={(event) => beginDrag(event, { mode: "target", id: epic.id, start, target, anchor: null })}
 				>
-					<span
-						className="plan-end start"
-						aria-hidden="true"
-						onPointerDown={(event) => beginDrag(event, { mode: "start", id: epic.id, start, target, anchor: null })}
-					/>
 					<span
 						className="plan-end target"
 						aria-hidden="true"
@@ -1523,7 +1496,7 @@ export function Plan({
 					key="target"
 					className="plan-flag"
 					style={{ left: x(target + 1) - 7 }}
-					title={`Target ${short(target)}, with no start - drag to move it`}
+					title={`Target ${short(target)}, not started yet - drag to move it`}
 					onPointerDown={(event) => beginDrag(event, { mode: "target", id: epic.id, start, target, anchor: null })}
 				>
 					<Icon name="target" />
@@ -1536,8 +1509,7 @@ export function Plan({
 					key="start"
 					className="plan-flag start"
 					style={{ left: x(start) - 1 }}
-					title={`Starts ${short(start)}, with no target - drag to move it, or set a target`}
-					onPointerDown={(event) => beginDrag(event, { mode: "start", id: epic.id, start, target, anchor: null })}
+					title={`Started ${short(start)}, with no target - drag along the timeline to give it one`}
 				>
 					<span className="plan-start-tick" />
 				</span>,
@@ -1598,7 +1570,7 @@ export function Plan({
 			words.push("No cards to project");
 			if (target != null && target < today) words.push(`target passed ${short(target)}`);
 		}
-		const empty = start == null && target == null;
+		const empty = target == null;
 		const reach = ends.length > 0 ? x(Math.max(...ends) + 1) + 10 : x(today) + 10;
 		return (
 			<div
@@ -1606,11 +1578,10 @@ export function Plan({
 				style={{ width }}
 				onPointerDown={
 					empty && !row.done
-						? (event) =>
-								beginDrag(event, { mode: "draw", id: epic.id, start: null, target: null, anchor: dayAt(event) })
+						? (event) => beginDrag(event, { mode: "draw", id: epic.id, start, target: null, anchor: dayAt(event) })
 						: undefined
 				}
-				title={empty && !row.done ? "Drag across the timeline to give it a start and a target" : undefined}
+				title={empty && !row.done ? "Drag along the timeline to give it a target" : undefined}
 			>
 				{pieces}
 				{words.length > 0 && (
@@ -1626,7 +1597,7 @@ export function Plan({
 					<span className="plan-drag-tip" style={{ left: Math.min(Math.max(0, reach), Math.max(0, width - 200)) }}>
 						{(() => {
 							const next = moved(drag);
-							return `${next.start == null ? "No start" : short(next.start)} → ${next.target == null ? "no target" : short(next.target)}`;
+							return `Target ${next.target == null ? "none" : short(next.target)}`;
 						})()}
 					</span>
 				)}
@@ -1693,27 +1664,16 @@ export function Plan({
 				{renderTrack(epic)}
 				<div className="plan-notes">
 					<div className="plan-dates">
-						<TextField
-							type="date"
-							label={`Start of ${epic.id}`}
-							value={epic.start ?? ""}
-							onCommit={(value) =>
-								commitDates(
-									epic.id,
-									dayOf(value),
-									dayOf(epic.target),
-									`Changed the start of ${epic.id} to ${value ? short(dayOf(value) ?? 0) : "nothing"}`,
-								)
-							}
-						/>
+						<span className="plan-started" title="Stamped the day it first left Backlog">
+							{epic.start ? short(dayOf(epic.start) ?? today) : "In Backlog"}
+						</span>
 						<TextField
 							type="date"
 							label={`Target of ${epic.id}`}
 							value={epic.target ?? ""}
 							onCommit={(value) =>
-								commitDates(
+								commitTarget(
 									epic.id,
-									dayOf(epic.start),
 									dayOf(value),
 									`Changed the target of ${epic.id} to ${value ? short(dayOf(value) ?? 0) : "nothing"}`,
 								)

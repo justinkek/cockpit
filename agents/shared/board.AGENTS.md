@@ -136,11 +136,11 @@ A record whose front matter does not parse is never written over or read past: a
 
 A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as numbers, through `board-card set` or `create --kind sprint --start --end --dev-days --speed`, and an end before the start is refused. A sprint and a reference ticket have no status, so `create` refuses `--status` for either, and `board-card set <id> status ''` clears one either was given before.
 
-An epic takes `start` and `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`) and `learning` (free text) through `board-card set`, and its dates through `create --kind epic --start --target` too, and a target before the start is refused.
+An epic takes `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`) and `learning` (free text) through `board-card set`, and its target through `create --kind epic --target` too, and a target before its start is refused.
 
 An epic's priority is its `rank`, one number that orders it within its column on the Epics board and across the plan alike, lowest first, so a drag in either place writes the same rank. A new epic is ranked below every other, and `board-card set <id> plan_rank` is refused with a pointer to `rank`.
 
-An epic starts in `Backlog`, where it waits until it is pulled into refinement, and its first move out of `Backlog` stamps its `start` with that day unless it holds one already. An epic created in a later column takes the day it is created as its `start`.
+An epic starts in `Backlog`, where it waits until it is pulled into refinement, and its first move out of `Backlog` stamps its `start` with that day unless it holds one already. An epic created in a later column takes the day it is created as its `start`. The stamp is the only way an epic gets a start: `set <id> start` and `create --kind epic --start` are refused, and the app shows the start without letting it be changed.
 
 `board-card set <id> track <n>` pins an epic to that track of its project on the plan, a whole number above 0 read back as `Track` and cleared with `''` to let the plan place it, and a pin past the project's tracks is kept for the plan to warn about.
 
@@ -182,7 +182,7 @@ An epic's scheduled bar draws the length that rests on complexity solid and the 
 
 An epic's row on the plan carries no figure of its own: its TD estimate, its TR complexity with how many tickets are sized, its unsized count and its points left show on hovering its bar or markers and in its side panel.
 
-`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`. It gives each project with no share and an epic not in `Epic Done` a share of 1, sets the board's count of tracks to the shares added up when there is none, and removes the old `no-project-tracks` file. It names each card with no epic and each epic with no project, which only a person can give them.
+`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`. It gives each project with no share and an epic not in `Epic Done` a share of 1, sets the board's count of tracks to the shares added up when there is none, and removes the old `no-project-tracks` file. It gives an epic past `Backlog` with no `start` the day it was first stamped into a column past `Backlog`, else the day it was created. It names each card with no epic and each epic with no project, which only a person can give them.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 

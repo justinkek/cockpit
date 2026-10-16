@@ -569,15 +569,8 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 			{kind === "epic" && (
 				<>
 					<dt>Start</dt>
-					<dd>
-						<Fallback id={id} op="set" field="start">
-							<TextField
-								type="date"
-								label="Start"
-								value={record.start ?? ""}
-								onCommit={(start) => onEdit("start", start, { start: start || null })}
-							/>
-						</Fallback>
+					<dd title="Stamped the day it first leaves Backlog">
+						{record.start ?? <span className="empty">When it leaves Backlog</span>}
 					</dd>
 					<dt>Target</dt>
 					<dd className="with-link">

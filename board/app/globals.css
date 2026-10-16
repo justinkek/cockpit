@@ -4984,10 +4984,6 @@
 		width: 9px;
 		cursor: ew-resize;
 
-		&.start {
-			left: -5px;
-		}
-
 		&.target {
 			right: -5px;
 		}
@@ -5185,6 +5181,12 @@
 	.plan-dates {
 		display: grid;
 		gap: 3px;
+
+		& .plan-started {
+			color: var(--muted);
+			font-size: 11.5px;
+			white-space: nowrap;
+		}
 
 		& input {
 			height: 22px;

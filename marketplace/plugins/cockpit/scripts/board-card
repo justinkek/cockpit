@@ -1115,7 +1115,8 @@ field_json() {
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     start|end)
-      [ "$kind" = sprint ] || { [ "$kind" = epic ] && [ "$field" = start ]; } || die 2 "only a sprint$([ "$field" = start ] && echo " or an epic") has a $field date, and this is a $kind"
+      [ "$kind" != epic ] || [ "$field" != start ] || die 2 "an epic's start is stamped the day it first leaves Backlog and is never set by hand"
+      [ "$kind" = sprint ] || die 2 "only a sprint has a $field date, and this is a $kind"
       date_json "a $kind's $field" "$value"
       ;;
     target)
@@ -1289,7 +1290,6 @@ set_locked() {
       case "$(kind_of "$id")/$field" in
         sprint/start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
         sprint/end) check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
-        epic/start) check_epic_span "$value" "$(read_record "$id" | jq --raw-output '.target // empty')" ;;
         epic/target) check_epic_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
       [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || check_share "$id" "$value"
@@ -2293,6 +2293,18 @@ migrate_tracks() {
   printf 'tracks\t%s\n' "$total"
 }
 
+migrate_starts() {
+  local id start
+  while IFS=$'\t' read -r id start; do
+    update_record "$id" --arg start "$start" '.start = $start'
+    printf '%s\tstart %s\n' "$id" "$start"
+  done < <(command_list --kind epic --json | jq --raw-output '.[]
+    | select(.status != "Backlog" and (.start // "") == "")
+    | [.id, (([(.dates // {}) | to_entries[] | select(.key != "Backlog") | .value | select(type == "string" and . != "")] | min)
+             // .created // empty | .[:10])]
+    | select(length == 2) | @tsv')
+}
+
 migrate_homes() {
   command_list --kind card --json | jq --raw-output '.[] | select((.epic // "") == "") | "\(.id)\tneeds an epic"'
   command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
@@ -2300,7 +2312,7 @@ migrate_homes() {
 
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_homes)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 

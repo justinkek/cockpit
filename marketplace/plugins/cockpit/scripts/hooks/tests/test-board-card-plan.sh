@@ -41,13 +41,14 @@ stub create --kind project --name Home >/dev/null
 printf "Test group: an epic carries the fields the plan reads\n"
 
 stub create --kind epic --project PRJ-1 --name Checkout >/dev/null
-stub set EPIC-1 start 2026-10-05 >/dev/null
-assert_eq "an epic takes a start date" "2026-10-05" "$(field EPIC-1 .start)"
+assert_eq "an epic's start is never set by hand" "2" "$(refused set EPIC-1 start 2026-10-05)"
+COCKPIT_NOW=2026-10-05T09:00:00Z stub move EPIC-1 "Ready for FD by AI" >/dev/null
+assert_eq "it is stamped the day the epic leaves Backlog" "2026-10-05" "$(field EPIC-1 .start)"
 stub set EPIC-1 target 2026-11-30 >/dev/null
 assert_eq "an epic takes a target date" "2026-11-30" "$(field EPIC-1 .target)"
 assert_eq "the target reads back by its property name" "Target	2026-11-30" "$(stub show EPIC-1 Target)"
 assert_eq "a target before the start is refused" "2" "$(refused set EPIC-1 target 2026-10-01)"
-assert_eq "a start after the target is refused" "2" "$(refused set EPIC-1 start 2026-12-01)"
+assert_eq "nor cleared by hand" "2" "$(refused set EPIC-1 start '')"
 assert_eq "and the refusal leaves the dates as they were" "2026-10-05 2026-11-30" "$(field EPIC-1 '"\(.start) \(.target)"')"
 assert_eq "a target that is not a date is refused" "2" "$(refused set EPIC-1 target 2026-02-30)"
 assert_eq "an epic has no end date - its target is that" "2" "$(refused set EPIC-1 end 2026-11-30)"
@@ -66,10 +67,10 @@ stub create --epic EPIC-1 --name "A card" >/dev/null
 assert_eq "a card has no target" "2" "$(refused set FEAT-1 target 2026-11-30)"
 assert_eq "a card has no confidence" "2" "$(refused set FEAT-1 confidence "On track")"
 assert_eq "a card has no start date" "2" "$(refused set FEAT-1 start 2026-10-05)"
-assert_eq "an epic is created with its dates" "EPIC-2" "$(stub create --kind epic --project PRJ-1 --name Search --start 2026-10-01 --target 2026-10-31)"
-assert_eq "and keeps them" "2026-10-01 2026-10-31" "$(field EPIC-2 '"\(.start) \(.target)"')"
-assert_eq "an epic created with its target before its start is refused" "2" \
-  "$(refused create --kind epic --project PRJ-1 --name Bad --start 2026-10-31 --target 2026-10-01)"
+assert_eq "an epic is never created with a start of its own" "2" \
+  "$(refused create --kind epic --project PRJ-1 --name Bad --start 2026-10-01 --target 2026-10-31)"
+assert_eq "an epic is created with its target" "EPIC-2" "$(stub create --kind epic --project PRJ-1 --name Search --target 2026-10-31)"
+assert_eq "and keeps it, with no start while it waits in Backlog" "null 2026-10-31" "$(field EPIC-2 '"\(.start) \(.target)"')"
 
 assert_eq "the next epic created is ranked below the lowest" "-1" "$(field EPIC-2 .rank)"
 stub set EPIC-2 body "rank: 99" >/dev/null
@@ -272,6 +273,27 @@ perl -pi -e 's/^epic: .*/epic: null/' "$shared/cards/FEAT-1.md"
 perl -pi -e 's/^project: .*/project: null/' "$shared/epics/EPIC-1.md"
 assert_eq "migrate names a card with no epic and an epic with no project, which only a person can give them" \
   "FEAT-1	needs an epic|EPIC-1	needs a project" "$(on_shared migrate | paste -sd '|' -)"
+
+printf "\nTest group: migrate gives an epic past Backlog with no start the day it first left Backlog\n"
+
+started="$TMPDIR/started"
+mkdir -p "$started"
+on_started() { COCKPIT_BOARD_DIR="$started" stub "$@"; }
+on_started init >/dev/null
+on_started create --kind project --name Home >/dev/null
+COCKPIT_NOW=2026-09-01T10:00:00Z on_started create --kind epic --project PRJ-1 --name Moved >/dev/null
+COCKPIT_NOW=2026-09-03T10:00:00Z on_started move EPIC-1 "In FD" >/dev/null
+COCKPIT_NOW=2026-09-05T10:00:00Z on_started move EPIC-1 "In TD" >/dev/null
+COCKPIT_NOW=2026-09-02T10:00:00Z on_started create --kind epic --project PRJ-1 --name Unstamped --status "In FD" >/dev/null
+on_started create --kind epic --project PRJ-1 --name Waiting >/dev/null
+perl -ni -e 'print unless /^start: /' "$started/epics/EPIC-1.md" "$started/epics/EPIC-2.md"
+perl -0pi -e 's/dates:\n(  .*\n)*//' "$started/epics/EPIC-2.md"
+git -C "$started" add --all >/dev/null && git -C "$started" -c user.name=t -c user.email=t@t commit --quiet -m seed
+output="$(on_started migrate)"
+assert_eq "it takes the earliest column it was stamped into past Backlog, else the day it was created" "2026-09-03 2026-09-02 null" \
+  "$(for epic in 1 2 3; do COCKPIT_BOARD_DIR="$started" field "EPIC-$epic" .start; done | paste -sd ' ' -)"
+assert_eq "and migrate names each start it gave" "EPIC-1	start 2026-09-03|EPIC-2	start 2026-09-02" "$(printf '%s\n' "$output" | grep start | paste -sd '|' -)"
+assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(on_started migrate)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
