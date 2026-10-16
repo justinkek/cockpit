@@ -269,7 +269,14 @@ export function swimlanesOf(stubs: Stub[], kind: Kind, groupBy: GroupBy, context
 
 export type FieldChange = { field: string; value: string; change: Partial<Stub> };
 
-export function droppedInto(stub: Stub, from: Swimlane | undefined, to: Swimlane, groupBy: GroupBy, kind: Kind): FieldChange[] | null {
+export function droppedInto(
+	stub: Stub,
+	from: Swimlane | undefined,
+	to: Swimlane,
+	groupBy: GroupBy,
+	kind: Kind,
+	context?: GroupContext,
+): FieldChange[] | string {
 	if (from?.key === to.key) return [];
 	if (to.urgent) return [{ field: "urgent", value: "true", change: { urgent: true } }];
 	const changes: FieldChange[] = from?.urgent ? [{ field: "urgent", value: "", change: { urgent: false } }] : [];
@@ -277,12 +284,16 @@ export function droppedInto(stub: Stub, from: Swimlane | undefined, to: Swimlane
 	switch (groupBy) {
 		case "epic":
 			if (value && value !== stub.epic) changes.push({ field: "epic", value, change: { epic: value } });
-			else if (!value) return null;
+			else if (!value) return `Every card has an epic, so ${stub.id} cannot be dropped where there is none.`;
 			break;
 		case "project":
-			if (kind !== "epic") break;
+			if (kind !== "epic") {
+				if (context && value !== groupValue(stub, "project", context))
+					return `A card's project is its epic's, so ${stub.id} moves to another project's lane only when its epic does.`;
+				break;
+			}
 			if (value && value !== stub.project) changes.push({ field: "project", value, change: { project: value } });
-			else if (!value) return null;
+			else if (!value) return `Every epic has a project, so ${stub.id} cannot be dropped where there is none.`;
 			break;
 		case "type":
 			if (value && value !== stub.type) changes.push({ field: "type", value, change: { type: value as Stub["type"] } });

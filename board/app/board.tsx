@@ -1715,9 +1715,9 @@ export function Board({
 			move(id, place.column, place.rank);
 			return;
 		}
-		const sets = droppedInto(stub, laneOf.get(id), place.swimlane, groupBy, kind);
-		if (!sets) {
-			setNotice({ id: "", text: `Every ${kind === "card" ? "card has an epic" : "epic has a project"}, so ${id} cannot be dropped where there is none.` });
+		const sets = droppedInto(stub, laneOf.get(id), place.swimlane, groupBy, kind, groupContext);
+		if (typeof sets === "string") {
+			setNotice({ id: "", text: sets });
 			return;
 		}
 		move(id, place.column, place.rank, false, sets);

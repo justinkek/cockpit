@@ -62,8 +62,9 @@ dropped() {
 import * as view from "'"$WORK"'/view.mjs";
 const [groupBy, stub, from, to] = process.argv.slice(1);
 const lane = (text) => (text ? JSON.parse(text) : undefined);
-const sets = view.droppedInto(JSON.parse(stub), lane(from), lane(to), groupBy, "card");
-process.stdout.write(sets === null ? "refused" : sets.map((set) => `${set.field}=${set.value}`).join(" "));
+const context = { names: {}, order: {}, epicProjects: { "EPIC-1": "PRJ-1", "EPIC-2": "PRJ-2" } };
+const sets = view.droppedInto(JSON.parse(stub), lane(from), lane(to), groupBy, "card", context);
+process.stdout.write(typeof sets === "string" ? "refused" : sets.map((set) => `${set.field}=${set.value}`).join(" "));
 ' "$1" "$2" "$3" "$4"
 }
 
@@ -93,5 +94,11 @@ assert_eq "within its own lane changes nothing" "" \
   "$(dropped sprint '{"id":"FEAT-1","sprint":"SPR-1"}' '{"key":"sprint:SPR-1","value":"SPR-1","urgent":false}' '{"key":"sprint:SPR-1","value":"SPR-1","urgent":false}')"
 assert_eq "into No sprint clears the sprint" "sprint=" \
   "$(dropped sprint '{"id":"FEAT-1","sprint":"SPR-1"}' '{"key":"sprint:SPR-1","value":"SPR-1","urgent":false}' '{"key":"sprint:","value":null,"urgent":false}')"
+assert_eq "a card dropped into another project's lane is refused, as its project is its epic's" "refused" \
+  "$(dropped project '{"id":"FEAT-1","epic":"EPIC-1"}' '{"key":"project:PRJ-1","value":"PRJ-1","urgent":false}' '{"key":"project:PRJ-2","value":"PRJ-2","urgent":false}')"
+assert_eq "out of the Urgent lane into its own project's lane takes the flag off" "urgent=" \
+  "$(dropped project '{"id":"FEAT-1","epic":"EPIC-1","urgent":true}' "$URGENT" '{"key":"project:PRJ-1","value":"PRJ-1","urgent":false}')"
+assert_eq "out of the Urgent lane into another project's lane is refused" "refused" \
+  "$(dropped project '{"id":"FEAT-1","epic":"EPIC-1","urgent":true}' "$URGENT" '{"key":"project:PRJ-2","value":"PRJ-2","urgent":false}')"
 
 finish
