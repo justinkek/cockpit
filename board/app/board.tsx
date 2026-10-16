@@ -35,6 +35,7 @@ import {
 	type Change,
 	createCard,
 	dropCard,
+	type FieldSet,
 	duplicateCard,
 	editCard,
 	findInContent,
@@ -59,8 +60,13 @@ import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from
 import {
 	collapsedIn,
 	defaultView,
+	droppedInto,
 	exceptEpic,
+	type FieldChange,
 	type Found,
+	GROUPINGS,
+	type GroupContext,
+	groupingOf,
 	LAYOUTS,
 	loadView,
 	matches,
@@ -69,6 +75,8 @@ import {
 	type Sort,
 	saveView,
 	sorter,
+	type Swimlane,
+	swimlanesOf,
 	TOGGLES,
 	toggledIn,
 	type View,
@@ -145,6 +153,10 @@ function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => voi
 
 const effectiveRank = manualRank;
 
+function swimKey(swimlane: Swimlane) {
+	return `swim:${swimlane.key}`;
+}
+
 const FROM_PANEL = "peek:";
 
 function draggedId(active: string | number) {
@@ -193,6 +205,7 @@ function filterCount(view: View) {
 		view.types.length > 0,
 		view.epic !== "",
 		view.labels.length > 0,
+		view.urgent,
 		view.blocked,
 		view.claimed,
 		view.overrunning,
@@ -447,6 +460,7 @@ type Adding = { open: boolean; onOpenChange: (open: boolean) => void; onCreate: 
 
 function Lane({
 	column,
+	dropId,
 	stubs,
 	total,
 	collapsed,
@@ -458,6 +472,7 @@ function Lane({
 	adding,
 }: {
 	column: string;
+	dropId?: string;
 	stubs: Stub[];
 	total: number;
 	collapsed: boolean;
@@ -468,7 +483,7 @@ function Lane({
 	onOpen: (id: string, toggle: boolean) => void;
 	adding: Adding;
 }) {
-	const { setNodeRef, isOver } = useDroppable({ id: column });
+	const { setNodeRef, isOver } = useDroppable({ id: dropId ?? column });
 	return (
 		<section
 			ref={setNodeRef}
@@ -551,6 +566,7 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 
 function ListGroup({
 	column,
+	dropId,
 	stubs,
 	total,
 	collapsed,
@@ -562,6 +578,7 @@ function ListGroup({
 	adding,
 }: {
 	column: string;
+	dropId?: string;
 	stubs: Stub[];
 	total: number;
 	collapsed: boolean;
@@ -572,7 +589,7 @@ function ListGroup({
 	onOpen: (id: string, toggle: boolean) => void;
 	adding: Adding;
 }) {
-	const { setNodeRef, isOver } = useDroppable({ id: column });
+	const { setNodeRef, isOver } = useDroppable({ id: dropId ?? column });
 	return (
 		<section ref={setNodeRef} className={`group${isOver ? " over" : ""}`}>
 			<button type="button" className="group-head" onClick={onToggle} aria-expanded={!collapsed}>
@@ -985,15 +1002,37 @@ export function Board({
 		[tableRecords, fields, tableContext, view.tableSort],
 	);
 	const headerSort = view.layout === "table" ? fields.find((column) => column.key === tableSort?.key) : undefined;
-	const order = useMemo(
-		() =>
-			view.layout === "table"
-				? rows
-				: columns
-						.filter((column) => !collapsedIn(view).includes(column))
-						.flatMap((column) => visible.filter((stub) => stub.status === column)),
-		[columns, visible, view.collapsed, view.listCollapsed, view.layout, rows],
+	const groupBy = groupingOf(kind, view.groupBy);
+	const groupContext = useMemo<GroupContext>(() => {
+		const named = (records: Named[]) => Object.fromEntries(records.map((record) => [record.id, record.name]));
+		const sprints = [...lists.sprints].sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+		return {
+			names: { epic: named(lists.epics), project: named(lists.projects), sprint: named(lists.sprints) },
+			order: {
+				epic: lists.epics.map((epic) => epic.id),
+				project: lists.projects.map((project) => project.id),
+				sprint: sprints.map((sprint) => sprint.id),
+			},
+			epicProjects: Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.project])),
+		};
+	}, [lists]);
+	const swimlanes = useMemo(
+		() => (view.layout === "board" ? swimlanesOf(visible, kind, groupBy, groupContext) : null),
+		[view.layout, visible, kind, groupBy, groupContext],
 	);
+	const laneOf = useMemo(
+		() => new Map((swimlanes ?? []).flatMap((lane) => lane.stubs.map((stub) => [stub.id, lane] as const))),
+		[swimlanes],
+	);
+	const order = useMemo(() => {
+		if (view.layout === "table") return rows;
+		const open = columns.filter((column) => !collapsedIn(view).includes(column));
+		if (swimlanes)
+			return swimlanes
+				.filter((lane) => !collapsedIn(view).includes(swimKey(lane)))
+				.flatMap((lane) => open.flatMap((column) => lane.stubs.filter((stub) => stub.status === column)));
+		return open.flatMap((column) => visible.filter((stub) => stub.status === column));
+	}, [columns, visible, view.collapsed, view.listCollapsed, view.layout, rows, swimlanes]);
 
 	useEffect(() => {
 		if (!focusedId) return;
@@ -1234,7 +1273,7 @@ export function Board({
 	}
 
 	function clearFilters() {
-		update({ query: "", types: [], epic: "", labels: [], blocked: false, claimed: false, overrunning: false });
+		update({ query: "", types: [], epic: "", labels: [], urgent: false, blocked: false, claimed: false, overrunning: false });
 	}
 
 	useKeys((event) => {
@@ -1442,9 +1481,9 @@ export function Board({
 		});
 	}
 
-	function move(id: string, column: string, rank?: number, checked = false) {
+	function move(id: string, column: string, rank?: number, checked = false, sets: FieldChange[] = []) {
 		const stub = stubs.find((s) => s.id === id);
-		if (!stub || (stub.status === column && rank === undefined)) return;
+		if (!stub || (stub.status === column && rank === undefined && sets.length === 0)) return;
 		if (!checked && kind === "epic" && column === "Epic Done" && stub.status !== column) {
 			const open = openTickets(children[id] ?? []);
 			if (open.length > 0) {
@@ -1452,11 +1491,15 @@ export function Board({
 				return;
 			}
 		}
-		const label = stub.status === column ? `Reordered ${id} in ${column}` : `Moved ${id} to ${column}`;
+		const moved = stub.status === column ? `Reordered ${id} in ${column}` : `Moved ${id} to ${column}`;
+		const label =
+			sets.length > 0 ? `${moved} and changed its ${sets.map((set) => fieldName(set.field)).join(" and ")}` : moved;
+		const changed = Object.assign({}, ...sets.map((set) => set.change)) as Partial<Stub>;
+		const fields: FieldSet[] = sets.map(({ field, value }) => ({ field, value }));
 		apply(
 			id,
-			rank === undefined ? movedTo(column) : { ...movedTo(column), rank },
-			() => dropCard(id, column, rank),
+			{ ...(stub.status === column ? {} : movedTo(column)), ...(rank === undefined ? {} : { rank }), ...changed },
+			() => dropCard(id, column, rank, fields),
 			label,
 		);
 	}
@@ -1486,20 +1529,24 @@ export function Board({
 		});
 	}
 
-	function placement(id: string, overId: string): { column: string; rank?: number } | null {
+	function placement(id: string, overId: string): { column: string; rank?: number; swimlane?: Swimlane } | null {
 		if (!overId.startsWith("card:")) {
-			if (view.sort !== "manual") return { column: overId };
-			const lane = visible.filter((stub) => stub.status === overId && stub.id !== id);
+			const swim = overId.match(/^swim:(\d+):(.*)$/);
+			const swimlane = swim ? swimlanes?.[Number(swim[1])] : undefined;
+			const column = swim ? swim[2] : overId;
+			if (view.sort !== "manual") return { column, swimlane };
+			const lane = (swimlane?.stubs ?? visible).filter((stub) => stub.status === column && stub.id !== id);
 			const last = lane.at(-1);
-			return { column: overId, rank: last ? effectiveRank(last) + 1 : undefined };
+			return { column, rank: last ? effectiveRank(last) + 1 : undefined, swimlane };
 		}
 		const target = stubs.find((stub) => stub.id === overId.slice(5));
 		if (!target || target.id === id) return null;
-		if (view.sort !== "manual") return { column: target.status };
-		const lane = visible.filter((stub) => stub.status === target.status && stub.id !== id);
+		const swimlane = laneOf.get(target.id);
+		if (view.sort !== "manual") return { column: target.status, swimlane };
+		const lane = (swimlane?.stubs ?? visible).filter((stub) => stub.status === target.status && stub.id !== id);
 		const index = lane.findIndex((stub) => stub.id === target.id);
 		const before = index > 0 ? effectiveRank(lane[index - 1]) : effectiveRank(target) - 1;
-		return { column: target.status, rank: (before + effectiveRank(target)) / 2 };
+		return { column: target.status, rank: (before + effectiveRank(target)) / 2, swimlane };
 	}
 
 	function handlersFor(stub: Stub): Handlers {
@@ -1518,9 +1565,11 @@ export function Board({
 		};
 	}
 
-	async function create(column: string, name: string): Promise<boolean> {
+	async function create(column: string, name: string, swimlane?: Swimlane): Promise<boolean> {
 		setNotice(null);
-		const epic = onlyEpic(view);
+		const laneEpic = groupBy === "epic" && swimlane && !swimlane.urgent ? swimlane.value : null;
+		const laneType = groupBy === "type" && swimlane && !swimlane.urgent ? swimlane.value : null;
+		const epic = laneEpic ?? onlyEpic(view);
 		if (kind === "epic" || !epic) {
 			setNotice({
 				id: column,
@@ -1531,10 +1580,10 @@ export function Board({
 			});
 			return false;
 		}
-		const lane = visible.filter((stub) => stub.status === column);
+		const lane = (swimlane?.stubs ?? visible).filter((stub) => stub.status === column);
 		const last = lane.at(-1);
 		const result = await createCard(kind, name, column, {
-			type: view.types.length === 1 ? view.types[0] : undefined,
+			type: laneType ?? (view.types.length === 1 ? view.types[0] : undefined),
 			epic,
 			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
 		});
@@ -1600,14 +1649,26 @@ export function Board({
 		if (!event.over) return;
 		const id = draggedId(event.active.id);
 		const place = placement(id, String(event.over.id));
-		if (place) move(id, place.column, place.rank);
+		if (!place) return;
+		const stub = stubs.find((s) => s.id === id);
+		if (!place.swimlane || !stub) {
+			move(id, place.column, place.rank);
+			return;
+		}
+		const sets = droppedInto(stub, laneOf.get(id), place.swimlane, groupBy, kind);
+		if (!sets) {
+			setNotice({ id: "", text: `Every ${kind === "card" ? "card has an epic" : "epic has a project"}, so ${id} cannot be dropped where there is none.` });
+			return;
+		}
+		move(id, place.column, place.rank, false, sets);
 	}
 
 	const count = filterCount(view);
-	const groupProps = (column: string) => ({
+	const groupProps = (column: string, swimlane?: Swimlane, index = 0) => ({
 		column,
-		stubs: visible.filter((stub) => stub.status === column),
-		total: stubs.filter((stub) => stub.status === column).length,
+		dropId: swimlane ? `swim:${index}:${column}` : undefined,
+		stubs: (swimlane?.stubs ?? visible).filter((stub) => stub.status === column),
+		total: (swimlane?.stubs ?? stubs).filter((stub) => stub.status === column).length,
 		collapsed: collapsedIn(view).includes(column),
 		onToggle: () => toggleColumn(column),
 		pending,
@@ -1615,9 +1676,9 @@ export function Board({
 		selected,
 		onOpen: clickCard,
 		adding: {
-			open: addingIn === column,
-			onOpenChange: (open: boolean) => setAddingIn(open ? column : null),
-			onCreate: (name: string) => create(column, name),
+			open: addingIn === (swimlane ? `${swimlane.key}|${column}` : column),
+			onOpenChange: (open: boolean) => setAddingIn(open ? (swimlane ? `${swimlane.key}|${column}` : column) : null),
+			onCreate: (name: string) => create(column, name, swimlane),
 		},
 	});
 
@@ -1654,6 +1715,19 @@ export function Board({
 									))}
 								</select>
 							)}
+							<select
+								className="view-pick"
+								value={groupBy}
+								onChange={(event) => update({ groupBy: groupingOf(kind, event.target.value) })}
+								aria-label="Group by"
+								title="Swimlanes on the board layout - dropping a card into one sets that field"
+							>
+								{GROUPINGS[kind].map(([key, label]) => (
+									<option key={key} value={key}>
+										{label}
+									</option>
+								))}
+							</select>
 							<div className="segmented" role="group" aria-label="Layout">
 								{LAYOUTS.map(([layout, label]) => (
 									<button
@@ -1821,7 +1895,35 @@ export function Board({
 								onDragEnd={onDragEnd}
 								onDragCancel={() => setDragging(null)}
 							>
-								{view.layout === "board" ? (
+								{view.layout === "board" && swimlanes ? (
+									<div className="swimlanes">
+										{swimlanes.map((swimlane, index) => {
+											const folded = collapsedIn(view).includes(swimKey(swimlane));
+											return (
+												<section key={swimlane.key} className={`swimlane${swimlane.urgent ? " urgent" : ""}`}>
+													<button
+														type="button"
+														className="swimlane-head"
+														aria-expanded={!folded}
+														onClick={() => toggleColumn(swimKey(swimlane))}
+													>
+														<span className="caret">{folded ? "▸" : "▾"}</span>
+														<span className="lane-name">{swimlane.label}</span>
+														<span className="count">{swimlane.stubs.length}</span>
+														<Points stubs={swimlane.stubs} />
+													</button>
+													{!folded && (
+														<div className="lanes">
+															{columns.map((column) => (
+																<Lane key={column} {...groupProps(column, swimlane, index)} />
+															))}
+														</div>
+													)}
+												</section>
+											);
+										})}
+									</div>
+								) : view.layout === "board" ? (
 									<div className="lanes">
 										{columns.map((column) => (
 											<Lane key={column} {...groupProps(column)} />

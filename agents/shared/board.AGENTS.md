@@ -132,6 +132,8 @@ A record whose front matter does not parse is never written over or read past: a
 
 `board-card set <id> labels "<label>, <label>"` gives a card or an epic its labels, a list separated by commas and kept trimmed with each label once, read back as `Labels`, and `''` takes them all off.
 
+The app's card board draws every urgent card in a red Urgent swimlane above the rest, and groups the rest into swimlanes by epic, project, type, sprint or label when asked, the Epics board by project or label. A drop into a swimlane sets that field as well as the column: into Urgent flags the card and out of it takes the flag off, into a label's lane swaps the label the card came from for that one and `No label` takes them all off, a card's project lane follows its epic and is never set by a drop, and a lane with no epic or no project refuses one. A card with several labels sits in its first label's lane.
+
 `board-card set <id> timebox_mins <minutes>` gives a card its budget in whole minutes, read back as `Timebox (mins)`, and a timebox card starts with 60 unless `create --timebox-mins` names another. A card whose type is set to `Timebox` starts with 60 too, unless it already holds a budget.
 
 `board-card set <id> estimate <points>` gives a card the high-level estimate TD sets, a Fibonacci number above 0 kept apart from the `complexity` TR sets and read back as `Estimate`; it is null until set and cleared with `''`, an epic takes none of its own, and a timebox takes none and drops any it held when its type becomes `Timebox`.

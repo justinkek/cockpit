@@ -1,5 +1,5 @@
 import { Board } from "@/app/board";
-import { BoardError, type Card, listRecords } from "@/lib/board";
+import { BoardError, type Card, listRecords, manualRank } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,9 @@ export default async function CardsPage({ searchParams }: Props) {
 			preset={typeof view === "string" ? view : undefined}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
-				epics: epics.map(({ id, name, project }) => ({ id, name, project })),
+				epics: [...epics]
+					.sort((a, b) => manualRank(a) - manualRank(b))
+					.map(({ id, name, project }) => ({ id, name, project })),
 				sprints: sprints.map(({ id, name, start, end }) => ({ id, name, start, end })),
 				projects: projects.map(({ id, name }) => ({ id, name })),
 			}}

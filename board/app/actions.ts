@@ -128,12 +128,23 @@ function rankText(rank: number) {
 	return rank.toFixed(6).replace(/\.?0+$/, "");
 }
 
-export async function dropCard(id: string, column: string, rank?: number): Promise<Result> {
-	return report(id, async () => {
-		const record = await readRecord(id);
+export type FieldSet = { field: string; value: string };
+
+export async function dropCard(id: string, column: string, rank?: number, sets: FieldSet[] = []): Promise<Result> {
+	const held: string[] = [];
+	const result = await report(id, async () => {
+		let current = id;
+		for (const { field, value } of sets) {
+			const change = await setFieldHolding(current, field, value);
+			held.push(...change.held);
+			current = change.id;
+		}
+		const record = await readRecord(current);
 		if (record.status !== column) await changeStatus(record, column);
-		if (rank !== undefined) await setField(id, "rank", rankText(rank));
+		if (rank !== undefined) await setField(current, "rank", rankText(rank));
+		return current;
 	});
+	return { ...result, more: await heldChanges(held, result.undo?.until) };
 }
 
 export async function createCard(kind: Kind, name: string, status: string, options: NewOptions = {}): Promise<Result> {

@@ -1,4 +1,26 @@
-import { inPreset, type Kind, manualRank, showsOverrun, type Card as Stub } from "@/lib/shared";
+import { inPreset, type Kind, manualRank, showsOverrun, type Card as Stub, TYPES } from "@/lib/shared";
+
+export type GroupBy = "" | "epic" | "project" | "type" | "sprint" | "label";
+
+export const GROUPINGS: Record<Kind, [GroupBy, string][]> = {
+	card: [
+		["", "No grouping"],
+		["epic", "By epic"],
+		["project", "By project"],
+		["type", "By type"],
+		["sprint", "By sprint"],
+		["label", "By label"],
+	],
+	epic: [
+		["", "No grouping"],
+		["project", "By project"],
+		["label", "By label"],
+	],
+};
+
+export function groupingOf(kind: Kind, groupBy: string | undefined): GroupBy {
+	return GROUPINGS[kind].find(([key]) => key === groupBy)?.[0] ?? "";
+}
 
 export type Sort = "manual" | "newest" | "oldest" | "complexity" | "moved" | "days";
 export type Layout = "board" | "list" | "table";
@@ -15,11 +37,13 @@ export type View = {
 	types: string[];
 	epic: string;
 	labels: string[];
+	urgent: boolean;
 	blocked: boolean;
 	claimed: boolean;
 	overrunning: boolean;
 	hideEmpty: boolean;
 	sort: Sort;
+	groupBy: GroupBy;
 	tableSort: string;
 	layout: Layout;
 	collapsed: string[];
@@ -32,11 +56,13 @@ export const DEFAULT_VIEW: View = {
 	types: [],
 	epic: "",
 	labels: [],
+	urgent: false,
 	blocked: false,
 	claimed: false,
 	overrunning: false,
 	hideEmpty: false,
 	sort: "manual",
+	groupBy: "",
 	tableSort: "",
 	layout: "board",
 	collapsed: ["Done", "Deprioritised"],
@@ -64,6 +90,7 @@ export function toggledIn(view: View, column: string): Partial<View> {
 	return view.layout === "list" ? { listCollapsed: next } : { collapsed: next };
 }
 export const TOGGLES = [
+	["urgent", "Urgent"],
 	["blocked", "Blocked"],
 	["claimed", "Claimed"],
 	["overrunning", "Overrunning"],
@@ -150,6 +177,7 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 	if (!epicPasses(view.epic, stub.epic)) return false;
 	if (view.labels.length > 0 && !(stub.labels ?? []).some((label) => view.labels.includes(label))) return false;
 	if (!inPreset(stub, view.preset)) return false;
+	if (view.urgent && !stub.urgent) return false;
 	if (view.blocked && !stub.blocked) return false;
 	if (view.claimed && !stub.session) return false;
 	if (view.overrunning && !showsOverrun(stub)) return false;
@@ -174,4 +202,101 @@ export function neighboursIn(
 	if (index < 0) return null;
 	const near = (stub?: Stub) => (stub ? { id: stub.id, name: stub.name } : null);
 	return { previous: near(lane[index - 1]), next: near(lane[index + 1]), position: index + 1, total: lane.length };
+}
+
+export const URGENT_LANE = "urgent";
+
+export type Swimlane = { key: string; label: string; value: string | null; urgent: boolean; stubs: Stub[] };
+
+export type GroupContext = {
+	names: Record<string, Record<string, string>>;
+	order: Record<string, string[]>;
+	epicProjects: Record<string, string | null | undefined>;
+};
+
+export function groupValue(stub: Stub, groupBy: GroupBy, context: GroupContext): string | null {
+	switch (groupBy) {
+		case "epic":
+			return stub.epic || null;
+		case "project":
+			return stub.project || (stub.epic ? context.epicProjects[stub.epic] : null) || null;
+		case "type":
+			return stub.type || null;
+		case "sprint":
+			return stub.sprint || null;
+		case "label":
+			return stub.labels?.[0] ?? null;
+		default:
+			return null;
+	}
+}
+
+function laneOrder(groupBy: GroupBy, context: GroupContext): string[] {
+	return groupBy === "type" ? [...TYPES] : (context.order[groupBy] ?? []);
+}
+
+export function swimlanesOf(stubs: Stub[], kind: Kind, groupBy: GroupBy, context: GroupContext): Swimlane[] | null {
+	const urgent = kind === "card" ? stubs.filter((stub) => stub.urgent) : [];
+	const rest = kind === "card" ? stubs.filter((stub) => !stub.urgent) : stubs;
+	if (!groupBy && urgent.length === 0) return null;
+	const lanes: Swimlane[] = [];
+	if (urgent.length > 0) lanes.push({ key: URGENT_LANE, label: "Urgent", value: "true", urgent: true, stubs: urgent });
+	if (!groupBy) {
+		lanes.push({ key: "rest", label: "Everything else", value: null, urgent: false, stubs: rest });
+		return lanes;
+	}
+	const groups = new Map<string | null, Stub[]>();
+	for (const stub of rest) {
+		const value = groupValue(stub, groupBy, context);
+		groups.set(value, [...(groups.get(value) ?? []), stub]);
+	}
+	const known = laneOrder(groupBy, context);
+	const rank = (value: string) => {
+		const index = known.indexOf(value);
+		return index < 0 ? known.length : index;
+	};
+	const values = [...groups.keys()]
+		.filter((value): value is string => value !== null)
+		.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+	const names = context.names[groupBy] ?? {};
+	for (const value of values) {
+		lanes.push({ key: `${groupBy}:${value}`, label: names[value] ?? value, value, urgent: false, stubs: groups.get(value) ?? [] });
+	}
+	const none = groups.get(null);
+	if (none) lanes.push({ key: `${groupBy}:`, label: `No ${groupBy}`, value: null, urgent: false, stubs: none });
+	return lanes;
+}
+
+export type FieldChange = { field: string; value: string; change: Partial<Stub> };
+
+export function droppedInto(stub: Stub, from: Swimlane | undefined, to: Swimlane, groupBy: GroupBy, kind: Kind): FieldChange[] | null {
+	if (from?.key === to.key) return [];
+	if (to.urgent) return [{ field: "urgent", value: "true", change: { urgent: true } }];
+	const changes: FieldChange[] = from?.urgent ? [{ field: "urgent", value: "", change: { urgent: false } }] : [];
+	const value = to.value;
+	switch (groupBy) {
+		case "epic":
+			if (value && value !== stub.epic) changes.push({ field: "epic", value, change: { epic: value } });
+			else if (!value) return null;
+			break;
+		case "project":
+			if (kind !== "epic") break;
+			if (value && value !== stub.project) changes.push({ field: "project", value, change: { project: value } });
+			else if (!value) return null;
+			break;
+		case "type":
+			if (value && value !== stub.type) changes.push({ field: "type", value, change: { type: value as Stub["type"] } });
+			break;
+		case "sprint":
+			if ((value ?? "") !== (stub.sprint ?? "")) changes.push({ field: "sprint", value: value ?? "", change: { sprint: value } });
+			break;
+		case "label": {
+			const kept = (stub.labels ?? []).filter((label) => from?.urgent || label !== from?.value);
+			const labels = value ? [value, ...kept.filter((label) => label !== value)] : from?.urgent ? kept : [];
+			if (labels.join(",") !== (stub.labels ?? []).join(","))
+				changes.push({ field: "labels", value: labels.join(", "), change: { labels } });
+			break;
+		}
+	}
+	return changes;
 }
