@@ -1304,8 +1304,10 @@ export function Plan({
 		if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
 		event.preventDefault();
 		const group = groupOf(id);
-		const siblings = visualOrder.filter((entry) => entry.group === group);
-		const index = siblings.findIndex((entry) => entry.id === id);
+		const siblings = planOrder(epics).filter(
+			(epic) => groupOf(epic.id) === group && (epic.id === id || !committedRows[epic.id]?.done),
+		);
+		const index = siblings.findIndex((epic) => epic.id === id);
 		const neighbour = siblings[index + (event.key === "ArrowDown" ? 1 : -1)];
 		if (neighbour) reorder(id, neighbour.id, event.key === "ArrowDown");
 	}
