@@ -150,12 +150,10 @@ type Planned = Pick<
 	"id" | "status" | "start" | "target" | "rank" | "confidence" | "dates" | "moved" | "project" | "track"
 >;
 
-export const NO_PROJECT = "";
-
 export type Team = { tracks: number; perWeek: number };
 
-export function teamOf(record: Pick<Card, "project">, known: Record<string, unknown>): string {
-	return record.project && record.project in known ? record.project : NO_PROJECT;
+export function teamOf(record: Pick<Card, "project">, known: Record<string, unknown>): string | null {
+	return record.project && record.project in known ? record.project : null;
 }
 
 type Worked = Sized & Pick<Card, "epic" | "dates" | "moved">;
@@ -237,7 +235,7 @@ export function trackSpeedsOf(
 	const teamOfCard = (card: Worked & Pick<Card, "project">) =>
 		card.epic && card.epic in teamOfEpic ? teamOfEpic[card.epic] : teamOf(card, known);
 	const teams: Record<string, TrackSpeed> = {};
-	for (const team of [...projects, NO_PROJECT]) {
+	for (const team of projects) {
 		const own = cards.filter((card) => teamOfCard(card) === team);
 		const speed = averageSpeedOf(own, [], now);
 		teams[team] =
@@ -299,16 +297,15 @@ export function planOf(
 	const rows: Record<string, Row> = {};
 	const byEpic: Record<string, Worked[]> = {};
 	for (const card of cards) if (card.epic) (byEpic[card.epic] ??= []).push(card);
-	const known: Record<string, Team> = typeof teams === "number" ? {} : teams;
-	const fallback: Team =
-		typeof teams === "number"
-			? { tracks: 1, perWeek: teams }
-			: (teams[NO_PROJECT] ?? { tracks: 1, perWeek: DEFAULT_AVERAGE_SPEED });
+	const known: Record<string, Team> = typeof teams === "number" ? { "": { tracks: 1, perWeek: teams } } : teams;
 	const grouped: Record<string, Planned[]> = {};
-	for (const epic of epics) (grouped[teamOf(epic, known)] ??= []).push(epic);
+	for (const epic of epics) {
+		const team = typeof teams === "number" ? "" : teamOf(epic, known);
+		if (team != null) (grouped[team] ??= []).push(epic);
+	}
 	for (const [team, members] of Object.entries(grouped)) {
-		const { tracks: count, perWeek } = team in known ? known[team] : fallback;
-		const tracks = Math.max(1, Math.floor(count));
+		const { tracks: count, perWeek } = known[team];
+		const tracks = Math.max(0, Math.floor(count));
 		const perDay = Math.max(perWeek, 0.01) / 7;
 		const free: number[] = Array.from({ length: tracks }, () => today);
 		const ahead: number[] = Array.from({ length: tracks }, () => 0);
@@ -351,6 +348,7 @@ export function planOf(
 				queue.push(row);
 			}
 		}
+		if (tracks === 0) continue;
 		const order = [...queue.filter((row) => row.inProgress), ...queue.filter((row) => !row.inProgress)];
 		const wanted: number[] = Array.from({ length: tracks }, () => 0);
 		const want = (started: boolean) => {

@@ -133,7 +133,7 @@ assert_eq "an average speed of zero is held above zero rather than dividing by i
 
 printf "\nTest group: each project runs its epics on its own tracks\n"
 
-TEAMS='{"PRJ-1":{"tracks":2,"perWeek":7},"PRJ-2":{"tracks":1,"perWeek":7},"":{"tracks":1,"perWeek":7}}'
+TEAMS='{"PRJ-1":{"tracks":2,"perWeek":7},"PRJ-2":{"tracks":1,"perWeek":7},"PRJ-3":{"tracks":0,"perWeek":7}}'
 TRACKED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","rank":1},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-2","rank":4},{"id":"EPIC-5","status":"In FD","project":"PRJ-9","rank":5}]'
 TRACKED_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":5},{"epic":"EPIC-3","status":"Backlog","complexity":5},{"epic":"EPIC-4","status":"Backlog","complexity":5},{"epic":"EPIC-5","status":"Backlog","complexity":5}]'
 tracked="p.planOf($TRACKED, $TRACKED_CARDS, $TEAMS, $TODAY)"
@@ -141,8 +141,10 @@ assert_eq "two tracks run the first two epics side by side from today, and the t
   "$(evaluate "[\"EPIC-1\",\"EPIC-2\",\"EPIC-3\"].map((id) => $tracked[id].track + \"@\" + $tracked[id].begin).join()")"
 assert_eq "another project never waits on the first one" '1@20740' \
   "$(evaluate "$tracked[\"EPIC-4\"].track + \"@\" + $tracked[\"EPIC-4\"].begin")"
-assert_eq "an epic whose project is not on the board runs with the epics with no project" '' \
-  "$(evaluate "$tracked[\"EPIC-5\"].team")"
+assert_eq "an epic whose project is not on the board is left off the plan" 'undefined' \
+  "$(evaluate "String($tracked[\"EPIC-5\"])")"
+assert_eq "a project with no share of the tracks schedules none of its epics" '{"track":null,"begin":null,"projected":null}' \
+  "$(evaluate 'pick(p.planOf([{id:"EPIC-1",status:"In FD",project:"PRJ-3"}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], '"$TEAMS"', '"$TODAY"')["EPIC-1"], "track begin projected")')"
 assert_eq "a number for the speed puts every epic on one track at it" '20740,20745' \
   "$(evaluate "[\"EPIC-1\",\"EPIC-2\"].map((id) => p.planOf($TRACKED, $TRACKED_CARDS, 7, $TODAY)[id].begin).join()")"
 assert_eq "the speed a target needs counts only the epics ahead of it on its own track" '5.8,5.8' \
@@ -181,7 +183,7 @@ assert_eq "a pin past the project's tracks is flagged and ignored" '{"pin":5,"pi
   "$(evaluate "pick($pinned[\"EPIC-4\"], \"pin pinIgnored track begin\")")"
 
 assert_eq "an epic in progress keeps the first track though an epic not yet started is pinned to it" '1@20740,2@20740,1@20745' \
-  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"Tickets In Dev",rank:1},{id:"EPIC-2",status:"In FD",rank:2},{id:"EPIC-3",status:"In FD",rank:3,track:1}], [{epic:"EPIC-1",status:"In Dev",complexity:5},{epic:"EPIC-2",status:"Backlog",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:5}], {"":{tracks:2,perWeek:7}}, '"$TODAY"')).map((r) => r.track + "@" + r.begin).join()')"
+  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"Tickets In Dev",rank:1,project:"PRJ-1"},{id:"EPIC-2",status:"In FD",rank:2,project:"PRJ-1"},{id:"EPIC-3",status:"In FD",rank:3,track:1,project:"PRJ-1"}], [{epic:"EPIC-1",status:"In Dev",complexity:5},{epic:"EPIC-2",status:"Backlog",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:5}], {"PRJ-1":{tracks:2,perWeek:7}}, '"$TODAY"')).map((r) => r.track + "@" + r.begin).join()')"
 
 printf "\nTest group: each project's speed a track comes from its own finished cards\n"
 
@@ -192,8 +194,8 @@ assert_eq "a project's average speed is split across the epics it had in progres
   "$(evaluate "pick($speeds.teams[\"PRJ-1\"], \"perWeek source inProgress\")")"
 assert_eq "a project with no history takes the overall speed a track, and says so" '{"perWeek":1.5,"source":"overall","inProgress":2}' \
   "$(evaluate "pick($speeds.teams[\"PRJ-2\"], \"perWeek source inProgress\")")"
-assert_eq "a card with no epic and no project counts toward the epics with no project" '{"perWeek":6,"source":"measured","inProgress":0}' \
-  "$(evaluate "pick($speeds.teams[\"\"], \"perWeek source inProgress\")")"
+assert_eq "a card with no epic and no project counts toward the overall speed alone" 'undefined,18' \
+  "$(evaluate "[String($speeds.teams[\"\"]), $speeds.overall.speed.points].join()")"
 assert_eq "an epic counts as in progress from its first card in dev until it is done" '0.5' \
   "$(evaluate 'p.epicsInProgressOver([{id:"EPIC-1",status:"Epic Done",dates:{"Epic Done":"2026-10-11T00:00:00Z"}}], [{epic:"EPIC-1",status:"Done",dates:{"In Dev":"2026-10-09T00:00:00Z","Done":"2026-10-10T00:00:00Z"}}], Date.parse("2026-10-07T00:00:00Z"), Date.parse("2026-10-11T00:00:00Z"))')"
 

@@ -71,7 +71,6 @@ const DAY = 86400000;
 const SCALES = { weeks: 8, months: 2.4 } as const;
 type Scale = keyof typeof SCALES;
 const PREFERENCES = "cockpit-plan";
-const NO_PROJECT = "";
 const DONE = "Done";
 const HOLD = 280;
 
@@ -469,6 +468,7 @@ function runTitle(row: Row) {
 }
 
 function tracksText(count: number) {
+	if (count === 0) return "no tracks";
 	return count === 1 ? "1 track" : `${count} tracks`;
 }
 
@@ -521,14 +521,21 @@ function TracksControl({
 				<button
 					type="button"
 					className="quiet"
-					disabled={count <= 1}
+					disabled={count <= 0}
 					aria-label={`One track fewer for ${name}`}
-					title="One track fewer - the lowest epic in progress pauses if there are more than tracks"
+					title="One track fewer - the lowest epic in progress pauses if there are more than tracks, and with none its epics are not scheduled"
 					onClick={() => onChange(count - 1)}
 				>
 					−
 				</button>
-				<span className="plan-tracks-count" title="How many of its epics run at once, from today on">
+				<span
+					className={`plan-tracks-count${count === 0 ? " none" : ""}`}
+					title={
+						count === 0
+							? "It has no share of the board's tracks, so none of its epics is scheduled"
+							: "How many of its epics run at once, from today on"
+					}
+				>
 					{tracksText(count)}
 				</span>
 				<button
@@ -811,15 +818,16 @@ export function Plan({
 		[cards, epics, projects, sprints, now],
 	);
 	const rate = speeds.overall.speed;
-	const tracksOf = (team: string) => trackCounts[team] ?? (team ? (projectOf[team]?.tracks ?? 1) : 1);
+	const tracksOf = (team: string) => trackCounts[team] ?? projectOf[team]?.tracks ?? 0;
 	const teams = useMemo(() => {
 		const all: Record<string, Team> = {};
-		for (const team of [...projects.map((project) => project.id), NO_PROJECT]) {
+		for (const team of projects.map((project) => project.id)) {
 			all[team] = { tracks: tracksOf(team), perWeek: (speeds.teams[team] ?? speeds.overall).perWeek };
 		}
 		return all;
 	}, [projects, speeds, trackCounts, projectOf]);
-	const teamName = (team: string) => (team ? (projectOf[team]?.name ?? team) : "No project");
+	const teamName = (team: string) => projectOf[team]?.name ?? team;
+	const homeless = epics.filter((epic) => !epic.project || !projectOf[epic.project]);
 
 	const shown = useMemo(() => {
 		if (!drag || drag.mode === "milestone") return epics;
@@ -883,15 +891,11 @@ export function Plan({
 	}, [cards]);
 
 	const groups = useMemo(() => {
-		const ordered = planOrder(epics);
+		const ordered = planOrder(epics.filter((epic) => epic.project && projectOf[epic.project]));
 		if (!prefs.grouped)
 			return [{ id: "all", team: null as string | null, name: "", icon: null as string | null, epics: ordered }];
-		const keys = [
-			...new Set(ordered.map((epic) => (epic.project && projectOf[epic.project] ? epic.project : NO_PROJECT))),
-		];
+		const keys = [...new Set(ordered.map((epic) => epic.project as string))];
 		keys.sort((a, b) => {
-			if (a === NO_PROJECT) return 1;
-			if (b === NO_PROJECT) return -1;
 			const first = projectOf[a];
 			const second = projectOf[b];
 			return (
@@ -900,11 +904,11 @@ export function Plan({
 			);
 		});
 		return keys.map((key) => ({
-			id: key || "none",
+			id: key,
 			team: key as string | null,
-			name: key ? projectOf[key].name : "No project",
-			icon: key ? (projectOf[key].icon ?? null) : null,
-			epics: ordered.filter((epic) => (epic.project && projectOf[epic.project] ? epic.project : NO_PROJECT) === key),
+			name: projectOf[key].name,
+			icon: projectOf[key].icon ?? null,
+			epics: ordered.filter((epic) => epic.project === key),
 		}));
 	}, [epics, prefs.grouped, projectOf]);
 
@@ -1005,13 +1009,14 @@ export function Plan({
 
 	function changeTracks(team: string, count: number) {
 		const before = tracksOf(team);
-		if (!team || count < 1 || count === before) return;
-		const label = `Gave ${teamName(team)} ${tracksText(count)}`;
+		if (count < 0 || count === before) return;
+		const label =
+			count === 0 ? `Took every track from ${teamName(team)}` : `Gave ${teamName(team)} ${tracksText(count)}`;
 		setNotice(null);
 		setToast(null);
 		setTrackCounts((current) => ({ ...current, [team]: count }));
 		startTransition(async () => {
-			const result = await editCard(team, "tracks", String(count));
+			const result = await editCard(team, "tracks", count === 0 ? "" : String(count));
 			if (result.error) {
 				setTrackCounts((current) => ({ ...current, [team]: before }));
 				setNotice({ id: "", text: `${teamName(team)}: ${result.error}` });
@@ -1544,6 +1549,8 @@ export function Plan({
 				row.remaining.open === 0 ? `All cards done ${short(row.projected)}` : `Projected ${short(row.projected)}`,
 			);
 			if (row.late > 0) words.push(lateText(row.late, false));
+		} else if (row.remaining.points > 0 && tracksOf(row.team) === 0) {
+			words.push(`Not scheduled - ${teamName(row.team)} has no tracks`);
 		} else if (row.remaining.unsized > 0) {
 			words.push("Unsized");
 		} else if (row.remaining.open + row.remaining.done === 0) {
@@ -1790,6 +1797,20 @@ export function Plan({
 						</button>
 					</p>
 				)}
+				{homeless.length > 0 && (
+					<p className="report-note plan-homeless">
+						{homeless.length === 1 ? "This epic needs a project" : "These epics need a project"} before the plan can
+						place {homeless.length === 1 ? "it" : "them"}:{" "}
+						{homeless.map((epic, index) => (
+							<span key={epic.id}>
+								{index > 0 && ", "}
+								<Link href={`/epics?open=${epic.id}`}>
+									{epic.id} {epic.name}
+								</Link>
+							</span>
+						))}
+					</p>
+				)}
 				{trackNotes.length > 0 && (
 					<ul className="report-note plan-track-notes">
 						{trackNotes.map((note) => (
@@ -1936,7 +1957,7 @@ export function Plan({
 															name={group.name}
 															count={tracksOf(group.team)}
 															speed={speeds.teams[group.team] ?? speeds.overall}
-															onChange={(count) => changeTracks(group.team ?? NO_PROJECT, count)}
+															onChange={(count) => changeTracks(group.team ?? "", count)}
 														/>
 													)}
 												</span>
