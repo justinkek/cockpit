@@ -5,6 +5,7 @@ import { SprintPicker } from "@/app/picker";
 import { SprintDates } from "@/app/record-fields";
 import { BoardError, type Card, listRecords, phaseOf } from "@/lib/board";
 import { burndownOf, currentSprint, type Measure, sprintDays } from "@/lib/metrics";
+import { deliveredIn } from "@/lib/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,41 @@ export default async function SprintsPage({ searchParams }: Props) {
 					</p>
 				)}
 				<BurndownChart burndown={burndown} unit={unit} sprint={sprint} />
+			</div>
+
+			<div className="report-card">
+				<h2>
+					Speed by sprint <span className="count">{ordered.length}</span>
+				</h2>
+				<p className="report-note">
+					The TR complexity of every card done within each sprint's dates, whatever sprint the card was in, and that a
+					week - a card done without a complexity, or a timebox, is counted beside it.
+				</p>
+				<ul className="report-list">
+					{ordered.map((candidate) => {
+						const delivered = deliveredIn(candidate, cards);
+						const beside = [
+							delivered.uncounted > 0 ? `${delivered.uncounted} without complexity` : "",
+							delivered.timeboxes > 0
+								? `${delivered.timeboxes} ${delivered.timeboxes === 1 ? "timebox" : "timeboxes"}`
+								: "",
+						].filter(Boolean);
+						return (
+							<li key={candidate.id}>
+								<span className="ident">{candidate.id}</span>
+								<Link href={`/sprints?sprint=${candidate.id}&measure=${measure}`} className="report-name">
+									{sprintLabel(candidate)}
+								</Link>
+								<span className="report-status">
+									{delivered.perWeek == null
+										? "no dates"
+										: `${delivered.points} pts from ${delivered.tickets} ${delivered.tickets === 1 ? "card" : "cards"}${beside.length > 0 ? ` + ${beside.join(" + ")}` : ""}`}
+								</span>
+								<span className="points">{delivered.perWeek == null ? "" : `${delivered.perWeek}/wk`}</span>
+							</li>
+						);
+					})}
+				</ul>
 			</div>
 
 			<div className="report-card">

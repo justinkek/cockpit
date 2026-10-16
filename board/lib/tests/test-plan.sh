@@ -98,6 +98,12 @@ assert_eq "with nothing done, the current sprint's speed a day makes the average
 assert_eq "with no sprint speed either, the average speed is the default" '{"perWeek":10,"source":"default","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0}' \
   "$(evaluate 'p.averageSpeedOf([], [{start:"2026-10-12",end:"2026-10-23",speed:0}], '"$NOW"')')"
 
+SPRINT='{start:"2026-09-28",end:"2026-10-11"}'
+assert_eq "a sprint delivered the TR complexity of the cards done within its dates, a week, counting the rest beside it" \
+  '{"points":8,"tickets":2,"uncounted":1,"timeboxes":1,"perWeek":4}' \
+  "$(evaluate 'p.deliveredIn('"$SPRINT"', [{status:"Done",complexity:5,dates:{Done:"2026-09-28T09:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-11T17:00:00Z"}},{status:"Done",complexity:8,dates:{Done:"2026-10-12T09:00:00Z"}},{status:"Done",estimate:3,dates:{Done:"2026-10-01T09:00:00Z"}},{status:"Done",type:"Timebox",dates:{Done:"2026-10-01T09:00:00Z"}},{status:"In Dev",complexity:2,dates:{Done:"2026-10-01T09:00:00Z"}}])')"
+assert_eq "a sprint with no dates has no speed" 'null' "$(evaluate 'String(p.deliveredIn({start:null,end:null}, []).perWeek)')"
+
 printf "\nTest group: epics are scheduled one after another in plan order\n"
 
 EPICS='[{"id":"EPIC-2","status":"In FD","rank":2,"target":"2026-10-31"},{"id":"EPIC-1","status":"Tickets In Dev","rank":1,"start":"2026-10-01","target":"2026-10-25","confidence":"On track"},{"id":"EPIC-3","status":"In FD"},{"id":"EPIC-4","status":"Epic Done","target":"2026-10-01","dates":{"Epic Done":"2026-10-05T10:00:00Z"}},{"id":"EPIC-5","status":"In TD","start":"2026-12-01","target":"2026-12-31","rank":3}]'

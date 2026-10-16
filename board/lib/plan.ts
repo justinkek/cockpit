@@ -92,6 +92,40 @@ export function averageSpeedOf(
 	return { perWeek: DEFAULT_AVERAGE_SPEED, source: "default", points: 0, weeks: 0, ...counts };
 }
 
+export type SprintDelivery = {
+	points: number;
+	tickets: number;
+	uncounted: number;
+	timeboxes: number;
+	perWeek: number | null;
+};
+
+export function deliveredIn(
+	sprint: Pick<Card, "start" | "end">,
+	cards: (Sized & Pick<Card, "dates" | "moved">)[],
+): SprintDelivery {
+	const first = dayOf(sprint.start);
+	const last = dayOf(sprint.end);
+	const delivered: SprintDelivery = { points: 0, tickets: 0, uncounted: 0, timeboxes: 0, perWeek: null };
+	if (first == null || last == null || last < first) return delivered;
+	for (const card of cards) {
+		if (splitParent(card)) continue;
+		const at = doneAt(card);
+		if (at == null) continue;
+		const day = localDay(new Date(at));
+		if (day < first || day > last) continue;
+		const complexity = card.type === "Timebox" ? null : positive(card.complexity);
+		if (card.type === "Timebox") delivered.timeboxes += 1;
+		else if (complexity == null) delivered.uncounted += 1;
+		else {
+			delivered.points += complexity;
+			delivered.tickets += 1;
+		}
+	}
+	delivered.perWeek = Math.round((delivered.points / ((last - first + 1) / 7)) * 10) / 10;
+	return delivered;
+}
+
 export type Remaining = {
 	points: number;
 	complexity: number;

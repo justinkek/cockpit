@@ -176,7 +176,7 @@ Priority wins over work in progress: an epic in progress, in `Tickets In Dev` or
 
 A card's points on the plan are its `complexity` when set and its `estimate` otherwise, and a card with neither is left out of every sum and date and counted on its epic as unsized, while a timebox counts in neither.
 
-The average speed counts only the `complexity` of the cards done in its window, and a done card with none, whatever its `estimate`, and a done timebox are counted beside it rather than in it.
+The average speed shows board-wide at the top of the Plan page, for each project and for each of its tracks on the project's heading, and for each sprint on the Sprints page as the complexity of the cards done within the sprint's dates, whatever sprint they were in, and that a week. The average speed counts only the `complexity` of the cards done in its window, and a done card with none, whatever its `estimate`, and a done timebox are counted beside it rather than in it.
 
 An epic's TD estimate and TR complexity are each shown as a total over all its cards but the deprioritised ones and as what is left on its open cards, the second with how many open cards are sized, worked out wherever its side panel, its card on the Epics board or its full page shows them and never stored. A figure none of those cards has reads as `-`, never 0, and the plan schedules on what is left alone.
 

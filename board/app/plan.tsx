@@ -495,7 +495,7 @@ function speedText(speed: TrackSpeed) {
 			: ", with no more than one epic in progress on average";
 	return {
 		short: "measured",
-		title: `${speedFrom(speed.speed)}${split}`,
+		title: `${figure(speed.speed.perWeek)} pts a week for the project (${speedFrom(speed.speed)})${split}, so ${figure(speed.perWeek)} a track`,
 	};
 }
 
@@ -545,7 +545,8 @@ function TracksControl({
 				</button>
 			</span>
 			<span className={`plan-team-speed${speed.source === "overall" ? " fallback" : ""}`} title={label.title}>
-				{figure(speed.perWeek)} pts/wk a track · {label.short}
+				{speed.source === "measured" ? `${figure(speed.speed.perWeek)} pts/wk · ` : ""}
+				{figure(speed.perWeek)} a track · {label.short}
 			</span>
 		</span>
 	);
