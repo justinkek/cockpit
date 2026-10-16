@@ -90,6 +90,7 @@ export type Card = {
 	due?: string | null;
 	due_from?: string | null;
 	urgent?: boolean;
+	labels?: string[];
 	blocked?: string | null;
 	dependent_on?: string[];
 	dependency_for?: string[];

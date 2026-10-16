@@ -525,7 +525,7 @@ parse_program='
   | .object + {body: $body}'
 
 render_program='
-  ["id", "name", "icon", "type", "status", "epic", "project", "sprint", "due", "urgent", "blocked",
+  ["id", "name", "icon", "type", "status", "epic", "project", "sprint", "due", "urgent", "labels", "blocked",
    "dependent_on", "dependency_for", "complexity", "estimate", "session", "claimed_at", "prs", "cost_usd", "tokens_k",
    "created", "moved", "updated", "rank", "models", "back_from", "reference", "dates"] as $order
   | . as $record
@@ -753,7 +753,7 @@ command_create() {
 
 PROPERTY_FIELDS='{
   "Name": "name", "Icon": "icon", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
-  "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Urgent": "urgent", "Blocked": "blocked", "PRs": "prs",
+  "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Urgent": "urgent", "Labels": "labels", "Blocked": "blocked", "PRs": "prs",
   "Agent: Session Id": "session", "Complexity": "complexity", "Estimate": "estimate", "Timebox (mins)": "timebox_mins",
   "Dependent on": "dependent_on", "Dependency for": "dependency_for",
   "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
@@ -776,7 +776,7 @@ require_properties() {
 property_value() {
   local json="$1" property="$2"
   printf '%s' "$json" | jq --raw-output --arg property "$property" --argjson fields "$PROPERTY_FIELDS" '
-    def text: if type == "array" then join(" ") elif type == "object" then (to_entries | map("\(.key)=\(.value)") | join(" ")) else tostring end;
+    def text: if type == "array" then join(if $property == "Labels" then ", " else " " end) elif type == "object" then (to_entries | map("\(.key)=\(.value)") | join(" ")) else tostring end;
     if ($property | startswith("Date: ")) then .dates[$property[6:]] // empty
     elif ($property | startswith("Model: ")) then .models[$property[7:]] // empty
     elif ($property | startswith("Back from ")) then .back_from[$property[10:]] // empty
@@ -988,6 +988,7 @@ property_of_field() {
     session) echo "Agent: Session Id" ;;
     blocked) echo Blocked ;;
     urgent) echo Urgent ;;
+    labels) echo Labels ;;
     prs) echo PRs ;;
     due) echo Due ;;
     sprint) echo Sprint ;;
@@ -1317,6 +1318,14 @@ set_locked() {
         *) die 2 "urgent is true, or '' to take the flag off, not '$value'" ;;
       esac
       ;;
+    labels)
+      has_board "$(kind_of "$id")" || die 2 "only a card or an epic carries labels, and $id is a $(kind_of "$id")"
+      [ "$value" = "${value//$'\n'/}" ] || die 2 "labels are separated by commas, never by a new line"
+      update_record "$id" --arg value "$value" '
+        [$value | split(",")[] | gsub("^\\s+|\\s+$"; "") | select(. != "")] as $labels
+        | reduce $labels[] as $label ([]; if index([$label]) then . else . + [$label] end) as $unique
+        | if ($unique | length) == 0 then del(.labels) else .labels = $unique end'
+      ;;
     session|prs)
       update_record "$id" --arg field "$field" --argjson value "$(nullable "$value")" '.[$field] = $value'
       ;;
@@ -1339,7 +1348,7 @@ set_locked() {
       ;;
     plan_rank) die 2 "an epic's place in the plan is its rank, the same one the Epics board orders it by - run: board-card set $id rank <n>" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, urgent, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, urgent, labels, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
   esac
 }
 

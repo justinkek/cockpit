@@ -293,6 +293,17 @@ assert_eq "an epic is never flagged urgent" "2" "$?"
 stub set FEAT-1 urgent "" >/dev/null
 assert_eq "an empty value takes the flag off, leaving no field behind" "false" "$(field FEAT-1 'has("urgent")')"
 
+printf "\nTest group: a card or an epic carries labels\n"
+
+assert_eq "labels are set as a list separated by commas, and read back the same way" "Labels	ux, tech debt" "$(stub set FEAT-1 labels " ux ,tech debt,, ux")"
+assert_eq "and kept as a list, each once and trimmed" '["ux","tech debt"]' "$(field FEAT-1 '.labels | tojson')"
+assert_eq "an epic carries them too" '["launch"]' "$(stub set EPIC-1 labels launch >/dev/null; field EPIC-1 '.labels | tojson')"
+stub set PRJ-1 labels launch >/dev/null 2>&1
+assert_eq "a project carries none" "2" "$?"
+stub set FEAT-1 labels "" >/dev/null
+assert_eq "an empty list takes them all off, leaving no field behind" "false" "$(field FEAT-1 'has("labels")')"
+stub set EPIC-1 labels "" >/dev/null
+
 printf "\nTest group: a card's id follows its type\n"
 
 assert_eq "a timebox is numbered with TIME" "TIME-3" "$(stub create --epic EPIC-1 --name Spike --type Timebox)"
