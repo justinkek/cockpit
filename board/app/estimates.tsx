@@ -47,9 +47,15 @@ export function EstimatePill({ remaining }: { remaining: Remaining }) {
 	);
 }
 
-export function EstimateFacts({ remaining }: { remaining: Remaining }) {
+export function EstimateFacts({ remaining, left = false }: { remaining: Remaining; left?: boolean }) {
 	return (
 		<dl className="props estimate-facts" title={estimatesTitle(remaining)}>
+			{left && (
+				<>
+					<dt>Points left</dt>
+					<dd>{remaining.points} pts</dd>
+				</>
+			)}
 			<dt>TD estimate</dt>
 			<dd>{remaining.estimated > 0 ? `${remaining.estimate} pts` : <span className="empty">-</span>}</dd>
 			<dt>TR complexity</dt>

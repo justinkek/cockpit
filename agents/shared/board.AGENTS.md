@@ -158,13 +158,15 @@ The app's Plan page draws one row per epic on a week or month timeline, grouped 
 
 An epic in progress, in `Tickets In Dev` or with a card that reached `In Dev`, runs before the epics not yet started, and when a project has more of them than tracks the lowest in plan order is drawn paused until a track frees, with a notice naming it and nothing on the board changed, while a pinned epic waits for its own track and a pin past its project's tracks is warned about and ignored.
 
-A card's points on the plan are its `complexity` when set and its `estimate` otherwise, and a card with neither is left out of every sum and date and counted on its epic's row as unsized, while a timebox counts in neither.
+A card's points on the plan are its `complexity` when set and its `estimate` otherwise, and a card with neither is left out of every sum and date and counted on its epic as unsized, while a timebox counts in neither.
 
 The average speed counts only the `complexity` of the cards done in its window, and a done card with none, whatever its `estimate`, and a done timebox are counted beside it rather than in it.
 
 An epic's TD estimate and TR complexity are the sums of its open cards' `estimate` and `complexity`, worked out wherever the side panel, the Epics board or the plan shows them and never stored, the second with how many of those cards are sized.
 
 An epic's scheduled bar draws the length that rests on complexity solid and the length that rests on estimates hatched after it, then a `?` marker with no length while any open card is unsized, and an epic whose open cards are all unsized gets the marker alone.
+
+An epic's row on the plan carries no figure of its own: its TD estimate, its TR complexity with how many tickets are sized, its unsized count and its points left show on hovering its bar or markers and in its side panel.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 

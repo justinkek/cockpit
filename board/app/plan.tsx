@@ -44,7 +44,7 @@ import {
 } from "@/app/actions";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, type Lists, TextField, Title, useHydrated } from "@/app/fields";
-import { EstimateFacts, EstimatePill } from "@/app/estimates";
+import { EstimateFacts, estimatesTitle } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
@@ -465,10 +465,8 @@ function cardPointsTitle(card: Card) {
 }
 
 function runTitle(row: Row) {
-	const { complexity, fromEstimate, unsized } = row.remaining;
-	const parts = [`${figure(complexity)} pts from TR complexity`, `${figure(fromEstimate)} pts from TD estimates`];
-	if (unsized > 0) parts.push(`${unsized} unsized ${unsized === 1 ? "ticket" : "tickets"} left out`);
-	return parts.join(", ");
+	const { complexity, fromEstimate, points } = row.remaining;
+	return `${figure(points)} pts left, ${figure(complexity)} on TR complexity and ${figure(fromEstimate)} on TD estimates. ${estimatesTitle(row.remaining)}`;
 }
 
 function tracksText(count: number) {
@@ -640,7 +638,7 @@ function PlanPanel({
 				onCommit={(name) => handlers.onEdit("name", name, { name })}
 			/>
 			<Fields record={epic} lists={lists} handlers={handlers} />
-			<EstimateFacts remaining={remainingOf(cards)} />
+			<EstimateFacts remaining={remainingOf(cards)} left />
 			<section className="timeline">
 				<h3>
 					Cards <span className="count">{cards.length}</span>
@@ -1547,7 +1545,12 @@ export function Plan({
 				);
 			}
 			pieces.push(
-				<span key="projected" className="plan-mark projected" style={{ left: x(row.projected) + ppd / 2 - 7 }}>
+				<span
+					key="projected"
+					className="plan-mark projected"
+					style={{ left: x(row.projected) + ppd / 2 - 7 }}
+					title={`Projected to end ${short(row.projected)}: ${runTitle(row)}`}
+				>
 					<Icon name="projected" />
 				</span>,
 			);
@@ -1630,12 +1633,7 @@ export function Plan({
 									onPick={(value) => pickTrack(epic, value)}
 								/>
 							)}
-							{row && !row.done && <EstimatePill remaining={row.remaining} />}
-							{row && !row.done && row.remaining.unsized > 0 && (
-								<span className="plan-points unsized" title={runTitle(row)}>
-									{row.remaining.points > 0 ? `+${row.remaining.unsized} unsized` : `${row.remaining.unsized} unsized`}
-								</span>
-							)}
+							{row && !row.done && row.remaining.tickets > 0 && <span className="plan-sr">{runTitle(row)}</span>}
 							{row && !row.done && row.remaining.open + row.remaining.done === 0 && (
 								<span className="plan-points none" title="Give it cards to project when it ends">
 									No cards
@@ -1842,7 +1840,7 @@ export function Plan({
 							<div className="plan-header">
 								<div className="plan-left plan-corner">
 									<span>Epic</span>
-									<span className="plan-corner-status">Status · points left · speed needed</span>
+									<span className="plan-corner-status">Status · track · speed needed</span>
 								</div>
 								<div className="plan-scale" style={{ width }}>
 									<div className="plan-months">
