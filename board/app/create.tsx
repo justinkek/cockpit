@@ -80,6 +80,14 @@ export function NewRecord({
 			box.current?.focus();
 			return;
 		}
+		if (kind === "card" && !epic) {
+			setError("Every card has an epic: choose one before creating it.");
+			return;
+		}
+		if (kind === "epic" && !project) {
+			setError("Every epic has a project: choose one before creating it.");
+			return;
+		}
 		setBusy(true);
 		setError("");
 		const failure = await onCreate({
@@ -187,7 +195,9 @@ export function NewRecord({
 					)}
 					{kind === "card" && (
 						<select name="epic" aria-label="Epic" value={epic} onChange={changed(setEpic)}>
-							<option value="">No epic</option>
+							<option value="" disabled>
+								Choose an epic
+							</option>
 							{lists.epics.map((option) => (
 								<option key={option.id} value={option.id}>
 									{option.name}
@@ -196,7 +206,9 @@ export function NewRecord({
 						</select>
 					)}
 					<select name="project" aria-label="Project" value={project} onChange={changed(setProject)}>
-						<option value="">{inherited ? `${inherited} (from the epic)` : "No project"}</option>
+						<option value="" disabled={kind === "epic"}>
+							{inherited ? `${inherited} (from the epic)` : kind === "epic" ? "Choose a project" : "No project"}
+						</option>
 						{lists.projects.map((option) => (
 							<option key={option.id} value={option.id}>
 								{option.name}

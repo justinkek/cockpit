@@ -217,18 +217,22 @@ export function Choice({
 	options,
 	label,
 	none,
+	required = false,
 	onChange,
 }: {
 	value: string | null | undefined;
 	options: { id: string; name: string }[];
 	label: string;
 	none: string;
+	required?: boolean;
 	onChange: (value: string) => void;
 }) {
 	const known = !value || options.some((option) => option.id === value);
 	return (
 		<select name="value" aria-label={label} value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
-			<option value="">{none}</option>
+			<option value="" disabled={required}>
+				{none}
+			</option>
 			{!known && value && (
 				<option value={value} disabled>
 					{value}
@@ -512,7 +516,8 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 						<Fallback id={id} op="set" field="epic">
 							<Choice
 								label="Epic"
-								none="No epic"
+								none="Choose an epic"
+								required
 								value={record.epic}
 								options={lists.epics}
 								onChange={(epic) => onEdit("epic", epic, { epic: epic || null })}
@@ -545,7 +550,14 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 						<Fallback id={id} op="set" field="project">
 							<Choice
 								label="Project"
-								none={inherited && !record.project ? `${inherited} (from the epic)` : "No project"}
+								none={
+									inherited && !record.project
+										? `${inherited} (from the epic)`
+										: kind === "epic"
+											? "Choose a project"
+											: "No project"
+								}
+								required={kind === "epic"}
 								value={record.project}
 								options={lists.projects}
 								onChange={(project) => onEdit("project", project, { project: project || null })}

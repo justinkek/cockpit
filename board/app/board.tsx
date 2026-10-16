@@ -1484,11 +1484,22 @@ export function Board({
 
 	async function create(column: string, name: string): Promise<boolean> {
 		setNotice(null);
+		const epic = onlyEpic(view);
+		if (kind === "epic" || !epic) {
+			setNotice({
+				id: column,
+				text:
+					kind === "epic"
+						? "Every epic has a project: create it with + New epic, where a project is chosen."
+						: "Every card has an epic: show one epic on the board to add a card here, or create it with + New card.",
+			});
+			return false;
+		}
 		const lane = visible.filter((stub) => stub.status === column);
 		const last = lane.at(-1);
 		const result = await createCard(kind, name, column, {
 			type: view.types.length === 1 ? view.types[0] : undefined,
-			epic: onlyEpic(view),
+			epic,
 			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
 		});
 		const fresh = result.record;
