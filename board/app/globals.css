@@ -2171,6 +2171,27 @@
 		outline: none;
 	}
 
+	.epic-done {
+		& > p,
+		& > ul {
+			margin: 10px 16px;
+		}
+
+		& > ul {
+			padding-left: 18px;
+			max-height: 30vh;
+			overflow-y: auto;
+		}
+	}
+
+	.epic-done-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 16px 14px;
+		border-top: 1px solid var(--line);
+	}
+
 	.dialog-head {
 		display: flex;
 		align-items: center;

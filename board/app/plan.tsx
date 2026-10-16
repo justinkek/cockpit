@@ -31,6 +31,7 @@ import {
 	createMilestone,
 	dropCard,
 	editCard,
+	finishEpic,
 	loadComments,
 	postComment,
 	type Ranked,
@@ -43,6 +44,7 @@ import {
 } from "@/app/actions";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, type Lists, TextField, Title, useHydrated } from "@/app/fields";
+import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { EstimateFacts, estimatesTitle } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
@@ -766,6 +768,7 @@ export function Plan({
 	const [undoing, setUndoing] = useState(false);
 	const [editing, setEditing] = useState<Editing>(null);
 	const [legendOpen, setLegendOpen] = useState(false);
+	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const [trackCounts, setTrackCounts] = useState<Record<string, number>>({});
 	const [boardCount, setBoardCount] = useState(initialTracks);
@@ -993,8 +996,7 @@ export function Plan({
 
 	function handlersFor(epic: Card): Handlers {
 		return {
-			onMove: (column) =>
-				apply(epic.id, movedTo(column), () => dropCard(epic.id, column), `Moved ${epic.id} to ${column}`),
+			onMove: (column) => moveEpic(epic, column),
 			onEdit: (field, value, change) =>
 				apply(epic.id, change, () => editCard(epic.id, field, value), `Changed the ${fieldName(field)} of ${epic.id}`),
 			onLink: () => {},
@@ -1010,9 +1012,43 @@ export function Plan({
 		setOpenId(id);
 	}
 
+	function moveEpic(epic: Card, column: string, checked = false) {
+		if (!checked && column === "Epic Done" && epic.status !== column) {
+			const open = openTickets(cardsOf[epic.id] ?? []);
+			if (open.length > 0) {
+				setFinishing({ id: epic.id, name: epic.name, open });
+				return;
+			}
+		}
+		apply(epic.id, movedTo(column), () => dropCard(epic.id, column), `Moved ${epic.id} to ${column}`);
+	}
+
+	function finish(chosen: Finishing) {
+		setNotice(null);
+		setToast(null);
+		startTransition(async () => {
+			const result = await finishEpic(
+				chosen.id,
+				chosen.open.map((card) => card.id),
+			);
+			setFinishing(null);
+			const fresh = result.record;
+			if (fresh) setEpics((current) => current.map((epic) => (epic.id === chosen.id ? fresh : epic)));
+			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
+			if (result.undo.length > 0)
+				setToast(
+					toastOf(
+						`Deprioritised ${chosen.open.length === 1 ? "1 open ticket" : `${chosen.open.length} open tickets`} of ${chosen.id}${fresh ? " and moved it to Epic Done" : ""}`,
+						result.undo,
+					),
+				);
+			router.refresh();
+		});
+	}
+
 	function pickStatus(epic: Card, value: string) {
 		if (value === DONE) {
-			apply(epic.id, movedTo("Epic Done"), () => dropCard(epic.id, "Epic Done"), `Moved ${epic.id} to Epic Done`);
+			moveEpic(epic, "Epic Done");
 			return;
 		}
 		apply(
@@ -2175,6 +2211,19 @@ export function Plan({
 						setToast(undoable(saved.id, spanned, label ?? `Changed the content of ${saved.id}`));
 						router.refresh();
 					}}
+				/>
+			)}
+			{finishing && (
+				<EpicDoneDialog
+					finishing={finishing}
+					busy={saving}
+					onDeprioritise={() => finish(finishing)}
+					onAnyway={() => {
+						const epic = epics.find((one) => one.id === finishing.id);
+						setFinishing(null);
+						if (epic) moveEpic(epic, "Epic Done", true);
+					}}
+					onCancel={() => setFinishing(null)}
 				/>
 			)}
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />

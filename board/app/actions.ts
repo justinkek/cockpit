@@ -265,6 +265,18 @@ export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 	return result;
 }
 
+export async function finishEpic(id: string, cards: string[]): Promise<BulkResult & { record?: Card }> {
+	const result: BulkResult =
+		cards.length > 0
+			? await bulkChange(cards, { op: "move", column: "Deprioritised" })
+			: { records: [], undo: [], errors: [] };
+	if (result.errors.length > 0) return result;
+	const moved = await dropCard(id, "Epic Done");
+	if (moved.error) return { ...result, errors: [`${id}: ${moved.error}`] };
+	if (moved.undo) result.undo.push({ id, ...moved.undo });
+	return { ...result, record: moved.record };
+}
+
 export async function setBoardTracks(count: number): Promise<{ tracks?: number; error?: string }> {
 	try {
 		const tracks = await boardTracks(String(count));

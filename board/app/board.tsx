@@ -38,6 +38,7 @@ import {
 	duplicateCard,
 	editCard,
 	findInContent,
+	finishEpic,
 	linkCards,
 	type Span,
 	undoChange,
@@ -45,6 +46,7 @@ import {
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
+import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -848,6 +850,8 @@ export function Board({
 	shownId.current = openId;
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [toast, setToast] = useState<Undoable | null>(null);
+	const [finishing, setFinishing] = useState<Finishing | null>(null);
+	const [finishBusy, setFinishBusy] = useState(false);
 	const [undoing, setUndoing] = useState(false);
 	const [addingIn, setAddingIn] = useState<string | null>(null);
 	const [composing, setComposing] = useState(false);
@@ -1438,9 +1442,16 @@ export function Board({
 		});
 	}
 
-	function move(id: string, column: string, rank?: number) {
+	function move(id: string, column: string, rank?: number, checked = false) {
 		const stub = stubs.find((s) => s.id === id);
 		if (!stub || (stub.status === column && rank === undefined)) return;
+		if (!checked && kind === "epic" && column === "Epic Done" && stub.status !== column) {
+			const open = openTickets(children[id] ?? []);
+			if (open.length > 0) {
+				setFinishing({ id, name: stub.name, open, rank });
+				return;
+			}
+		}
 		const label = stub.status === column ? `Reordered ${id} in ${column}` : `Moved ${id} to ${column}`;
 		apply(
 			id,
@@ -1448,6 +1459,31 @@ export function Board({
 			() => dropCard(id, column, rank),
 			label,
 		);
+	}
+
+	function finish(chosen: Finishing) {
+		setFinishBusy(true);
+		setNotice(null);
+		setToast(null);
+		startTransition(async () => {
+			const result = await finishEpic(
+				chosen.id,
+				chosen.open.map((card) => card.id),
+			);
+			setFinishBusy(false);
+			setFinishing(null);
+			const fresh = result.record;
+			if (fresh) setStubs((current) => current.map((s) => (s.id === chosen.id ? fresh : s)));
+			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
+			if (result.undo.length > 0)
+				setToast(
+					toastOf(
+						`Deprioritised ${chosen.open.length === 1 ? "1 open ticket" : `${chosen.open.length} open tickets`} of ${chosen.id}${fresh ? " and moved it to Epic Done" : ""}`,
+						result.undo,
+					),
+				);
+			router.refresh();
+		});
 	}
 
 	function placement(id: string, overId: string): { column: string; rank?: number } | null {
@@ -1838,6 +1874,18 @@ export function Board({
 							/>
 						)}
 						<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
+						{finishing && (
+							<EpicDoneDialog
+								finishing={finishing}
+								busy={finishBusy}
+								onDeprioritise={() => finish(finishing)}
+								onAnyway={() => {
+									setFinishing(null);
+									move(finishing.id, "Epic Done", finishing.rank, true);
+								}}
+								onCancel={() => setFinishing(null)}
+							/>
+						)}
 						{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
 						{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 					</div>
