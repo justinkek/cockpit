@@ -569,14 +569,16 @@ function TrackPick({
 }) {
 	const pinned = row.pin != null && !row.pinIgnored;
 	const title = row.pinIgnored
-		? `Pinned to track ${row.pin}, past the ${tracksText(count)} its project has, so the plan places it on track ${row.track} itself`
+		? `Pinned to track ${row.pin}, past the ${tracksText(count)} its project has, so the plan places it itself`
 		: pinned
 			? `Pinned to track ${row.pin} - it waits for that track to free`
-			: `Runs on track ${row.track}, the first one free in plan order`;
+			: row.track == null
+				? "Not on a track - it has no points left to schedule"
+				: `Runs on track ${row.track}, the first one free to the highest epic ready for it`;
 	return (
 		<label className={`plan-track-pick${pinned ? " pinned" : ""}${row.pinIgnored ? " warn" : ""}`} title={title}>
 			{row.pinIgnored && <Icon name="plan" />}
-			{pinned ? `Pinned ${row.pin}` : `Track ${row.track}`}
+			{pinned ? `Pinned ${row.pin}` : row.track == null ? "No track" : `Track ${row.track}`}
 			<select aria-label={`Track of ${epic.id}`} value={row.pin ?? ""} onChange={(event) => onPick(event.target.value)}>
 				<option value="">Placed by the plan</option>
 				{Array.from({ length: count }, (_, index) => (
@@ -1407,12 +1409,12 @@ export function Plan({
 	const trackNotes = Object.values(committedRows).flatMap((row) => {
 		const notes: { key: string; text: string }[] = [];
 		if (row.pausedUntil != null) {
-			const running = Object.values(committedRows).filter(
-				(other) => other.team === row.team && other.inProgress && other.track != null && other.remaining.points > 0,
-			).length;
+			const ahead = Object.values(committedRows)
+				.filter((other) => other.team === row.team && other.begin === today && other.track != null)
+				.map((other) => nameOf(other.id));
 			notes.push({
 				key: `paused-${row.id}`,
-				text: `${nameOf(row.id)} pauses until ${short(row.pausedUntil)}: ${teamName(row.team)} runs ${tracksText(tracksOf(row.team))} and has ${running} epics in progress, and it is the lowest of them in the plan. Nothing on the board changes.`,
+				text: `${nameOf(row.id)} is in progress but pauses until ${short(row.pausedUntil)}: ${teamName(row.team)} runs ${tracksText(tracksOf(row.team))}, taken by ${ahead.length > 0 ? ahead.join(" and ") : "epics"} higher in its priority. Nothing on the board changes.`,
 			});
 		}
 		if (row.pinIgnored && !row.done) {
@@ -1657,7 +1659,7 @@ export function Plan({
 						</button>
 						<span className="plan-meta">
 							<StatusChip epic={epic} row={row} onPick={(value) => pickStatus(epic, value)} />
-							{row && !row.done && row.track != null && (
+							{row && !row.done && tracksOf(row.team) > 0 && (
 								<TrackPick
 									epic={epic}
 									row={row}

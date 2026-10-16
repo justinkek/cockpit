@@ -349,45 +349,49 @@ export function planOf(
 			}
 		}
 		if (tracks === 0) continue;
-		const order = [...queue.filter((row) => row.inProgress), ...queue.filter((row) => !row.inProgress)];
-		const wanted: number[] = Array.from({ length: tracks }, () => 0);
-		const want = (started: boolean) => {
-			for (const row of order) {
-				if (row.inProgress === started && row.pin != null && !row.pinIgnored) wanted[row.pin - 1] += 1;
+		const readyOf = (row: Row) => Math.max(today, row.start ?? today);
+		const laneOf = (row: Row) => (row.pin != null && !row.pinIgnored ? row.pin - 1 : null);
+		const waiting = queue.filter((row) => row.remaining.points > 0);
+		for (const row of queue) {
+			if (row.remaining.points > 0) continue;
+			row.begin = readyOf(row);
+			row.track = row.pin != null && !row.pinIgnored ? row.pin : null;
+		}
+		let now = today;
+		while (waiting.length > 0) {
+			const wanted: number[] = Array.from({ length: tracks }, () => 0);
+			for (const row of waiting) {
+				const lane = laneOf(row);
+				if (lane != null) wanted[lane] += 1;
 			}
-		};
-		want(true);
-		let waiting = false;
-		for (const row of order) {
-			if (!row.inProgress && !waiting) {
-				waiting = true;
-				want(false);
-			}
-			const pinned = row.pin != null && !row.pinIgnored;
-			if (pinned) wanted[(row.pin ?? 1) - 1] -= 1;
-			let lane = pinned ? (row.pin ?? 1) - 1 : 0;
-			if (!pinned) {
-				for (let index = 1; index < tracks; index += 1) {
-					const better =
-						free[index] < free[lane] || (free[index] === free[lane] && wanted[lane] > 0 && wanted[index] === 0);
-					if (better) lane = index;
+			for (const row of [...waiting]) {
+				if (readyOf(row) > now) continue;
+				const pinned = laneOf(row);
+				const open = Array.from({ length: tracks }, (_, index) => index).filter(
+					(index) => free[index] <= now && (pinned == null || index === pinned),
+				);
+				if (open.length === 0) continue;
+				const lane = open.find((index) => wanted[index] === 0) ?? open[0];
+				if (pinned != null) wanted[pinned] -= 1;
+				waiting.splice(waiting.indexOf(row), 1);
+				row.track = lane + 1;
+				row.begin = now;
+				if (row.inProgress && row.begin > Math.max(today, row.start ?? today)) row.pausedUntil = row.begin;
+				const days = Math.ceil(row.remaining.points / perDay);
+				row.projected = row.begin + Math.max(0, days - 1);
+				free[lane] = row.begin + days;
+				ahead[lane] += row.remaining.points;
+				row.late = row.target != null ? Math.max(0, row.projected - row.target) : 0;
+				if (row.target != null) {
+					const weeks = (row.target - today + 1) / 7;
+					row.needed = weeks > 0 ? Math.round((ahead[lane] / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
 				}
+				const epic = members.find((one) => one.id === row.id);
+				row.atRisk = row.late > 0 && (epic?.confidence == null || epic.confidence === "On track");
 			}
-			row.track = lane + 1;
-			row.begin = Math.max(free[lane], row.start ?? free[lane]);
-			if (row.remaining.points === 0) continue;
-			if (row.inProgress && row.begin > Math.max(today, row.start ?? today)) row.pausedUntil = row.begin;
-			const days = Math.ceil(row.remaining.points / perDay);
-			row.projected = row.begin + Math.max(0, days - 1);
-			free[lane] = row.begin + days;
-			ahead[lane] += row.remaining.points;
-			row.late = row.target != null ? Math.max(0, row.projected - row.target) : 0;
-			if (row.target != null) {
-				const weeks = (row.target - today + 1) / 7;
-				row.needed = weeks > 0 ? Math.round((ahead[lane] / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
-			}
-			const epic = members.find((one) => one.id === row.id);
-			row.atRisk = row.late > 0 && (epic?.confidence == null || epic.confidence === "On track");
+			const next = [...free, ...waiting.map(readyOf)].filter((day) => day > now);
+			if (next.length === 0) break;
+			now = Math.min(...next);
 		}
 	}
 	return rows;
