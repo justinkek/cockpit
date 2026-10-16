@@ -241,9 +241,17 @@ assert_eq "and refuses a record that does not exist" "3" "$?"
 printf "\nTest group: epics have their own columns\n"
 
 assert_eq "an epic is numbered on its own" "EPIC-1" "$(stub create --kind epic --name "Local board")"
-assert_eq "an epic starts in its first column" "Ready for FD by AI" "$(field EPIC-1 .status)"
-stub walk EPIC-1 "Ready for FD" >/dev/null
-assert_eq "an epic walks its own columns and stamps them" "Ready for FD by AI In FD by AI Ready for FD" "$(field EPIC-1 '.dates | keys_unsorted | join(" ")')"
+assert_eq "an epic starts in Backlog" "Backlog" "$(field EPIC-1 .status)"
+assert_eq "and has no start while it waits there" "null" "$(field EPIC-1 .start)"
+COCKPIT_NOW=2026-10-16T09:00:00Z stub walk EPIC-1 "Ready for FD" >/dev/null
+assert_eq "an epic walks its own columns and stamps them" "Backlog Ready for FD by AI In FD by AI Ready for FD" "$(field EPIC-1 '.dates | keys_unsorted | join(" ")')"
+assert_eq "leaving Backlog stamps the epic's start" "2026-10-16" "$(field EPIC-1 .start)"
+stub move EPIC-1 Backlog >/dev/null
+COCKPIT_NOW=2026-10-20T09:00:00Z stub move EPIC-1 "Ready for FD" >/dev/null
+assert_eq "and leaving it again keeps the first start" "2026-10-16" "$(field EPIC-1 .start)"
+assert_eq "an epic created past Backlog starts the day it is created" "2026-10-21" \
+  "$(COCKPIT_NOW=2026-10-21T09:00:00Z stub create --kind epic --name "Straight in" --status "Ready for FD by AI" >/dev/null; field EPIC-2 .start)"
+stub archive EPIC-2 >/dev/null
 stub move EPIC-1 "In Dev" >/dev/null 2>&1
 assert_eq "a card column is refused on an epic" "2" "$?"
 stub set BUG-2 epic EPIC-1 >/dev/null

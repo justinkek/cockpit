@@ -26,6 +26,7 @@ export const CARD_PARKED = ["Deprioritised"];
 export const CARD_BOARD_COLUMNS = [...CARD_COLUMNS.slice(0, -1), ...CARD_PARKED, "Done"];
 
 export const EPIC_COLUMNS = [
+	"Backlog",
 	"Ready for FD by AI",
 	"In FD by AI",
 	"Ready for FD",

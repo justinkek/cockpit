@@ -81,6 +81,7 @@ CARD_STAMPED=(
 )
 
 EPIC_COLUMNS=(
+  "Backlog"
   "Ready for FD by AI" "In FD by AI" "Ready for FD" "In FD"
   "Ready for TD by AI" "In TD by AI" "Ready for TD" "In TD"
   "Ready for Ticket Breakdown by AI" "In Ticket Breakdown by AI" "Ready for Ticket Breakdown" "In Ticket Breakdown"
@@ -663,6 +664,8 @@ create_locked() {
        sprint: null, due: null, blocked: null, dependent_on: [], dependency_for: [],
        complexity: null, estimate: null, session: null, claimed_at: null,
        prs: null, cost_usd: null, tokens_k: null, created: $stamp, models: {}, back_from: {}, timebox_mins: null}
+    elif $kind == "epic" and $status != "Backlog" then
+      {id: $id, name: $name, status: $status, created: $stamp, start: $stamp[:10]}
     else
       {id: $id, name: $name, status: ($status | blank), created: $stamp}
     end
@@ -701,7 +704,7 @@ command_create() {
   if [ -z "$status" ]; then
     case "$kind" in
       card) status="Backlog" ;;
-      epic) status="Ready for FD by AI" ;;
+      epic) status="Backlog" ;;
       project) status="Not started" ;;
     esac
   fi
@@ -1427,17 +1430,20 @@ command_bounce() {
 }
 
 hop() {
-  local id="$1" column="$2" kind from stamped=false
+  local id="$1" column="$2" kind from stamped=false starting=false
   kind="$(kind_of "$id")"
   from="$(read_record "$id" | jq --raw-output '.status')"
   [ "$from" = "$column" ] && return 0
   if is_stamped "$kind" "$column"; then stamped=true; fi
-  update_record "$id" --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" '
+  if [ "$kind" = epic ] && [ "$from" = Backlog ]; then starting=true; fi
+  update_record "$id" --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" \
+    --argjson starting "$starting" '
     .status = $column
     | .moved = $stamp
     | .moved_by = $by
     | if $stamped and ((.dates // {}) | has($column) | not)
-      then .dates = ((.dates // {}) + {($column): $stamp}) else . end'
+      then .dates = ((.dates // {}) + {($column): $stamp}) else . end
+    | if $starting and .start == null then .start = $stamp[:10] else . end'
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
 }
 

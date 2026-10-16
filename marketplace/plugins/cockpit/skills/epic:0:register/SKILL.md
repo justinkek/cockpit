@@ -51,6 +51,10 @@ Read the epic's `Status` from step 1 and route to the appropriate workflow:
 
 Every stage runs through the same four columns - `Ready for <stage> by AI`, `In <stage> by AI`, `Ready for <stage>`, `In <stage>` - for FD, TD and Ticket Breakdown. The two `by AI` columns are the agent's; the other two are a person's.
 
+#### Backlog
+
+The epic has not been pulled into refinement yet. Ask the person whether to start its functional design now. On a yes, advance it with `"$HOME/.cockpit/scripts/board-card" walk <epic-id> "Ready for FD by AI"` and carry on under the next heading; on a no, report that it stays in `Backlog` and stop.
+
 #### Ready for FD by AI / In FD by AI
 
 1. From `Ready for FD by AI`, advance with `"$HOME/.cockpit/scripts/board-card" walk <epic-id> "In FD by AI"`.

@@ -130,6 +130,8 @@ A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as n
 
 An epic takes `start` and `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`), `learning` (free text) and `plan_rank` (a number, lowest first in the plan) through `board-card set`, and its dates through `create --kind epic --start --target` too, and a target before the start is refused.
 
+An epic starts in `Backlog`, where it waits until it is pulled into refinement, and its first move out of `Backlog` stamps its `start` with that day unless it holds one already. An epic created in a later column takes the day it is created as its `start`.
+
 `board-card set <id> track <n>` pins an epic to that track of its project on the plan, a whole number above 0 read back as `Track` and cleared with `''` to let the plan place it, and a pin past the project's tracks is kept for the plan to warn about.
 
 Setting an epic's `target` holds each of its cards that is neither `Done` nor `Deprioritised` to it: a card with no due date or a later one takes the target as its `due`, marked with `due_from` naming the epic, a later date of the card's own is kept as `due_own` and given back once the target moves past it or lets the card go, a due date the target set follows it and is cleared with it, an earlier date of the card's own is left, and `set` prints each card it changed. A card joining or leaving an epic is held to its target or let go the same way, and setting `due` by hand makes the date the card's own again.
