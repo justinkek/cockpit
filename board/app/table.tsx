@@ -97,6 +97,13 @@ const COLUMNS: Column[] = [
 	},
 	{ key: "project", label: "Project", value: projectOf },
 	{
+		key: "urgent",
+		label: "Urgent",
+		kinds: ["card"],
+		value: (record) => (record.urgent ? 1 : null),
+		cell: (record) => record.urgent && <span className="pill urgent">Urgent</span>,
+	},
+	{
 		key: "progress",
 		label: "Progress",
 		kinds: ["epic"],

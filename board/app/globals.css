@@ -560,6 +560,18 @@
 			color: var(--danger);
 			border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 		}
+
+		&.urgent {
+			color: var(--danger);
+			font-weight: 600;
+			border-color: var(--danger);
+			background: color-mix(in srgb, var(--danger) 12%, transparent);
+		}
+	}
+
+	select.urgent-pick {
+		color: var(--danger);
+		font-weight: 600;
 	}
 
 	.type {

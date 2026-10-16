@@ -206,6 +206,14 @@ function TypeMark({ type }: { type: string }) {
 	return <span className={`type type-${type.toLowerCase()}`}>{type}</span>;
 }
 
+function UrgentMark() {
+	return (
+		<span className="pill urgent" title="Urgent - picked before every other card">
+			Urgent
+		</span>
+	);
+}
+
 function EpicPill({ epic }: { epic?: string | null }) {
 	const names = useContext(Names);
 	if (!epic) return null;
@@ -299,6 +307,7 @@ function CardBody({ stub }: { stub: Stub }) {
 		<>
 			<span className="card-top">
 				<span className="ident">{stub.id}</span>
+				{stub.urgent && <UrgentMark />}
 				{stub.session && <span className="claimed" title={`Claimed by ${stub.session}`} />}
 			</span>
 			<span className="name">
@@ -517,6 +526,7 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 					{stub.name}
 				</span>
 				<span className="row-meta">
+					{stub.urgent && <UrgentMark />}
 					{stub.blocked && <span className="pill blocked">Blocked</span>}
 					<Signals stub={stub} />
 					<DueChip stub={stub} />

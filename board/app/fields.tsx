@@ -450,6 +450,25 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</select>
 						</Fallback>
 					</dd>
+					<dt>Urgent</dt>
+					<dd>
+						<Fallback id={id} op="set" field="urgent">
+							<select
+								name="value"
+								aria-label="Urgent"
+								title="An urgent card sits in the Urgent lane at the top of the board and is picked before every other"
+								className={record.urgent ? "urgent-pick" : undefined}
+								value={record.urgent ? "true" : ""}
+								onChange={(event) => {
+									const urgent = event.target.value === "true";
+									onEdit("urgent", urgent ? "true" : "", { urgent });
+								}}
+							>
+								<option value="">Not urgent</option>
+								<option value="true">Urgent</option>
+							</select>
+						</Fallback>
+					</dd>
 					<dt>Complexity</dt>
 					<dd>
 						<Fallback id={id} op="set" field="complexity">
