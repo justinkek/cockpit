@@ -352,6 +352,18 @@
 		align-items: stretch;
 	}
 
+	.board-homeless {
+		margin: 0;
+		padding: 6px 16px;
+		color: var(--danger);
+		font-size: 12px;
+
+		& .ident-link {
+			color: inherit;
+			text-decoration: underline;
+		}
+	}
+
 	.swimlanes {
 		flex: 1;
 		min-width: 0;

@@ -1722,6 +1722,10 @@ export function Board({
 		move(id, place.column, place.rank, false, sets);
 	}
 
+	const projectIds = new Set(lists.projects.map((project) => project.id));
+	const homeless = stubs.filter((stub) =>
+		kind === "epic" ? !stub.project || !projectIds.has(stub.project) : !stub.epic || !names[stub.epic],
+	);
 	const count = filterCount(view);
 	const currentView = saved.find(
 		(other) => JSON.stringify(restoredView(kind, other.view as Partial<View>)) === JSON.stringify(restoredView(kind, viewToSave() as Partial<View>)),
@@ -1984,6 +1988,27 @@ export function Board({
 						</div>
 
 						<NoticeBar notice={open && notice?.id === open.id ? null : notice} onDismiss={() => setNotice(null)} />
+
+						{homeless.length > 0 && (
+							<p className="board-homeless">
+								{kind === "epic"
+									? homeless.length === 1
+										? "This epic needs a project"
+										: "These epics need a project"
+									: homeless.length === 1
+										? "This card needs an epic"
+										: "These cards need an epic"}
+								, which only a person can give {homeless.length === 1 ? "it" : "them"}:{" "}
+								{homeless.map((stub, index) => (
+									<span key={stub.id}>
+										{index > 0 && ", "}
+										<button type="button" className="ident-link" onClick={() => openCard(stub.id)}>
+											{stub.id} {stub.name}
+										</button>
+									</span>
+								))}
+							</p>
+						)}
 
 						<div className="workspace">
 							<DndContext
