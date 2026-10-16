@@ -39,7 +39,6 @@ import {
 	removeMilestone,
 	resolveThread,
 	type Span,
-	setNoProjectTracks,
 	undoChange,
 } from "@/app/actions";
 import { Content, confirmDiscard } from "@/app/content";
@@ -735,7 +734,6 @@ export function Plan({
 	milestones: initialMilestones,
 	projects,
 	sprints,
-	noProjectTracks,
 	today: todayText,
 	lists,
 }: {
@@ -744,7 +742,6 @@ export function Plan({
 	milestones: Card[];
 	projects: Project[];
 	sprints: Pick<Card, "start" | "end" | "speed">[];
-	noProjectTracks: number;
 	today: string;
 	lists: Lists;
 }) {
@@ -782,7 +779,7 @@ export function Plan({
 		[initial],
 	);
 	useEffect(() => setMilestones(initialMilestones), [initialMilestones]);
-	useEffect(() => setTrackCounts({}), [projects, noProjectTracks]);
+	useEffect(() => setTrackCounts({}), [projects]);
 
 	useEffect(() => {
 		setPrefs(loadPrefs());
@@ -815,14 +812,14 @@ export function Plan({
 	);
 	const rate = speeds.overall.speed;
 	const tracksOf = (team: string) =>
-		trackCounts[team] ?? (team ? (projectOf[team]?.tracks ?? 1) : Math.max(1, noProjectTracks));
+		trackCounts[team] ?? (team ? (projectOf[team]?.tracks ?? 1) : 1);
 	const teams = useMemo(() => {
 		const all: Record<string, Team> = {};
 		for (const team of [...projects.map((project) => project.id), NO_PROJECT]) {
 			all[team] = { tracks: tracksOf(team), perWeek: (speeds.teams[team] ?? speeds.overall).perWeek };
 		}
 		return all;
-	}, [projects, speeds, trackCounts, noProjectTracks, projectOf]);
+	}, [projects, speeds, trackCounts, projectOf]);
 	const teamName = (team: string) => (team ? (projectOf[team]?.name ?? team) : "No project");
 
 	const shown = useMemo(() => {
@@ -1009,29 +1006,19 @@ export function Plan({
 
 	function changeTracks(team: string, count: number) {
 		const before = tracksOf(team);
-		if (count < 1 || count === before) return;
+		if (!team || count < 1 || count === before) return;
 		const label = `Gave ${teamName(team)} ${tracksText(count)}`;
 		setNotice(null);
 		setToast(null);
 		setTrackCounts((current) => ({ ...current, [team]: count }));
 		startTransition(async () => {
-			if (team) {
-				const result = await editCard(team, "tracks", String(count));
-				if (result.error) {
-					setTrackCounts((current) => ({ ...current, [team]: before }));
-					setNotice({ id: "", text: `${teamName(team)}: ${result.error}` });
-					return;
-				}
-				setToast(undoable(team, result.undo, label));
-			} else {
-				const result = await setNoProjectTracks(String(count));
-				if (result.error) {
-					setTrackCounts((current) => ({ ...current, [team]: before }));
-					setNotice({ id: "", text: `${teamName(team)}: ${result.error}` });
-					return;
-				}
-				setToast(toastOf(label));
+			const result = await editCard(team, "tracks", String(count));
+			if (result.error) {
+				setTrackCounts((current) => ({ ...current, [team]: before }));
+				setNotice({ id: "", text: `${teamName(team)}: ${result.error}` });
+				return;
 			}
+			setToast(undoable(team, result.undo, label));
 			router.refresh();
 		});
 	}
@@ -1945,7 +1932,7 @@ export function Plan({
 													{group.icon && <span className="record-icon">{group.icon}</span>}
 													{group.name}
 													<span className="count">{group.epics.length}</span>
-													{group.team != null && (
+													{group.team && (
 														<TracksControl
 															name={group.name}
 															count={tracksOf(group.team)}

@@ -200,15 +200,13 @@ assert_eq "a card turned into a timebox drops its estimate" "null" "$(field "$es
 printf "\nTest group: a project runs on tracks, and an epic can be pinned to one\n"
 
 tracked="$(stub create --kind project --name Tracked)"
-assert_eq "a new project has no track count, which the plan reads as 1" "null" "$(field "$tracked" .tracks)"
+assert_eq "a new project has no share of the tracks" "null" "$(field "$tracked" .tracks)"
 stub set "$tracked" tracks 3 >/dev/null
-assert_eq "a project takes a whole number of tracks" "3" "$(field "$tracked" .tracks)"
+assert_eq "a project takes a whole number of tracks as its share" "3" "$(field "$tracked" .tracks)"
 assert_eq "and reads it back by its property name" "Tracks	3" "$(stub show "$tracked" Tracks)"
 assert_eq "no tracks at all is refused" "2" "$(refused set "$tracked" tracks 0)"
 assert_eq "part of a track is refused" "2" "$(refused set "$tracked" tracks 1.5)"
-assert_eq "an epic has no track count of its own" "2" "$(refused set EPIC-1 tracks 2)"
-stub set "$tracked" tracks "" >/dev/null
-assert_eq "an empty track count clears it" "null" "$(field "$tracked" .tracks)"
+assert_eq "an epic has no share of its own" "2" "$(refused set EPIC-1 tracks 2)"
 stub set EPIC-1 track 2 >/dev/null
 assert_eq "an epic is pinned to a track by its number" "Track	2" "$(stub show EPIC-1 Track)"
 stub set EPIC-1 track 9 >/dev/null
@@ -217,12 +215,52 @@ assert_eq "a card is never pinned to a track" "2" "$(refused set "$estimated" tr
 assert_eq "a project is never pinned to a track" "2" "$(refused set "$tracked" track 1)"
 stub set EPIC-1 track "" >/dev/null
 assert_eq "an empty pin lets the plan place the epic again" "null" "$(field EPIC-1 .track)"
-assert_eq "the epics with no project run on one track until told otherwise" "1" "$(stub no-project-tracks)"
-assert_eq "and take a whole number of tracks" "2" "$(stub no-project-tracks 2)"
-assert_eq "which is kept on the board" "2" "$(cat "$COCKPIT_BOARD_DIR/no-project-tracks")"
-assert_eq "and committed there" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain no-project-tracks)"
-assert_eq "no tracks at all is refused for them too" "2" "$(refused no-project-tracks 0)"
-assert_eq "an empty count puts them back on one track" "1" "$(stub no-project-tracks "")"
+
+printf "\nTest group: the board has one count of tracks, which the projects' shares add up to at most\n"
+
+other="$(stub create --kind project --name Other)"
+stub set "$other" tracks 1 >/dev/null
+assert_eq "until it is set, the board's count reads as the shares added up" "4" "$(stub tracks)"
+assert_eq "and no share is refused" "Tracks	2" "$(stub set "$other" tracks 2)"
+assert_eq "a count below the shares is refused" "2" "$(refused tracks 4)"
+assert_eq "a count the shares fit in is kept" "6" "$(stub tracks 6)"
+assert_eq "at the board's root" "6" "$(cat "$COCKPIT_BOARD_DIR/tracks")"
+assert_eq "and committed there" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain tracks)"
+assert_eq "a share that takes the total over the count is refused" "2" "$(refused set "$other" tracks 4)"
+assert_eq "and leaves the share as it was" "2" "$(field "$other" .tracks)"
+stub set "$other" tracks 3 >/dev/null
+assert_eq "a share that fits exactly is kept" "3" "$(field "$other" .tracks)"
+stub set "$tracked" tracks "" >/dev/null
+assert_eq "an empty share clears it, giving that project none" "null" "$(field "$tracked" .tracks)"
+assert_eq "no tracks at all is refused for the board too" "2" "$(refused tracks 0)"
+assert_eq "an empty count reads as the shares again" "3" "$(stub tracks "")"
+assert_eq "the epics with no project have no count of their own any more" "2" "$(refused no-project-tracks 2)"
+
+printf "\nTest group: migrate gives each project with open epics a share and sets the board's count\n"
+
+shared="$TMPDIR/shared"
+mkdir -p "$shared"
+on_shared() { COCKPIT_BOARD_DIR="$shared" stub "$@"; }
+on_shared init >/dev/null
+open_project="$(on_shared create --kind project --name Open)"
+done_project="$(on_shared create --kind project --name Finished)"
+given_project="$(on_shared create --kind project --name Given)"
+idle_project="$(on_shared create --kind project --name Idle)"
+on_shared set "$given_project" tracks 2 >/dev/null
+for project in "$open_project" "$done_project" "$given_project"; do
+  epic="$(on_shared create --kind epic --name "Of $project")"
+  on_shared set "$epic" project "$project" >/dev/null
+  [ "$project" != "$done_project" ] || on_shared move "$epic" "Epic Done" >/dev/null
+done
+printf '3\n' > "$shared/no-project-tracks"
+output="$(on_shared migrate)"
+assert_eq "a project with an open epic and no share gets one track, and one with a share keeps it" \
+  "1 null 2 null" "$(for project in "$open_project" "$done_project" "$given_project" "$idle_project"; do COCKPIT_BOARD_DIR="$shared" field "$project" .tracks; done | paste -sd ' ' -)"
+assert_eq "the board's count becomes the shares added up" "3" "$(cat "$shared/tracks")"
+assert_eq "the count the epics with no project had is dropped" "false" "$([ -f "$shared/no-project-tracks" ] && echo true || echo false)"
+assert_eq "and migrate names each change" "$open_project	tracks 1|no-project-tracks	removed|tracks	3" \
+  "$(printf '%s\n' "$output" | grep --invert-match rank | sort | paste -sd '|' -)"
+assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(on_shared migrate)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

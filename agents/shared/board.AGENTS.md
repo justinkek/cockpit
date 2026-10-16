@@ -142,7 +142,7 @@ A milestone is created with `create --kind milestone --name <name> --date <date>
 
 A project has no columns, so `board-card set <id> status` moves it between `Not started`, `In progress` and `Done`, and `priority` (a whole number) and `repo` (a URL) are set the same way or given to `create --kind project`.
 
-A project's `tracks`, a whole number above 0 read back as `Tracks`, is how many of its epics the plan runs at once, 1 while it is null, and the epics with no project take theirs from `board-card no-project-tracks [<n> | '']`, which prints the count, sets it when given one and keeps it in `no-project-tracks` at the board's root.
+The board has one count of tracks, how many epics the person can run at once, kept in `tracks` at the board's root and printed, or set when given one, by `board-card tracks [<n> | '']`. Each project's `tracks`, a whole number above 0 read back as `Tracks`, is its share of them, and a project whose share is null has none. A share that would take the projects' shares past the board's count is refused, and so is a count below the shares added up, so the count drops only once a project has given a share up. Until the count is set, or once it is cleared with `''`, it reads as the shares added up.
 
 A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domain` (`Tech` or `Bizdev`), `stack` and `card` (the card it was taken from) are each set with `board-card set`, which also accepts them as `reference.<key>`.
 
@@ -172,7 +172,7 @@ An epic's scheduled bar draws the length that rests on complexity solid and the 
 
 An epic's row on the plan carries no figure of its own: its TD estimate, its TR complexity with how many tickets are sized, its unsized count and its points left show on hovering its bar or markers and in its side panel.
 
-`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`.
+`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`. It gives each project with no share and an epic not in `Epic Done` a share of 1, sets the board's count of tracks to the shares added up when there is none, and removes the old `no-project-tracks` file.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 

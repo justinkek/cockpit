@@ -37,7 +37,7 @@
 #   board-card revision
 #   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
 #   board-card path [<id>]
-#   board-card no-project-tracks [<n> | '']
+#   board-card tracks [<n> | '']
 #   board-card migrate
 #
 # Exit codes:
@@ -1137,8 +1137,8 @@ field_json() {
       if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
     tracks)
-      [ "$kind" = project ] || die 2 "only a project has tracks - the epics with no project take theirs from: board-card no-project-tracks - and this is a $kind"
-      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a project's tracks are a whole number above 0, not '$value' - clear it with '' for the default of 1"
+      [ "$kind" = project ] || die 2 "only a project has a share of the tracks - the board's own count is set with: board-card tracks <n> - and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a project's share of the tracks is a whole number above 0, not '$value' - clear it with '' to give it none"
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     track)
@@ -1267,6 +1267,7 @@ set_locked() {
         epic/start) check_epic_span "$value" "$(read_record "$id" | jq --raw-output '.target // empty')" ;;
         epic/target) check_epic_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
+      [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || check_share "$id" "$value"
       update_record "$id" --arg field "$field" --argjson value "$json" "$unnest_reference_program | .[\$field] = \$value"
       [ "$field" != target ] || hold_epic_cards "$id"
       ;;
@@ -2124,20 +2125,53 @@ command_inbox() {
   fi
 }
 
-no_project_tracks_locked() {
-  if [ -z "$1" ]; then rm -f "$BOARD_DIR/no-project-tracks"; else printf '%s\n' "$1" > "$BOARD_DIR/no-project-tracks"; fi
+shares() {
+  local leave="${1:-}" file id value
+  for file in "$BOARD_DIR"/projects/*.md; do
+    [ -f "$file" ] || continue
+    id="${file##*/}"
+    id="${id%.md}"
+    [ "$id" != "$leave" ] || continue
+    value="$(sed -n 's/^tracks: \([0-9][0-9]*\)$/\1/p' "$file")"
+    [ -z "$value" ] || printf '%s\t%s\n' "$id" "$value"
+  done
 }
 
-command_no_project_tracks() {
+shares_total() { shares "${1:-}" | awk -F'\t' '{ total += $2 } END { print total + 0 }'; }
+
+shares_text() { shares | awk -F'\t' '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }'; }
+
+board_tracks() { cat "$BOARD_DIR/tracks" 2>/dev/null || true; }
+
+check_share() {
+  local id="$1" value="$2" total board
+  board="$(board_tracks)"
+  [ -n "$board" ] || return 0
+  total=$(($(shares_total "$id") + value))
+  [ "$total" -le "$board" ] || die 2 "a share of $value for $id takes the projects' shares to $total, over the board's $board tracks - lower another project's share first, or raise the board's count with: board-card tracks <n>"
+}
+
+tracks_locked() {
+  local total
+  if [ -z "$1" ]; then
+    rm -f "$BOARD_DIR/tracks"
+    return 0
+  fi
+  total="$(shares_total)"
+  [ "$1" -ge "$total" ] || die 2 "the projects' shares add up to $total ($(shares_text)), so the board needs at least $total tracks - lower a project's share first with: board-card set <PRJ-n> tracks <n>"
+  printf '%s\n' "$1" > "$BOARD_DIR/tracks"
+}
+
+command_tracks() {
   local tracks
   require_board
   if [ "$#" -gt 0 ]; then
-    [ "$#" -eq 1 ] || die 2 "usage: board-card no-project-tracks [<n> | '']"
-    [ -z "$1" ] || printf '%s' "$1" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "tracks are a whole number above 0, not '$1' - clear them with '' for the default of 1"
-    with_lock no_project_tracks_locked "$1"
+    [ "$#" -eq 1 ] || die 2 "usage: board-card tracks [<n> | '']"
+    [ -z "$1" ] || printf '%s' "$1" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "the board's tracks are a whole number above 0, not '$1' - clear them with '' to read them as the projects' shares added up"
+    with_lock tracks_locked "$1"
   fi
-  tracks="$(cat "$BOARD_DIR/no-project-tracks" 2>/dev/null || true)"
-  printf '%s\n' "${tracks:-1}"
+  tracks="$(board_tracks)"
+  printf '%s\n' "${tracks:-$(shares_total)}"
 }
 
 migrate_ranks() {
@@ -2154,9 +2188,29 @@ migrate_ranks() {
     | [.value.id, .key + 1] | @tsv')
 }
 
+migrate_tracks() {
+  local project total
+  if [ -f "$BOARD_DIR/no-project-tracks" ]; then
+    rm -f "$BOARD_DIR/no-project-tracks"
+    printf 'no-project-tracks\tremoved\n'
+  fi
+  [ ! -f "$BOARD_DIR/tracks" ] || return 0
+  while IFS= read -r project; do
+    [ -f "$(record_file "$project")" ] || continue
+    [ "$(read_record "$project" | jq --raw-output '.tracks // ""')" = "" ] || continue
+    update_record "$project" '.tracks = 1'
+    printf '%s\ttracks 1\n' "$project"
+  done < <(command_list --kind epic --json | jq --raw-output '
+    map(select(.status != "Epic Done" and ((.project // "") | startswith("PRJ-"))) | .project) | unique[]')
+  total="$(shares_total)"
+  [ "$total" -gt 0 ] || return 0
+  printf '%s\n' "$total" > "$BOARD_DIR/tracks"
+  printf 'tracks\t%s\n' "$total"
+}
+
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks)"
+  changes="$(migrate_ranks; migrate_tracks)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 
@@ -2218,7 +2272,7 @@ case "$action" in
   revision) command_revision ;;
   inbox) command_inbox "$@" ;;
   path) command_path "$@" ;;
-  no-project-tracks) command_no_project_tracks "$@" ;;
+  tracks) command_tracks "$@" ;;
   migrate) command_migrate "$@" ;;
   *) sed -n '3,/^#   board-card migrate/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
