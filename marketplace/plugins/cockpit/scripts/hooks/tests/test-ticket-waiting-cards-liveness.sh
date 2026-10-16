@@ -107,6 +107,22 @@ assert_eq "with no rank the newest card comes first" "$in_dev" "$(printf '%s\n' 
 ranked="$(run_cards | cut -f1 | head -2 | paste -sd ' ' -)"
 assert_eq "a ranked card comes before the rest, lowest rank first" "$dead $free" "$ranked"
 
+printf "\nTest group: an urgent card comes first, then each epic's cards in the epic's priority\n"
+
+"$BOARD_CARD" create --kind epic --project PRJ-1 --name "Lower priority" >/dev/null
+later="$("$BOARD_CARD" create --epic EPIC-2 --name "in the lower epic" --status "Ready for BR by AI")"
+"$BOARD_CARD" set "$later" rank -1000 >/dev/null
+assert_eq "a card in a lower epic comes after every card in a higher one, whatever its own rank" "$later" "$(run_cards | tail -1 | cut -f1)"
+"$BOARD_CARD" set EPIC-2 rank 0 >/dev/null
+assert_eq "and moves ahead of them once its epic does" "$later" "$(run_cards | head -1 | cut -f1)"
+"$BOARD_CARD" set "$mid_tr" urgent true >/dev/null
+assert_eq "an urgent card comes before them all" "$mid_tr $later" "$(run_cards | head -2 | cut -f1 | paste -sd ' ' -)"
+"$BOARD_CARD" set "$mid_tr" urgent "" >/dev/null
+perl -pi -e 's/^epic: .*/epic: null/' "$("$BOARD_CARD" path "$free")"
+assert_eq "a card with no epic comes after every epic's cards" "$free" "$(run_cards | tail -1 | cut -f1)"
+"$BOARD_CARD" set "$free" epic EPIC-1 >/dev/null
+"$BOARD_CARD" set EPIC-2 rank 2 >/dev/null
+
 printf "\nTest group: the bare listing covers the columns an abandoned card sits in\n"
 
 assert_eq "a card left mid-BR is a candidate" "listed" "$(listed "$output" "$mid_br")"

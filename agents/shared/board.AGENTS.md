@@ -104,7 +104,7 @@ Every write `board-card` makes is committed to that repository. Writes to one re
 | `references/` | a reference ticket a complexity figure is compared against | `REF-4`                      |
 | `milestones/` | a dated marker across the plan, such as a launch           | `MS-1`                       |
 
-`ticket-waiting-cards` prints the cards waiting in a by-AI column with no `blocked` reason on them, one line each in the order they are picked, and `--claimed-by <session-id>` prints the ones a session holds.
+`ticket-waiting-cards` prints the cards waiting in a by-AI column with no `blocked` reason on them, one line each in the order they are picked, and `--claimed-by <session-id>` prints the ones a session holds. That order puts an urgent card first, then each epic's cards in the order of the epics' `rank`, and within one epic the cards by their own `rank`, a card with no epic coming after every epic's cards.
 
 Feature, bug and timebox cards share one number sequence, and `board-card set <id> type` renames a card to its new prefix, carrying its links, comments and claim with it.
 

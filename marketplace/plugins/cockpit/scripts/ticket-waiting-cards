@@ -9,8 +9,8 @@
 #
 #   <card-id>	<status>	<claim or ->	<name>	<live|stale|->
 #
-# in pick order: by rank, and a card with no rank by its ticket number, newest
-# first.
+# in pick order: an urgent card first, then by its epic's rank, then by its own
+# rank, and a card with no rank by its ticket number, newest first.
 #
 # Two callers, two questions. Bare, it answers the copilot skill's: which cards
 # are waiting in a by-AI column. With --claimed-by it answers which cards one
@@ -55,6 +55,7 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 cards="$("$(dirname "$0")/board-card" list --json)"
+epics="$("$(dirname "$0")/board-card" list --kind epic --json)"
 
 # The claim prints as `-` when empty, so an empty field can never be mistaken
 # for a missing column by whatever reads this.
@@ -62,13 +63,15 @@ cards="$("$(dirname "$0")/board-card" list --json)"
 # The verdict is appended in shell rather than computed in the jq program: it
 # reads a file's modification time, which jq cannot. Appending it keeps the
 # four fields before it in the positions a caller parses.
-printf '%s' "$cards" | jq --raw-output --arg session "$claimed_by" '
-  map(select(
+printf '%s' "$cards" | jq --raw-output --arg session "$claimed_by" --argjson epics "$epics" '
+  def number: .id | split("-") | .[1] | tonumber;
+  ($epics | sort_by([(.rank == null), (.rank // 0), number]) | to_entries | map({key: .value.id, value: .key}) | from_entries) as $priority
+  | map(select(
       if $session != "" then .session == $session
       else (.status | IN("Ready for BR by AI", "In BR by AI", "Ready for TR by AI", "In TR by AI", "In Dev", "In CR by AI"))
         and ((.blocked // "") == "")
       end))
-  | sort_by(.rank // -(.id | split("-") | .[1] | tonumber))
+  | sort_by([(if .urgent == true then 0 else 1 end), ($priority[.epic // ""] // ($epics | length)), (.rank // -number)])
   | .[]
   | [ .id,
       (.status // "?"),
