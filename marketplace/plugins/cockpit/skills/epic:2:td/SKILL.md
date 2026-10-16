@@ -1,6 +1,6 @@
 ---
 name: epic:2:td
-description: Write TD (technical design) output for a cockpit epic - Strategy Options, Solution Diagram, Uncertainties, and Epic Estimate. Use when an epic enters TD.
+description: Write TD (technical design) output for a cockpit epic - Strategy Options, Solution Diagram, Uncertainties, and an Epic Estimate summed from a high-level estimate on each ticket. Use when an epic enters TD.
 ---
 
 # TD
@@ -137,28 +137,19 @@ Work through the strategy systematically:
 
 ### Epic Estimate
 
-A relative estimate of the epic's technical scope compared to other epics:
+TD gives every ticket on the epic a high-level estimate, and the epic estimate is their sum. The epic carries no estimate of its own: the board works the same sum out from its open tickets wherever it shows the epic.
+
+1. **List the tickets** - `"$HOME/.cockpit/scripts/board-card" list --epic <epic-id> --json`. When the recommended strategy needs work no ticket covers yet, raise it with `"$HOME/.cockpit/scripts/board-card" create --name "<name>" --epic <epic-id>`.
+2. **Estimate each one** - every ticket that is not `Done`, not `Deprioritised` and not a timebox gets `"$HOME/.cockpit/scripts/board-card" set <ticket-id> estimate <points>`, a Fibonacci number on the scale in `~/.claude-shared/templates/cockpit-estimating.md`. A timebox takes none. TR's `complexity` replaces the estimate on the plan once it is set, so the estimate is a high-level figure and never a guess at the Tech Steps.
+3. **State the sum** - write the section from the figures just set, never a number of its own:
 
 ```
 ## Epic Estimate
-**M** (1-2 weeks) - similar scope to [reference epic name]; [number] integration
-points, [number] new components, moderate uncertainty
+**21 points** - the sum of the TD estimates on 6 tickets: FEAT-12 (8), FEAT-13 (5), FEAT-14 (3), FEAT-15 (2), FEAT-16 (2), FEAT-17 (1).
+Similar in scope to [delivered epic], which came to [its sum] points.
 ```
 
-| Size  | Duration   | Characteristics                                                  |
-| ----- | ---------- | ---------------------------------------------------------------- |
-| **S** | 1-3 days   | Single component change, no new integrations, low uncertainty    |
-| **M** | 1-2 weeks  | Multiple components, some integrations, moderate uncertainty     |
-| **L** | 1-3 months | Cross-system changes, many integrations, significant uncertainty |
-
-Base the estimate on:
-
-1. **Strategy complexity** - how many components does the strategy touch?
-2. **Integration points** - how many external systems or APIs?
-3. **Uncertainty count** - how many blockers remain?
-4. **Comparison** - how does this compare to completed epics on the board? `"$HOME/.cockpit/scripts/board-card" list --kind epic --status "Epic Done"` lists them.
-
-When other epics exist on the board with known durations, reference one as a comparison point. If no comparable epics exist, estimate on the characteristics alone.
+When other epics on the board are done, compare the sum to one of theirs; `"$HOME/.cockpit/scripts/board-card" list --kind epic --status "Epic Done"` lists them. A ticket raised later in BR or TR carries no estimate unless someone sets one, and the plan counts it as unsized until then.
 
 ## Workflow
 
@@ -169,7 +160,7 @@ When other epics exist on the board with known durations, reference one as a com
 5. **Evaluate and recommend** - evaluate each strategy against the quality metrics. Recommend the strongest option with a rationale.
 6. **Generate the solution diagram** - invoke `generate-web-diagram` to produce a visual of the recommended strategy's architecture/data flow/ER, and attach it to the epic.
 7. **Identify and resolve uncertainties** - work through the uncertainty methodology. Investigate each unknown; resolve what you can, flag what you can't.
-8. **Estimate** - compare the epic's scope against other epics on the board. Assign a T-shirt size with rationale.
+8. **Estimate** - give each open ticket a high-level estimate through `board-card set <ticket-id> estimate`, raising any ticket the strategy needs, and state the epic estimate as their sum.
 9. **Write to the epic** - write `## Strategy Options`, `## Solution Diagram`, `## Uncertainties`, and `## Epic Estimate` with `"$HOME/.cockpit/scripts/board-card" section <epic-id> "<heading>" --after "<previous heading>"`, the first after `Macro Estimate` and each next after the one before it. Each one already on the epic is rewritten where it stands rather than added twice.
 10. **Auto-advance epic status** - after all self-checks pass, if the epic's `Status` (from the step 1 read) is `Ready for TD by AI` or `In TD by AI`, advance it with `"$HOME/.cockpit/scripts/board-card" walk <epic-id> "Ready for TD"`. If the status is anything else, skip.
 
@@ -184,7 +175,7 @@ After writing TD content to the epic, verify:
 5. **Visual present** - a rendered diagram is attached to the epic and linked from `## Solution Diagram` (not just a text description).
 6. **Diagram type** - the diagram type matches what the epic changes (architecture for system boundaries, sequence for data flow, ER for data model).
 7. **Uncertainties addressed** - every uncertainty has a status (Resolved or Blocker). No uncertainty is left without a status.
-8. **Estimate present** - T-shirt size with rationale and comparison point.
+8. **Estimate present** - every open ticket that is not a timebox has an estimate on the board, and `## Epic Estimate` states their sum with no figure of its own.
 9. **No implementation details** - scan for file paths, function names, class names, code patterns, specific library APIs, or database schemas. These belong in TR, not TD. The strategy shows _what_ the system will look like, not _how_ to build it.
 10. **FD untouched** - `## Flow Diagram`, `## Edge Cases`, and `## Macro Estimate` are identical to before TD ran.
 
