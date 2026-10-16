@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArchivedRecord } from "@/app/archived";
 import { Ticket } from "@/app/ticket";
 import { progressOf } from "@/lib/metrics";
+import { estimatesOf } from "@/lib/plan";
 import {
 	BoardError,
 	type Card,
@@ -84,6 +85,7 @@ export default async function CardPage({ params, searchParams }: Props) {
 				.map(({ id, name, status }) => ({ id, name, status }))
 				.sort((a, b) => Number(phaseOf(a.status) === "done") - Number(phaseOf(b.status) === "done"))}
 			progresses={progresses}
+			estimates={kind === "epic" ? estimatesOf(cards.filter((card) => card.epic === record.id)) : undefined}
 			initial={record}
 			column={column}
 			records={records}

@@ -23,6 +23,7 @@ import {
 	themeCommands,
 } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
+import { EstimateFacts } from "@/app/estimates";
 import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -43,6 +44,7 @@ import {
 } from "@/app/toast";
 import { loadView, neighboursIn, type View } from "@/app/view";
 import type { Progress } from "@/lib/metrics";
+import type { Estimates } from "@/lib/plan";
 import {
 	type Card,
 	contentSearchFailed,
@@ -64,6 +66,7 @@ export function Ticket({
 	records,
 	attachments = [],
 	progresses = {},
+	estimates,
 	members = [],
 }: {
 	initial: Card;
@@ -73,6 +76,7 @@ export function Ticket({
 	records: Card[];
 	attachments?: string[];
 	progresses?: Record<string, Progress>;
+	estimates?: Estimates;
 	members?: Picked[];
 }) {
 	const router = useRouter();
@@ -441,6 +445,7 @@ export function Ticket({
 					</>
 				)}
 			</dl>
+			{estimates && <EstimateFacts estimates={estimates} />}
 			{kind && <Stages record={record} />}
 
 			<MentionContext.Provider value={mentions}>

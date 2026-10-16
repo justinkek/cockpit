@@ -178,7 +178,7 @@ A card's points on the plan are its `complexity` when set and its `estimate` oth
 
 The average speed counts only the `complexity` of the cards done in its window, and a done card with none, whatever its `estimate`, and a done timebox are counted beside it rather than in it.
 
-An epic's TD estimate and TR complexity are the sums of its open cards' `estimate` and `complexity`, worked out wherever the side panel, the Epics board or the plan shows them and never stored, the second with how many of those cards are sized.
+An epic's TD estimate and TR complexity are each shown as a total over all its cards but the deprioritised ones and as what is left on its open cards, the second with how many open cards are sized, worked out wherever its side panel, its card on the Epics board or its full page shows them and never stored. A figure none of those cards has reads as `-`, never 0, and the plan schedules on what is left alone.
 
 An epic's scheduled bar draws the length that rests on complexity solid and the length that rests on estimates hatched after it, then a `?` marker with no length while any open card is unsized, and an epic whose open cards are all unsized gets the marker alone.
 

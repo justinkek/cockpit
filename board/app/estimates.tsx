@@ -1,29 +1,33 @@
-import type { Remaining } from "@/lib/plan";
+import type { Estimates, Remaining } from "@/lib/plan";
 
 function plural(count: number, one: string, many: string) {
 	return `${count} ${count === 1 ? one : many}`;
 }
 
-export function tdEstimateText(remaining: Remaining) {
-	return remaining.estimated > 0 ? String(remaining.estimate) : "-";
+function figureOr(count: number, points: number) {
+	return count > 0 ? String(points) : "-";
 }
 
-export function trComplexityText(remaining: Remaining) {
-	return remaining.sized > 0 ? String(remaining.complexity) : "-";
+export function tdEstimateText({ total, left }: Estimates) {
+	return `${figureOr(total.estimated, total.estimate)} total · ${figureOr(left.estimated, left.estimate)} left`;
+}
+
+export function trComplexityText({ total, left }: Estimates) {
+	return `${figureOr(total.sized, total.complexity)} total · ${figureOr(left.sized, left.complexity)} left`;
 }
 
 export function sizedText(remaining: Remaining) {
-	return `${remaining.sized} of ${plural(remaining.tickets, "ticket", "tickets")} sized`;
+	return `${remaining.sized} of ${plural(remaining.tickets, "open ticket", "open tickets")} sized`;
 }
 
 export function estimatesTitle(remaining: Remaining) {
-	if (remaining.tickets === 0) return "No open tickets, so no TD estimate or TR complexity";
+	if (remaining.tickets === 0) return "No open tickets, so no TD estimate or TR complexity left";
 	const parts = [
 		remaining.estimated > 0
-			? `TD estimate ${remaining.estimate} pts across ${plural(remaining.estimated, "open ticket", "open tickets")}`
+			? `TD estimate ${remaining.estimate} pts left across ${plural(remaining.estimated, "open ticket", "open tickets")}`
 			: "No open ticket has a TD estimate",
 		remaining.sized > 0
-			? `TR complexity ${remaining.complexity} pts, ${sizedText(remaining)}`
+			? `TR complexity ${remaining.complexity} pts left, ${sizedText(remaining)}`
 			: `TR complexity: ${sizedText(remaining)}`,
 	];
 	if (remaining.unsized > 0)
@@ -33,23 +37,36 @@ export function estimatesTitle(remaining: Remaining) {
 	return parts.join("; ");
 }
 
-export function EstimatePill({ remaining }: { remaining: Remaining }) {
+function totalsTitle(estimates: Estimates) {
+	const { total } = estimates;
+	if (total.tickets === 0) return "No tickets, so no TD estimate or TR complexity";
+	return `Across all ${plural(total.tickets, "ticket", "tickets")}, deprioritised ones left out: TD estimate ${tdEstimateText(estimates)}, TR complexity ${trComplexityText(estimates)}. ${estimatesTitle(estimates.left)}`;
+}
+
+function pillText(counted: number, total: number, countedLeft: number, totalLeft: number) {
+	return counted > 0 ? `${total}, ${figureOr(countedLeft, totalLeft)} left` : "-";
+}
+
+export function EstimatePill({ estimates }: { estimates: Estimates }) {
+	const { left } = estimates;
 	return (
-		<span className="pill estimates" title={estimatesTitle(remaining)}>
-			TD {tdEstimateText(remaining)} · TR {trComplexityText(remaining)}
-			{remaining.tickets > 0 && (
+		<span className="pill estimates" title={totalsTitle(estimates)}>
+			TD {pillText(estimates.total.estimated, estimates.total.estimate, left.estimated, left.estimate)} · TR{" "}
+			{pillText(estimates.total.sized, estimates.total.complexity, left.sized, left.complexity)}
+			{left.tickets > 0 && (
 				<span className="estimates-sized">
 					{" "}
-					({remaining.sized}/{remaining.tickets})
+					({left.sized}/{left.tickets})
 				</span>
 			)}
 		</span>
 	);
 }
 
-export function EstimateFacts({ remaining, left = false }: { remaining: Remaining; left?: boolean }) {
+export function EstimateFacts({ estimates, left = false }: { estimates: Estimates; left?: boolean }) {
+	const remaining = estimates.left;
 	return (
-		<dl className="props estimate-facts" title={estimatesTitle(remaining)}>
+		<dl className="props estimate-facts" title={totalsTitle(estimates)}>
 			{left && (
 				<>
 					<dt>Points left</dt>
@@ -57,11 +74,11 @@ export function EstimateFacts({ remaining, left = false }: { remaining: Remainin
 				</>
 			)}
 			<dt>TD estimate</dt>
-			<dd>{remaining.estimated > 0 ? `${remaining.estimate} pts` : <span className="empty">-</span>}</dd>
+			<dd>{tdEstimateText(estimates)}</dd>
 			<dt>TR complexity</dt>
 			<dd>
-				{remaining.sized > 0 ? `${remaining.complexity} pts` : <span className="empty">-</span>}
-				{remaining.tickets > 0 && <span className="estimates-sized"> · {sizedText(remaining)}</span>}
+				{trComplexityText(estimates)}
+				{remaining.tickets > 0 && <span className="estimates-sized"> ({sizedText(remaining)})</span>}
 			</dd>
 			{remaining.unsized > 0 && (
 				<>

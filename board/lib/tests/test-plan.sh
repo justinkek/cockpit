@@ -74,6 +74,12 @@ assert_eq "an epic with no cards has nothing left" \
   '{"points":0,"complexity":0,"fromEstimate":0,"estimate":0,"open":0,"tickets":0,"sized":0,"estimated":0,"unsized":0,"done":0,"dropped":0}' \
   "$(evaluate 'p.remainingOf([])')"
 
+assert_eq "an epic's estimates total every ticket but a deprioritised one, a split parent and a timebox, beside what is left" \
+  '{"tickets":4,"estimate":11,"estimated":2,"complexity":8,"sized":2}|8' \
+  "$(evaluate "(() => { const e = p.estimatesOf($CARDS); return JSON.stringify(e.total) + '|' + e.left.points; })()")"
+assert_eq "an epic with no tickets has no totals, which read as none rather than zero" '0,0' \
+  "$(evaluate '(() => { const e = p.estimatesOf([]); return [e.total.estimated, e.total.sized].join(); })()')"
+
 printf "\nTest group: the average speed is the TR complexity done a week, or the sprint's speed, or a default\n"
 
 DONE='[{"status":"Done","complexity":5,"dates":{"Done":"2026-10-12T10:00:00Z"}},{"status":"Done","complexity":3,"dates":{"Done":"2026-09-10T10:00:00Z"}},{"status":"Done","dates":{"Done":"2026-08-01T10:00:00Z"}},{"status":"In Dev","complexity":8,"dates":{"Done":"2026-10-13T10:00:00Z"}}]'

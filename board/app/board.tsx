@@ -72,7 +72,7 @@ import {
 	type View,
 } from "@/app/view";
 import { type Progress, progressOf } from "@/lib/metrics";
-import { type Remaining, remainingOf } from "@/lib/plan";
+import { type Estimates as EpicEstimates, estimatesOf } from "@/lib/plan";
 import {
 	boardColumns,
 	bounces,
@@ -106,7 +106,7 @@ const AGED_AFTER = 5;
 const Names = createContext<Record<string, string>>({});
 
 const Progresses = createContext<Record<string, Progress>>({});
-const Estimates = createContext<Record<string, Remaining>>({});
+const Estimates = createContext<Record<string, EpicEstimates>>({});
 
 function Rollups({
 	progresses,
@@ -114,7 +114,7 @@ function Rollups({
 	children,
 }: {
 	progresses: Record<string, Progress>;
-	estimates: Record<string, Remaining>;
+	estimates: Record<string, EpicEstimates>;
 	children: ReactNode;
 }) {
 	return (
@@ -258,7 +258,7 @@ function Signals({ stub }: { stub: Stub }) {
 	return (
 		<>
 			{progress && progress.total > 0 && <ProgressMeter progress={progress} />}
-			{estimates && <EstimatePill remaining={estimates} />}
+			{estimates && <EstimatePill estimates={estimates} />}
 			{stub.type === "Timebox" && stub.timebox_mins != null && (
 				<span className="pill" title={`A timebox of ${stub.timebox_mins} minutes`}>
 					{stub.timebox_mins}m
@@ -689,7 +689,7 @@ function Peek({
 					</>
 				)}
 			</dl>
-			{kind === "epic" && <EstimateFacts remaining={remainingOf(cards)} />}
+			{kind === "epic" && <EstimateFacts estimates={estimatesOf(cards)} />}
 			{kind === "epic" && (
 				<section className="timeline">
 					<h3>
@@ -970,7 +970,7 @@ export function Board({
 	);
 	const estimates = useMemo(
 		() =>
-			kind === "epic" ? Object.fromEntries(stubs.map((stub) => [stub.id, remainingOf(children[stub.id] ?? [])])) : {},
+			kind === "epic" ? Object.fromEntries(stubs.map((stub) => [stub.id, estimatesOf(children[stub.id] ?? [])])) : {},
 		[kind, stubs, children],
 	);
 	const tableContext = useMemo(() => contextOf(kind, lists, progresses), [kind, lists, progresses]);

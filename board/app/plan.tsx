@@ -52,6 +52,7 @@ import {
 	CONFIDENCES,
 	dayOf,
 	dayText,
+	estimatesOf,
 	lateText,
 	mondayOf,
 	planOf,
@@ -60,7 +61,6 @@ import {
 	type Refinement,
 	refinementOf,
 	type Row,
-	remainingOf,
 	spanOf,
 	type AverageSpeed,
 	type Team,
@@ -642,7 +642,7 @@ function PlanPanel({
 				onCommit={(name) => handlers.onEdit("name", name, { name })}
 			/>
 			<Fields record={epic} lists={lists} handlers={handlers} />
-			<EstimateFacts remaining={remainingOf(cards)} left />
+			<EstimateFacts estimates={estimatesOf(cards)} left />
 			<section className="timeline">
 				<h3>
 					Cards <span className="count">{cards.length}</span>

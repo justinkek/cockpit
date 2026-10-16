@@ -146,6 +146,29 @@ export function remainingOf(cards: Sized[]): Remaining {
 	return left;
 }
 
+export type Totals = { tickets: number; estimate: number; estimated: number; complexity: number; sized: number };
+
+export type Estimates = { total: Totals; left: Remaining };
+
+export function estimatesOf(cards: Sized[]): Estimates {
+	const total: Totals = { tickets: 0, estimate: 0, estimated: 0, complexity: 0, sized: 0 };
+	for (const card of cards) {
+		if (card.status === "Deprioritised" || splitParent(card) || card.type === "Timebox") continue;
+		total.tickets += 1;
+		const complexity = positive(card.complexity);
+		const estimate = positive(card.estimate);
+		if (complexity != null) {
+			total.sized += 1;
+			total.complexity += complexity;
+		}
+		if (estimate != null) {
+			total.estimated += 1;
+			total.estimate += estimate;
+		}
+	}
+	return { total, left: remainingOf(cards) };
+}
+
 type Planned = Pick<
 	Card,
 	"id" | "status" | "start" | "target" | "rank" | "confidence" | "dates" | "moved" | "project" | "track"
