@@ -1645,6 +1645,7 @@ export function Board({
 			type: laneType ?? (view.types.length === 1 ? view.types[0] : undefined),
 			epic,
 			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
+			urgent: swimlane?.urgent,
 		});
 		const fresh = result.record;
 		if (!fresh) {

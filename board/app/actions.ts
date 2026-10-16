@@ -50,6 +50,7 @@ export type NewOptions = {
 	project?: string;
 	timeboxMins?: string;
 	icon?: string;
+	urgent?: boolean;
 };
 
 function refresh(id: string) {
@@ -164,6 +165,7 @@ export async function createCard(kind: Kind, name: string, status: string, optio
 			},
 		});
 		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
+		if (kind === "card" && options.urgent) await setField(id, "urgent", "true");
 		refresh(id);
 		return { record: await readRecord(id) };
 	} catch (error) {
