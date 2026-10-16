@@ -2907,41 +2907,6 @@
 }
 
 @layer components {
-	.wip {
-		display: inline-flex;
-		align-items: center;
-		height: 18px;
-		padding: 0 6px;
-		border-radius: 999px;
-		color: var(--faint);
-		font-size: 11.5px;
-		font-weight: 400;
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-
-		&.full {
-			color: var(--muted);
-			background: var(--surface);
-		}
-
-		&.over {
-			color: var(--danger);
-			font-weight: 500;
-			background: color-mix(in srgb, var(--danger) 12%, transparent);
-		}
-	}
-
-	.lane.over-limit {
-		box-shadow: inset 0 2px 0 var(--danger);
-	}
-
-	.lane.collapsed .wip {
-		height: auto;
-		padding: 6px 0;
-	}
-}
-
-@layer components {
 	.table-wrap {
 		flex: 1;
 		min-width: 0;
@@ -3800,36 +3765,12 @@
 		&.phase-validate {
 			background: var(--phase-validate);
 		}
-
-		&.over {
-			background: var(--danger);
-		}
-	}
-
-	.flow-limit {
-		position: absolute;
-		top: -3px;
-		bottom: -3px;
-		width: 2px;
-		margin-left: -1px;
-		background: var(--ink);
-		opacity: 0.55;
-		border-radius: 1px;
 	}
 
 	.flow-count {
 		text-align: right;
 		font-variant-numeric: tabular-nums;
 		color: var(--ink);
-
-		& span {
-			color: var(--faint);
-		}
-
-		&.over {
-			color: var(--danger);
-			font-weight: 600;
-		}
 	}
 
 	.week-bars {

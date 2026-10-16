@@ -10,7 +10,6 @@ import {
 	overrunTitle,
 	phaseOf,
 	showsOverrun,
-	wipLimit,
 } from "@/lib/board";
 import { burndownOf, currentSprint, flowOf, median, progressOf, span, throughputOf } from "@/lib/metrics";
 
@@ -65,7 +64,7 @@ export default async function ObeyaPage() {
 	const counts = Object.fromEntries(
 		FLOW_COLUMNS.map((column) => [column, cards.filter((card) => card.status === column).length]),
 	);
-	const flowTop = Math.max(1, ...FLOW_COLUMNS.map((column) => Math.max(counts[column], wipLimit("card", column) ?? 0)));
+	const flowTop = Math.max(1, ...FLOW_COLUMNS.map((column) => counts[column]));
 
 	const weeks = throughputOf(cards, WEEKS, new Date(now));
 	const weekTop = Math.max(1, ...weeks.map((week) => week.done));
@@ -124,33 +123,24 @@ export default async function ObeyaPage() {
 			<div className="obeya-grid">
 				<div className="report-card">
 					<h2>
-						Flow <span className="count">cards in each column against its WIP limit</span>
+						Flow <span className="count">cards in each column</span>
 					</h2>
 					<ul className="flow-bars">
 						{FLOW_COLUMNS.map((column) => {
 							const count = counts[column];
-							const limit = wipLimit("card", column);
-							const over = limit != null && count > limit;
 							return (
-								<li
-									key={column}
-									title={limit == null ? `${count} in ${column}` : `${count} in ${column}, of a WIP limit of ${limit}`}
-								>
+								<li key={column} title={`${count} in ${column}`}>
 									<span className="flow-name">
 										<span className={`dot phase-${phaseOf(column)}`} aria-hidden="true" />
 										{column}
 									</span>
 									<span className="flow-track">
 										<span
-											className={`flow-fill phase-${phaseOf(column)}${over ? " over" : ""}`}
+											className={`flow-fill phase-${phaseOf(column)}`}
 											style={{ width: `${(count / flowTop) * 100}%` }}
 										/>
-										{limit != null && <span className="flow-limit" style={{ left: `${(limit / flowTop) * 100}%` }} />}
 									</span>
-									<span className={`flow-count${over ? " over" : ""}`}>
-										{count}
-										{limit != null && <span>/{limit}</span>}
-									</span>
+									<span className="flow-count">{count}</span>
 								</li>
 							);
 						})}

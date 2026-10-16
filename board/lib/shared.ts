@@ -345,13 +345,3 @@ export function inPreset(record: Card, id: string, now = Date.now()) {
 	if (preset.id === PRESETS[0].id) return true;
 	return preset.columns.includes(record.status) && (preset.keeps?.(record, now) ?? true);
 }
-
-const UNLIMITED = ["Backlog", "Ready for Sprint", "Sprint Backlog", "Done"];
-
-export const WIP_LIMITS: Record<string, number> = Object.fromEntries(
-	CARD_COLUMNS.filter((column) => !UNLIMITED.includes(column)).map((column) => [column, column === "In CR" ? 2 : 5]),
-);
-
-export function wipLimit(kind: Kind, column: string): number | null {
-	return kind === "card" ? (WIP_LIMITS[column] ?? null) : null;
-}
