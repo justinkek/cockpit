@@ -57,6 +57,8 @@ import {
 	planOf,
 	planOrder,
 	pointsOf,
+	type Refinement,
+	refinementOf,
 	type Row,
 	remainingOf,
 	spanOf,
@@ -455,6 +457,12 @@ function runTitle(row: Row) {
 	return `${figure(points)} pts left, ${figure(complexity)} on TR complexity and ${figure(fromEstimate)} on TD estimates. ${estimatesTitle(row.remaining)}`;
 }
 
+function refinementText(refinement: Refinement) {
+	return refinement.source === "measured"
+		? `${refinement.days} days on average from leaving Backlog to Tickets In Dev, over ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}`
+		: `${refinement.days} days, a default, as no epic has gone from leaving Backlog to Tickets In Dev yet`;
+}
+
 function tracksText(count: number) {
 	if (count === 0) return "no tracks";
 	return count === 1 ? "1 track" : `${count} tracks`;
@@ -838,14 +846,24 @@ export function Plan({
 		);
 	}, [epics, drag]);
 
-	const rows = useMemo(() => planOf(shown, cards, teams, today), [shown, cards, teams, today]);
-	const committedRows = useMemo(() => planOf(epics, cards, teams, today), [epics, cards, teams, today]);
+	const refinement = useMemo(() => refinementOf(epics), [epics]);
+	const rows = useMemo(() => planOf(shown, cards, teams, today, refinement), [shown, cards, teams, today, refinement]);
+	const committedRows = useMemo(
+		() => planOf(epics, cards, teams, today, refinement),
+		[epics, cards, teams, today, refinement],
+	);
 
 	const span = useMemo(
 		() =>
 			spanOf(
 				[
-					...Object.values(committedRows).flatMap((row) => [row.start, row.target, row.projected, row.doneDay]),
+					...Object.values(committedRows).flatMap((row) => [
+						row.refineStart,
+						row.refineEnd,
+						row.target,
+						row.projected,
+						row.doneDay,
+					]),
 					...milestones.map((milestone) => dayOf(milestone.date)),
 				],
 				today,
@@ -1403,6 +1421,18 @@ export function Plan({
 		}
 		return notes;
 	});
+	for (const project of projects) {
+		const limit = tracksOf(project.id);
+		const refining = Object.values(committedRows).filter(
+			(row) => row.team === project.id && row.phase === "refinement",
+		);
+		if (limit > 0 && refining.length > limit) {
+			trackNotes.push({
+				key: `refining-${project.id}`,
+				text: `${project.name} has ${refining.length} epics in refinement, over its limit of ${limit}, its share of the tracks: ${refining.map((row) => nameOf(row.id)).join(", ")}. The plan forecasts each of them, and holds its next epic in Backlog until enough of them are refined.`,
+			});
+		}
+	}
 
 	if (!hydrated) {
 		return (
@@ -1422,6 +1452,35 @@ export function Plan({
 		const ends: number[] = [];
 		const pieces: ReactNode[] = [];
 		const scheduled = `on track ${row.track} at ${figure(row.perWeek)} points a week: ${runTitle(row)}`;
+		if (row.refineStart != null && row.refineEnd != null) {
+			const refinedTo = Math.min(row.refineEnd, today);
+			if (refinedTo > row.refineStart) {
+				pieces.push(
+					<span
+						key="refined"
+						className="plan-refine"
+						style={{ left: x(row.refineStart), width: x(refinedTo) - x(row.refineStart) }}
+						title={
+							row.refineForecast
+								? `In refinement since ${short(row.refineStart)}`
+								: `Refined from ${short(row.refineStart)} to ${short(row.refineEnd)}, when it reached Tickets In Dev`
+						}
+					/>,
+				);
+			}
+			const from = Math.max(row.refineStart, today);
+			if (row.refineForecast && row.refineEnd > from) {
+				pieces.push(
+					<span
+						key="refining"
+						className="plan-refine forecast"
+						style={{ left: x(from), width: x(row.refineEnd) - x(from) }}
+						title={`${row.phase === "backlog" ? `Refinement forecast to start ${short(row.refineStart)}, when a refinement slot of ${teamName(row.team)} frees, and` : "Refinement"} forecast to end ${short(row.refineEnd)}: ${refinementText(refinement)}`}
+					/>,
+				);
+			}
+			ends.push(row.refineEnd);
+		}
 		if (row.pausedUntil != null) {
 			pieces.push(
 				<span
@@ -1807,6 +1866,17 @@ export function Plan({
 							{boardCount > allocated ? ` · ${boardCount - allocated} unallocated` : " · none unallocated"}
 						</span>
 					</div>
+					<div title={`Refinement still to come is forecast at this: ${refinementText(refinement)}`}>
+						<span className="stat-label">Refinement</span>
+						<span className="stat-value">
+							{refinement.days} <span>days · {refinement.source === "measured" ? "measured" : "default"}</span>
+						</span>
+						<span className="plan-speed-from">
+							{refinement.source === "measured"
+								? `from ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}, Backlog to Tickets In Dev`
+								: "no epic refined yet"}
+						</span>
+					</div>
 					<div title="Open tickets with neither a TR complexity nor a TD estimate, left out of every sum and date">
 						<span className="stat-label">Unsized</span>
 						<span className="stat-value">
@@ -2020,6 +2090,12 @@ export function Plan({
 					</button>
 					<span>
 						<span className="legend-bar" /> Start to target
+					</span>
+					<span>
+						<span className="legend-refine" /> Refinement done
+					</span>
+					<span>
+						<span className="legend-refine forecast" /> Refinement forecast
 					</span>
 					<span>
 						<span className="legend-run" /> Scheduled on TR complexity

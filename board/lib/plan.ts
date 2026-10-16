@@ -7,6 +7,7 @@ export type Confidence = (typeof CONFIDENCES)[number];
 
 export const AVERAGE_SPEED_WEEKS = 6;
 export const DEFAULT_AVERAGE_SPEED = 10;
+export const DEFAULT_REFINEMENT_DAYS = 14;
 export const PAST_DAYS = 730;
 export const FUTURE_DAYS = 1826;
 
@@ -266,8 +267,28 @@ export function planOrder<T extends Pick<Card, "id" | "rank" | "target">>(epics:
 	);
 }
 
+export type Refinement = { days: number; source: "measured" | "default"; epics: number };
+
+export function refinementOf(epics: Pick<Card, "start" | "dates">[]): Refinement {
+	const spans = epics.flatMap((epic) => {
+		const start = dayOf(epic.start);
+		const at = timeOf(epic.dates?.["Tickets In Dev"]);
+		const end = at == null ? null : localDay(new Date(at));
+		return start != null && end != null && end >= start ? [end - start] : [];
+	});
+	if (spans.length === 0) return { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 };
+	const days = Math.max(1, Math.round(spans.reduce((sum, span) => sum + span, 0) / spans.length));
+	return { days, source: "measured", epics: spans.length };
+}
+
+export type Phase = "backlog" | "refinement" | "delivery" | "done";
+
 export type Row = {
 	id: string;
+	phase: Phase;
+	refineStart: number | null;
+	refineEnd: number | null;
+	refineForecast: boolean;
 	team: string;
 	remaining: Remaining;
 	done: boolean;
@@ -293,6 +314,7 @@ export function planOf(
 	cards: (Sized & Pick<Card, "epic"> & Partial<Pick<Card, "dates" | "moved">>)[],
 	teams: Record<string, Team> | number,
 	today: number,
+	refinement: Refinement = { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 },
 ): Record<string, Row> {
 	const rows: Record<string, Row> = {};
 	const byEpic: Record<string, Worked[]> = {};
@@ -315,8 +337,22 @@ export function planOf(
 			const target = dayOf(epic.target);
 			const own = byEpic[epic.id] ?? [];
 			const pin = epic.track != null && epic.track > 0 ? Math.floor(epic.track) : null;
+			const inProgress = inProgressOf(epic, own);
+			const refinedAt = timeOf(epic.dates?.["Tickets In Dev"]) ?? (inProgress ? startedAt(epic, own) : null);
+			const phase: Phase =
+				epic.status === "Epic Done"
+					? "done"
+					: refinedAt != null || inProgress
+						? "delivery"
+						: epic.status === "Backlog"
+							? "backlog"
+							: "refinement";
 			const row: Row = {
 				id: epic.id,
+				phase,
+				refineStart: phase === "backlog" ? null : start,
+				refineEnd: refinedAt == null ? null : localDay(new Date(refinedAt)),
+				refineForecast: false,
 				team,
 				remaining: remainingOf(own),
 				done: epic.status === "Epic Done",
@@ -330,7 +366,7 @@ export function planOf(
 				needed: null,
 				atRisk: false,
 				perWeek,
-				inProgress: inProgressOf(epic, own),
+				inProgress,
 				track: null,
 				pin,
 				pinIgnored: pin != null && pin > tracks,
@@ -349,7 +385,26 @@ export function planOf(
 			}
 		}
 		if (tracks === 0) continue;
-		const readyOf = (row: Row) => Math.max(today, row.start ?? today);
+		const busy: number[] = [];
+		for (const row of Object.values(rows)) {
+			if (row.team !== team || row.phase !== "refinement") continue;
+			row.refineStart ??= today;
+			row.refineEnd = Math.max(today, row.refineStart + refinement.days);
+			row.refineForecast = true;
+			busy.push(row.refineEnd);
+		}
+		let slot = today;
+		for (const row of Object.values(rows)) {
+			if (row.team !== team || row.phase !== "backlog") continue;
+			const ends = [...busy].sort((a, b) => a - b);
+			const freed = ends.length >= tracks ? ends[ends.length - tracks] : today;
+			slot = Math.max(slot, freed);
+			row.refineStart = slot;
+			row.refineEnd = slot + refinement.days;
+			row.refineForecast = true;
+			busy.push(row.refineEnd);
+		}
+		const readyOf = (row: Row) => Math.max(today, row.phase === "delivery" ? today : (row.refineEnd ?? today));
 		const laneOf = (row: Row) => (row.pin != null && !row.pinIgnored ? row.pin - 1 : null);
 		const waiting = queue.filter((row) => row.remaining.points > 0);
 		for (const row of queue) {
@@ -376,7 +431,7 @@ export function planOf(
 				waiting.splice(waiting.indexOf(row), 1);
 				row.track = lane + 1;
 				row.begin = now;
-				if (row.inProgress && row.begin > Math.max(today, row.start ?? today)) row.pausedUntil = row.begin;
+				if (row.inProgress && row.begin > today) row.pausedUntil = row.begin;
 				const days = Math.ceil(row.remaining.points / perDay);
 				row.projected = row.begin + Math.max(0, days - 1);
 				free[lane] = row.begin + days;
