@@ -39,10 +39,12 @@ assert_contains() {
 fresh_board() {
   export COCKPIT_BOARD_DIR="$TMPDIR/board-$1"
   "$BOARD_CARD" init >/dev/null
+  "$BOARD_CARD" create --kind project --name Home >/dev/null
+  "$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
 }
 
 card_in() {
-  "$BOARD_CARD" create --name "$2" --status "$1"
+  "$BOARD_CARD" create --epic EPIC-1 --name "$2" --status "$1"
 }
 
 run_watch() {

@@ -107,7 +107,13 @@ export async function findRenamed(id: string): Promise<string | null> {
 	return null;
 }
 
-export type CreateOptions = { type?: string; epic?: string; body?: string; fields?: Record<string, string> };
+export type CreateOptions = {
+	type?: string;
+	epic?: string;
+	project?: string;
+	body?: string;
+	fields?: Record<string, string>;
+};
 
 export async function createRecord(
 	kind: RecordKind,
@@ -119,6 +125,7 @@ export async function createRecord(
 	if (status) args.push("--status", status);
 	if (kind === "card" && options.type) args.push("--type", options.type);
 	if (kind === "card" && options.epic) args.push("--epic", options.epic);
+	if ((kind === "card" || kind === "epic") && options.project) args.push("--project", options.project);
 	for (const [field, value] of Object.entries(options.fields ?? {})) {
 		if (value) args.push(`--${field.replace(/_/g, "-")}`, value);
 	}

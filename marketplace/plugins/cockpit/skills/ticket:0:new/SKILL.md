@@ -33,6 +33,8 @@ Read the current session's card id from `~/.local/state/claude-ticket-sessions/<
 
 If the concern clearly belongs to a different epic, pick the closest match among the open epics in that listing and post what decided it on the new card - never ask.
 
+With no session card to take an epic from, ask the person which open epic the new card belongs to. Every card has an epic, so `board-card create` refuses one without `--epic`.
+
 Same-project siblings follow the epic gate's rule: pick by the kind of work (diff on the product → dev epic, reporting or process → delivery epic), never by the closer name.
 
 **From register:** epic is resolved by register's epic gate - skip.

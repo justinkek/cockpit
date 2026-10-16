@@ -37,16 +37,18 @@ printf "Test group: a stub is created and read with nothing but the scripts\n"
 stub init >/dev/null
 assert_eq "the board is its own git repository" "true" "$([ -d "$COCKPIT_BOARD_DIR/.git" ] && echo true)"
 assert_eq "init is committed on its own" "init" "$(last_commit %s)"
-assert_eq "a feature is numbered with FEAT" "FEAT-1" "$(stub create --name 'Parent: with a colon')"
-assert_eq "a bug is numbered with BUG and shares the sequence" "BUG-2" "$(stub create --name Child --type Bug)"
+stub create --kind project --name Home >/dev/null
+stub create --kind epic --project PRJ-1 --name Home >/dev/null
+assert_eq "a feature is numbered with FEAT" "FEAT-1" "$(stub create --epic EPIC-1 --name 'Parent: with a colon')"
+assert_eq "a bug is numbered with BUG and shares the sequence" "BUG-2" "$(stub create --epic EPIC-1 --name Child --type Bug)"
 assert_eq "a create is committed under its verb and id" "create BUG-2" "$(last_commit %s)"
 assert_eq "a commit carries the board's own identity with no git config to borrow" "board-card" "$(last_commit %an)"
 assert_eq "a new stub starts in Backlog" "Backlog" "$(field FEAT-1 .status)"
 assert_eq "a name with a colon survives the round trip" "Parent: with a colon" "$(field FEAT-1 .name)"
 assert_eq "ticket-read answers for a stub id" "Status	Backlog" "$(bash "$SCRIPTS/ticket-read" FEAT-1 Status)"
-stub create --name Bad --type Epic >/dev/null 2>&1
+stub create --epic EPIC-1 --name Bad --type Epic >/dev/null 2>&1
 assert_eq "a type outside the three is refused" "2" "$?"
-stub create --name Bad --source https://example.com >/dev/null 2>&1
+stub create --epic EPIC-1 --name Bad --source https://example.com >/dev/null 2>&1
 assert_eq "a card links to no other board" "2" "$?"
 
 printf "\nTest group: a stub moves between columns\n"
@@ -240,29 +242,49 @@ assert_eq "and refuses a record that does not exist" "3" "$?"
 
 printf "\nTest group: epics have their own columns\n"
 
-assert_eq "an epic is numbered on its own" "EPIC-1" "$(stub create --kind epic --name "Local board")"
-assert_eq "an epic starts in Backlog" "Backlog" "$(field EPIC-1 .status)"
-assert_eq "and has no start while it waits there" "null" "$(field EPIC-1 .start)"
-COCKPIT_NOW=2026-10-16T09:00:00Z stub walk EPIC-1 "Ready for FD" >/dev/null
-assert_eq "an epic walks its own columns and stamps them" "Backlog Ready for FD by AI In FD by AI Ready for FD" "$(field EPIC-1 '.dates | keys_unsorted | join(" ")')"
-assert_eq "leaving Backlog stamps the epic's start" "2026-10-16" "$(field EPIC-1 .start)"
-stub move EPIC-1 Backlog >/dev/null
-COCKPIT_NOW=2026-10-20T09:00:00Z stub move EPIC-1 "Ready for FD" >/dev/null
-assert_eq "and leaving it again keeps the first start" "2026-10-16" "$(field EPIC-1 .start)"
+assert_eq "an epic is numbered on its own" "EPIC-2" "$(stub create --kind epic --project PRJ-1 --name "Local board")"
+assert_eq "an epic starts in Backlog" "Backlog" "$(field EPIC-2 .status)"
+assert_eq "and has no start while it waits there" "null" "$(field EPIC-2 .start)"
+COCKPIT_NOW=2026-10-16T09:00:00Z stub walk EPIC-2 "Ready for FD" >/dev/null
+assert_eq "an epic walks its own columns and stamps them" "Backlog Ready for FD by AI In FD by AI Ready for FD" "$(field EPIC-2 '.dates | keys_unsorted | join(" ")')"
+assert_eq "leaving Backlog stamps the epic's start" "2026-10-16" "$(field EPIC-2 .start)"
+stub move EPIC-2 Backlog >/dev/null
+COCKPIT_NOW=2026-10-20T09:00:00Z stub move EPIC-2 "Ready for FD" >/dev/null
+assert_eq "and leaving it again keeps the first start" "2026-10-16" "$(field EPIC-2 .start)"
 assert_eq "an epic created past Backlog starts the day it is created" "2026-10-21" \
-  "$(COCKPIT_NOW=2026-10-21T09:00:00Z stub create --kind epic --name "Straight in" --status "Ready for FD by AI" >/dev/null; field EPIC-2 .start)"
-stub archive EPIC-2 >/dev/null
-stub move EPIC-1 "In Dev" >/dev/null 2>&1
+  "$(COCKPIT_NOW=2026-10-21T09:00:00Z stub create --kind epic --project PRJ-1 --name "Straight in" --status "Ready for FD by AI" >/dev/null; field EPIC-3 .start)"
+stub archive EPIC-3 >/dev/null
+stub move EPIC-2 "In Dev" >/dev/null 2>&1
 assert_eq "a card column is refused on an epic" "2" "$?"
-stub set BUG-2 epic EPIC-1 >/dev/null
-assert_eq "a card names its epic by id" "BUG-2" "$(stub list --epic EPIC-1 | cut -f1)"
+stub set BUG-2 epic EPIC-2 >/dev/null
+assert_eq "a card names its epic by id" "BUG-2" "$(stub list --epic EPIC-2 | cut -f1)"
 stub set BUG-2 epic FEAT-1 >/dev/null 2>&1
 assert_eq "a card is not an epic" "2" "$?"
-stub set BUG-2 epic "" >/dev/null
+stub set BUG-2 epic "" >/dev/null 2>&1
+assert_eq "a card's epic is never cleared, as every card has one" "2" "$?"
+assert_eq "and the card keeps it" "EPIC-2" "$(field BUG-2 .epic)"
+
+printf "\nTest group: every card has an epic and every epic a project\n"
+
+stub create --name Homeless >/dev/null 2>&1
+assert_eq "a card created with no epic is refused" "2" "$?"
+stub create --name Misplaced --epic FEAT-1 >/dev/null 2>&1
+assert_eq "and so is one whose epic is not an epic" "2" "$?"
+stub create --kind epic --name Unowned >/dev/null 2>&1
+assert_eq "an epic created with no project is refused" "2" "$?"
+stub create --kind epic --name Misowned --project EPIC-1 >/dev/null 2>&1
+assert_eq "and so is one whose project is not a project" "2" "$?"
+owned="$(stub create --kind epic --name Owned --project PRJ-1)"
+assert_eq "an epic takes its project on create" "PRJ-1" "$(field "$owned" .project)"
+stub set "$owned" project "" >/dev/null 2>&1
+assert_eq "and never loses it" "2 PRJ-1" "$? $(field "$owned" .project)"
+stub create --kind reference --name Unrelated --project PRJ-1 >/dev/null 2>&1
+assert_eq "only a card or an epic belongs to a project" "2" "$?"
+stub archive "$owned" >/dev/null
 
 printf "\nTest group: a card's id follows its type\n"
 
-assert_eq "a timebox is numbered with TIME" "TIME-3" "$(stub create --name Spike --type Timebox)"
+assert_eq "a timebox is numbered with TIME" "TIME-3" "$(stub create --epic EPIC-1 --name Spike --type Timebox)"
 stub link FEAT-1 TIME-3 >/dev/null
 printf 'note' | stub comment TIME-3 >/dev/null
 assert_eq "changing the type renames the card" "renamed TIME-3 to FEAT-3" "$(stub set TIME-3 type Feature | sed -n 1p)"
@@ -274,10 +296,10 @@ assert_eq "the rename is one commit naming every record it touched" "set FEAT-1 
 stub set FEAT-3 type feature >/dev/null 2>&1
 assert_eq "a type outside the three is refused on set" "2" "$?"
 assert_eq "and the card keeps its file and its type" "FEAT-3 Feature" "$(field FEAT-3 '"\(.id) \(.type)"')"
-stub set EPIC-1 type Bug >/dev/null 2>&1
+stub set EPIC-2 type Bug >/dev/null 2>&1
 assert_eq "only a card has a type" "2" "$?"
 assert_eq "and the epic is not copied in as a card" "true false" \
-  "$([ -f "$COCKPIT_BOARD_DIR/epics/EPIC-1.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/cards/BUG-1.md" ] && echo true || echo false)"
+  "$([ -f "$COCKPIT_BOARD_DIR/epics/EPIC-2.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/cards/BUG-1.md" ] && echo true || echo false)"
 sed 's/"FEAT-3"/"BUG-3"/' "$COCKPIT_BOARD_DIR/cards/FEAT-3.md" > "$COCKPIT_BOARD_DIR/cards/BUG-3.md"
 stub set FEAT-3 type Bug >/dev/null 2>&1
 assert_eq "a type whose id is already taken is refused" "2" "$?"
@@ -285,7 +307,7 @@ assert_eq "before anything is written" "Feature" "$(field FEAT-3 .type)"
 assert_eq "so a refused write leaves nothing behind" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 rm "$COCKPIT_BOARD_DIR/cards/BUG-3.md"
 stub unlink FEAT-1 FEAT-3 >/dev/null
-stub create --name Bad --assignee me >/dev/null 2>&1
+stub create --epic EPIC-1 --name Bad --assignee me >/dev/null 2>&1
 assert_eq "a card has no assignee" "2" "$?"
 
 printf "\nTest group: a record carries one emoji as its icon\n"
@@ -312,14 +334,14 @@ stub set FEAT-1 icon "🚀🚀" >/dev/null 2>&1
 assert_eq "nor are two emoji" "2" "$?"
 stub set FEAT-1 icon "" >/dev/null
 assert_eq "an empty icon clears it" "null" "$(field FEAT-1 .icon)"
-icon_epic="$(stub create --kind epic --name "With an icon" --icon "🧭")"
+icon_epic="$(stub create --kind epic --project PRJ-1 --name "With an icon" --icon "🧭")"
 assert_eq "create takes an icon for any kind" "🧭" "$(field "$icon_epic" .icon)"
-stub create --name "Bad icon" --icon "x" >/dev/null 2>&1
+stub create --epic EPIC-1 --name "Bad icon" --icon "x" >/dev/null 2>&1
 assert_eq "and refuses one that is not an emoji" "2" "$?"
 
 printf "\nTest group: a timebox carries its budget in minutes\n"
 
-timebox="$(stub create --name "Spike two" --type Timebox)"
+timebox="$(stub create --epic EPIC-1 --name "Spike two" --type Timebox)"
 assert_eq "a new timebox starts with an hour" "60" "$(field "$timebox" .timebox_mins)"
 assert_eq "the budget reads back under its property name" "Timebox (mins)	90" "$(stub set "$timebox" timebox_mins 90)"
 stub set "$timebox" timebox_mins 0 >/dev/null 2>&1
@@ -328,11 +350,11 @@ stub set "$timebox" timebox_mins 1.5 >/dev/null 2>&1
 assert_eq "so is part of a minute" "2" "$?"
 stub set "$timebox" timebox_mins "" >/dev/null
 assert_eq "an empty budget clears it" "null" "$(field "$timebox" .timebox_mins)"
-assert_eq "create takes a budget of its own" "30" "$(field "$(stub create --name "Spike three" --type Timebox --timebox-mins 30)" .timebox_mins)"
-assert_eq "a feature starts with none" "null" "$(field "$(stub create --name "No budget")" .timebox_mins)"
-stub set EPIC-1 timebox_mins 30 >/dev/null 2>&1
+assert_eq "create takes a budget of its own" "30" "$(field "$(stub create --epic EPIC-1 --name "Spike three" --type Timebox --timebox-mins 30)" .timebox_mins)"
+assert_eq "a feature starts with none" "null" "$(field "$(stub create --epic EPIC-1 --name "No budget")" .timebox_mins)"
+stub set EPIC-2 timebox_mins 30 >/dev/null 2>&1
 assert_eq "only a card has a timebox" "2" "$?"
-turned="$(stub create --name "Becomes a spike")"
+turned="$(stub create --epic EPIC-1 --name "Becomes a spike")"
 turned="$(stub set "$turned" type Timebox | sed -n 's/^renamed .* to //p')"
 assert_eq "a card turned into a timebox starts with an hour too" "60" "$(field "$turned" .timebox_mins)"
 stub set "$turned" timebox_mins 45 >/dev/null
@@ -368,7 +390,7 @@ stub set "$sprint" status "" >/dev/null
 assert_eq "and one given a status before is cleared of it" "Active null" "$(git -C "$COCKPIT_BOARD_DIR" show HEAD~1:"sprints/$sprint.md" | sed -n 's/^status: "\(.*\)"$/\1/p') $(field "$sprint" .status)"
 stub set FEAT-1 start 2026-10-12 >/dev/null 2>&1
 assert_eq "only a sprint has dates" "2" "$?"
-stub create --name "Not a sprint" --speed 3 >/dev/null 2>&1
+stub create --epic EPIC-1 --name "Not a sprint" --speed 3 >/dev/null 2>&1
 assert_eq "nor does create give a card a speed" "2" "$?"
 
 printf "\nTest group: a project is ranked and moves through three states\n"
@@ -413,7 +435,7 @@ stub set "$reference" points "1 2" >/dev/null 2>&1
 assert_eq "and so are two numbers" "2 3" "$? $(field "$reference" .points)"
 stub set "$reference" domain Ops >/dev/null 2>&1
 assert_eq "a domain is Tech or Bizdev" "2" "$?"
-stub set "$reference" card EPIC-1 >/dev/null 2>&1
+stub set "$reference" card EPIC-2 >/dev/null 2>&1
 assert_eq "the card is a card" "2" "$?"
 stub set "$reference" card FEAT-99 >/dev/null 2>&1
 assert_eq "and one the board holds" "3" "$?"
@@ -437,7 +459,7 @@ assert_eq "an archived record cannot be read as if it were on the board" "3" "$?
 assert_eq "and the refusal says how to bring it back" "true" "$(stub show BUG-2 Status 2>&1 | grep --quiet 'board-card unarchive BUG-2' && echo true)"
 assert_eq "path names the file where it now lies" "$COCKPIT_BOARD_DIR/archive/cards/BUG-2.md" "$(stub path BUG-2)"
 assert_eq "and attachments names where its attachments now lie" "$COCKPIT_BOARD_DIR/archive/attachments/BUG-2/flow.svg" "$(stub attachments BUG-2)"
-numbered="$(stub create --name "After the archive")"
+numbered="$(stub create --epic EPIC-1 --name "After the archive")"
 assert_eq "an archived record's number is not given out again" "true" "$([ "${numbered##*-}" -gt 2 ] && echo true)"
 assert_eq "and a record never made, the file it would be" "$COCKPIT_BOARD_DIR/cards/FEAT-999.md" "$(stub path FEAT-999)"
 assert_eq "unarchive brings it back with its comments and attachments" "unarchived BUG-2 true true" \
@@ -453,7 +475,7 @@ stub set "$naming_reference" card BUG-2 >/dev/null
 stub archive BUG-2 >/dev/null 2>&1
 assert_eq "nor is a card a reference ticket names" "2" "$?"
 stub set "$naming_reference" card "" >/dev/null
-dangling_epic="$(stub create --kind epic --name "Soon gone")"
+dangling_epic="$(stub create --kind epic --project PRJ-1 --name "Soon gone")"
 stub set BUG-2 epic "$dangling_epic" >/dev/null
 stub archive "$dangling_epic" >/dev/null 2>&1
 assert_eq "nor an epic a card still names" "2" "$?"
@@ -461,9 +483,10 @@ assert_eq "and the refusal names the card and the field" "true" \
   "$(stub archive "$dangling_epic" 2>&1 | grep --quiet --fixed-strings "BUG-2 (epic)" && echo true)"
 mkdir -p "$COCKPIT_BOARD_DIR/archive/epics"
 mv "$COCKPIT_BOARD_DIR/epics/$dangling_epic.md" "$COCKPIT_BOARD_DIR/archive/epics/"
-assert_eq "a copy leaves out an epic that is no longer on the board" "null" "$(field "$(stub duplicate BUG-2 --name "Copy with no epic")" .epic)"
+stub duplicate BUG-2 --name "Copy with no epic" >/dev/null 2>&1
+assert_eq "a card whose epic is no longer on the board is not copied, as the copy would have none" "2" "$?"
 mv "$COCKPIT_BOARD_DIR/archive/epics/$dangling_epic.md" "$COCKPIT_BOARD_DIR/epics/"
-stub set BUG-2 epic "" >/dev/null
+stub set BUG-2 epic EPIC-2 >/dev/null
 assert_eq "an epic nothing names is archived" "archived $dangling_epic" "$(stub archive "$dangling_epic")"
 
 copy="$(stub duplicate BUG-2)"
@@ -472,14 +495,14 @@ assert_eq "named after the one it copies" "Copy of $(field BUG-2 .name)" "$(fiel
 assert_eq "with its body and complexity" "true $(field BUG-2 .complexity)" "$(stub show BUG-2 --json | jq --arg body "$(field "$copy" .body)" '.body == $body') $(field "$copy" .complexity)"
 assert_eq "starting in the first column, with no comments of its own" "Backlog 0" "$(field "$copy" .status) $(stub comments "$copy" --json | jq length)"
 assert_eq "a duplicate is committed under its verb and the new id" "duplicate $copy" "$(last_commit %s)"
-named="$(stub duplicate EPIC-1 --name "Next month's chores" --status "Ready for FD")"
+named="$(stub duplicate EPIC-2 --name "Next month's chores" --status "Ready for FD")"
 assert_eq "an epic copies too, under the name and column given" "Next month's chores|Ready for FD" "$(field "$named" '"\(.name)|\(.status)"')"
 stub duplicate "$project" >/dev/null 2>&1
 assert_eq "only a card or an epic is duplicated" "2" "$?"
 
 printf "\nTest group: a record's history, and undoing its last change\n"
 
-undoable="$(stub create --name "First name")"
+undoable="$(stub create --epic EPIC-1 --name "First name")"
 stub set "$undoable" name "Second name" >/dev/null
 printf 'a question' | stub comment "$undoable" >/dev/null
 assert_eq "history lists the record's commits, newest first, one line each" "comment $undoable|set $undoable|create $undoable" \
@@ -495,7 +518,7 @@ assert_eq "and leaves the change before it alone" "Second name" "$(field "$undoa
 stub set "$undoable" name "Third name" >/dev/null
 stub undo "$undoable" >/dev/null
 assert_eq "an undo after a set brings the name back" "Second name 1" "$(field "$undoable" .name) $(stub comments "$undoable" --json | jq length)"
-fresh_record="$(stub create --name "Just made")"
+fresh_record="$(stub create --epic EPIC-1 --name "Just made")"
 stub undo "$fresh_record" >/dev/null 2>&1
 assert_eq "a record with no earlier version has nothing to undo" "2" "$?"
 stub archive "$undoable" >/dev/null
@@ -506,8 +529,8 @@ assert_eq "a record the board never held has no history" "3" "$?"
 
 printf "\nTest group: history and undo follow a record across a rename and the archive\n"
 
-renamed_parent="$(stub create --name "Parent of a renamed card")"
-renamed="$(stub create --name "Renamed card")"
+renamed_parent="$(stub create --epic EPIC-1 --name "Parent of a renamed card")"
+renamed="$(stub create --epic EPIC-1 --name "Renamed card")"
 stub set "$renamed" name "Renamed card, named again" >/dev/null
 stub link "$renamed_parent" "$renamed" >/dev/null
 as_bug="$(stub set "$renamed" type Bug | sed -n 's/^renamed .* to //p')"
@@ -529,14 +552,14 @@ stub unarchive "$renamed" >/dev/null
 stub undo "$renamed" >/dev/null
 assert_eq "and undoing an unarchive puts it back in the archive" "$COCKPIT_BOARD_DIR/archive/cards/$renamed.md" "$(stub path "$renamed")"
 stub unarchive "$renamed" >/dev/null
-named_epic="$(stub create --kind epic --name "Back from the archive")"
+named_epic="$(stub create --kind epic --project PRJ-1 --name "Back from the archive")"
 stub archive "$named_epic" >/dev/null
 stub unarchive "$named_epic" >/dev/null
 stub set "$renamed" epic "$named_epic" >/dev/null
 stub undo "$named_epic" >/dev/null 2>&1
 assert_eq "but not while another record names it" "2 $COCKPIT_BOARD_DIR/epics/$named_epic.md" "$? $(stub path "$named_epic")"
-stub set "$renamed" epic "" >/dev/null
-attached="$(stub create --name "Attached, renamed and archived")"
+stub set "$renamed" epic EPIC-1 >/dev/null
+attached="$(stub create --epic EPIC-1 --name "Attached, renamed and archived")"
 printf 'note' > "$TMPDIR/note.txt"
 stub attach "$attached" "$TMPDIR/note.txt" >/dev/null
 attached_bug="$(stub set "$attached" type Bug | sed -n 's/^renamed .* to //p')"
@@ -560,8 +583,8 @@ assert_eq "and an empty folder already waiting under its id is replaced rather t
 
 printf "\nTest group: undo keeps both sides of a link, and the claim lock, in step with the record\n"
 
-link_parent="$(stub create --name "Linked parent")"
-link_child="$(stub create --name "Linked child")"
+link_parent="$(stub create --epic EPIC-1 --name "Linked parent")"
+link_child="$(stub create --epic EPIC-1 --name "Linked child")"
 stub link "$link_parent" "$link_child" >/dev/null
 stub undo "$link_child" >/dev/null
 assert_eq "undoing a link from the child's side unlinks the parent too" "[] null []" \
@@ -576,7 +599,7 @@ stub unlink "$link_parent" "$link_child" >/dev/null
 
 printf "\nTest group: undo --since takes back every change after a commit in one write\n"
 
-dropped="$(stub create --name "Dropped across columns")"
+dropped="$(stub create --epic EPIC-1 --name "Dropped across columns")"
 stub set "$dropped" rank 4 >/dev/null
 since="$(stub history "$dropped" | head -1 | cut -f1)"
 stub walk "$dropped" "Ready for BR" >/dev/null
@@ -599,7 +622,7 @@ assert_eq "undo --since takes back a link along with the change after it" "Linke
 
 printf "\nTest group: undo --until refuses to take back a change it did not make\n"
 
-guarded="$(stub create --name "Guarded")"
+guarded="$(stub create --epic EPIC-1 --name "Guarded")"
 since="$(stub history "$guarded" | head -1 | cut -f1)"
 stub set "$guarded" complexity 3 >/dev/null
 until="$(stub history "$guarded" | head -1 | cut -f1)"
@@ -620,20 +643,20 @@ assert_eq "--until without --since is refused" "2" "$?"
 
 printf "\nTest group: a write the filesystem refuses fails with its status\n"
 
-unwritable="$(stub create --name "Unwritable")"
+unwritable="$(stub create --epic EPIC-1 --name "Unwritable")"
 chmod a-w "$COCKPIT_BOARD_DIR/cards"
 stub set "$unwritable" name "Never written" >/dev/null 2>&1
 set_status=$?
 stub walk "$unwritable" "In BR" >/dev/null 2>&1
 walk_status=$?
-created="$(stub create --name "Never made" 2>/dev/null)"
+created="$(stub create --epic EPIC-1 --name "Never made" 2>/dev/null)"
 create_status=$?
 chmod u+w "$COCKPIT_BOARD_DIR/cards"
 assert_eq "a set, a walk and a create each fail, and the create prints no id" "true true true " \
   "$([ "$set_status" -ne 0 ] && echo true) $([ "$walk_status" -ne 0 ] && echo true) $([ "$create_status" -ne 0 ] && echo true) $created"
 assert_eq "the record is left as it was" "Unwritable Backlog" "$(field "$unwritable" .name) $(field "$unwritable" .status)"
 
-claimed="$(stub create --name "Claimed then undone")"
+claimed="$(stub create --epic EPIC-1 --name "Claimed then undone")"
 stub claim "$claimed" >/dev/null
 stub undo "$claimed" >/dev/null
 assert_eq "undoing a claim lets the lock go with it" "null " "$(field "$claimed" .session) $(bash "$SCRIPTS/ticket-claim-lock" owner "$claimed")"
@@ -671,13 +694,13 @@ assert_eq "a card that never reached In Dev is not overrunning" "0 false" "$(der
 assert_eq "list carries the same values" "27 true" \
   "$(COCKPIT_NOW=2026-10-13T16:45:51Z stub list --json | jq --raw-output '.[] | select(.id == "FEAT-901") | "\(.days_in_column) \(.overrunning)"')"
 assert_eq "and none of it is written to the record" "" "$(grep --extended-regexp '^(days_in_column|overrunning):' "$COCKPIT_BOARD_DIR/cards/FEAT-901.md")"
-assert_eq "an epic carries neither" "false" "$(stub show EPIC-1 --json | jq 'has("overrunning")')"
+assert_eq "an epic carries neither" "false" "$(stub show EPIC-2 --json | jq 'has("overrunning")')"
 rm "$COCKPIT_BOARD_DIR"/cards/FEAT-90[1-6].md "$COCKPIT_BOARD_DIR"/cards/TIME-90[45].md
-timed="$(stub create --name "Waiting for TR by AI")"
+timed="$(stub create --epic EPIC-1 --name "Waiting for TR by AI")"
 COCKPIT_NOW=2026-10-05T10:00:00Z stub move "$timed" "Ready for TR by AI" >/dev/null
 assert_eq "a move into Ready for TR by AI stamps it, so its days count" "2026-10-05T10:00:00Z 6" \
   "$(field "$timed" '.dates["Ready for TR by AI"]') $(COCKPIT_NOW=2026-10-13T10:00:00Z stub show "$timed" --json | jq '.days_in_column')"
-bounced="$(stub create --name "Bounced back from review")"
+bounced="$(stub create --epic EPIC-1 --name "Bounced back from review")"
 stub set "$bounced" complexity 2 >/dev/null
 COCKPIT_NOW=2026-10-01T10:00:00Z stub move "$bounced" "In Dev" >/dev/null
 COCKPIT_NOW=2026-10-01T11:00:00Z stub move "$bounced" "Ready for CR" >/dev/null
@@ -723,13 +746,13 @@ COCKPIT_NOW=2026-10-14T12:00:00Z stub resolve BUG-2 "$resolved_thread" >/dev/nul
 assert_eq "and so does resolving one" "2026-10-14T12:00:00Z" "$(field BUG-2 .updated)"
 COCKPIT_NOW=2026-10-14T12:30:00Z stub resolve BUG-2 "$resolved_thread" >/dev/null
 assert_eq "but not resolving it again" "2026-10-14T12:00:00Z" "$(field BUG-2 .updated)"
-fresh="$(COCKPIT_NOW=2026-10-14T13:00:00Z stub create --name Fresh)"
+fresh="$(COCKPIT_NOW=2026-10-14T13:00:00Z stub create --epic EPIC-1 --name Fresh)"
 assert_eq "a new record is stamped when it is made" "2026-10-14T13:00:00Z 2026-10-14T13:00:00Z" "$(field "$fresh" '"\(.created) \(.updated)"')"
 
 printf "\nTest group: every write is a commit in the board's own repository\n"
 
 stub set BUG-2 epic EPIC-1 >/dev/null
-assert_eq "one field change is one changed line beside the stamp of when it changed" '-epic: null
+assert_eq "one field change is one changed line beside the stamp of when it changed" '-epic: "EPIC-2"
 +epic: "EPIC-1"' "$(git -C "$COCKPIT_BOARD_DIR" show --unified=0 --format= HEAD | grep '^[-+][a-z]' | grep --invert-match '^[-+]updated:')"
 assert_eq "nothing is left uncommitted, and the lock never reaches git" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
@@ -776,9 +799,9 @@ assert_eq "leaving nothing uncommitted" "" "$(git -C "$COCKPIT_BOARD_DIR" status
 
 printf "\nTest group: search finds the cards whose content holds the text\n"
 
-found_one="$(printf 'Unblocked by the Wiring Fix\n' | stub create --name "Searched for" --body - | tail -1)"
-found_two="$(printf -- '---\nwiring fix, written lower\n' | stub create --name "Second hit" --body - | tail -1)"
-stub create --name "Wiring fix in the name alone" >/dev/null
+found_one="$(printf 'Unblocked by the Wiring Fix\n' | stub create --epic EPIC-1 --name "Searched for" --body - | tail -1)"
+found_two="$(printf -- '---\nwiring fix, written lower\n' | stub create --epic EPIC-1 --name "Second hit" --body - | tail -1)"
+stub create --epic EPIC-1 --name "Wiring fix in the name alone" >/dev/null
 assert_eq "a fixed string matches whatever its case, in id order" "$found_one $found_two" "$(stub search "WIRING FIX" | paste -sd ' ' -)"
 assert_eq "the name and the other fields are not content" "" "$(stub search "Backlog")"
 assert_eq "a pattern is read as plain text" "" "$(stub search "W.ring")"
@@ -810,7 +833,7 @@ assert_eq "and a directory with no board is refused" "3" "$?"
 
 printf "\nTest group: a comment is edited, deleted and reopened, and counted on the list\n"
 
-discussed="$(stub create --name "Discussed" | tail -1)"
+discussed="$(stub create --epic EPIC-1 --name "Discussed" | tail -1)"
 printf 'first take' | stub comment "$discussed" --author justin >/dev/null
 printf 'an agent asks' | stub comment "$discussed" --author "claude one" >/dev/null
 printf 'a reply' | stub comment "$discussed" --reply c2 --author justin >/dev/null
@@ -850,10 +873,11 @@ inbox_board="$TMPDIR/inbox-board"
 inbox() { COCKPIT_BOARD_DIR="$inbox_board" COCKPIT_AUTHOR=justin stub "$@"; }
 agent() { COCKPIT_BOARD_DIR="$inbox_board" COCKPIT_AUTHOR="claude one" stub "$@"; }
 inbox init >/dev/null
-COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Talked about" >/dev/null
-COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Waiting on review" >/dev/null
-COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Stuck" >/dev/null
-COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --kind epic --name "An epic" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --kind project --name Home >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --kind epic --project PRJ-1 --name "An epic" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --epic EPIC-1 --name "Talked about" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --epic EPIC-1 --name "Waiting on review" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --epic EPIC-1 --name "Stuck" >/dev/null
 printf 'my own note' | COCKPIT_NOW=2026-10-14T10:00:00Z inbox comment FEAT-1 >/dev/null
 printf 'an agent asks' | COCKPIT_NOW=2026-10-14T10:05:00Z inbox comment FEAT-1 --author "claude one" >/dev/null
 printf 'on the epic' | COCKPIT_NOW=2026-10-14T10:06:00Z inbox comment EPIC-1 --author "claude two" >/dev/null
@@ -892,7 +916,7 @@ inbox inbox --read yesterday >/dev/null 2>&1
 assert_eq "a read time that is not a time is refused" "2" "$?"
 inbox inbox --author >/dev/null 2>&1
 assert_eq "and so is --author with no name" "2" "$?"
-COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --name "Mine to move" >/dev/null
+COCKPIT_NOW=2026-10-14T09:00:00Z inbox create --epic EPIC-1 --name "Mine to move" >/dev/null
 COCKPIT_NOW=2026-10-14T14:00:00Z inbox walk FEAT-4 "Ready for CR" >/dev/null
 COCKPIT_NOW=2026-10-14T14:05:00Z inbox set FEAT-4 blocked "my own block" >/dev/null
 assert_eq "a move and a block record who made them" "justin justin" \

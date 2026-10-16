@@ -128,8 +128,10 @@ moved_past() {
 }
 
 board init >/dev/null
+board create --kind project --name Home >/dev/null
+board create --kind epic --name Home --project PRJ-1 >/dev/null
 printf '## Validation Steps\n\n- [ ] AaUser I see a thing\n' \
-  | board create --name Probe --type Feature --status "In BR by AI" --body - >/dev/null
+  | board create --epic EPIC-1 --name Probe --type Feature --status "In BR by AI" --body - >/dev/null
 printf '**[suggestion]** a redraft\n**[why]** a reason\n' \
   | COCKPIT_AUTHOR="claude abcdef12" board comment FEAT-1 --anchor "I see a thing" >/dev/null
 sleep 1

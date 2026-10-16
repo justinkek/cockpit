@@ -46,11 +46,13 @@ guard_properties() {
 board() { bash "$SCRIPTS/board-card" "$@"; }
 
 board init >/dev/null
-parent="$(board create --name Parent)"
-part="$(board create --name Part)"
+board create --kind project --name Home >/dev/null
+board create --kind epic --name Home --project PRJ-1 >/dev/null
+parent="$(board create --epic EPIC-1 --name Parent)"
+part="$(board create --epic EPIC-1 --name Part)"
 board link "$parent" "$part" >/dev/null
-bug="$(board create --name Defect --type Bug)"
-timebox="$(board create --name "[30m] Research" --type Timebox)"
+bug="$(board create --epic EPIC-1 --name Defect --type Bug)"
+timebox="$(board create --epic EPIC-1 --name "[30m] Research" --type Timebox)"
 
 printf "Test group: the guard reads every property a later step decides on\n"
 

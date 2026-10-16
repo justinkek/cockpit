@@ -147,7 +147,6 @@ export async function createCard(kind: Kind, name: string, status: string, optio
 			},
 		});
 		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
-		if (options.project) await setField(id, "project", options.project);
 		refresh(id);
 		return { record: await readRecord(id) };
 	} catch (error) {

@@ -41,7 +41,8 @@ assert_contains() {
 TAB="$(printf '\t')"
 
 "$BOARD_CARD" init >/dev/null
-"$BOARD_CARD" create --kind epic --name "an epic" >/dev/null
+"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind epic --project PRJ-1 --name "an epic" >/dev/null
 CARD="$("$BOARD_CARD" create --name "A ticket fetch returns the properties skills read" --status "Ready for BR" --epic EPIC-1 --body - <<'BODY'
 ## Validation Steps
 

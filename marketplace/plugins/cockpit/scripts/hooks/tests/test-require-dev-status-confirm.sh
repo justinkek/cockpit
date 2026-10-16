@@ -152,7 +152,9 @@ printf "\nTest group: the board decides Done, so a card a person dragged there s
 
 board_card="$here/../../board-card"
 "$board_card" init > /dev/null
-card="$("$board_card" create --name "dragged by hand" --status "In Dev")"
+"$board_card" create --kind project --name Home > /dev/null
+"$board_card" create --kind epic --name Home --project PRJ-1 > /dev/null
+card="$("$board_card" create --epic EPIC-1 --name "dragged by hand" --status "In Dev")"
 
 session="board-session"
 printf '%s\n' "$card" > "$state_directory/$session.ticket"

@@ -42,9 +42,11 @@ wait_for_commits() {
 printf "Test group: writes to one record close together become one commit for that record once they stop\n"
 
 COCKPIT_COMMIT_DELAY=0 stub init >/dev/null
-COCKPIT_COMMIT_DELAY=0 stub create --name First >/dev/null
-COCKPIT_COMMIT_DELAY=0 stub create --name Second >/dev/null
-COCKPIT_COMMIT_DELAY=0 stub create --name Third >/dev/null
+COCKPIT_COMMIT_DELAY=0 stub create --kind project --name Home >/dev/null
+COCKPIT_COMMIT_DELAY=0 stub create --kind epic --name Home --project PRJ-1 >/dev/null
+COCKPIT_COMMIT_DELAY=0 stub create --epic EPIC-1 --name First >/dev/null
+COCKPIT_COMMIT_DELAY=0 stub create --epic EPIC-1 --name Second >/dev/null
+COCKPIT_COMMIT_DELAY=0 stub create --epic EPIC-1 --name Third >/dev/null
 before="$(commits)"
 
 export COCKPIT_COMMIT_DELAY=2
@@ -128,7 +130,7 @@ assert_eq "a write whose process has exited is still committed once quiet" "set 
 printf "\nTest group: an epic's target and the due dates it holds wait as one commit, which either record's history takes\n"
 
 export COCKPIT_COMMIT_DELAY=0
-epic="$(stub create --kind epic --name Payments)"
+epic="$(stub create --kind epic --project PRJ-1 --name Payments)"
 card="$(stub create --name "Held by the epic" --epic "$epic")"
 export COCKPIT_COMMIT_DELAY=60
 before="$(commits)"

@@ -42,8 +42,10 @@ SESSION="test-session-end-$$"
 ln -s "$BOARD_CARD" "$ROOT/board-card"
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 "$ROOT/board-card" init >/dev/null
+"$ROOT/board-card" create --kind project --name Home >/dev/null
+"$ROOT/board-card" create --kind epic --name Home --project PRJ-1 >/dev/null
 for name in mine "mine, mid-dev" theirs unclaimed; do
-  "$ROOT/board-card" create --name "$name" >/dev/null
+  "$ROOT/board-card" create --epic EPIC-1 --name "$name" >/dev/null
 done
 cat > "$ROOT/ticket-claim-lock" <<STUB
 #!/usr/bin/env bash

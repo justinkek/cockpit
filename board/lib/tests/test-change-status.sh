@@ -56,8 +56,10 @@ for (const name of ["board", "shared"]) {
 ' "$BOARD" "$WORK"
 
 "$BOARD_CARD" init >/dev/null
-"$BOARD_CARD" create --name "Dragged" >/dev/null
-"$BOARD_CARD" create --name "Dragged back" --status "In Dev" >/dev/null
+"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
+"$BOARD_CARD" create --epic EPIC-1 --name "Dragged" >/dev/null
+"$BOARD_CARD" create --epic EPIC-1 --name "Dragged back" --status "In Dev" >/dev/null
 
 change_status() {
   node --input-type=module -e '

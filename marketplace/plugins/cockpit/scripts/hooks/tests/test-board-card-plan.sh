@@ -36,10 +36,11 @@ refused() {
 dues() { stub list --json | jq --raw-output 'map("\(.id)=\(.due // "-")@\(.due_from // "-")") | join(" ")'; }
 
 stub init >/dev/null
+stub create --kind project --name Home >/dev/null
 
 printf "Test group: an epic carries the fields the plan reads\n"
 
-stub create --kind epic --name Checkout >/dev/null
+stub create --kind epic --project PRJ-1 --name Checkout >/dev/null
 stub set EPIC-1 start 2026-10-05 >/dev/null
 assert_eq "an epic takes a start date" "2026-10-05" "$(field EPIC-1 .start)"
 stub set EPIC-1 target 2026-11-30 >/dev/null
@@ -61,14 +62,14 @@ assert_eq "a new epic is ranked below every other" "1" "$(field EPIC-1 .rank)"
 stub set EPIC-1 rank -1.5 >/dev/null
 assert_eq "an epic's place in the plan is its rank" "Rank	-1.5" "$(stub show EPIC-1 Rank)"
 assert_eq "a plan rank of its own is refused, pointing at the rank" "2" "$(refused set EPIC-1 plan_rank 1)"
-stub create --name "A card" >/dev/null
+stub create --epic EPIC-1 --name "A card" >/dev/null
 assert_eq "a card has no target" "2" "$(refused set FEAT-1 target 2026-11-30)"
 assert_eq "a card has no confidence" "2" "$(refused set FEAT-1 confidence "On track")"
 assert_eq "a card has no start date" "2" "$(refused set FEAT-1 start 2026-10-05)"
-assert_eq "an epic is created with its dates" "EPIC-2" "$(stub create --kind epic --name Search --start 2026-10-01 --target 2026-10-31)"
+assert_eq "an epic is created with its dates" "EPIC-2" "$(stub create --kind epic --project PRJ-1 --name Search --start 2026-10-01 --target 2026-10-31)"
 assert_eq "and keeps them" "2026-10-01 2026-10-31" "$(field EPIC-2 '"\(.start) \(.target)"')"
 assert_eq "an epic created with its target before its start is refused" "2" \
-  "$(refused create --kind epic --name Bad --start 2026-10-31 --target 2026-10-01)"
+  "$(refused create --kind epic --project PRJ-1 --name Bad --start 2026-10-31 --target 2026-10-01)"
 
 assert_eq "the next epic created is ranked below the lowest" "-1" "$(field EPIC-2 .rank)"
 
@@ -77,7 +78,8 @@ printf "\nTest group: migrate gives every epic one rank, the plan's order first\
 migrated="$TMPDIR/migrated"
 mkdir -p "$migrated"
 COCKPIT_BOARD_DIR="$migrated" stub init >/dev/null
-for name in Placed Dragged Dated Plain; do COCKPIT_BOARD_DIR="$migrated" stub create --kind epic --name "$name" >/dev/null; done
+COCKPIT_BOARD_DIR="$migrated" stub create --kind project --name Home >/dev/null
+for name in Placed Dragged Dated Plain; do COCKPIT_BOARD_DIR="$migrated" stub create --kind epic --project PRJ-1 --name "$name" >/dev/null; done
 for epic in 1 2 3 4; do perl -ni -e 'print unless /^rank: /' "$migrated/epics/EPIC-$epic.md"; done
 perl -pi -e 's/^(name: .*)$/$1\nplan_rank: 5/' "$migrated/epics/EPIC-1.md"
 perl -pi -e 's/^(name: .*)$/$1\nrank: -8/' "$migrated/epics/EPIC-2.md"
@@ -88,7 +90,7 @@ ranks() { COCKPIT_BOARD_DIR="$migrated" stub list --kind epic --json | jq --raw-
 assert_eq "an epic placed in the plan comes first, then one dragged on the board, then by target and number" \
   "EPIC-1=1 EPIC-2=2 EPIC-3=3 EPIC-4=4" "$(ranks)"
 assert_eq "and migrate names each epic it ranked" "4" "$(printf '%s\n' "$output" | grep --count rank)"
-assert_eq "the whole migration is one commit" "migrate EPIC-1 EPIC-2 EPIC-3 EPIC-4" "$(git -C "$migrated" log -1 --format=%s)"
+assert_eq "the whole migration is one commit" "migrate EPIC-1 EPIC-2 EPIC-3 EPIC-4 PRJ-1" "$(git -C "$migrated" log -1 --format=%s)"
 assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(COCKPIT_BOARD_DIR="$migrated" stub migrate)"
 assert_eq "and changes nothing" "EPIC-1=1 EPIC-2=2 EPIC-3=3 EPIC-4=4" "$(ranks)"
 
@@ -111,7 +113,7 @@ assert_eq "and undo puts it back" "MS-1" "$(stub list --kind milestone --json | 
 
 printf "\nTest group: an epic's target holds its cards' due dates\n"
 
-stub create --kind epic --name Payments >/dev/null
+stub create --kind epic --project PRJ-1 --name Payments >/dev/null
 stub create --name "No due" --epic EPIC-3 >/dev/null
 stub create --name "Due later" --epic EPIC-3 >/dev/null
 stub create --name "Due earlier" --epic EPIC-3 >/dev/null
@@ -152,16 +154,17 @@ stub set EPIC-3 target 2026-11-20 >/dev/null
 stub set EPIC-2 target 2026-11-05 >/dev/null
 stub set FEAT-2 epic EPIC-2 >/dev/null
 assert_eq "a card joining an epic is held to its target" "2026-11-05@EPIC-2" "$(field FEAT-2 '"\(.due)@\(.due_from // "-")"')"
-stub set FEAT-2 epic "" >/dev/null
-assert_eq "a card leaving every epic drops the due date the target set" "null@-" "$(field FEAT-2 '"\(.due)@\(.due_from // "-")"')"
+stub set EPIC-1 target "" >/dev/null
+stub set FEAT-2 epic EPIC-1 >/dev/null
+assert_eq "a card moving to an epic with no target drops the due date the old one set" "null@-" "$(field FEAT-2 '"\(.due)@\(.due_from // "-")"')"
 stub create --name "Born held" --epic EPIC-3 >/dev/null
 assert_eq "a card created in an epic with a target starts held to it" "2026-11-20@EPIC-3" "$(field FEAT-7 '"\(.due)@\(.due_from // "-")"')"
-stub create --name "Own date" >/dev/null
+stub create --epic EPIC-1 --name "Own date" >/dev/null
 stub set FEAT-8 due 2026-12-31 >/dev/null
 stub set FEAT-8 epic EPIC-3 >/dev/null
 assert_eq "a card joining an epic whose target is earlier than its own date is held to the target" "2026-11-20@EPIC-3" "$(field FEAT-8 '"\(.due)@\(.due_from // "-")"')"
-stub set FEAT-8 epic "" >/dev/null
-assert_eq "and leaving it gets its own date back" "2026-12-31@-" "$(field FEAT-8 '"\(.due)@\(.due_from // "-")"')"
+stub set FEAT-8 epic EPIC-1 >/dev/null
+assert_eq "and leaving it for one with no target gets its own date back" "2026-12-31@-" "$(field FEAT-8 '"\(.due)@\(.due_from // "-")"')"
 stub set FEAT-3 epic EPIC-2 >/dev/null
 assert_eq "a held card moving to another epic takes the new target" "2026-11-05@EPIC-2" "$(field FEAT-3 '"\(.due)@\(.due_from // "-")"')"
 stub set EPIC-1 target "" >/dev/null
@@ -179,7 +182,7 @@ assert_eq "which puts the card's due date back" "2026-11-20" "$(field FEAT-7 .du
 
 printf "\nTest group: a card carries a high-level estimate apart from its complexity\n"
 
-estimated="$(stub create --name "Estimated")"
+estimated="$(stub create --epic EPIC-1 --name "Estimated")"
 assert_eq "a new card has no estimate" "null" "$(field "$estimated" .estimate)"
 stub set "$estimated" estimate 5 >/dev/null
 assert_eq "a Fibonacci estimate is kept" "5" "$(field "$estimated" .estimate)"
@@ -191,7 +194,7 @@ assert_eq "an epic has no estimate of its own" "2" "$(refused set EPIC-1 estimat
 assert_eq "a copy carries the estimate" "5" "$(field "$(stub duplicate "$estimated")" .estimate)"
 stub set "$estimated" estimate "" >/dev/null
 assert_eq "an empty estimate clears it" "null" "$(field "$estimated" .estimate)"
-timebox="$(stub create --name "Spike" --type Timebox)"
+timebox="$(stub create --epic EPIC-1 --name "Spike" --type Timebox)"
 assert_eq "a timebox carries no estimate" "2" "$(refused set "$timebox" estimate 3)"
 stub set "$estimated" estimate 3 >/dev/null
 estimated="$(stub set "$estimated" type Timebox >/dev/null; stub list --json | jq --raw-output 'map(select(.name == "Estimated")) | .[0].id')"
@@ -248,8 +251,8 @@ given_project="$(on_shared create --kind project --name Given)"
 idle_project="$(on_shared create --kind project --name Idle)"
 on_shared set "$given_project" tracks 2 >/dev/null
 for project in "$open_project" "$done_project" "$given_project"; do
-  epic="$(on_shared create --kind epic --name "Of $project")"
-  on_shared set "$epic" project "$project" >/dev/null
+  epic="$(on_shared create --kind epic --project "$project" --name "Of $project")"
+  [ "$project" != "$open_project" ] || on_shared create --epic "$epic" --name "Of the open project" >/dev/null
   [ "$project" != "$done_project" ] || on_shared move "$epic" "Epic Done" >/dev/null
 done
 printf '3\n' > "$shared/no-project-tracks"
@@ -261,6 +264,10 @@ assert_eq "the count the epics with no project had is dropped" "false" "$([ -f "
 assert_eq "and migrate names each change" "$open_project	tracks 1|no-project-tracks	removed|tracks	3" \
   "$(printf '%s\n' "$output" | grep --invert-match rank | sort | paste -sd '|' -)"
 assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(on_shared migrate)"
+perl -pi -e 's/^epic: .*/epic: null/' "$shared/cards/FEAT-1.md"
+perl -pi -e 's/^project: .*/project: null/' "$shared/epics/EPIC-1.md"
+assert_eq "migrate names a card with no epic and an epic with no project, which only a person can give them" \
+  "FEAT-1	needs an epic|EPIC-1	needs a project" "$(on_shared migrate | paste -sd '|' -)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

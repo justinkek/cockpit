@@ -108,6 +108,8 @@ Every write `board-card` makes is committed to that repository. Writes to one re
 
 Feature, bug and timebox cards share one number sequence, and `board-card set <id> type` renames a card to its new prefix, carrying its links, comments and claim with it.
 
+Every card has an epic and every epic a project. `create` refuses a card without `--epic` and an epic without `--project`, `set` refuses to clear either, and `duplicate` refuses a record whose epic or project is no longer on the board. `create --project` gives a card or an epic its project from the start.
+
 A card id is accepted wherever a ticket URL was: `ticket-register` records it, `ticket-read` answers for it, and `ticket-claim-lock` locks it. `board-card statuses [--kind epic]` prints the columns in walk order.
 
 `board-card move` lands on one column, and `board-card walk` steps every column up to the target and refuses to go backwards. Each stamps a column's date on first arrival only. `Deprioritised` sits outside the walk: `move` puts a card there or takes it out, and `walk` refuses either. A card's place within its column is its `rank`, lowest first; a card with none sorts as the negative of its ticket number, so the newest comes first.
@@ -148,7 +150,7 @@ A reference ticket's `points` (a Fibonacci number), `why`, `description`, `domai
 
 `board-card archive <id>` moves a record, its comments and its attachments under `archive/`, where `list` passes it by unless given `--archived`. It refuses a card still linked to another, and any record another one still names as its epic, project, sprint or card, so nothing on the board is left pointing at an id it cannot read. `board-card unarchive <id>` puts an archived record back on the board, and `board-card path <id>` names the file a record lies in, archived or not.
 
-`board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity, estimate and timebox, in the first column unless `--name` or `--status` say otherwise. An epic or project no longer on the board is left off the copy.
+`board-card duplicate <id>` makes a new card or epic of the same type named `Copy of <name>`, carrying its content, epic, icon, complexity, estimate and timebox, in the first column unless `--name` or `--status` say otherwise. A card's own project no longer on the board is left off the copy.
 
 `board-card history <id>` prints the commits that touched a record, under every id it has held and in or out of the archive, newest first, one line each holding the commit, its time and its subject. `board-card undo <id>` writes the record, its comments and its attachments back as they stood before the last of those commits, as a commit of its own, so a second undo takes back the first. Any other record that commit changed is left as it is, but for the card across a link the undo makes or takes away, which gains or loses its own side of it. The claim lock is taken or let go to match the session the record then names, and an undo naming one session while another holds the lock is refused. `--since <commit>`, given a commit from that history, writes the record back as it stood at that commit instead, taking back every change after it in one commit - the board app uses it to take back a drop that both moved and reordered a card. `--until <commit>`, given the last commit of the change being taken back, refuses the undo when a later commit has touched the record, so a change made from another tab or by an agent is never taken back with it.
 
@@ -172,7 +174,7 @@ An epic's scheduled bar draws the length that rests on complexity solid and the 
 
 An epic's row on the plan carries no figure of its own: its TD estimate, its TR complexity with how many tickets are sized, its unsized count and its points left show on hovering its bar or markers and in its side panel.
 
-`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`. It gives each project with no share and an epic not in `Epic Done` a share of 1, sets the board's count of tracks to the shares added up when there is none, and removes the old `no-project-tracks` file.
+`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`. It gives each project with no share and an epic not in `Epic Done` a share of 1, sets the board's count of tracks to the shares added up when there is none, and removes the old `no-project-tracks` file. It names each card with no epic and each epic with no project, which only a person can give them.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 

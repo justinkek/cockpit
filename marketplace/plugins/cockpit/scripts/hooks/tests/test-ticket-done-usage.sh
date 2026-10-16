@@ -85,7 +85,9 @@ printf "Test group: board-card usage writes null onto a card nothing measured\n"
 
 reset_state
 bash "$SCRIPTS/board-card" init >/dev/null
-card="$(bash "$SCRIPTS/board-card" create --name "A desktop session ticket")"
+bash "$SCRIPTS/board-card" create --kind project --name Home >/dev/null
+bash "$SCRIPTS/board-card" create --kind epic --name Home --project PRJ-1 >/dev/null
+card="$(bash "$SCRIPTS/board-card" create --epic EPIC-1 --name "A desktop session ticket")"
 register desktop-session "$card"
 assert_eq "board-card prints both totals as null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPTS/board-card" usage "$card")"
 assert_eq "the card's tokens_k is null" "null" "$(bash "$SCRIPTS/board-card" show "$card" --json | jq --compact-output .tokens_k)"

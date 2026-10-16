@@ -21,7 +21,9 @@ An id that does not start with `EPIC-` is not an epic. Stop and tell the user to
 
 The epic's `Project` is a project record's id, `PRJ-n`. When it is set, read the project's name with `"$HOME/.cockpit/scripts/board-card" show <project-id> Name`.
 
-Then read `~/.claude-shared/templates/session-name.md` and build the name it gives a session holding an epic - the project in the bracket, or `epic` when none is linked, and the epic name after it.
+Every epic has a project. One from before that rule may have none: ask the person which project it belongs to, from `"$HOME/.cockpit/scripts/board-card" list --kind project`, and set it with `"$HOME/.cockpit/scripts/board-card" set <epic-id> project <PRJ-n>` before going on.
+
+Then read `~/.claude-shared/templates/session-name.md` and build the name it gives a session holding an epic - the project in the bracket and the epic name after it.
 
 ### 3. Register the epic
 

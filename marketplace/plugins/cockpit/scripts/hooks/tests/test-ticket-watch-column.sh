@@ -41,8 +41,10 @@ SESSION="test-watch-$$"
 
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 "$BOARD_CARD" init >/dev/null
-PAGE_ID="$("$BOARD_CARD" create --name "the registered ticket")"
-SOURCE_PAGE_ID="$("$BOARD_CARD" create --name "a second watched card")"
+"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
+PAGE_ID="$("$BOARD_CARD" create --epic EPIC-1 --name "the registered ticket")"
+SOURCE_PAGE_ID="$("$BOARD_CARD" create --epic EPIC-1 --name "a second watched card")"
 
 cat > "$BIN/board-card" <<STUB
 #!/usr/bin/env bash

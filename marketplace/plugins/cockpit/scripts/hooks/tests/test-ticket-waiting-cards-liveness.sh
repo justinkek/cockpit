@@ -36,6 +36,8 @@ STATE_DIR="$TMPDIR/state"
 mkdir -p "$STATE_DIR"
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 "$BOARD_CARD" init >/dev/null
+"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
 
 now="$(date -u +%s)"
 old_claim="$(TZ=UTC date -u -r "$((now - 7200))" +%Y-%m-%dT%H:%M:%SZ)"
@@ -43,7 +45,7 @@ fresh_claim="$(TZ=UTC date -u -r "$((now - 600))" +%Y-%m-%dT%H:%M:%SZ)"
 
 card() {
   local status="$1" name="$2" session="$3" claimed_at="$4" id
-  id="$("$BOARD_CARD" create --name "$name" --status "$status")"
+  id="$("$BOARD_CARD" create --epic EPIC-1 --name "$name" --status "$status")"
   if [ -n "$session" ]; then
     "$BOARD_CARD" set "$id" session "$session" >/dev/null
     perl -pi -e "s/^claimed_at: .*/claimed_at: \"$claimed_at\"/" "$("$BOARD_CARD" path "$id")"

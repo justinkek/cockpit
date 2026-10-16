@@ -4,7 +4,7 @@
 #
 #   board-card init
 #   board-card create [--kind card|epic|project|sprint|reference|milestone] --name <name> [--type Feature|Bug|Timebox]
-#                     [--status <column>] [--epic <EPIC-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
+#                     [--status <column>] [--epic <EPIC-n>] [--project <PRJ-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
 #                     [--start <date>] [--end <date>] [--target <date>] [--date <date>] [--dev-days <n>] [--speed <n>] [--priority <n>] [--repo <url>]
 #   board-card show <id> [--json | --section <heading> | <property>...]
 #   board-card list [--kind card|epic|project|sprint|reference|milestone] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
@@ -684,7 +684,7 @@ create_locked() {
 }
 
 command_create() {
-  local kind=card name="" type="Feature" status="" epic="" body="" fields="{}" pairs=() index value timebox="" timebox_given=false start="" end="" target="" date=""
+  local kind=card name="" type="Feature" status="" epic="" project="" body="" fields="{}" pairs=() index value timebox="" timebox_given=false start="" end="" target="" date=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --kind) kind="${2:-}"; shift 2 ;;
@@ -692,6 +692,7 @@ command_create() {
       --type) type="${2:-}"; shift 2 ;;
       --status) status="${2:-}"; shift 2 ;;
       --epic) epic="${2:-}"; shift 2 ;;
+      --project) project="${2:-}"; shift 2 ;;
       --icon) pairs+=("icon" "${2:-}"); shift 2 ;;
       --timebox-mins) timebox="${2:-}"; timebox_given=true; shift 2 ;;
       --start) start="${2:-}"; pairs+=("start" "$start"); shift 2 ;;
@@ -724,9 +725,21 @@ command_create() {
     pairs+=("timebox_mins" "60")
   fi
   require_column "$kind" "$status"
+  case "$kind" in
+    card) [ -n "$epic" ] || die 2 "every card has an epic - pass --epic <EPIC-n>, one of: board-card list --kind epic" ;;
+    epic) [ -n "$project" ] || die 2 "every epic has a project - pass --project <PRJ-n>, one of: board-card list --kind project" ;;
+  esac
   if [ -n "$epic" ]; then
     epic="$(normalise_id "$epic")"
     require_record "$epic"
+    [ "$(kind_of "$epic")" = epic ] || die 2 "$epic is not an epic"
+  fi
+  if [ -n "$project" ]; then
+    case "$kind" in card|epic) ;; *) die 2 "only a card or an epic belongs to a project, and this is a $kind" ;; esac
+    project="$(normalise_id "$project")"
+    require_record "$project"
+    [ "$(kind_of "$project")" = project ] || die 2 "$project is not a project"
+    fields="$(jq --compact-output --arg project "$project" '. + {project: $project}' <<<"$fields")"
   fi
   for ((index = 0; index < ${#pairs[@]}; index += 2)); do
     value="$(field_json "$kind" "${pairs[index]}" "${pairs[index + 1]}")" || exit "$?"
@@ -1273,6 +1286,10 @@ set_locked() {
       ;;
     epic|project|sprint)
       reference=""
+      case "$(kind_of "$id")/$field/$value" in
+        card/epic/) die 2 "every card has an epic - move $id to another with: board-card set $id epic <EPIC-n>" ;;
+        epic/project/) die 2 "every epic has a project - move $id to another with: board-card set $id project <PRJ-n>" ;;
+      esac
       if [ -n "$value" ]; then
         reference="$(normalise_id "$value")"
         require_record "$reference"
@@ -1829,6 +1846,15 @@ command_unarchive() {
   with_lock archive_locked "$id" unarchive
 }
 
+require_home() {
+  local id="$1" field home
+  field=epic
+  [ "$(kind_of "$id")" = card ] || field=project
+  home="$(read_record "$id" | jq --raw-output --arg field "$field" '.[$field] // ""')"
+  [ -n "$home" ] || die 2 "$id has no $field, and a copy needs one - give $id one first with: board-card set $id $field <id>"
+  [ -f "$(record_file "$home")" ] || die 2 "$id's $field $home is not on the board, and a copy needs one - give $id another first with: board-card set $id $field <id>"
+}
+
 duplicate_locked() {
   local id="$1" name="$2" status="$3" kind source fields epic project
   kind="$(kind_of "$id")"
@@ -1859,6 +1885,7 @@ command_duplicate() {
   kind="$(kind_of "$id")"
   has_board "$kind" || die 2 "only a card or an epic is duplicated, and $id is a $kind"
   require_record "$id"
+  require_home "$id"
   [ -n "$name" ] || name="Copy of $(read_record "$id" | jq --raw-output '.name')"
   [ -n "$status" ] || status="$(column_at "$kind" 0)"
   require_column "$kind" "$status"
@@ -2208,9 +2235,14 @@ migrate_tracks() {
   printf 'tracks\t%s\n' "$total"
 }
 
+migrate_homes() {
+  command_list --kind card --json | jq --raw-output '.[] | select((.epic // "") == "") | "\(.id)\tneeds an epic"'
+  command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
+}
+
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 
