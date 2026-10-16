@@ -860,6 +860,12 @@ printf '{}' | stub views save "" >/dev/null 2>&1
 assert_eq "a view with no name is refused" "2" "$?"
 printf '{}' | stub views save Other --kind sprint >/dev/null 2>&1
 assert_eq "a view for a board that has none is refused" "2" "$?"
+printf '{}' | stub views save --kind card -- --kind >/dev/null
+assert_eq "a name that looks like an option follows --" "card	--kind" "$(stub views | grep -- '--kind')"
+stub views delete --kind card -- --kind >/dev/null
+assert_eq "and is deleted the same way" "" "$(stub views | grep -- '--kind')"
+printf '{}' | stub views save Other --kind >/dev/null 2>&1
+assert_eq "--kind with nothing after it is refused" "2" "$?"
 stub views delete Nowhere >/dev/null 2>&1
 assert_eq "deleting a view not there is refused" "3" "$?"
 stub views delete "My sprint" --kind epic >/dev/null

@@ -39,7 +39,7 @@
 #   board-card path [<id>]
 #   board-card tracks [<n> | '']
 #   board-card me [<name>... | '']
-#   board-card views [--json] | views save <name> [--kind card|epic] < <json> | views delete <name> [--kind card|epic]
+#   board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>
 #   board-card migrate
 #
 # Exit codes:
@@ -2182,11 +2182,18 @@ command_views() {
       return 0
       ;;
     save | delete) shift ;;
-    *) die 2 "usage: board-card views [--json] | views save <name> [--kind card|epic] < <json> | views delete <name> [--kind card|epic]" ;;
+    *) die 2 "usage: board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>" ;;
   esac
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --kind) kind="${2:-}"; shift 2 ;;
+      --kind) [ "$#" -ge 2 ] || die 2 "--kind needs card or epic"; kind="$2"; shift 2 ;;
+      --)
+        shift
+        [ "$#" -le 1 ] || die 2 "a view takes one name after --, not $#"
+        [ -z "$name" ] || [ "$#" -eq 0 ] || die 2 "a view takes one name, not '$name' and '$1'"
+        [ "$#" -eq 0 ] || name="$1"
+        break
+        ;;
       *)
         [ -z "$name" ] || die 2 "a view takes one name, not '$name' and '$1'"
         name="$1"

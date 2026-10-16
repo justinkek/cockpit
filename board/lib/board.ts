@@ -71,11 +71,11 @@ export async function readViews(kind: Kind): Promise<SavedView[]> {
 }
 
 export async function saveNamedView(kind: Kind, name: string, view: Record<string, unknown>): Promise<void> {
-	await boardCard(["views", "save", name, "--kind", kind], JSON.stringify(view));
+	await boardCard(["views", "save", "--kind", kind, "--", name], JSON.stringify(view));
 }
 
 export async function deleteNamedView(kind: Kind, name: string): Promise<void> {
-	await boardCard(["views", "delete", name, "--kind", kind]);
+	await boardCard(["views", "delete", "--kind", kind, "--", name]);
 }
 
 export async function readInboxUpTo(stamp: string): Promise<void> {
