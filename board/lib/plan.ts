@@ -1,4 +1,4 @@
-import { currentSprint, doneAt, median } from "./metrics";
+import { currentSprint, doneAt } from "./metrics";
 import type { Card } from "./shared";
 
 export const CONFIDENCES = ["On track", "At risk - plan in place", "At risk - no plan"] as const;
@@ -7,7 +7,6 @@ export type Confidence = (typeof CONFIDENCES)[number];
 
 export const AVERAGE_SPEED_WEEKS = 6;
 export const DEFAULT_AVERAGE_SPEED = 10;
-export const DEFAULT_SIZE = 3;
 export const PAST_DAYS = 730;
 export const FUTURE_DAYS = 1826;
 
@@ -31,30 +30,33 @@ export function mondayOf(day: number): number {
 	return day - ((new Date(day * DAY).getUTCDay() + 6) % 7);
 }
 
-type Sized = Pick<Card, "status" | "complexity" | "dependent_on">;
+type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on">;
 
-function splitParent(card: Sized) {
+function splitParent(card: Pick<Sized, "dependent_on">) {
 	return (card.dependent_on?.length ?? 0) > 0;
 }
 
-export type Size = { points: number; measured: boolean };
-
-export function cardSizeOf(cards: Sized[]): Size {
-	const sizes = cards
-		.filter((card) => !splitParent(card) && (card.complexity ?? 0) > 0)
-		.map((card) => card.complexity as number);
-	const middle = median(sizes);
-	return middle == null ? { points: DEFAULT_SIZE, measured: false } : { points: middle, measured: true };
+function positive(value: number | null | undefined): number | null {
+	return value != null && value > 0 ? value : null;
 }
 
-export type AverageSpeed = { perWeek: number; source: "measured" | "sprint" | "default"; points: number; weeks: number };
+export function pointsOf(card: Pick<Sized, "complexity" | "estimate" | "type">): number | null {
+	if (card.type === "Timebox") return null;
+	return positive(card.complexity) ?? positive(card.estimate);
+}
+
+export type AverageSpeed = {
+	perWeek: number;
+	source: "measured" | "sprint" | "default";
+	points: number;
+	weeks: number;
+};
 
 type Delivered = Sized & Pick<Card, "dates" | "moved">;
 
 export function averageSpeedOf(
 	cards: Delivered[],
 	sprints: Pick<Card, "start" | "end" | "speed">[],
-	size: number,
 	now = new Date(),
 ): AverageSpeed {
 	const end = now.getTime();
@@ -66,7 +68,7 @@ export function averageSpeedOf(
 		const at = doneAt(card);
 		if (at == null || at > end) continue;
 		first = Math.min(first, at);
-		if (at >= windowStart) points += card.complexity ?? size;
+		if (at >= windowStart) points += pointsOf(card) ?? 0;
 	}
 	if (points > 0) {
 		const weeks = Math.min(AVERAGE_SPEED_WEEKS, Math.max(1, (end - Math.max(windowStart, first)) / (7 * DAY)));
@@ -77,20 +79,57 @@ export function averageSpeedOf(
 	return { perWeek: DEFAULT_AVERAGE_SPEED, source: "default", points: 0, weeks: 0 };
 }
 
-export type Remaining = { points: number; open: number; unsized: number; done: number; dropped: number };
+export type Remaining = {
+	points: number;
+	complexity: number;
+	fromEstimate: number;
+	estimate: number;
+	open: number;
+	tickets: number;
+	sized: number;
+	estimated: number;
+	unsized: number;
+	done: number;
+	dropped: number;
+};
 
-export function remainingOf(cards: Sized[], size: number): Remaining {
-	const left: Remaining = { points: 0, open: 0, unsized: 0, done: 0, dropped: 0 };
+export function remainingOf(cards: Sized[]): Remaining {
+	const left: Remaining = {
+		points: 0,
+		complexity: 0,
+		fromEstimate: 0,
+		estimate: 0,
+		open: 0,
+		tickets: 0,
+		sized: 0,
+		estimated: 0,
+		unsized: 0,
+		done: 0,
+		dropped: 0,
+	};
 	for (const card of cards) {
 		if (card.status === "Deprioritised") left.dropped += 1;
 		else if (splitParent(card)) continue;
 		else if (card.status === "Done") left.done += 1;
 		else {
 			left.open += 1;
-			left.points += card.complexity ?? size;
-			if (card.complexity == null) left.unsized += 1;
+			if (card.type === "Timebox") continue;
+			left.tickets += 1;
+			const complexity = positive(card.complexity);
+			const estimate = positive(card.estimate);
+			if (complexity != null) {
+				left.sized += 1;
+				left.complexity += complexity;
+			}
+			if (estimate != null) {
+				left.estimated += 1;
+				left.estimate += estimate;
+			}
+			if (complexity == null && estimate != null) left.fromEstimate += estimate;
+			if (complexity == null && estimate == null) left.unsized += 1;
 		}
 	}
+	left.points = left.complexity + left.fromEstimate;
 	return left;
 }
 
@@ -129,7 +168,6 @@ export function planOf(
 	epics: Planned[],
 	cards: (Sized & Pick<Card, "epic">)[],
 	averageSpeed: number,
-	size: number,
 	today: number,
 ): Record<string, Row> {
 	const rows: Record<string, Row> = {};
@@ -141,7 +179,7 @@ export function planOf(
 	for (const epic of planOrder(epics)) {
 		const start = dayOf(epic.start);
 		const target = dayOf(epic.target);
-		const remaining = remainingOf(byEpic[epic.id] ?? [], size);
+		const remaining = remainingOf(byEpic[epic.id] ?? []);
 		const row: Row = {
 			id: epic.id,
 			remaining,
@@ -163,6 +201,8 @@ export function planOf(
 		} else if (remaining.open === 0 && remaining.done > 0) {
 			row.begin = today;
 			row.projected = today;
+		} else if (remaining.open > 0 && remaining.points === 0) {
+			row.begin = Math.max(cursor, start ?? cursor);
 		} else if (remaining.open > 0) {
 			row.begin = Math.max(cursor, start ?? cursor);
 			const days = Math.ceil(remaining.points / perDay);
@@ -170,7 +210,7 @@ export function planOf(
 			cursor = row.begin + days;
 			ahead += remaining.points;
 			row.late = target != null ? Math.max(0, row.projected - target) : 0;
-			if (target != null && remaining.points > 0) {
+			if (target != null) {
 				const weeks = (target - today + 1) / 7;
 				row.needed = weeks > 0 ? Math.round((ahead / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
 			}

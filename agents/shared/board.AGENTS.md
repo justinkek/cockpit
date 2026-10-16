@@ -150,7 +150,13 @@ Undoing a rename gives the card its old id back, and every record naming it foll
 
 `show --json` and `list --json` give each card two values worked out at read time and never stored, counting working time as 09:30 to 18:00 UTC on weekdays: `days_in_column`, the whole working days since it last reached its current column, which a column's date stamp alone cannot say because a stamp keeps its first arrival (0 in a column Notion never timed: `Backlog`, `Sprint Backlog`, `Daily Plan`, `Deprioritised`, `Done` and every by-AI column but `Ready for TR by AI`), and `overrunning`, true once its working minutes from `In Dev` to `Ready for CR` (or now) plus the time since it came back to `In Dev` when it is there again after `Ready for CR`, pass its `timebox_mins` when it is a timebox, or 102 for each point of complexity otherwise.
 
-The app's Plan page draws one row per epic on a week or month timeline, grouped by project and in `plan_rank` order, with the milestones across it, and projects each open epic's end by scheduling the points left on its cards one epic after another at the points done a week over the last six weeks, an unsized card counting at the median card size, falling back to the current sprint's speed and then to ten points a week.
+The app's Plan page draws one row per epic on a week or month timeline, grouped by project and in `plan_rank` order, with the milestones across it, and projects each open epic's end by scheduling the points left on its cards one epic after another at the points done a week over the last six weeks, falling back to the current sprint's speed and then to ten points a week.
+
+A card's points on the plan are its `complexity` when set and its `estimate` otherwise, and a card with neither is left out of every sum and date and counted on its epic's row as unsized, while a timebox counts in neither.
+
+An epic's TD estimate and TR complexity are the sums of its open cards' `estimate` and `complexity`, worked out wherever the side panel, the Epics board or the plan shows them and never stored, the second with how many of those cards are sized.
+
+An epic's scheduled bar draws the length that rests on complexity solid and the length that rests on estimates hatched after it, then a `?` marker with no length while any open card is unsized, and an epic whose open cards are all unsized gets the marker alone.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 

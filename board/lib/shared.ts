@@ -92,6 +92,7 @@ export type Card = {
 	dependent_on?: string[];
 	dependency_for?: string[];
 	complexity?: number | null;
+	estimate?: number | null;
 	timebox_mins?: number | null;
 	session?: string | null;
 	claimed_at?: string | null;

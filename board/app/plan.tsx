@@ -43,13 +43,13 @@ import {
 } from "@/app/actions";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, type Lists, TextField, Title, useHydrated } from "@/app/fields";
+import { EstimateFacts, EstimatePill } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { progressOf } from "@/lib/metrics";
 import {
 	CONFIDENCES,
-	cardSizeOf,
 	dayOf,
 	dayText,
 	lateText,
@@ -57,7 +57,9 @@ import {
 	averageSpeedOf,
 	planOf,
 	planOrder,
+	pointsOf,
 	type Row,
+	remainingOf,
 	spanOf,
 } from "@/lib/plan";
 import { type Card, type CommentThread, fieldName, kindOf, movedTo, phaseOf } from "@/lib/shared";
@@ -451,6 +453,20 @@ function RowDrop({ id, children, className }: { id: string; children: ReactNode;
 	);
 }
 
+function cardPointsTitle(card: Card) {
+	if (card.type === "Timebox") return "A timebox carries no estimate";
+	if ((card.complexity ?? 0) > 0) return `TR complexity ${card.complexity}`;
+	if ((card.estimate ?? 0) > 0) return `TD estimate ${card.estimate}, with no TR complexity yet`;
+	return "Neither a TR complexity nor a TD estimate";
+}
+
+function runTitle(row: Row) {
+	const { complexity, fromEstimate, unsized } = row.remaining;
+	const parts = [`${figure(complexity)} pts from TR complexity`, `${figure(fromEstimate)} pts from TD estimates`];
+	if (unsized > 0) parts.push(`${unsized} unsized ${unsized === 1 ? "ticket" : "tickets"} left out`);
+	return parts.join(", ");
+}
+
 function PlanPanel({
 	epic,
 	cards,
@@ -506,6 +522,7 @@ function PlanPanel({
 				onCommit={(name) => handlers.onEdit("name", name, { name })}
 			/>
 			<Fields record={epic} lists={lists} handlers={handlers} />
+			<EstimateFacts remaining={remainingOf(cards)} />
 			<section className="timeline">
 				<h3>
 					Cards <span className="count">{cards.length}</span>
@@ -518,7 +535,9 @@ function PlanPanel({
 						<li key={card.id}>
 							<span className={`dot phase-${phaseOf(card.status)}`} aria-hidden="true" />
 							<Link href={`/?open=${card.id}`}>{card.name}</Link>
-							<span className="ident">{card.complexity ?? "?"} pts</span>
+							<span className="ident" title={cardPointsTitle(card)}>
+								{card.type === "Timebox" ? "timebox" : pointsOf(card) == null ? "unsized" : `${pointsOf(card)} pts`}
+							</span>
 						</li>
 					))}
 				</ol>
@@ -662,8 +681,7 @@ export function Plan({
 
 	const today = dayOf(todayText) ?? 0;
 	const now = useMemo(() => new Date(), [cards]);
-	const size = useMemo(() => cardSizeOf(cards), [cards]);
-	const rate = useMemo(() => averageSpeedOf(cards, sprints, size.points, now), [cards, sprints, size, now]);
+	const rate = useMemo(() => averageSpeedOf(cards, sprints, now), [cards, sprints, now]);
 
 	const shown = useMemo(() => {
 		if (!drag || drag.mode === "milestone") return epics;
@@ -679,11 +697,8 @@ export function Plan({
 		);
 	}, [epics, drag]);
 
-	const rows = useMemo(() => planOf(shown, cards, rate.perWeek, size.points, today), [shown, cards, rate, size, today]);
-	const committedRows = useMemo(
-		() => planOf(epics, cards, rate.perWeek, size.points, today),
-		[epics, cards, rate, size, today],
-	);
+	const rows = useMemo(() => planOf(shown, cards, rate.perWeek, today), [shown, cards, rate, today]);
+	const committedRows = useMemo(() => planOf(epics, cards, rate.perWeek, today), [epics, cards, rate, today]);
 
 	const span = useMemo(
 		() =>
@@ -1195,14 +1210,39 @@ export function Plan({
 		const target = row.target;
 		const ends: number[] = [];
 		const pieces: ReactNode[] = [];
+		const scheduled = `at ${figure(rate.perWeek)} points a week: ${runTitle(row)}`;
 		if (row.begin != null && row.projected != null && row.remaining.points > 0) {
+			const left = x(row.begin);
+			const length = x(row.projected + 1) - left;
+			const solid = length * (row.remaining.complexity / row.remaining.points);
+			if (row.remaining.complexity > 0) {
+				pieces.push(
+					<span
+						key="run-tr"
+						className="plan-run"
+						style={{ left, width: solid }}
+						title={`Scheduled from ${short(row.begin)} to ${short(row.projected)} ${scheduled}`}
+					/>,
+				);
+			}
+			if (row.remaining.fromEstimate > 0) {
+				pieces.push(
+					<span
+						key="run-td"
+						className="plan-run estimated"
+						style={{ left: left + solid, width: length - solid }}
+						title={`Scheduled from ${short(row.begin)} to ${short(row.projected)} ${scheduled}`}
+					/>,
+				);
+			}
+		}
+		if (row.remaining.unsized > 0 && !row.done && row.begin != null) {
+			const at = row.projected != null && row.remaining.points > 0 ? x(row.projected + 1) : x(row.begin);
+			ends.push(row.projected ?? row.begin);
 			pieces.push(
-				<span
-					key="run"
-					className="plan-run"
-					style={{ left: x(row.begin), width: x(row.projected + 1) - x(row.begin) }}
-					title={`Scheduled from ${short(row.begin)} to ${short(row.projected)} at ${figure(rate.perWeek)} points a week`}
-				/>,
+				<span key="unsized" className="plan-unsized" style={{ left: at + 2 }} title={runTitle(row)}>
+					?
+				</span>,
 			);
 		}
 		if (start != null && target != null) {
@@ -1302,6 +1342,8 @@ export function Plan({
 				row.remaining.open === 0 ? `All cards done ${short(row.projected)}` : `Projected ${short(row.projected)}`,
 			);
 			if (row.late > 0) words.push(lateText(row.late, false));
+		} else if (row.remaining.unsized > 0) {
+			words.push("Unsized");
 		} else if (row.remaining.open + row.remaining.done === 0) {
 			words.push("No cards to project");
 			if (target != null && target < today) words.push(`target passed ${short(target)}`);
@@ -1367,16 +1409,10 @@ export function Plan({
 						</button>
 						<span className="plan-meta">
 							<StatusChip epic={epic} row={row} onPick={(value) => pickStatus(epic, value)} />
-							{row && !row.done && row.remaining.open > 0 && (
-								<span
-									className="plan-points"
-									title={`${row.remaining.open} open ${row.remaining.open === 1 ? "card" : "cards"}${
-										row.remaining.unsized > 0
-											? `, ${row.remaining.unsized} with no points counted at ${size.points} each`
-											: ""
-									}`}
-								>
-									{figure(row.remaining.points)} pts{row.remaining.unsized > 0 ? "*" : ""}
+							{row && !row.done && <EstimatePill remaining={row.remaining} />}
+							{row && !row.done && row.remaining.unsized > 0 && (
+								<span className="plan-points unsized" title={runTitle(row)}>
+									{row.remaining.points > 0 ? `+${row.remaining.unsized} unsized` : `${row.remaining.unsized} unsized`}
 								</span>
 							)}
 							{row && !row.done && row.remaining.open + row.remaining.done === 0 && (
@@ -1522,17 +1558,10 @@ export function Plan({
 							</span>
 						</span>
 					</div>
-					<div
-						title={
-							size.measured ? "The median points of every sized card" : "No card has points yet, so three is assumed"
-						}
-					>
-						<span className="stat-label">Unsized card counts as</span>
+					<div title="Open tickets with neither a TR complexity nor a TD estimate, left out of every sum and date">
+						<span className="stat-label">Unsized</span>
 						<span className="stat-value">
-							{figure(size.points)}{" "}
-							<span>
-								pts · {unsized} open {unsized === 1 ? "card" : "cards"} assumed
-							</span>
+							{unsized} <span>open {unsized === 1 ? "ticket" : "tickets"} left out</span>
 						</span>
 					</div>
 					<div>
@@ -1715,7 +1744,13 @@ export function Plan({
 						<span className="legend-bar" /> Start to target
 					</span>
 					<span>
-						<span className="legend-run" /> Scheduled at the average speed
+						<span className="legend-run" /> Scheduled on TR complexity
+					</span>
+					<span>
+						<span className="legend-run estimated" /> Scheduled on TD estimates
+					</span>
+					<span>
+						<span className="legend-unsized">?</span> Unsized tickets, left out
 					</span>
 					<span>
 						<Icon name="projected" /> Projected end
@@ -1738,7 +1773,6 @@ export function Plan({
 							<Icon name={STATUSES[value].icon} /> {STATUSES[value].label}
 						</span>
 					))}
-					<span>* counts unsized cards at {figure(size.points)} pts</span>
 				</footer>
 			</div>
 			{open && (

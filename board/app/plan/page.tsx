@@ -30,11 +30,13 @@ export default async function PlanPage() {
 	return (
 		<Plan
 			initial={epics}
-			cards={cards.map(({ id, name, status, complexity, epic, dates, moved, dependent_on }) => ({
+			cards={cards.map(({ id, name, type, status, complexity, estimate, epic, dates, moved, dependent_on }) => ({
 				id,
 				name,
+				type,
 				status,
 				complexity,
+				estimate,
 				epic,
 				dates,
 				moved,
