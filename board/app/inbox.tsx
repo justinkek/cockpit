@@ -104,6 +104,11 @@ export function InboxList({ inbox }: { inbox: Inbox }) {
 				</span>
 			</header>
 			{notify !== "on" && notify !== "off" && <p className="inbox-note">{NOTIFY_NOTE[notify]}.</p>}
+			{inbox.me.length > 0 && (
+				<p className="inbox-note" title="Set the list with: board-card me <name>...">
+					Yours, and never in the inbox: what {inbox.me.join(", ")} wrote or did.
+				</p>
+			)}
 			<div className="inbox-filters">
 				<span className="segmented" role="group" aria-label="Show">
 					{FILTERS.map((option) => (
