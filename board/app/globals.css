@@ -548,7 +548,7 @@
 			opacity: 0.6;
 		}
 
-		&.overlay {
+		&.drag-overlay {
 			width: 280px;
 			box-shadow: var(--shadow-lift);
 			cursor: grabbing;

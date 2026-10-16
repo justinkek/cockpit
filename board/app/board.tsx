@@ -2076,7 +2076,7 @@ export function Board({
 								)}
 								<DragOverlay dropAnimation={null}>
 									{dragging && (
-										<div className="card overlay">
+										<div className="card drag-overlay">
 											<CardBody stub={dragging} />
 										</div>
 									)}
