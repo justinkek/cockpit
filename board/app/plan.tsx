@@ -39,6 +39,7 @@ import {
 	removeMilestone,
 	resolveThread,
 	type Span,
+	setNoProjectTracks,
 	undoChange,
 } from "@/app/actions";
 import { Content, confirmDiscard } from "@/app/content";
@@ -54,13 +55,15 @@ import {
 	dayText,
 	lateText,
 	mondayOf,
-	averageSpeedOf,
 	planOf,
 	planOrder,
 	pointsOf,
 	type Row,
 	remainingOf,
 	spanOf,
+	type Team,
+	type TrackSpeed,
+	trackSpeedsOf,
 } from "@/lib/plan";
 import { type Card, type CommentThread, fieldName, kindOf, movedTo, phaseOf } from "@/lib/shared";
 
@@ -72,7 +75,7 @@ const NO_PROJECT = "";
 const DONE = "Done";
 const HOLD = 280;
 
-type Project = { id: string; name: string; icon?: string | null; priority?: number | null };
+type Project = { id: string; name: string; icon?: string | null; priority?: number | null; tracks?: number | null };
 type Prefs = { scale: Scale; grouped: boolean };
 type Mode = "move" | "start" | "target" | "draw" | "milestone";
 type Drag = {
@@ -467,6 +470,108 @@ function runTitle(row: Row) {
 	return parts.join(", ");
 }
 
+function tracksText(count: number) {
+	return count === 1 ? "1 track" : `${count} tracks`;
+}
+
+function speedText(speed: TrackSpeed) {
+	if (speed.source === "overall") {
+		const from =
+			speed.speed.source === "measured" ? "measured" : speed.speed.source === "sprint" ? "sprint speed" : "default";
+		return {
+			short: "overall average, no history",
+			title: `This project has no finished points in the last six weeks, so it takes the board's overall average speed a track (${from})`,
+		};
+	}
+	const split =
+		speed.inProgress > 1
+			? `, split across the ${figure(speed.inProgress)} epics it had in progress on average`
+			: ", with no more than one epic in progress on average";
+	return {
+		short: "measured",
+		title: `${speed.speed.points} points done in the last ${speed.speed.weeks} ${speed.speed.weeks === 1 ? "week" : "weeks"}${split}`,
+	};
+}
+
+function TracksControl({
+	name,
+	count,
+	speed,
+	onChange,
+}: {
+	name: string;
+	count: number;
+	speed: TrackSpeed;
+	onChange: (count: number) => void;
+}) {
+	const label = speedText(speed);
+	return (
+		<span className="plan-tracks">
+			<span className="plan-tracks-step" role="group" aria-label={`Tracks of ${name}`}>
+				<button
+					type="button"
+					className="quiet"
+					disabled={count <= 1}
+					aria-label={`One track fewer for ${name}`}
+					title="One track fewer - the lowest epic in progress pauses if there are more than tracks"
+					onClick={() => onChange(count - 1)}
+				>
+					−
+				</button>
+				<span className="plan-tracks-count" title="How many of its epics run at once, from today on">
+					{tracksText(count)}
+				</span>
+				<button
+					type="button"
+					className="quiet"
+					aria-label={`One track more for ${name}`}
+					title="One track more, from today on"
+					onClick={() => onChange(count + 1)}
+				>
+					+
+				</button>
+			</span>
+			<span className={`plan-team-speed${speed.source === "overall" ? " fallback" : ""}`} title={label.title}>
+				{figure(speed.perWeek)} pts/wk a track · {label.short}
+			</span>
+		</span>
+	);
+}
+
+function TrackPick({
+	epic,
+	row,
+	count,
+	onPick,
+}: {
+	epic: Card;
+	row: Row;
+	count: number;
+	onPick: (value: string) => void;
+}) {
+	const pinned = row.pin != null && !row.pinIgnored;
+	const title = row.pinIgnored
+		? `Pinned to track ${row.pin}, past the ${tracksText(count)} its project has, so the plan places it on track ${row.track} itself`
+		: pinned
+			? `Pinned to track ${row.pin} - it waits for that track to free`
+			: `Runs on track ${row.track}, the first one free in plan order`;
+	return (
+		<label className={`plan-track-pick${pinned ? " pinned" : ""}${row.pinIgnored ? " warn" : ""}`} title={title}>
+			{row.pinIgnored && <Icon name="plan" />}
+			{pinned ? `Pinned ${row.pin}` : `Track ${row.track}`}
+			<select aria-label={`Track of ${epic.id}`} value={row.pin ?? ""} onChange={(event) => onPick(event.target.value)}>
+				<option value="">Placed by the plan</option>
+				{Array.from({ length: count }, (_, index) => (
+					<option key={index + 1} value={index + 1}>
+						Pin to track {index + 1}
+					</option>
+				))}
+				{row.pinIgnored && <option value={row.pin ?? ""}>Pinned to track {row.pin} - past its tracks</option>}
+			</select>
+		</label>
+	);
+}
+
 function PlanPanel({
 	epic,
 	cards,
@@ -619,6 +724,7 @@ export function Plan({
 	milestones: initialMilestones,
 	projects,
 	sprints,
+	noProjectTracks,
 	today: todayText,
 	lists,
 }: {
@@ -627,6 +733,7 @@ export function Plan({
 	milestones: Card[];
 	projects: Project[];
 	sprints: Pick<Card, "start" | "end" | "speed">[];
+	noProjectTracks: number;
 	today: string;
 	lists: Lists;
 }) {
@@ -644,6 +751,7 @@ export function Plan({
 	const [editing, setEditing] = useState<Editing>(null);
 	const [legendOpen, setLegendOpen] = useState(false);
 	const [pending, setPending] = useState<Set<string>>(new Set());
+	const [trackCounts, setTrackCounts] = useState<Record<string, number>>({});
 	const [saving, startTransition] = useTransition();
 	const scroller = useRef<HTMLDivElement>(null);
 	const dndId = useId();
@@ -663,6 +771,7 @@ export function Plan({
 		[initial],
 	);
 	useEffect(() => setMilestones(initialMilestones), [initialMilestones]);
+	useEffect(() => setTrackCounts({}), [projects, noProjectTracks]);
 
 	useEffect(() => {
 		setPrefs(loadPrefs());
@@ -681,7 +790,29 @@ export function Plan({
 
 	const today = dayOf(todayText) ?? 0;
 	const now = useMemo(() => new Date(), [cards]);
-	const rate = useMemo(() => averageSpeedOf(cards, sprints, now), [cards, sprints, now]);
+	const projectOf = useMemo(() => Object.fromEntries(projects.map((project) => [project.id, project])), [projects]);
+	const speeds = useMemo(
+		() =>
+			trackSpeedsOf(
+				cards,
+				epics,
+				projects.map((project) => project.id),
+				sprints,
+				now,
+			),
+		[cards, epics, projects, sprints, now],
+	);
+	const rate = speeds.overall.speed;
+	const tracksOf = (team: string) =>
+		trackCounts[team] ?? (team ? (projectOf[team]?.tracks ?? 1) : Math.max(1, noProjectTracks));
+	const teams = useMemo(() => {
+		const all: Record<string, Team> = {};
+		for (const team of [...projects.map((project) => project.id), NO_PROJECT]) {
+			all[team] = { tracks: tracksOf(team), perWeek: (speeds.teams[team] ?? speeds.overall).perWeek };
+		}
+		return all;
+	}, [projects, speeds, trackCounts, noProjectTracks, projectOf]);
+	const teamName = (team: string) => (team ? (projectOf[team]?.name ?? team) : "No project");
 
 	const shown = useMemo(() => {
 		if (!drag || drag.mode === "milestone") return epics;
@@ -697,8 +828,8 @@ export function Plan({
 		);
 	}, [epics, drag]);
 
-	const rows = useMemo(() => planOf(shown, cards, rate.perWeek, today), [shown, cards, rate, today]);
-	const committedRows = useMemo(() => planOf(epics, cards, rate.perWeek, today), [epics, cards, rate, today]);
+	const rows = useMemo(() => planOf(shown, cards, teams, today), [shown, cards, teams, today]);
+	const committedRows = useMemo(() => planOf(epics, cards, teams, today), [epics, cards, teams, today]);
 
 	const span = useMemo(
 		() =>
@@ -744,11 +875,10 @@ export function Plan({
 		return by;
 	}, [cards]);
 
-	const projectOf = useMemo(() => Object.fromEntries(projects.map((project) => [project.id, project])), [projects]);
-
 	const groups = useMemo(() => {
 		const ordered = planOrder(epics);
-		if (!prefs.grouped) return [{ id: "all", name: "", icon: null as string | null, epics: ordered }];
+		if (!prefs.grouped)
+			return [{ id: "all", team: null as string | null, name: "", icon: null as string | null, epics: ordered }];
 		const keys = [
 			...new Set(ordered.map((epic) => (epic.project && projectOf[epic.project] ? epic.project : NO_PROJECT))),
 		];
@@ -764,6 +894,7 @@ export function Plan({
 		});
 		return keys.map((key) => ({
 			id: key || "none",
+			team: key as string | null,
 			name: key ? projectOf[key].name : "No project",
 			icon: key ? (projectOf[key].icon ?? null) : null,
 			epics: ordered.filter((epic) => (epic.project && projectOf[epic.project] ? epic.project : NO_PROJECT) === key),
@@ -854,6 +985,44 @@ export function Plan({
 			() => editCard(epic.id, "confidence", value),
 			value ? `Marked ${epic.id} ${STATUSES[value].label}` : `Cleared the status of ${epic.id}`,
 		);
+	}
+
+	function pickTrack(epic: Card, value: string) {
+		apply(
+			epic.id,
+			{ track: value ? Number(value) : null },
+			() => editCard(epic.id, "track", value),
+			value ? `Pinned ${epic.id} to track ${value}` : `Let the plan place ${epic.id} on a track`,
+		);
+	}
+
+	function changeTracks(team: string, count: number) {
+		const before = tracksOf(team);
+		if (count < 1 || count === before) return;
+		const label = `Gave ${teamName(team)} ${tracksText(count)}`;
+		setNotice(null);
+		setToast(null);
+		setTrackCounts((current) => ({ ...current, [team]: count }));
+		startTransition(async () => {
+			if (team) {
+				const result = await editCard(team, "tracks", String(count));
+				if (result.error) {
+					setTrackCounts((current) => ({ ...current, [team]: before }));
+					setNotice({ id: "", text: `${teamName(team)}: ${result.error}` });
+					return;
+				}
+				setToast(undoable(team, result.undo, label));
+			} else {
+				const result = await setNoProjectTracks(String(count));
+				if (result.error) {
+					setTrackCounts((current) => ({ ...current, [team]: before }));
+					setNotice({ id: "", text: `${teamName(team)}: ${result.error}` });
+					return;
+				}
+				setToast(toastOf(label));
+			}
+			router.refresh();
+		});
 	}
 
 	function commitDates(id: string, start: number | null, target: number | null, label: string) {
@@ -1193,6 +1362,27 @@ export function Plan({
 				? "Nothing was done in the last six weeks, so this is the current sprint's speed a day times five"
 				: "Nothing was done in the last six weeks and no sprint has a speed, so this is the default";
 
+	const nameOf = (id: string) => epics.find((epic) => epic.id === id)?.name ?? id;
+	const trackNotes = Object.values(committedRows).flatMap((row) => {
+		const notes: { key: string; text: string }[] = [];
+		if (row.pausedUntil != null) {
+			const running = Object.values(committedRows).filter(
+				(other) => other.team === row.team && other.inProgress && other.track != null && other.remaining.points > 0,
+			).length;
+			notes.push({
+				key: `paused-${row.id}`,
+				text: `${nameOf(row.id)} pauses until ${short(row.pausedUntil)}: ${teamName(row.team)} runs ${tracksText(tracksOf(row.team))} and has ${running} epics in progress, and it is the lowest of them in the plan. Nothing on the board changes.`,
+			});
+		}
+		if (row.pinIgnored && !row.done) {
+			notes.push({
+				key: `pin-${row.id}`,
+				text: `${nameOf(row.id)} is pinned to track ${row.pin}, past the ${tracksText(tracksOf(row.team))} of ${teamName(row.team)}, so the plan places it itself.`,
+			});
+		}
+		return notes;
+	});
+
 	if (!hydrated) {
 		return (
 			<section className="plan-page">
@@ -1210,7 +1400,17 @@ export function Plan({
 		const target = row.target;
 		const ends: number[] = [];
 		const pieces: ReactNode[] = [];
-		const scheduled = `at ${figure(rate.perWeek)} points a week: ${runTitle(row)}`;
+		const scheduled = `on track ${row.track} at ${figure(row.perWeek)} points a week: ${runTitle(row)}`;
+		if (row.pausedUntil != null) {
+			pieces.push(
+				<span
+					key="paused"
+					className="plan-paused"
+					style={{ left: x(today), width: x(row.pausedUntil) - x(today) }}
+					title={`Paused from today until ${short(row.pausedUntil)}, when a track of ${teamName(row.team)} frees`}
+				/>,
+			);
+		}
 		if (row.begin != null && row.projected != null && row.remaining.points > 0) {
 			const left = x(row.begin);
 			const length = x(row.projected + 1) - left;
@@ -1388,7 +1588,7 @@ export function Plan({
 		const row = rows[epic.id];
 		const progress = progressOf(cardsOf[epic.id] ?? []);
 		const needed = row?.needed;
-		const short_of = needed != null && needed > rate.perWeek;
+		const short_of = needed != null && row != null && needed > row.perWeek;
 		return (
 			<RowDrop
 				key={epic.id}
@@ -1409,6 +1609,14 @@ export function Plan({
 						</button>
 						<span className="plan-meta">
 							<StatusChip epic={epic} row={row} onPick={(value) => pickStatus(epic, value)} />
+							{row && !row.done && row.track != null && (
+								<TrackPick
+									epic={epic}
+									row={row}
+									count={tracksOf(row.team)}
+									onPick={(value) => pickTrack(epic, value)}
+								/>
+							)}
 							{row && !row.done && <EstimatePill remaining={row.remaining} />}
 							{row && !row.done && row.remaining.unsized > 0 && (
 								<span className="plan-points unsized" title={runTitle(row)}>
@@ -1426,7 +1634,7 @@ export function Plan({
 									title={
 										needed === Number.POSITIVE_INFINITY
 											? "Its target has passed with points still left"
-											: `Meeting its target takes ${figure(needed)} points a week, counting every epic ahead of it in the plan, against ${figure(rate.perWeek)} done a week`
+											: `Meeting its target takes ${figure(needed)} points a week, counting every epic ahead of it on its track, against ${figure(row?.perWeek ?? 0)} done a week on a track`
 									}
 								>
 									{short_of && <Icon name="plan" />}
@@ -1584,6 +1792,13 @@ export function Plan({
 						</button>
 					</p>
 				)}
+				{trackNotes.length > 0 && (
+					<ul className="report-note plan-track-notes">
+						{trackNotes.map((note) => (
+							<li key={note.key}>{note.text}</li>
+						))}
+					</ul>
+				)}
 				{(view.clippedBefore || view.clippedAfter) && (
 					<p className="report-note plan-clipped">
 						The timeline stops {view.clippedBefore ? "two years back" : ""}
@@ -1718,6 +1933,14 @@ export function Plan({
 													{group.icon && <span className="record-icon">{group.icon}</span>}
 													{group.name}
 													<span className="count">{group.epics.length}</span>
+													{group.team != null && (
+														<TracksControl
+															name={group.name}
+															count={tracksOf(group.team)}
+															speed={speeds.teams[group.team] ?? speeds.overall}
+															onChange={(count) => changeTracks(group.team ?? NO_PROJECT, count)}
+														/>
+													)}
 												</span>
 											</div>
 										)}
@@ -1751,6 +1974,9 @@ export function Plan({
 					</span>
 					<span>
 						<span className="legend-unsized">?</span> Unsized tickets, left out
+					</span>
+					<span>
+						<span className="legend-paused" /> Paused until a track frees
 					</span>
 					<span>
 						<Icon name="projected" /> Projected end

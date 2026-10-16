@@ -129,6 +129,67 @@ assert_eq "an epic whose points fit exactly by its target ends on it, not a day 
 assert_eq "an average speed of zero is held above zero rather than dividing by it" 'true' \
   "$(evaluate 'Number.isFinite(p.planOf([{id:"EPIC-1",status:"In FD"}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], 0, '"$TODAY"')["EPIC-1"].projected)')"
 
+printf "\nTest group: each project runs its epics on its own tracks\n"
+
+TEAMS='{"PRJ-1":{"tracks":2,"perWeek":7},"PRJ-2":{"tracks":1,"perWeek":7},"":{"tracks":1,"perWeek":7}}'
+TRACKED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","plan_rank":1},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","plan_rank":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","plan_rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-2","plan_rank":4},{"id":"EPIC-5","status":"In FD","project":"PRJ-9","plan_rank":5}]'
+TRACKED_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":5},{"epic":"EPIC-3","status":"Backlog","complexity":5},{"epic":"EPIC-4","status":"Backlog","complexity":5},{"epic":"EPIC-5","status":"Backlog","complexity":5}]'
+tracked="p.planOf($TRACKED, $TRACKED_CARDS, $TEAMS, $TODAY)"
+assert_eq "two tracks run the first two epics side by side from today, and the third takes the first track to free" '1@20740,2@20740,1@20745' \
+  "$(evaluate "[\"EPIC-1\",\"EPIC-2\",\"EPIC-3\"].map((id) => $tracked[id].track + \"@\" + $tracked[id].begin).join()")"
+assert_eq "another project never waits on the first one" '1@20740' \
+  "$(evaluate "$tracked[\"EPIC-4\"].track + \"@\" + $tracked[\"EPIC-4\"].begin")"
+assert_eq "an epic whose project is not on the board runs with the epics with no project" '' \
+  "$(evaluate "$tracked[\"EPIC-5\"].team")"
+assert_eq "a number for the speed puts every epic on one track at it" '20740,20745' \
+  "$(evaluate "[\"EPIC-1\",\"EPIC-2\"].map((id) => p.planOf($TRACKED, $TRACKED_CARDS, 7, $TODAY)[id].begin).join()")"
+assert_eq "the speed a target needs counts only the epics ahead of it on its own track" '5.8,5.8' \
+  "$(evaluate "[\"EPIC-1\",\"EPIC-2\"].map((id) => p.planOf($TRACKED.map((e) => Object.assign({}, e, {target: \"2026-10-19\"})), $TRACKED_CARDS, $TEAMS, $TODAY)[id].needed).join()")"
+
+printf "\nTest group: an epic in progress keeps its track, and the lowest in the plan pauses when the tracks run out\n"
+
+STARTED='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","plan_rank":2},{"id":"EPIC-2","status":"In TD","project":"PRJ-1","plan_rank":3},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","plan_rank":1}]'
+STARTED_CARDS='[{"epic":"EPIC-1","status":"In Dev","complexity":5},{"epic":"EPIC-2","status":"In Dev","complexity":5,"dates":{"In Dev":"2026-10-12T10:00:00Z"}},{"epic":"EPIC-3","status":"Backlog","complexity":5}]'
+one="p.planOf($STARTED, $STARTED_CARDS, {\"PRJ-1\":{\"tracks\":1,\"perWeek\":7}}, $TODAY)"
+two="p.planOf($STARTED, $STARTED_CARDS, {\"PRJ-1\":{\"tracks\":2,\"perWeek\":7}}, $TODAY)"
+assert_eq "an epic in Tickets In Dev, or with a card that reached In Dev, is in progress" 'true,true,false' \
+  "$(evaluate "[\"EPIC-1\",\"EPIC-2\",\"EPIC-3\"].map((id) => $one[id].inProgress).join()")"
+assert_eq "with one track the lower epic in progress pauses until the higher one ends" '{"track":1,"begin":20745,"pausedUntil":20745}' \
+  "$(evaluate "pick($one[\"EPIC-2\"], \"track begin pausedUntil\")")"
+assert_eq "and an epic not yet started waits for both, whatever its place in the plan" '20750' "$(evaluate "$one[\"EPIC-3\"].begin")"
+assert_eq "a second track lets both run from today with no pause" '1@20740:null,2@20740:null' \
+  "$(evaluate "[\"EPIC-1\",\"EPIC-2\"].map((id) => $two[id].track + \"@\" + $two[id].begin + \":\" + $two[id].pausedUntil).join()")"
+assert_eq "an epic in progress that waits for its own start date is not paused" 'null' \
+  "$(evaluate 'p.planOf([{id:"EPIC-1",status:"Tickets In Dev",start:"2026-10-20"}], [{epic:"EPIC-1",status:"In Dev",complexity:5}], 7, '"$TODAY"')["EPIC-1"].pausedUntil')"
+
+printf "\nTest group: an epic pinned to a track waits for it\n"
+
+PINNED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","plan_rank":1,"track":2},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","plan_rank":2,"track":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","plan_rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-1","plan_rank":4,"track":5}]'
+PINNED_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":5},{"epic":"EPIC-3","status":"Backlog","complexity":5},{"epic":"EPIC-4","status":"Backlog","complexity":5}]'
+pinned="p.planOf($PINNED, $PINNED_CARDS, {\"PRJ-1\":{\"tracks\":2,\"perWeek\":7}}, $TODAY)"
+assert_eq "a pinned epic waits for its track while another track is free" '2@20740,2@20745' \
+  "$(evaluate "[\"EPIC-1\",\"EPIC-2\"].map((id) => $pinned[id].track + \"@\" + $pinned[id].begin).join()")"
+assert_eq "and the next epic takes the free track" '1@20740' "$(evaluate "$pinned[\"EPIC-3\"].track + \"@\" + $pinned[\"EPIC-3\"].begin")"
+assert_eq "a pin past the project's tracks is flagged and ignored" '{"pin":5,"pinIgnored":true,"track":1,"begin":20745}' \
+  "$(evaluate "pick($pinned[\"EPIC-4\"], \"pin pinIgnored track begin\")")"
+
+assert_eq "an epic in progress keeps the first track though an epic not yet started is pinned to it" '1@20740,2@20740,1@20745' \
+  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"Tickets In Dev",plan_rank:1},{id:"EPIC-2",status:"In FD",plan_rank:2},{id:"EPIC-3",status:"In FD",plan_rank:3,track:1}], [{epic:"EPIC-1",status:"In Dev",complexity:5},{epic:"EPIC-2",status:"Backlog",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:5}], {"":{tracks:2,perWeek:7}}, '"$TODAY"')).map((r) => r.track + "@" + r.begin).join()')"
+
+printf "\nTest group: each project's speed a track comes from its own finished cards\n"
+
+SPEED_EPICS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","dates":{"Tickets In Dev":"2026-08-01T10:00:00Z"}},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-1","dates":{"Tickets In Dev":"2026-08-01T10:00:00Z"}},{"id":"EPIC-3","status":"In FD","project":"PRJ-2"}]'
+SPEED_CARDS='[{"epic":"EPIC-1","status":"Done","complexity":12,"dates":{"Done":"2026-10-10T10:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":1,"dates":{"Done":"2026-08-05T10:00:00Z"}},{"status":"Done","complexity":6,"dates":{"Done":"2026-10-12T10:00:00Z"}}]'
+speeds="p.trackSpeedsOf($SPEED_CARDS, $SPEED_EPICS, [\"PRJ-1\",\"PRJ-2\"], [], $NOW)"
+assert_eq "a project's average speed is split across the epics it had in progress on average" '{"perWeek":1,"source":"measured","inProgress":2}' \
+  "$(evaluate "pick($speeds.teams[\"PRJ-1\"], \"perWeek source inProgress\")")"
+assert_eq "a project with no history takes the overall speed a track, and says so" '{"perWeek":1.5,"source":"overall","inProgress":2}' \
+  "$(evaluate "pick($speeds.teams[\"PRJ-2\"], \"perWeek source inProgress\")")"
+assert_eq "a card with no epic and no project counts toward the epics with no project" '{"perWeek":6,"source":"measured","inProgress":0}' \
+  "$(evaluate "pick($speeds.teams[\"\"], \"perWeek source inProgress\")")"
+assert_eq "an epic counts as in progress from its first card in dev until it is done" '0.5' \
+  "$(evaluate 'p.epicsInProgressOver([{id:"EPIC-1",status:"Epic Done",dates:{"Epic Done":"2026-10-11T00:00:00Z"}}], [{epic:"EPIC-1",status:"Done",dates:{"In Dev":"2026-10-09T00:00:00Z","Done":"2026-10-10T00:00:00Z"}}], Date.parse("2026-10-07T00:00:00Z"), Date.parse("2026-10-11T00:00:00Z"))')"
+
 printf "\nTest group: the timeline spans what it shows, within its limits\n"
 
 assert_eq "it opens on a Monday two weeks back and runs four weeks past the last date" \

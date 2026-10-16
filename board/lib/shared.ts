@@ -122,6 +122,8 @@ export type Card = {
 	confidence?: string | null;
 	learning?: string | null;
 	plan_rank?: number | null;
+	tracks?: number | null;
+	track?: number | null;
 	date?: string | null;
 	days_in_column?: number;
 	overrunning?: boolean;

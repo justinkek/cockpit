@@ -20,6 +20,7 @@ import {
 	lastCommit,
 	link,
 	listRecords,
+	noProjectTracks,
 	readComments,
 	readInboxUpTo,
 	readRecord,
@@ -276,6 +277,17 @@ export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 		if (changed.undo) result.undo.push({ id, ...changed.undo });
 	}
 	return result;
+}
+
+export async function setNoProjectTracks(value: string): Promise<Failure & { tracks?: number }> {
+	try {
+		const tracks = await noProjectTracks(value);
+		revalidatePath("/plan");
+		return { tracks };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
 }
 
 export async function createMilestone(name: string, date: string): Promise<Result> {

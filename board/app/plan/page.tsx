@@ -1,5 +1,5 @@
 import { Plan } from "@/app/plan";
-import { BoardError, type Card, listRecords } from "@/lib/board";
+import { BoardError, type Card, listRecords, noProjectTracks } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -14,13 +14,15 @@ export default async function PlanPage() {
 	let projects: Card[];
 	let sprints: Card[];
 	let milestones: Card[];
+	let unprojected: number;
 	try {
-		[cards, epics, projects, sprints, milestones] = await Promise.all([
+		[cards, epics, projects, sprints, milestones, unprojected] = await Promise.all([
 			listRecords("card"),
 			listRecords("epic"),
 			listRecords("project"),
 			listRecords("sprint"),
 			listRecords("milestone"),
+			noProjectTracks(),
 		]);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
@@ -30,22 +32,26 @@ export default async function PlanPage() {
 	return (
 		<Plan
 			initial={epics}
-			cards={cards.map(({ id, name, type, status, complexity, estimate, epic, dates, moved, dependent_on }) => ({
-				id,
-				name,
-				type,
-				status,
-				complexity,
-				estimate,
-				epic,
-				dates,
-				moved,
-				dependent_on,
-				created: "",
-				body: "",
-			}))}
+			cards={cards.map(
+				({ id, name, type, status, complexity, estimate, epic, project, dates, moved, dependent_on }) => ({
+					id,
+					name,
+					type,
+					status,
+					complexity,
+					estimate,
+					epic,
+					project,
+					dates,
+					moved,
+					dependent_on,
+					created: "",
+					body: "",
+				}),
+			)}
 			milestones={milestones}
-			projects={projects.map(({ id, name, icon, priority }) => ({ id, name, icon, priority }))}
+			projects={projects.map(({ id, name, icon, priority, tracks }) => ({ id, name, icon, priority, tracks }))}
+			noProjectTracks={unprojected}
 			sprints={sprints.map(({ start, end, speed }) => ({ start, end, speed }))}
 			today={today()}
 			lists={{

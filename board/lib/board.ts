@@ -67,6 +67,12 @@ export async function boardDirectory(): Promise<string> {
 	return (await boardCard(["path"])).trim();
 }
 
+export async function noProjectTracks(value?: string): Promise<number> {
+	const args = ["no-project-tracks"];
+	if (value !== undefined) args.push(value);
+	return Number((await boardCard(args)).trim()) || 1;
+}
+
 export async function changeStatus(record: Card, column: string): Promise<void> {
 	await boardCard(["move", record.id, column]);
 }

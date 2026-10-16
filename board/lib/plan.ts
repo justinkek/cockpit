@@ -1,4 +1,4 @@
-import { currentSprint, doneAt } from "./metrics";
+import { currentSprint, DAY, doneAt, timeOf } from "./metrics";
 import type { Card } from "./shared";
 
 export const CONFIDENCES = ["On track", "At risk - plan in place", "At risk - no plan"] as const;
@@ -9,8 +9,6 @@ export const AVERAGE_SPEED_WEEKS = 6;
 export const DEFAULT_AVERAGE_SPEED = 10;
 export const PAST_DAYS = 730;
 export const FUTURE_DAYS = 1826;
-
-const DAY = 86400000;
 
 export function dayOf(text: string | null | undefined): number | null {
 	const match = text?.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -133,7 +131,110 @@ export function remainingOf(cards: Sized[]): Remaining {
 	return left;
 }
 
-type Planned = Pick<Card, "id" | "status" | "start" | "target" | "plan_rank" | "confidence" | "dates" | "moved">;
+type Planned = Pick<
+	Card,
+	"id" | "status" | "start" | "target" | "plan_rank" | "confidence" | "dates" | "moved" | "project" | "track"
+>;
+
+export const NO_PROJECT = "";
+
+export type Team = { tracks: number; perWeek: number };
+
+export function teamOf(record: Pick<Card, "project">, known: Record<string, unknown>): string {
+	return record.project && record.project in known ? record.project : NO_PROJECT;
+}
+
+type Worked = Sized & Pick<Card, "epic" | "dates" | "moved">;
+
+function startedAt(epic: Pick<Card, "dates">, cards: Worked[]): number | null {
+	const stamps = [
+		timeOf(epic.dates?.["Tickets In Dev"]),
+		...cards.map((card) => timeOf(card.dates?.["In Dev"])),
+		...cards.map((card) => doneAt(card)),
+	].filter((time): time is number => time != null);
+	return stamps.length > 0 ? Math.min(...stamps) : null;
+}
+
+export function inProgressOf(epic: Pick<Card, "status" | "dates">, cards: Worked[]): boolean {
+	if (epic.status === "Epic Done") return false;
+	if (epic.status === "Tickets In Dev") return true;
+	return cards.some(
+		(card) => card.status !== "Deprioritised" && (card.status === "Done" || card.dates?.["In Dev"] != null),
+	);
+}
+
+export function epicsInProgressOver(
+	epics: Pick<Card, "id" | "status" | "dates" | "moved">[],
+	cards: Worked[],
+	from: number,
+	to: number,
+): number {
+	if (to <= from) return 0;
+	let covered = 0;
+	for (const epic of epics) {
+		const own = cards.filter((card) => card.epic === epic.id);
+		const began = startedAt(epic, own);
+		if (began == null) continue;
+		const ended = doneAt(epic) ?? to;
+		covered += Math.max(0, Math.min(ended, to) - Math.max(began, from));
+	}
+	return covered / (to - from);
+}
+
+export type TrackSpeed = {
+	perWeek: number;
+	source: "measured" | "overall";
+	speed: AverageSpeed;
+	inProgress: number;
+};
+
+function trackSpeedOf(
+	speed: AverageSpeed,
+	epics: Pick<Card, "id" | "status" | "dates" | "moved">[],
+	cards: Worked[],
+	now: Date,
+	source: TrackSpeed["source"],
+): TrackSpeed {
+	const end = now.getTime();
+	const inProgress =
+		speed.source === "measured" ? epicsInProgressOver(epics, cards, end - speed.weeks * 7 * DAY, end) : 0;
+	return {
+		perWeek: speed.perWeek / Math.max(1, inProgress),
+		source,
+		speed,
+		inProgress: Math.round(inProgress * 10) / 10,
+	};
+}
+
+export function trackSpeedsOf(
+	cards: Worked[],
+	epics: Pick<Card, "id" | "status" | "dates" | "moved" | "project">[],
+	projects: string[],
+	sprints: Pick<Card, "start" | "end" | "speed">[],
+	now = new Date(),
+): { overall: TrackSpeed; teams: Record<string, TrackSpeed> } {
+	const known = Object.fromEntries(projects.map((id) => [id, true]));
+	const overall = trackSpeedOf(averageSpeedOf(cards, sprints, now), epics, cards, now, "overall");
+	const teamOfEpic = Object.fromEntries(epics.map((epic) => [epic.id, teamOf(epic, known)]));
+	const teamOfCard = (card: Worked & Pick<Card, "project">) =>
+		card.epic && card.epic in teamOfEpic ? teamOfEpic[card.epic] : teamOf(card, known);
+	const teams: Record<string, TrackSpeed> = {};
+	for (const team of [...projects, NO_PROJECT]) {
+		const own = cards.filter((card) => teamOfCard(card) === team);
+		const speed = averageSpeedOf(own, [], now);
+		teams[team] =
+			speed.source === "measured"
+				? trackSpeedOf(
+						speed,
+						epics.filter((epic) => teamOfEpic[epic.id] === team),
+						own,
+						now,
+						"measured",
+					)
+				: overall;
+	}
+	return { overall, teams };
+}
 
 function idNumber(id: string) {
 	return Number(id.split("-").at(-1));
@@ -151,6 +252,7 @@ export function planOrder<T extends Pick<Card, "id" | "plan_rank" | "target">>(e
 
 export type Row = {
 	id: string;
+	team: string;
 	remaining: Remaining;
 	done: boolean;
 	doneDay: number | null;
@@ -162,61 +264,115 @@ export type Row = {
 	late: number;
 	needed: number | null;
 	atRisk: boolean;
+	perWeek: number;
+	inProgress: boolean;
+	track: number | null;
+	pin: number | null;
+	pinIgnored: boolean;
+	pausedUntil: number | null;
 };
 
 export function planOf(
 	epics: Planned[],
-	cards: (Sized & Pick<Card, "epic">)[],
-	averageSpeed: number,
+	cards: (Sized & Pick<Card, "epic"> & Partial<Pick<Card, "dates" | "moved">>)[],
+	teams: Record<string, Team> | number,
 	today: number,
 ): Record<string, Row> {
 	const rows: Record<string, Row> = {};
-	const byEpic: Record<string, Sized[]> = {};
+	const byEpic: Record<string, Worked[]> = {};
 	for (const card of cards) if (card.epic) (byEpic[card.epic] ??= []).push(card);
-	const perDay = Math.max(averageSpeed, 0.01) / 7;
-	let cursor = today;
-	let ahead = 0;
-	for (const epic of planOrder(epics)) {
-		const start = dayOf(epic.start);
-		const target = dayOf(epic.target);
-		const remaining = remainingOf(byEpic[epic.id] ?? []);
-		const row: Row = {
-			id: epic.id,
-			remaining,
-			done: epic.status === "Epic Done",
-			doneDay: null,
-			start,
-			target,
-			backwards: start != null && target != null && start > target,
-			begin: null,
-			projected: null,
-			late: 0,
-			needed: null,
-			atRisk: false,
-		};
-		if (row.done) {
-			const at = doneAt(epic);
-			row.doneDay = at == null ? null : localDay(new Date(at));
-			row.late = target != null && row.doneDay != null ? Math.max(0, row.doneDay - target) : 0;
-		} else if (remaining.open === 0 && remaining.done > 0) {
-			row.begin = today;
-			row.projected = today;
-		} else if (remaining.open > 0 && remaining.points === 0) {
-			row.begin = Math.max(cursor, start ?? cursor);
-		} else if (remaining.open > 0) {
-			row.begin = Math.max(cursor, start ?? cursor);
-			const days = Math.ceil(remaining.points / perDay);
-			row.projected = row.begin + Math.max(0, days - 1);
-			cursor = row.begin + days;
-			ahead += remaining.points;
-			row.late = target != null ? Math.max(0, row.projected - target) : 0;
-			if (target != null) {
-				const weeks = (target - today + 1) / 7;
-				row.needed = weeks > 0 ? Math.round((ahead / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
+	const known: Record<string, Team> = typeof teams === "number" ? {} : teams;
+	const fallback: Team =
+		typeof teams === "number"
+			? { tracks: 1, perWeek: teams }
+			: (teams[NO_PROJECT] ?? { tracks: 1, perWeek: DEFAULT_AVERAGE_SPEED });
+	const grouped: Record<string, Planned[]> = {};
+	for (const epic of epics) (grouped[teamOf(epic, known)] ??= []).push(epic);
+	for (const [team, members] of Object.entries(grouped)) {
+		const { tracks: count, perWeek } = team in known ? known[team] : fallback;
+		const tracks = Math.max(1, Math.floor(count));
+		const perDay = Math.max(perWeek, 0.01) / 7;
+		const free: number[] = Array.from({ length: tracks }, () => today);
+		const ahead: number[] = Array.from({ length: tracks }, () => 0);
+		const queue: Row[] = [];
+		for (const epic of planOrder(members)) {
+			const start = dayOf(epic.start);
+			const target = dayOf(epic.target);
+			const own = byEpic[epic.id] ?? [];
+			const pin = epic.track != null && epic.track > 0 ? Math.floor(epic.track) : null;
+			const row: Row = {
+				id: epic.id,
+				team,
+				remaining: remainingOf(own),
+				done: epic.status === "Epic Done",
+				doneDay: null,
+				start,
+				target,
+				backwards: start != null && target != null && start > target,
+				begin: null,
+				projected: null,
+				late: 0,
+				needed: null,
+				atRisk: false,
+				perWeek,
+				inProgress: inProgressOf(epic, own),
+				track: null,
+				pin,
+				pinIgnored: pin != null && pin > tracks,
+				pausedUntil: null,
+			};
+			rows[epic.id] = row;
+			if (row.done) {
+				const at = doneAt(epic);
+				row.doneDay = at == null ? null : localDay(new Date(at));
+				row.late = target != null && row.doneDay != null ? Math.max(0, row.doneDay - target) : 0;
+			} else if (row.remaining.open === 0 && row.remaining.done > 0) {
+				row.begin = today;
+				row.projected = today;
+			} else if (row.remaining.open > 0) {
+				queue.push(row);
 			}
-			row.atRisk = row.late > 0 && (epic.confidence == null || epic.confidence === "On track");
 		}
-		rows[epic.id] = row;
+		const order = [...queue.filter((row) => row.inProgress), ...queue.filter((row) => !row.inProgress)];
+		const wanted: number[] = Array.from({ length: tracks }, () => 0);
+		const want = (started: boolean) => {
+			for (const row of order) {
+				if (row.inProgress === started && row.pin != null && !row.pinIgnored) wanted[row.pin - 1] += 1;
+			}
+		};
+		want(true);
+		let waiting = false;
+		for (const row of order) {
+			if (!row.inProgress && !waiting) {
+				waiting = true;
+				want(false);
+			}
+			const pinned = row.pin != null && !row.pinIgnored;
+			if (pinned) wanted[(row.pin ?? 1) - 1] -= 1;
+			let lane = pinned ? (row.pin ?? 1) - 1 : 0;
+			if (!pinned) {
+				for (let index = 1; index < tracks; index += 1) {
+					const better =
+						free[index] < free[lane] || (free[index] === free[lane] && wanted[lane] > 0 && wanted[index] === 0);
+					if (better) lane = index;
+				}
+			}
+			row.track = lane + 1;
+			row.begin = Math.max(free[lane], row.start ?? free[lane]);
+			if (row.remaining.points === 0) continue;
+			if (row.inProgress && row.begin > Math.max(today, row.start ?? today)) row.pausedUntil = row.begin;
+			const days = Math.ceil(row.remaining.points / perDay);
+			row.projected = row.begin + Math.max(0, days - 1);
+			free[lane] = row.begin + days;
+			ahead[lane] += row.remaining.points;
+			row.late = row.target != null ? Math.max(0, row.projected - row.target) : 0;
+			if (row.target != null) {
+				const weeks = (row.target - today + 1) / 7;
+				row.needed = weeks > 0 ? Math.round((ahead[lane] / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
+			}
+			const epic = members.find((one) => one.id === row.id);
+			row.atRisk = row.late > 0 && (epic?.confidence == null || epic.confidence === "On track");
+		}
 	}
 	return rows;
 }
