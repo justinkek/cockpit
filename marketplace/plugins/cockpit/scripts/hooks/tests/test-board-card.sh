@@ -282,6 +282,17 @@ stub create --kind reference --name Unrelated --project PRJ-1 >/dev/null 2>&1
 assert_eq "only a card or an epic belongs to a project" "2" "$?"
 stub archive "$owned" >/dev/null
 
+printf "\nTest group: a card is flagged urgent, or not\n"
+
+assert_eq "a card is flagged urgent" "Urgent	true" "$(stub set FEAT-1 urgent true)"
+assert_eq "and holds it as true" "true" "$(field FEAT-1 .urgent)"
+stub set FEAT-1 urgent yes >/dev/null 2>&1
+assert_eq "anything but true or empty is refused" "2" "$?"
+stub set EPIC-1 urgent true >/dev/null 2>&1
+assert_eq "an epic is never flagged urgent" "2" "$?"
+stub set FEAT-1 urgent "" >/dev/null
+assert_eq "an empty value takes the flag off, leaving no field behind" "false" "$(field FEAT-1 'has("urgent")')"
+
 printf "\nTest group: a card's id follows its type\n"
 
 assert_eq "a timebox is numbered with TIME" "TIME-3" "$(stub create --epic EPIC-1 --name Spike --type Timebox)"

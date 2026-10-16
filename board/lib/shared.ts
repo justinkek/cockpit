@@ -89,6 +89,7 @@ export type Card = {
 	sprint?: string | null;
 	due?: string | null;
 	due_from?: string | null;
+	urgent?: boolean;
 	blocked?: string | null;
 	dependent_on?: string[];
 	dependency_for?: string[];

@@ -124,6 +124,8 @@ A record whose front matter does not parse is never written over or read past: a
 
 `board-card set <id> icon <emoji>` gives any record one emoji to show before its name, `create --icon` gives it one from the start, and anything that is not a single emoji is refused. A symbol drawn as text unless asked otherwise, such as `♀`, counts only when the emoji variation selector follows it, as the emoji picker writes it.
 
+`board-card set <id> urgent true` flags a card urgent, read back as `Urgent`, and `''` takes the flag off, leaving no field behind. The flag only overrides the order cards are picked in, which stays each card's place on the board otherwise, and an epic is never flagged.
+
 `board-card set <id> timebox_mins <minutes>` gives a card its budget in whole minutes, read back as `Timebox (mins)`, and a timebox card starts with 60 unless `create --timebox-mins` names another. A card whose type is set to `Timebox` starts with 60 too, unless it already holds a budget.
 
 `board-card set <id> estimate <points>` gives a card the high-level estimate TD sets, a Fibonacci number above 0 kept apart from the `complexity` TR sets and read back as `Estimate`; it is null until set and cleared with `''`, an epic takes none of its own, and a timebox takes none and drops any it held when its type becomes `Timebox`.

@@ -525,7 +525,7 @@ parse_program='
   | .object + {body: $body}'
 
 render_program='
-  ["id", "name", "icon", "type", "status", "epic", "project", "sprint", "due", "blocked",
+  ["id", "name", "icon", "type", "status", "epic", "project", "sprint", "due", "urgent", "blocked",
    "dependent_on", "dependency_for", "complexity", "estimate", "session", "claimed_at", "prs", "cost_usd", "tokens_k",
    "created", "moved", "updated", "rank", "models", "back_from", "reference", "dates"] as $order
   | . as $record
@@ -753,7 +753,7 @@ command_create() {
 
 PROPERTY_FIELDS='{
   "Name": "name", "Icon": "icon", "Status": "status", "Type": "type", "Epic": "epic", "Project": "project",
-  "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Blocked": "blocked", "PRs": "prs",
+  "Sprint": "sprint", "Sprints": "sprint", "Due": "due", "Urgent": "urgent", "Blocked": "blocked", "PRs": "prs",
   "Agent: Session Id": "session", "Complexity": "complexity", "Estimate": "estimate", "Timebox (mins)": "timebox_mins",
   "Dependent on": "dependent_on", "Dependency for": "dependency_for",
   "Session Cost (USD)": "cost_usd", "Session Tokens (k)": "tokens_k",
@@ -987,6 +987,7 @@ property_of_field() {
     project) echo Project ;;
     session) echo "Agent: Session Id" ;;
     blocked) echo Blocked ;;
+    urgent) echo Urgent ;;
     prs) echo PRs ;;
     due) echo Due ;;
     sprint) echo Sprint ;;
@@ -1308,6 +1309,14 @@ set_locked() {
         elif .blocked == $value then .
         else .blocked = $value | .blocked_at = $at | .blocked_by = $by end'
       ;;
+    urgent)
+      [ "$(kind_of "$id")" = card ] || die 2 "only a card is flagged urgent, and $id is not a card"
+      case "$value" in
+        true) update_record "$id" '.urgent = true' ;;
+        "") update_record "$id" 'del(.urgent)' ;;
+        *) die 2 "urgent is true, or '' to take the flag off, not '$value'" ;;
+      esac
+      ;;
     session|prs)
       update_record "$id" --arg field "$field" --argjson value "$(nullable "$value")" '.[$field] = $value'
       ;;
@@ -1330,7 +1339,7 @@ set_locked() {
       ;;
     plan_rank) die 2 "an epic's place in the plan is its rank, the same one the Epics board orders it by - run: board-card set $id rank <n>" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, urgent, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
   esac
 }
 
