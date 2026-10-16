@@ -4917,7 +4917,8 @@
 		color: var(--faint);
 	}
 
-	.plan-points.unsized {
+	.plan-points.unsized,
+	.plan-points.fallback {
 		color: var(--plan-warn);
 	}
 
@@ -5558,7 +5559,7 @@
 		.plan-corner-status,
 		.plan-status-text,
 		.plan-meta .progress,
-		.plan-meta .plan-points:not(.unsized) {
+		.plan-meta .plan-points:not(.unsized, .fallback) {
 			display: none;
 		}
 

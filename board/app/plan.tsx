@@ -833,6 +833,7 @@ export function Plan({
 		return all;
 	}, [projects, speeds, trackCounts, projectOf]);
 	const teamName = (team: string) => projectOf[team]?.name ?? team;
+	const fallbackOf = (team: string) => (speeds.teams[team] ?? speeds.overall).source === "overall";
 	const allocated = projects.reduce((sum, project) => sum + tracksOf(project.id), 0);
 	const homeless = epics.filter((epic) => !epic.project || !projectOf[epic.project]);
 
@@ -1499,7 +1500,7 @@ export function Plan({
 		const target = row.target;
 		const ends: number[] = [];
 		const pieces: ReactNode[] = [];
-		const scheduled = `on track ${row.track} at ${figure(row.perWeek)} points a week: ${runTitle(row)}`;
+		const scheduled = `on track ${row.track} at ${figure(row.perWeek)} points a week${fallbackOf(row.team) ? `, a fallback: ${teamName(row.team)} has no done history, so it takes the board's overall average rather than a speed of its own` : ""}: ${runTitle(row)}`;
 		if (row.refineStart != null && row.refineEnd != null) {
 			const refinedTo = Math.min(row.refineEnd, today);
 			if (refinedTo > row.refineStart) {
@@ -1760,6 +1761,15 @@ export function Plan({
 								/>
 							)}
 							{row && !row.done && row.remaining.tickets > 0 && <span className="plan-sr">{runTitle(row)}</span>}
+							{row && !row.done && row.projected != null && row.remaining.points > 0 && fallbackOf(row.team) && (
+								<span
+									className="plan-points fallback"
+									title={`Projected at ${figure(row.perWeek)} points a week a track, a fallback rather than a measured speed: ${teamName(row.team)} has no ticket with a TR complexity done in the last six weeks, so it takes the board's overall average`}
+								>
+									<Icon name="plan" />
+									Fallback speed
+								</span>
+							)}
 							{row && !row.done && row.remaining.open + row.remaining.done === 0 && (
 								<span className="plan-points none" title="Give it cards to project when it ends">
 									No cards
