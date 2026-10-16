@@ -5043,6 +5043,12 @@
 		opacity: 0.8;
 	}
 
+	.plan-run.delivered,
+	.legend-run.delivered {
+		background: var(--plan-good);
+		opacity: 0.75;
+	}
+
 	.plan-refine {
 		position: absolute;
 		top: 37px;

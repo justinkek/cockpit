@@ -1481,6 +1481,20 @@ export function Plan({
 			}
 			ends.push(row.refineEnd);
 		}
+		if (!row.refineForecast && row.refineEnd != null && (row.phase === "delivery" || row.phase === "done")) {
+			const until = row.phase === "done" ? (row.doneDay ?? today) + 1 : today;
+			if (until > row.refineEnd) {
+				const delivered = progressOf(cardsOf[epic.id] ?? []);
+				pieces.push(
+					<span
+						key="delivered"
+						className="plan-run delivered"
+						style={{ left: x(row.refineEnd), width: x(until) - x(row.refineEnd) }}
+						title={`${row.phase === "done" ? "Delivered" : "Delivering"} from ${short(row.refineEnd)}${row.phase === "done" ? ` to ${short(until - 1)}` : " to today"}: ${delivered.done} of ${delivered.total} cards done, ${figure(delivered.donePoints)} pts of TR complexity - done work stays behind today and never moves`}
+					/>,
+				);
+			}
+		}
 		if (row.pausedUntil != null) {
 			pieces.push(
 				<span
@@ -2096,6 +2110,9 @@ export function Plan({
 					</span>
 					<span>
 						<span className="legend-refine forecast" /> Refinement forecast
+					</span>
+					<span>
+						<span className="legend-run delivered" /> Delivered so far
 					</span>
 					<span>
 						<span className="legend-run" /> Scheduled on TR complexity
