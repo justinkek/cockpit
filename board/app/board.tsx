@@ -18,7 +18,17 @@ import {
 } from "@dnd-kit/core";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import {
+	createContext,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+	useTransition,
+} from "react";
 import {
 	type Bulk,
 	bulkChange,
@@ -39,6 +49,7 @@ import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/a
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Command, type Page, Palette } from "@/app/palette";
+import { EstimateFacts, EstimatePill } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
 import { contextOf, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
@@ -61,6 +72,7 @@ import {
 	type View,
 } from "@/app/view";
 import { type Progress, progressOf } from "@/lib/metrics";
+import { type Remaining, remainingOf } from "@/lib/plan";
 import {
 	boardColumns,
 	bounces,
@@ -94,8 +106,25 @@ const AGED_AFTER = 5;
 const Names = createContext<Record<string, string>>({});
 
 const Progresses = createContext<Record<string, Progress>>({});
+const Estimates = createContext<Record<string, Remaining>>({});
 
-type Child = Named & { status: string; complexity?: number | null };
+function Rollups({
+	progresses,
+	estimates,
+	children,
+}: {
+	progresses: Record<string, Progress>;
+	estimates: Record<string, Remaining>;
+	children: ReactNode;
+}) {
+	return (
+		<Progresses.Provider value={progresses}>
+			<Estimates.Provider value={estimates}>{children}</Estimates.Provider>
+		</Progresses.Provider>
+	);
+}
+
+type Child = Named & Pick<Stub, "status" | "type" | "complexity" | "estimate" | "dependent_on">;
 
 type Notice = { id: string; text: string } | null;
 
@@ -225,9 +254,11 @@ function Signals({ stub }: { stub: Stub }) {
 	const back = bounces(stub);
 	const total = back.reduce((sum, [, count]) => sum + count, 0);
 	const progress = useContext(Progresses)[stub.id];
+	const estimates = useContext(Estimates)[stub.id];
 	return (
 		<>
 			{progress && progress.total > 0 && <ProgressMeter progress={progress} />}
+			{estimates && <EstimatePill remaining={estimates} />}
 			{stub.type === "Timebox" && stub.timebox_mins != null && (
 				<span className="pill" title={`A timebox of ${stub.timebox_mins} minutes`}>
 					{stub.timebox_mins}m
@@ -658,6 +689,7 @@ function Peek({
 					</>
 				)}
 			</dl>
+			{kind === "epic" && <EstimateFacts remaining={remainingOf(cards)} />}
 			{kind === "epic" && (
 				<section className="timeline">
 					<h3>
@@ -934,6 +966,11 @@ export function Board({
 	const progresses = useMemo(
 		() =>
 			kind === "epic" ? Object.fromEntries(stubs.map((stub) => [stub.id, progressOf(children[stub.id] ?? [])])) : {},
+		[kind, stubs, children],
+	);
+	const estimates = useMemo(
+		() =>
+			kind === "epic" ? Object.fromEntries(stubs.map((stub) => [stub.id, remainingOf(children[stub.id] ?? [])])) : {},
 		[kind, stubs, children],
 	);
 	const tableContext = useMemo(() => contextOf(kind, lists, progresses), [kind, lists, progresses]);
@@ -1540,7 +1577,7 @@ export function Board({
 
 	return (
 		<Names.Provider value={names}>
-			<Progresses.Provider value={progresses}>
+			<Rollups progresses={progresses} estimates={estimates}>
 				<MentionContext.Provider value={mentions}>
 					<div className={`board${open ? " peeking" : ""}`}>
 						<div className="toolbar">
@@ -1794,7 +1831,7 @@ export function Board({
 						{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 					</div>
 				</MentionContext.Provider>
-			</Progresses.Provider>
+			</Rollups>
 		</Names.Provider>
 	);
 }

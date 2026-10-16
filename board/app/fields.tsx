@@ -467,6 +467,32 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</select>
 						</Fallback>
 					</dd>
+					{record.type !== "Timebox" && (
+						<>
+							<dt>Estimate</dt>
+							<dd>
+								<Fallback id={id} op="set" field="estimate">
+									<select
+										name="value"
+										aria-label="Estimate"
+										title="The high-level estimate TD gives, which the plan counts until TR sets a complexity"
+										value={record.estimate ?? ""}
+										onChange={(event) => {
+											const value = event.target.value;
+											onEdit("estimate", value, { estimate: value === "" ? null : Number(value) });
+										}}
+									>
+										<option value="">Not set</option>
+										{FIBONACCI.filter((points) => points > 0).map((points) => (
+											<option key={points} value={points}>
+												{points}
+											</option>
+										))}
+									</select>
+								</Fallback>
+							</dd>
+						</>
+					)}
 					<dt>Timebox (mins)</dt>
 					<dd>
 						<Fallback id={id} op="set" field="timebox_mins">
