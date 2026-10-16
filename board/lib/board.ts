@@ -77,6 +77,11 @@ export async function changeStatus(record: Card, column: string): Promise<void> 
 	await boardCard(["move", record.id, column]);
 }
 
+export async function moveRecords(ids: string[], column: string): Promise<string[]> {
+	const output = await boardCard(["move", ...ids, column]);
+	return [...output.matchAll(/^(\S+)\t/gm)].map((match) => match[1]);
+}
+
 export async function setField(id: string, field: string, value: string): Promise<string> {
 	return (await setFieldHolding(id, field, value)).id;
 }

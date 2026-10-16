@@ -21,6 +21,7 @@ import {
 	lastCommit,
 	link,
 	listRecords,
+	moveRecords,
 	readComments,
 	readInboxUpTo,
 	readRecord,
@@ -266,11 +267,21 @@ export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 }
 
 export async function finishEpic(id: string, cards: string[]): Promise<BulkResult & { record?: Card }> {
-	const result: BulkResult =
-		cards.length > 0
-			? await bulkChange(cards, { op: "move", column: "Deprioritised" })
-			: { records: [], undo: [], errors: [] };
-	if (result.errors.length > 0) return result;
+	const result: BulkResult = { records: [], undo: [], errors: [] };
+	if (cards.length > 0) {
+		try {
+			const moved = await moveRecords(cards, "Deprioritised");
+			const until = moved.length > 0 ? await lastCommit(moved[0]) : null;
+			for (const card of moved) {
+				refresh(card);
+				if (until) result.undo.push({ id: card, since: `${until}^`, until });
+			}
+		} catch (error) {
+			const failure = await failed(cards[0], error);
+			result.errors.push(failure.error ?? "the open tickets could not be deprioritised");
+			return result;
+		}
+	}
 	const moved = await dropCard(id, "Epic Done");
 	if (moved.error) return { ...result, errors: [`${id}: ${moved.error}`] };
 	if (moved.undo) result.undo.push({ id, ...moved.undo });
