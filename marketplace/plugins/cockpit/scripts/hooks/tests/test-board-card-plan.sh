@@ -175,5 +175,32 @@ stub set "$estimated" estimate 3 >/dev/null
 estimated="$(stub set "$estimated" type Timebox >/dev/null; stub list --json | jq --raw-output 'map(select(.name == "Estimated")) | .[0].id')"
 assert_eq "a card turned into a timebox drops its estimate" "null" "$(field "$estimated" .estimate)"
 
+printf "\nTest group: a project runs on tracks, and an epic can be pinned to one\n"
+
+tracked="$(stub create --kind project --name Tracked)"
+assert_eq "a new project has no track count, which the plan reads as 1" "null" "$(field "$tracked" .tracks)"
+stub set "$tracked" tracks 3 >/dev/null
+assert_eq "a project takes a whole number of tracks" "3" "$(field "$tracked" .tracks)"
+assert_eq "and reads it back by its property name" "Tracks	3" "$(stub show "$tracked" Tracks)"
+assert_eq "no tracks at all is refused" "2" "$(refused set "$tracked" tracks 0)"
+assert_eq "part of a track is refused" "2" "$(refused set "$tracked" tracks 1.5)"
+assert_eq "an epic has no track count of its own" "2" "$(refused set EPIC-1 tracks 2)"
+stub set "$tracked" tracks "" >/dev/null
+assert_eq "an empty track count clears it" "null" "$(field "$tracked" .tracks)"
+stub set EPIC-1 track 2 >/dev/null
+assert_eq "an epic is pinned to a track by its number" "Track	2" "$(stub show EPIC-1 Track)"
+stub set EPIC-1 track 9 >/dev/null
+assert_eq "a pin past its project's tracks is kept, for the plan to warn about" "9" "$(field EPIC-1 .track)"
+assert_eq "a card is never pinned to a track" "2" "$(refused set "$estimated" track 1)"
+assert_eq "a project is never pinned to a track" "2" "$(refused set "$tracked" track 1)"
+stub set EPIC-1 track "" >/dev/null
+assert_eq "an empty pin lets the plan place the epic again" "null" "$(field EPIC-1 .track)"
+assert_eq "the epics with no project run on one track until told otherwise" "1" "$(stub no-project-tracks)"
+assert_eq "and take a whole number of tracks" "2" "$(stub no-project-tracks 2)"
+assert_eq "which is kept on the board" "2" "$(cat "$COCKPIT_BOARD_DIR/no-project-tracks")"
+assert_eq "and committed there" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain no-project-tracks)"
+assert_eq "no tracks at all is refused for them too" "2" "$(refused no-project-tracks 0)"
+assert_eq "an empty count puts them back on one track" "1" "$(stub no-project-tracks "")"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

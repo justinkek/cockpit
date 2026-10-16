@@ -37,6 +37,7 @@
 #   board-card revision
 #   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
 #   board-card path [<id>]
+#   board-card no-project-tracks [<n> | '']
 #
 # Exit codes:
 #   0  done
@@ -736,7 +737,7 @@ PROPERTY_FIELDS='{
   "Cost": "cost_usd", "Tokens": "tokens_k",
   "Start Date": "start", "End Date": "end", "Dev Days": "dev_days", "Speed": "speed",
   "Priority": "priority", "Repo": "repo", "Target": "target", "Confidence": "confidence", "Learning": "learning",
-  "Plan rank": "plan_rank", "Date": "date", "Due from": "due_from",
+  "Plan rank": "plan_rank", "Date": "date", "Due from": "due_from", "Tracks": "tracks", "Track": "track",
   "Points": "points", "Why this score": "why", "Description": "description", "Domain": "domain", "Stack": "stack", "Ticket": "card"}'
 
 require_properties() {
@@ -940,6 +941,8 @@ property_of_field() {
     confidence) echo Confidence ;;
     learning) echo Learning ;;
     plan_rank) echo "Plan rank" ;;
+    tracks) echo Tracks ;;
+    track) echo Track ;;
     date) echo Date ;;
     end) echo "End Date" ;;
     dev_days) echo "Dev Days" ;;
@@ -1128,6 +1131,16 @@ field_json() {
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+$' || die 2 "a project's priority is a whole number, not '$value'"
       if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
+    tracks)
+      [ "$kind" = project ] || die 2 "only a project has tracks - the epics with no project take theirs from: board-card no-project-tracks - and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a project's tracks are a whole number above 0, not '$value' - clear it with '' for the default of 1"
+      if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
+      ;;
+    track)
+      [ "$kind" = epic ] || die 2 "only an epic is pinned to a track, and this is a $kind"
+      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a track is a whole number above 0, not '$value' - clear it with '' to let the plan place the epic"
+      if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
+      ;;
     repo)
       [ "$kind" = project ] || die 2 "only a project has a repo, and this is a $kind"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^https?://[^[:space:]]+$' || die 2 "a project's repo is a URL, not '$value'"
@@ -1241,7 +1254,7 @@ set_locked() {
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
       ;;
-    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status|points|why|description|domain|stack|card|target|date|confidence|learning|plan_rank)
+    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status|points|why|description|domain|stack|card|target|date|confidence|learning|plan_rank|tracks|track)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
       case "$(kind_of "$id")/$field" in
         sprint/start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
@@ -1293,7 +1306,7 @@ set_locked() {
       update_record "$id" --argjson value "$value" '.rank = $value'
       ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, plan_rank, dev_days, speed, priority, repo, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, plan_rank, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
   esac
 }
 
@@ -2102,6 +2115,22 @@ command_inbox() {
   fi
 }
 
+no_project_tracks_locked() {
+  if [ -z "$1" ]; then rm -f "$BOARD_DIR/no-project-tracks"; else printf '%s\n' "$1" > "$BOARD_DIR/no-project-tracks"; fi
+}
+
+command_no_project_tracks() {
+  local tracks
+  require_board
+  if [ "$#" -gt 0 ]; then
+    [ "$#" -eq 1 ] || die 2 "usage: board-card no-project-tracks [<n> | '']"
+    [ -z "$1" ] || printf '%s' "$1" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "tracks are a whole number above 0, not '$1' - clear them with '' for the default of 1"
+    with_lock no_project_tracks_locked "$1"
+  fi
+  tracks="$(cat "$BOARD_DIR/no-project-tracks" 2>/dev/null || true)"
+  printf '%s\n' "${tracks:-1}"
+}
+
 command_path() {
   local id
   if [ -n "${1:-}" ]; then
@@ -2154,5 +2183,6 @@ case "$action" in
   revision) command_revision ;;
   inbox) command_inbox "$@" ;;
   path) command_path "$@" ;;
-  *) sed -n '3,/^#   board-card path/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  no-project-tracks) command_no_project_tracks "$@" ;;
+  *) sed -n '3,/^#   board-card no-project-tracks/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
