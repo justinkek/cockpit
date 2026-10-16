@@ -155,5 +155,25 @@ assert_eq "and leaves the cards for their own undo" "2026-11-02" "$(field FEAT-7
 stub undo FEAT-7 >/dev/null
 assert_eq "which puts the card's due date back" "2026-11-20" "$(field FEAT-7 .due)"
 
+printf "\nTest group: a card carries a high-level estimate apart from its complexity\n"
+
+estimated="$(stub create --name "Estimated")"
+assert_eq "a new card has no estimate" "null" "$(field "$estimated" .estimate)"
+stub set "$estimated" estimate 5 >/dev/null
+assert_eq "a Fibonacci estimate is kept" "5" "$(field "$estimated" .estimate)"
+assert_eq "and reads back by its property name" "Estimate	5" "$(stub show "$estimated" Estimate)"
+assert_eq "and leaves the complexity unset" "null" "$(field "$estimated" .complexity)"
+assert_eq "an estimate off the Fibonacci list is refused" "2" "$(refused set "$estimated" estimate 4)"
+assert_eq "an estimate of 0 is refused, unknown being no estimate at all" "2" "$(refused set "$estimated" estimate 0)"
+assert_eq "an epic has no estimate of its own" "2" "$(refused set EPIC-1 estimate 8)"
+assert_eq "a copy carries the estimate" "5" "$(field "$(stub duplicate "$estimated")" .estimate)"
+stub set "$estimated" estimate "" >/dev/null
+assert_eq "an empty estimate clears it" "null" "$(field "$estimated" .estimate)"
+timebox="$(stub create --name "Spike" --type Timebox)"
+assert_eq "a timebox carries no estimate" "2" "$(refused set "$timebox" estimate 3)"
+stub set "$estimated" estimate 3 >/dev/null
+estimated="$(stub set "$estimated" type Timebox >/dev/null; stub list --json | jq --raw-output 'map(select(.name == "Estimated")) | .[0].id')"
+assert_eq "a card turned into a timebox drops its estimate" "null" "$(field "$estimated" .estimate)"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
