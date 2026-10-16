@@ -5,8 +5,8 @@ export const CONFIDENCES = ["On track", "At risk - plan in place", "At risk - no
 
 export type Confidence = (typeof CONFIDENCES)[number];
 
-export const PACE_WEEKS = 6;
-export const DEFAULT_PACE = 10;
+export const AVERAGE_SPEED_WEEKS = 6;
+export const DEFAULT_AVERAGE_SPEED = 10;
 export const DEFAULT_SIZE = 3;
 export const PAST_DAYS = 730;
 export const FUTURE_DAYS = 1826;
@@ -47,18 +47,18 @@ export function cardSizeOf(cards: Sized[]): Size {
 	return middle == null ? { points: DEFAULT_SIZE, measured: false } : { points: middle, measured: true };
 }
 
-export type Pace = { perWeek: number; source: "measured" | "sprint" | "default"; points: number; weeks: number };
+export type AverageSpeed = { perWeek: number; source: "measured" | "sprint" | "default"; points: number; weeks: number };
 
 type Delivered = Sized & Pick<Card, "dates" | "moved">;
 
-export function paceOf(
+export function averageSpeedOf(
 	cards: Delivered[],
 	sprints: Pick<Card, "start" | "end" | "speed">[],
 	size: number,
 	now = new Date(),
-): Pace {
+): AverageSpeed {
 	const end = now.getTime();
-	const windowStart = end - PACE_WEEKS * 7 * DAY;
+	const windowStart = end - AVERAGE_SPEED_WEEKS * 7 * DAY;
 	let first = Number.POSITIVE_INFINITY;
 	let points = 0;
 	for (const card of cards) {
@@ -69,12 +69,12 @@ export function paceOf(
 		if (at >= windowStart) points += card.complexity ?? size;
 	}
 	if (points > 0) {
-		const weeks = Math.min(PACE_WEEKS, Math.max(1, (end - Math.max(windowStart, first)) / (7 * DAY)));
+		const weeks = Math.min(AVERAGE_SPEED_WEEKS, Math.max(1, (end - Math.max(windowStart, first)) / (7 * DAY)));
 		return { perWeek: points / weeks, source: "measured", points, weeks: Math.round(weeks * 10) / 10 };
 	}
 	const speed = currentSprint(sprints, now)?.speed ?? 0;
 	if (speed > 0) return { perWeek: speed * 5, source: "sprint", points: 0, weeks: 0 };
-	return { perWeek: DEFAULT_PACE, source: "default", points: 0, weeks: 0 };
+	return { perWeek: DEFAULT_AVERAGE_SPEED, source: "default", points: 0, weeks: 0 };
 }
 
 export type Remaining = { points: number; open: number; unsized: number; done: number; dropped: number };
@@ -128,14 +128,14 @@ export type Row = {
 export function planOf(
 	epics: Planned[],
 	cards: (Sized & Pick<Card, "epic">)[],
-	pace: number,
+	averageSpeed: number,
 	size: number,
 	today: number,
 ): Record<string, Row> {
 	const rows: Record<string, Row> = {};
 	const byEpic: Record<string, Sized[]> = {};
 	for (const card of cards) if (card.epic) (byEpic[card.epic] ??= []).push(card);
-	const perDay = Math.max(pace, 0.01) / 7;
+	const perDay = Math.max(averageSpeed, 0.01) / 7;
 	let cursor = today;
 	let ahead = 0;
 	for (const epic of planOrder(epics)) {

@@ -54,7 +54,7 @@ import {
 	dayText,
 	lateText,
 	mondayOf,
-	paceOf,
+	averageSpeedOf,
 	planOf,
 	planOrder,
 	type Row,
@@ -121,7 +121,7 @@ function long(day: number) {
 	});
 }
 
-function pace(points: number) {
+function figure(points: number) {
 	return points >= 10 ? Math.round(points).toString() : (Math.round(points * 10) / 10).toString();
 }
 
@@ -663,7 +663,7 @@ export function Plan({
 	const today = dayOf(todayText) ?? 0;
 	const now = useMemo(() => new Date(), [cards]);
 	const size = useMemo(() => cardSizeOf(cards), [cards]);
-	const rate = useMemo(() => paceOf(cards, sprints, size.points, now), [cards, sprints, size, now]);
+	const rate = useMemo(() => averageSpeedOf(cards, sprints, size.points, now), [cards, sprints, size, now]);
 
 	const shown = useMemo(() => {
 		if (!drag || drag.mode === "milestone") return epics;
@@ -1201,7 +1201,7 @@ export function Plan({
 					key="run"
 					className="plan-run"
 					style={{ left: x(row.begin), width: x(row.projected + 1) - x(row.begin) }}
-					title={`Scheduled from ${short(row.begin)} to ${short(row.projected)} at ${pace(rate.perWeek)} points a week`}
+					title={`Scheduled from ${short(row.begin)} to ${short(row.projected)} at ${figure(rate.perWeek)} points a week`}
 				/>,
 			);
 		}
@@ -1376,7 +1376,7 @@ export function Plan({
 											: ""
 									}`}
 								>
-									{pace(row.remaining.points)} pts{row.remaining.unsized > 0 ? "*" : ""}
+									{figure(row.remaining.points)} pts{row.remaining.unsized > 0 ? "*" : ""}
 								</span>
 							)}
 							{row && !row.done && row.remaining.open + row.remaining.done === 0 && (
@@ -1390,11 +1390,11 @@ export function Plan({
 									title={
 										needed === Number.POSITIVE_INFINITY
 											? "Its target has passed with points still left"
-											: `Meeting its target takes ${pace(needed)} points a week, counting every epic ahead of it in the plan, against ${pace(rate.perWeek)} done a week`
+											: `Meeting its target takes ${figure(needed)} points a week, counting every epic ahead of it in the plan, against ${figure(rate.perWeek)} done a week`
 									}
 								>
 									{short_of && <Icon name="plan" />}
-									{needed === Number.POSITIVE_INFINITY ? "Target passed" : `Needs ${pace(needed)}/wk`}
+									{needed === Number.POSITIVE_INFINITY ? "Target passed" : `Needs ${figure(needed)}/wk`}
 								</span>
 							)}
 							{progress.total > 0 && <ProgressMeter progress={progress} />}
@@ -1513,9 +1513,9 @@ export function Plan({
 				</header>
 				<div className="stat-row plan-stats">
 					<div title={rateTitle}>
-						<span className="stat-label">Pace</span>
+						<span className="stat-label">Average speed</span>
 						<span className="stat-value">
-							{pace(rate.perWeek)}{" "}
+							{figure(rate.perWeek)}{" "}
 							<span>
 								pts a week ·{" "}
 								{rate.source === "measured" ? "measured" : rate.source === "sprint" ? "sprint speed" : "default"}
@@ -1529,7 +1529,7 @@ export function Plan({
 					>
 						<span className="stat-label">Unsized card counts as</span>
 						<span className="stat-value">
-							{pace(size.points)}{" "}
+							{figure(size.points)}{" "}
 							<span>
 								pts · {unsized} open {unsized === 1 ? "card" : "cards"} assumed
 							</span>
@@ -1537,7 +1537,7 @@ export function Plan({
 					</div>
 					<div>
 						<span className="stat-label">Points left</span>
-						<span className="stat-value">{pace(pointsLeft)}</span>
+						<span className="stat-value">{figure(pointsLeft)}</span>
 					</div>
 					<div className={lateCount > 0 ? "alert" : undefined}>
 						<span className="stat-label">Plan ends</span>
@@ -1584,7 +1584,7 @@ export function Plan({
 							<div className="plan-header">
 								<div className="plan-left plan-corner">
 									<span>Epic</span>
-									<span className="plan-corner-status">Status · points left · pace needed</span>
+									<span className="plan-corner-status">Status · points left · speed needed</span>
 								</div>
 								<div className="plan-scale" style={{ width }}>
 									<div className="plan-months">
@@ -1715,7 +1715,7 @@ export function Plan({
 						<span className="legend-bar" /> Start to target
 					</span>
 					<span>
-						<span className="legend-run" /> Scheduled at the pace
+						<span className="legend-run" /> Scheduled at the average speed
 					</span>
 					<span>
 						<Icon name="projected" /> Projected end
@@ -1738,7 +1738,7 @@ export function Plan({
 							<Icon name={STATUSES[value].icon} /> {STATUSES[value].label}
 						</span>
 					))}
-					<span>* counts unsized cards at {pace(size.points)} pts</span>
+					<span>* counts unsized cards at {figure(size.points)} pts</span>
 				</footer>
 			</div>
 			{open && (
