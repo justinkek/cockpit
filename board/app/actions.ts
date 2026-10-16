@@ -11,7 +11,6 @@ import {
 	type CommentThread,
 	type Kind,
 	changeStatus,
-	commentAuthor,
 	commitsOf,
 	createRecord,
 	deleteComment,
@@ -21,6 +20,7 @@ import {
 	lastCommit,
 	link,
 	listRecords,
+	meNames,
 	moveRecords,
 	readComments,
 	readInboxUpTo,
@@ -37,7 +37,7 @@ type Failure = { error?: string; moved?: string; archived?: boolean };
 export type Span = { since: string; until: string };
 export type Change = { id: string } & Span;
 type Result = Failure & { record?: Card; undo?: Span; more?: Change[] };
-type Threads = Failure & { threads?: CommentThread[]; me?: string | null };
+type Threads = Failure & { threads?: CommentThread[]; me?: string[] };
 export type NewOptions = {
 	type?: string;
 	epic?: string;
@@ -118,7 +118,7 @@ async function threadsAfter(id: string, change: () => Promise<void>): Promise<Th
 	try {
 		await change();
 		refresh(id);
-		return { threads: await readComments(id), me: commentAuthor() };
+		return { threads: await readComments(id), me: await meNames() };
 	} catch (error) {
 		return failed(id, error);
 	}
@@ -397,7 +397,7 @@ export async function findInContent(kind: Kind, query: string): Promise<{ ids: s
 
 export async function loadComments(id: string): Promise<Threads> {
 	try {
-		return { threads: await readComments(id), me: commentAuthor() };
+		return { threads: await readComments(id), me: await meNames() };
 	} catch (error) {
 		return failed(id, error);
 	}
