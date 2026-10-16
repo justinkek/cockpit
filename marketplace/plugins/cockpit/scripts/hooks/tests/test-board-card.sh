@@ -85,6 +85,28 @@ stub walk BUG-2 Done >/dev/null 2>&1
 assert_eq "a walk does not start from a parked card" "2" "$?"
 stub move BUG-2 "In BR" >/dev/null
 
+printf "\nTest group: one move takes several records and lands as one commit\n"
+
+base="$(last_commit %H)"
+assert_eq "each record it moves is named, once however often it is given" "FEAT-1	In Dev -> Deprioritised
+BUG-2	In BR -> Deprioritised" "$(stub move FEAT-1 bug-2 FEAT-1 Deprioritised)"
+assert_eq "every record lands on the column" "Deprioritised Deprioritised" "$(field FEAT-1 .status) $(field BUG-2 .status)"
+assert_eq "as one commit" "1" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count "$base..HEAD")"
+assert_eq "holding both records" "cards/BUG-2.md cards/FEAT-1.md" \
+  "$(git -C "$COCKPIT_BOARD_DIR" show --name-only --format= HEAD | sort | paste -sd ' ' -)"
+moved_commit="$(last_commit %H)"
+stub undo BUG-2 --since "$base" --until "$moved_commit" >/dev/null
+assert_eq "one record of it is undone on its own" "In BR Deprioritised" "$(field BUG-2 .status) $(field FEAT-1 .status)"
+stub undo FEAT-1 --since "$base" --until "$moved_commit" >/dev/null
+assert_eq "and the other after it" "In Dev" "$(field FEAT-1 .status)"
+stub move FEAT-1 EPIC-1 Deprioritised >/dev/null 2>&1
+assert_eq "records of two kinds are refused" "2" "$?"
+stub move FEAT-1 BUG-999 Deprioritised >/dev/null 2>&1
+assert_eq "a record that is not on the board refuses the whole move" "3" "$?"
+assert_eq "leaving the others where they were" "In Dev" "$(field FEAT-1 .status)"
+stub move Deprioritised >/dev/null 2>&1
+assert_eq "a column with no record is refused" "2" "$?"
+
 printf "\nTest group: complexity and links\n"
 
 stub set BUG-2 complexity 4 >/dev/null 2>&1

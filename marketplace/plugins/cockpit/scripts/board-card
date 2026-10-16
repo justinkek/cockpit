@@ -13,7 +13,7 @@
 #   board-card set <id> <field> <value>
 #   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
 #   board-card bounce <id> <gate>
-#   board-card move <id> <column>
+#   board-card move <id>... <column>
 #   board-card walk <id> <column> [--skip <column>]...
 #   board-card link <parent-id> <child-id>
 #   board-card unlink <parent-id> <child-id>
@@ -1479,32 +1479,45 @@ command_bounce() {
 }
 
 hop() {
-  local id="$1" column="$2" kind from stamped=false starting=false
+  local id="$1" column="$2" kind record from stamped=false starting=false
   kind="$(kind_of "$id")"
-  from="$(read_record "$id" | jq --raw-output '.status')"
+  record="$(read_record "$id")"
+  from="$(printf '%s' "$record" | jq --raw-output '.status')"
   [ "$from" = "$column" ] && return 0
   if is_stamped "$kind" "$column"; then stamped=true; fi
   if [ "$kind" = epic ] && [ "$from" = Backlog ]; then starting=true; fi
-  update_record "$id" --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" \
+  printf '%s' "$record" | jq --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" \
     --argjson starting "$starting" '
     .status = $column
     | .moved = $stamp
     | .moved_by = $by
     | if $stamped and ((.dates // {}) | has($column) | not)
       then .dates = ((.dates // {}) + {($column): $stamp}) else . end
-    | if $starting and .start == null then .start = $stamp[:10] else . end'
+    | if $starting and .start == null then .start = $stamp[:10] else . end' | write_record "$id"
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
 }
 
+hops() {
+  local column="$1" id
+  shift
+  for id in "$@"; do hop "$id" "$column"; done
+}
+
 command_move() {
-  local id column="${2:-}" kind
-  id="$(normalise_id "${1:-}")"
-  kind="$(kind_of "$id")"
+  [ "$#" -ge 2 ] || die 2 "usage: board-card move <id>... <column>"
+  local column="${!#}" given id kind="" ids=()
+  [ -n "$column" ] || die 2 "usage: board-card move <id>... <column>"
+  for given in "${@:1:$#-1}"; do
+    id="$(normalise_id "$given")"
+    case " ${ids[*]-} " in *" $id "*) continue ;; esac
+    [ -z "$kind" ] || [ "$(kind_of "$id")" = "$kind" ] || die 2 "one move takes records of one kind, and $id is not a $kind"
+    kind="$(kind_of "$id")"
+    ids+=("$id")
+  done
   has_board "$kind" || die 2 "a $kind has no columns"
-  [ -n "$column" ] || die 2 "usage: board-card move <id> <column>"
   require_column "$kind" "$column"
-  require_record "$id"
-  with_lock hop "$id" "$column"
+  for id in "${ids[@]}"; do require_record "$id"; done
+  with_lock hops "$column" "${ids[@]}"
 }
 
 walk_locked() {
