@@ -210,6 +210,7 @@ const FIELD_NAMES: Record<string, string> = {
 	due: "due date",
 	start: "start date",
 	target: "target date",
+	urgent: "urgent flag",
 };
 
 export const MODEL_STAGES = ["BR", "TR", "Dev", "CR"] as const;
