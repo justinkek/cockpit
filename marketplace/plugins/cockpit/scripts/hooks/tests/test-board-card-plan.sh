@@ -57,18 +57,40 @@ stub set EPIC-1 confidence "" >/dev/null
 assert_eq "an empty confidence clears it" "null" "$(field EPIC-1 .confidence)"
 stub set EPIC-1 learning "Involve QA from the design phase" >/dev/null
 assert_eq "a learning is free text" "Learning	Involve QA from the design phase" "$(stub show EPIC-1 Learning)"
-stub set EPIC-1 plan_rank -1.5 >/dev/null
-assert_eq "a plan rank is a number" "-1.5" "$(field EPIC-1 .plan_rank)"
-assert_eq "a plan rank that is not a number is refused" "2" "$(refused set EPIC-1 plan_rank first)"
+assert_eq "a new epic is ranked below every other" "1" "$(field EPIC-1 .rank)"
+stub set EPIC-1 rank -1.5 >/dev/null
+assert_eq "an epic's place in the plan is its rank" "Rank	-1.5" "$(stub show EPIC-1 Rank)"
+assert_eq "a plan rank of its own is refused, pointing at the rank" "2" "$(refused set EPIC-1 plan_rank 1)"
 stub create --name "A card" >/dev/null
 assert_eq "a card has no target" "2" "$(refused set FEAT-1 target 2026-11-30)"
 assert_eq "a card has no confidence" "2" "$(refused set FEAT-1 confidence "On track")"
-assert_eq "a card has no place in the plan" "2" "$(refused set FEAT-1 plan_rank 1)"
 assert_eq "a card has no start date" "2" "$(refused set FEAT-1 start 2026-10-05)"
 assert_eq "an epic is created with its dates" "EPIC-2" "$(stub create --kind epic --name Search --start 2026-10-01 --target 2026-10-31)"
 assert_eq "and keeps them" "2026-10-01 2026-10-31" "$(field EPIC-2 '"\(.start) \(.target)"')"
 assert_eq "an epic created with its target before its start is refused" "2" \
   "$(refused create --kind epic --name Bad --start 2026-10-31 --target 2026-10-01)"
+
+assert_eq "the next epic created is ranked below the lowest" "-1" "$(field EPIC-2 .rank)"
+
+printf "\nTest group: migrate gives every epic one rank, the plan's order first\n"
+
+migrated="$TMPDIR/migrated"
+mkdir -p "$migrated"
+COCKPIT_BOARD_DIR="$migrated" stub init >/dev/null
+for name in Placed Dragged Dated Plain; do COCKPIT_BOARD_DIR="$migrated" stub create --kind epic --name "$name" >/dev/null; done
+for epic in 1 2 3 4; do perl -ni -e 'print unless /^rank: /' "$migrated/epics/EPIC-$epic.md"; done
+perl -pi -e 's/^(name: .*)$/$1\nplan_rank: 5/' "$migrated/epics/EPIC-1.md"
+perl -pi -e 's/^(name: .*)$/$1\nrank: -8/' "$migrated/epics/EPIC-2.md"
+perl -pi -e 's/^(name: .*)$/$1\ntarget: "2026-11-01"/' "$migrated/epics/EPIC-3.md"
+git -C "$migrated" add --all >/dev/null && git -C "$migrated" -c user.name=t -c user.email=t@t commit --quiet -m seed
+output="$(COCKPIT_BOARD_DIR="$migrated" stub migrate)"
+ranks() { COCKPIT_BOARD_DIR="$migrated" stub list --kind epic --json | jq --raw-output 'map("\(.id)=\(.rank)\(if has("plan_rank") then "+plan" else "" end)") | join(" ")'; }
+assert_eq "an epic placed in the plan comes first, then one dragged on the board, then by target and number" \
+  "EPIC-1=1 EPIC-2=2 EPIC-3=3 EPIC-4=4" "$(ranks)"
+assert_eq "and migrate names each epic it ranked" "4" "$(printf '%s\n' "$output" | grep --count rank)"
+assert_eq "the whole migration is one commit" "migrate EPIC-1 EPIC-2 EPIC-3 EPIC-4" "$(git -C "$migrated" log -1 --format=%s)"
+assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(COCKPIT_BOARD_DIR="$migrated" stub migrate)"
+assert_eq "and changes nothing" "EPIC-1=1 EPIC-2=2 EPIC-3=3 EPIC-4=4" "$(ranks)"
 
 printf "\nTest group: a milestone is a dated marker of its own\n"
 

@@ -147,7 +147,7 @@ export function remainingOf(cards: Sized[]): Remaining {
 
 type Planned = Pick<
 	Card,
-	"id" | "status" | "start" | "target" | "plan_rank" | "confidence" | "dates" | "moved" | "project" | "track"
+	"id" | "status" | "start" | "target" | "rank" | "confidence" | "dates" | "moved" | "project" | "track"
 >;
 
 export const NO_PROJECT = "";
@@ -254,11 +254,11 @@ function idNumber(id: string) {
 	return Number(id.split("-").at(-1));
 }
 
-export function planOrder<T extends Pick<Card, "id" | "plan_rank" | "target">>(epics: T[]): T[] {
+export function planOrder<T extends Pick<Card, "id" | "rank" | "target">>(epics: T[]): T[] {
 	const last = Number.POSITIVE_INFINITY;
 	return [...epics].sort(
 		(a, b) =>
-			(a.plan_rank ?? last) - (b.plan_rank ?? last) ||
+			(a.rank ?? last) - (b.rank ?? last) ||
 			(dayOf(a.target) ?? last) - (dayOf(b.target) ?? last) ||
 			idNumber(a.id) - idNumber(b.id),
 	);

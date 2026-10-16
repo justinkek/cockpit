@@ -122,7 +122,6 @@ export type Card = {
 	target?: string | null;
 	confidence?: string | null;
 	learning?: string | null;
-	plan_rank?: number | null;
 	tracks?: number | null;
 	track?: number | null;
 	date?: string | null;
@@ -207,7 +206,6 @@ const FIELD_NAMES: Record<string, string> = {
 	due: "due date",
 	start: "start date",
 	target: "target date",
-	plan_rank: "place in the plan",
 };
 
 export const MODEL_STAGES = ["BR", "TR", "Dev", "CR"] as const;

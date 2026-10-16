@@ -128,7 +128,9 @@ A record whose front matter does not parse is never written over or read past: a
 
 A sprint takes `start` and `end` as `YYYY-MM-DD` and `dev_days` and `speed` as numbers, through `board-card set` or `create --kind sprint --start --end --dev-days --speed`, and an end before the start is refused. A sprint and a reference ticket have no status, so `create` refuses `--status` for either, and `board-card set <id> status ''` clears one either was given before.
 
-An epic takes `start` and `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`), `learning` (free text) and `plan_rank` (a number, lowest first in the plan) through `board-card set`, and its dates through `create --kind epic --start --target` too, and a target before the start is refused.
+An epic takes `start` and `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - plan in place` or `At risk - no plan`) and `learning` (free text) through `board-card set`, and its dates through `create --kind epic --start --target` too, and a target before the start is refused.
+
+An epic's priority is its `rank`, one number that orders it within its column on the Epics board and across the plan alike, lowest first, so a drag in either place writes the same rank. A new epic is ranked below every other, and `board-card set <id> plan_rank` is refused with a pointer to `rank`.
 
 An epic starts in `Backlog`, where it waits until it is pulled into refinement, and its first move out of `Backlog` stamps its `start` with that day unless it holds one already. An epic created in a later column takes the day it is created as its `start`.
 
@@ -156,7 +158,7 @@ Undoing a rename gives the card its old id back, and every record naming it foll
 
 `show --json` and `list --json` give each card two values worked out at read time and never stored, counting working time as 09:30 to 18:00 UTC on weekdays: `days_in_column`, the whole working days since it last reached its current column, which a column's date stamp alone cannot say because a stamp keeps its first arrival (0 in a column Notion never timed: `Backlog`, `Sprint Backlog`, `Daily Plan`, `Deprioritised`, `Done` and every by-AI column but `Ready for TR by AI`), and `overrunning`, true once its working minutes from `In Dev` to `Ready for CR` (or now) plus the time since it came back to `In Dev` when it is there again after `Ready for CR`, pass its `timebox_mins` when it is a timebox, or 102 for each point of complexity otherwise.
 
-The app's Plan page draws one row per epic on a week or month timeline, grouped by project and in `plan_rank` order, with the milestones across it, and projects each open epic's end by scheduling the points left on its cards on its project's tracks, the next epic in plan order taking the first track to free and the epics with no project counting as one more project, at the project's TR complexity done a week over the last six weeks divided by how many of its epics it had in progress on average, falling back to the board's overall figure for a project with none, then to the current sprint's speed and then to ten points a week.
+The app's Plan page draws one row per epic on a week or month timeline, grouped by project and in `rank` order, with the milestones across it, and projects each open epic's end by scheduling the points left on its cards on its project's tracks, the next epic in plan order taking the first track to free and the epics with no project counting as one more project, at the project's TR complexity done a week over the last six weeks divided by how many of its epics it had in progress on average, falling back to the board's overall figure for a project with none, then to the current sprint's speed and then to ten points a week.
 
 An epic in progress, in `Tickets In Dev` or with a card that reached `In Dev`, runs before the epics not yet started, and when a project has more of them than tracks the lowest in plan order is drawn paused until a track frees, with a notice naming it and nothing on the board changed, while a pinned epic waits for its own track and a pin past its project's tracks is warned about and ignored.
 
@@ -169,6 +171,8 @@ An epic's TD estimate and TR complexity are the sums of its open cards' `estimat
 An epic's scheduled bar draws the length that rests on complexity solid and the length that rests on estimates hatched after it, then a `?` marker with no length while any open card is unsized, and an epic whose open cards are all unsized gets the marker alone.
 
 An epic's row on the plan carries no figure of its own: its TD estimate, its TR complexity with how many tickets are sized, its unsized count and its points left show on hovering its bar or markers and in its side panel.
+
+`board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`.
 
 The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
 

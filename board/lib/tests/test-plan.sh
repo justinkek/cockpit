@@ -93,7 +93,7 @@ assert_eq "with no sprint speed either, the average speed is the default" '{"per
 
 printf "\nTest group: epics are scheduled one after another in plan order\n"
 
-EPICS='[{"id":"EPIC-2","status":"In FD","plan_rank":2,"target":"2026-10-31"},{"id":"EPIC-1","status":"Tickets In Dev","plan_rank":1,"start":"2026-10-01","target":"2026-10-25","confidence":"On track"},{"id":"EPIC-3","status":"In FD"},{"id":"EPIC-4","status":"Epic Done","target":"2026-10-01","dates":{"Epic Done":"2026-10-05T10:00:00Z"}},{"id":"EPIC-5","status":"In TD","start":"2026-12-01","target":"2026-12-31","plan_rank":3}]'
+EPICS='[{"id":"EPIC-2","status":"In FD","rank":2,"target":"2026-10-31"},{"id":"EPIC-1","status":"Tickets In Dev","rank":1,"start":"2026-10-01","target":"2026-10-25","confidence":"On track"},{"id":"EPIC-3","status":"In FD"},{"id":"EPIC-4","status":"Epic Done","target":"2026-10-01","dates":{"Epic Done":"2026-10-05T10:00:00Z"}},{"id":"EPIC-5","status":"In TD","start":"2026-12-01","target":"2026-12-31","rank":3}]'
 PLAN_CARDS='[{"epic":"EPIC-1","status":"In Dev","complexity":13},{"epic":"EPIC-1","status":"Done","complexity":8},{"epic":"EPIC-2","status":"Backlog","estimate":3},{"epic":"EPIC-5","status":"Backlog","complexity":5},{"epic":"EPIC-4","status":"Done","complexity":3}]'
 rows="p.planOf($EPICS, $PLAN_CARDS, 7, $TODAY)"
 assert_eq "the plan order is the plan rank, then the target, then the id" 'EPIC-1,EPIC-2,EPIC-5,EPIC-4,EPIC-3' \
@@ -117,9 +117,9 @@ assert_eq "a worse confidence is not flagged again" 'false' \
 assert_eq "a target in the past needs more than any speed" 'true,1' \
   "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",target:"2026-10-01"}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], 7, '"$TODAY"')).map((r) => [r.needed === Infinity, r.late > 0 ? 1 : 0]).flat().join()')"
 assert_eq "an epic whose cards are all done ends today and takes no time from the plan" '20740,20765' \
-  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",plan_rank:1},{id:"EPIC-2",status:"In FD",plan_rank:2},{id:"EPIC-3",status:"In FD",plan_rank:3}], [{epic:"EPIC-1",status:"In Dev",complexity:13},{epic:"EPIC-2",status:"Done",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:13}], 7, '"$TODAY"')).map((r) => r.projected).slice(1).join()')"
+  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",rank:1},{id:"EPIC-2",status:"In FD",rank:2},{id:"EPIC-3",status:"In FD",rank:3}], [{epic:"EPIC-1",status:"In Dev",complexity:13},{epic:"EPIC-2",status:"Done",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:13}], 7, '"$TODAY"')).map((r) => r.projected).slice(1).join()')"
 assert_eq "an epic whose open cards are all unsized has no projection, takes no time from the plan and counts them" '{"projected":null,"unsized":2,"next":20740}' \
-  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",plan_rank:1},{id:"EPIC-2",status:"In FD",plan_rank:2}], [{epic:"EPIC-1",status:"Backlog"},{epic:"EPIC-1",status:"In BR"},{epic:"EPIC-2",status:"Backlog",complexity:5}], 7, '"$TODAY"')).reduce((all, r) => r.id === "EPIC-1" ? {...all, projected: r.projected, unsized: r.remaining.unsized} : {...all, next: r.begin}, {})')"
+  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"In FD",rank:1},{id:"EPIC-2",status:"In FD",rank:2}], [{epic:"EPIC-1",status:"Backlog"},{epic:"EPIC-1",status:"In BR"},{epic:"EPIC-2",status:"Backlog",complexity:5}], 7, '"$TODAY"')).reduce((all, r) => r.id === "EPIC-1" ? {...all, projected: r.projected, unsized: r.remaining.unsized} : {...all, next: r.begin}, {})')"
 assert_eq "an unsized card leaves the date to the cards that are sized" '20744' \
   "$(evaluate 'p.planOf([{id:"EPIC-1",status:"In FD"}], [{epic:"EPIC-1",status:"Backlog",complexity:5},{epic:"EPIC-1",status:"Backlog"}], 7, '"$TODAY"')["EPIC-1"].projected')"
 assert_eq "an epic with only a timebox open counts nothing unsized" '0' \
@@ -134,7 +134,7 @@ assert_eq "an average speed of zero is held above zero rather than dividing by i
 printf "\nTest group: each project runs its epics on its own tracks\n"
 
 TEAMS='{"PRJ-1":{"tracks":2,"perWeek":7},"PRJ-2":{"tracks":1,"perWeek":7},"":{"tracks":1,"perWeek":7}}'
-TRACKED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","plan_rank":1},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","plan_rank":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","plan_rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-2","plan_rank":4},{"id":"EPIC-5","status":"In FD","project":"PRJ-9","plan_rank":5}]'
+TRACKED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","rank":1},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-2","rank":4},{"id":"EPIC-5","status":"In FD","project":"PRJ-9","rank":5}]'
 TRACKED_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":5},{"epic":"EPIC-3","status":"Backlog","complexity":5},{"epic":"EPIC-4","status":"Backlog","complexity":5},{"epic":"EPIC-5","status":"Backlog","complexity":5}]'
 tracked="p.planOf($TRACKED, $TRACKED_CARDS, $TEAMS, $TODAY)"
 assert_eq "two tracks run the first two epics side by side from today, and the third takes the first track to free" '1@20740,2@20740,1@20745' \
@@ -150,7 +150,7 @@ assert_eq "the speed a target needs counts only the epics ahead of it on its own
 
 printf "\nTest group: an epic in progress keeps its track, and the lowest in the plan pauses when the tracks run out\n"
 
-STARTED='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","plan_rank":2},{"id":"EPIC-2","status":"In TD","project":"PRJ-1","plan_rank":3},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","plan_rank":1}]'
+STARTED='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","rank":2},{"id":"EPIC-2","status":"In TD","project":"PRJ-1","rank":3},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":1}]'
 STARTED_CARDS='[{"epic":"EPIC-1","status":"In Dev","complexity":5},{"epic":"EPIC-2","status":"In Dev","complexity":5,"dates":{"In Dev":"2026-10-12T10:00:00Z"}},{"epic":"EPIC-3","status":"Backlog","complexity":5}]'
 one="p.planOf($STARTED, $STARTED_CARDS, {\"PRJ-1\":{\"tracks\":1,\"perWeek\":7}}, $TODAY)"
 two="p.planOf($STARTED, $STARTED_CARDS, {\"PRJ-1\":{\"tracks\":2,\"perWeek\":7}}, $TODAY)"
@@ -166,7 +166,7 @@ assert_eq "an epic in progress that waits for its own start date is not paused" 
 
 printf "\nTest group: an epic pinned to a track waits for it\n"
 
-PINNED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","plan_rank":1,"track":2},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","plan_rank":2,"track":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","plan_rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-1","plan_rank":4,"track":5}]'
+PINNED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","rank":1,"track":2},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2,"track":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-1","rank":4,"track":5}]'
 PINNED_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":5},{"epic":"EPIC-3","status":"Backlog","complexity":5},{"epic":"EPIC-4","status":"Backlog","complexity":5}]'
 pinned="p.planOf($PINNED, $PINNED_CARDS, {\"PRJ-1\":{\"tracks\":2,\"perWeek\":7}}, $TODAY)"
 assert_eq "a pinned epic waits for its track while another track is free" '2@20740,2@20745' \
@@ -176,7 +176,7 @@ assert_eq "a pin past the project's tracks is flagged and ignored" '{"pin":5,"pi
   "$(evaluate "pick($pinned[\"EPIC-4\"], \"pin pinIgnored track begin\")")"
 
 assert_eq "an epic in progress keeps the first track though an epic not yet started is pinned to it" '1@20740,2@20740,1@20745' \
-  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"Tickets In Dev",plan_rank:1},{id:"EPIC-2",status:"In FD",plan_rank:2},{id:"EPIC-3",status:"In FD",plan_rank:3,track:1}], [{epic:"EPIC-1",status:"In Dev",complexity:5},{epic:"EPIC-2",status:"Backlog",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:5}], {"":{tracks:2,perWeek:7}}, '"$TODAY"')).map((r) => r.track + "@" + r.begin).join()')"
+  "$(evaluate 'Object.values(p.planOf([{id:"EPIC-1",status:"Tickets In Dev",rank:1},{id:"EPIC-2",status:"In FD",rank:2},{id:"EPIC-3",status:"In FD",rank:3,track:1}], [{epic:"EPIC-1",status:"In Dev",complexity:5},{epic:"EPIC-2",status:"Backlog",complexity:5},{epic:"EPIC-3",status:"Backlog",complexity:5}], {"":{tracks:2,perWeek:7}}, '"$TODAY"')).map((r) => r.track + "@" + r.begin).join()')"
 
 printf "\nTest group: each project's speed a track comes from its own finished cards\n"
 

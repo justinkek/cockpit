@@ -1160,28 +1160,28 @@ export function Plan({
 		const after = next[at + 1];
 		let ranks: Ranked[] = [];
 		const between =
-			before?.plan_rank != null && after?.plan_rank != null
-				? (before.plan_rank + after.plan_rank) / 2
-				: before?.plan_rank != null && !after
-					? before.plan_rank + 1
-					: after?.plan_rank != null && !before
-						? after.plan_rank - 1
+			before?.rank != null && after?.rank != null
+				? (before.rank + after.rank) / 2
+				: before?.rank != null && !after
+					? before.rank + 1
+					: after?.rank != null && !before
+						? after.rank - 1
 						: null;
 		const roomy =
 			between != null &&
-			(before?.plan_rank == null || Math.abs(between - before.plan_rank) > 0.00001) &&
-			(after?.plan_rank == null || Math.abs(between - after.plan_rank) > 0.00001);
+			(before?.rank == null || Math.abs(between - before.rank) > 0.00001) &&
+			(after?.rank == null || Math.abs(between - after.rank) > 0.00001);
 		if (roomy && between != null) ranks = [{ id, rank: between }];
 		else
 			ranks = next
-				.slice(0, Math.max(at + 1, order.filter((epic) => epic.plan_rank != null).length))
+				.slice(0, Math.max(at + 1, order.filter((epic) => epic.rank != null).length))
 				.map((epic, index) => ({ id: epic.id, rank: index + 1 }))
-				.filter((rank) => order.find((epic) => epic.id === rank.id)?.plan_rank !== rank.rank);
+				.filter((rank) => order.find((epic) => epic.id === rank.id)?.rank !== rank.rank);
 		const rankOf = Object.fromEntries(ranks.map((rank) => [rank.id, rank.rank]));
 		const earlier = epics;
 		setNotice(null);
 		setToast(null);
-		setEpics((current) => current.map((epic) => (epic.id in rankOf ? { ...epic, plan_rank: rankOf[epic.id] } : epic)));
+		setEpics((current) => current.map((epic) => (epic.id in rankOf ? { ...epic, rank: rankOf[epic.id] } : epic)));
 		for (const rank of ranks) markPending(rank.id, true);
 		startTransition(async () => {
 			const result = await rankPlan(ranks);

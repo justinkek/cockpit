@@ -38,6 +38,7 @@
 #   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
 #   board-card path [<id>]
 #   board-card no-project-tracks [<n> | '']
+#   board-card migrate
 #
 # Exit codes:
 #   0  done
@@ -649,11 +650,17 @@ next_id() {
   printf '%s-%s\n' "$prefix" "$((highest + 1))"
 }
 
+last_epic_rank() {
+  { grep --no-filename '^rank: ' "$BOARD_DIR"/epics/*.md 2>/dev/null || true; } \
+    | jq --raw-input --null-input '[inputs | ltrimstr("rank: ") | tonumber? // empty] | max // 0 | floor'
+}
+
 create_locked() {
   local kind="$1" name="$2" type="$3" status="$4" epic="$5" body="$6" fields="${7:-"{}"}" id stamp stamped=false
   id="$(next_id "$kind" "$type")"
   stamp="$(now)"
   if has_board "$kind" && is_stamped "$kind" "$status"; then stamped=true; fi
+  [ "$kind" != epic ] || fields="$(jq --compact-output --argjson rank "$(last_epic_rank)" '{rank: ($rank + 1)} + .' <<<"$fields")"
   jq --null-input \
     --arg kind "$kind" --arg id "$id" --arg name "$name" --arg type "$type" --arg status "$status" \
     --arg epic "$epic" --arg stamp "$stamp" \
@@ -740,7 +747,7 @@ PROPERTY_FIELDS='{
   "Cost": "cost_usd", "Tokens": "tokens_k",
   "Start Date": "start", "End Date": "end", "Dev Days": "dev_days", "Speed": "speed",
   "Priority": "priority", "Repo": "repo", "Target": "target", "Confidence": "confidence", "Learning": "learning",
-  "Plan rank": "plan_rank", "Date": "date", "Due from": "due_from", "Tracks": "tracks", "Track": "track",
+  "Rank": "rank", "Date": "date", "Due from": "due_from", "Tracks": "tracks", "Track": "track",
   "Points": "points", "Why this score": "why", "Description": "description", "Domain": "domain", "Stack": "stack", "Ticket": "card"}'
 
 require_properties() {
@@ -943,7 +950,7 @@ property_of_field() {
     target) echo Target ;;
     confidence) echo Confidence ;;
     learning) echo Learning ;;
-    plan_rank) echo "Plan rank" ;;
+    rank) echo Rank ;;
     tracks) echo Tracks ;;
     track) echo Track ;;
     date) echo Date ;;
@@ -1106,11 +1113,6 @@ field_json() {
       [ "$kind" = epic ] || die 2 "only an epic has a learning, and this is a $kind"
       nullable "$value"
       ;;
-    plan_rank)
-      [ "$kind" = epic ] || die 2 "only an epic has a place in the plan, and this is a $kind"
-      [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^-?[0-9]+(\.[0-9]+)?$' || die 2 "a plan rank is a number, not '$value'"
-      if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
-      ;;
     dev_days|speed)
       [ "$kind" = sprint ] || die 2 "only a sprint has $field, and this is a $kind"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+(\.[0-9]+)?$' || die 2 "a sprint's $field is a number, not '$value'"
@@ -1257,7 +1259,7 @@ set_locked() {
       [ -n "$value" ] || die 2 "a record needs a name"
       update_record "$id" --arg value "$value" '.name = $value'
       ;;
-    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status|points|why|description|domain|stack|card|target|date|confidence|learning|plan_rank|tracks|track)
+    icon|timebox_mins|start|end|dev_days|speed|priority|repo|status|points|why|description|domain|stack|card|target|date|confidence|learning|tracks|track)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
       case "$(kind_of "$id")/$field" in
         sprint/start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
@@ -1308,8 +1310,9 @@ set_locked() {
       printf '%s' "$value" | grep --quiet --extended-regexp '^-?[0-9]+(\.[0-9]+)?$' || die 2 "rank is a number, not '$value'"
       update_record "$id" --argjson value "$value" '.rank = $value'
       ;;
+    plan_rank) die 2 "an epic's place in the plan is its rank, the same one the Epics board orders it by - run: board-card set $id rank <n>" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, plan_rank, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
   esac
 }
 
@@ -2137,6 +2140,32 @@ command_no_project_tracks() {
   printf '%s\n' "${tracks:-1}"
 }
 
+migrate_ranks() {
+  local id rank
+  while IFS=$'\t' read -r id rank; do
+    update_record "$id" --argjson rank "$rank" 'del(.plan_rank) | .rank = $rank'
+    printf '%s\trank %s\n' "$id" "$rank"
+  done < <(command_list --kind epic --json | jq --raw-output '
+    select(any(.[]; has("plan_rank") or .rank == null))
+    | sort_by([(if .plan_rank == null then 1 else 0 end), (.plan_rank // .rank // infinite),
+               (.target // "9999-12-31"), (.id | split("-")[1] | tonumber)])
+    | to_entries[]
+    | select(.value.rank != .key + 1 or (.value | has("plan_rank")))
+    | [.value.id, .key + 1] | @tsv')
+}
+
+migrate_locked() {
+  local changes
+  changes="$(migrate_ranks)"
+  if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
+}
+
+command_migrate() {
+  [ "$#" -eq 0 ] || die 2 "migrate takes no arguments"
+  require_board
+  with_lock migrate_locked
+}
+
 command_path() {
   local id
   if [ -n "${1:-}" ]; then
@@ -2190,5 +2219,6 @@ case "$action" in
   inbox) command_inbox "$@" ;;
   path) command_path "$@" ;;
   no-project-tracks) command_no_project_tracks "$@" ;;
-  *) sed -n '3,/^#   board-card no-project-tracks/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+  migrate) command_migrate "$@" ;;
+  *) sed -n '3,/^#   board-card migrate/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

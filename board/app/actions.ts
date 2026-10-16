@@ -271,7 +271,7 @@ export type Ranked = { id: string; rank: number };
 export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 	const result: BulkResult = { records: [], undo: [], errors: [] };
 	for (const { id, rank } of order) {
-		const changed = await report(id, () => setField(id, "plan_rank", rankText(rank)));
+		const changed = await report(id, () => setField(id, "rank", rankText(rank)));
 		if (changed.error) result.errors.push(`${id}: ${changed.error}`);
 		if (changed.record) result.records.push({ from: id, record: changed.record });
 		if (changed.undo) result.undo.push({ id, ...changed.undo });
