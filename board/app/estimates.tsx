@@ -70,7 +70,7 @@ export function EstimateFacts({ estimates, left = false }: { estimates: Estimate
 			{left && (
 				<>
 					<dt>Points left</dt>
-					<dd>{remaining.points} pts</dd>
+					<dd>{remaining.tickets - remaining.unsized > 0 ? `${remaining.points} pts` : "-"}</dd>
 				</>
 			)}
 			<dt>TD estimate</dt>

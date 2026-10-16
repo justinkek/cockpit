@@ -455,8 +455,10 @@ function cardPointsTitle(card: Card) {
 }
 
 function runTitle(row: Row) {
-	const { complexity, fromEstimate, points } = row.remaining;
-	return `${figure(points)} pts left, ${figure(complexity)} on TR complexity and ${figure(fromEstimate)} on TD estimates. ${estimatesTitle(row.remaining)}`;
+	const { complexity, fromEstimate, points, tickets, sized, unsized } = row.remaining;
+	const onEstimates = tickets - sized - unsized;
+	const shown = (counted: number, value: number) => (counted > 0 ? figure(value) : "-");
+	return `${shown(sized + onEstimates, points)} pts left, ${shown(sized, complexity)} on TR complexity and ${shown(onEstimates, fromEstimate)} on TD estimates. ${estimatesTitle(row.remaining)}`;
 }
 
 function refinementText(refinement: Refinement) {
