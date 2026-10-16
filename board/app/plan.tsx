@@ -811,8 +811,7 @@ export function Plan({
 		[cards, epics, projects, sprints, now],
 	);
 	const rate = speeds.overall.speed;
-	const tracksOf = (team: string) =>
-		trackCounts[team] ?? (team ? (projectOf[team]?.tracks ?? 1) : 1);
+	const tracksOf = (team: string) => trackCounts[team] ?? (team ? (projectOf[team]?.tracks ?? 1) : 1);
 	const teams = useMemo(() => {
 		const all: Record<string, Team> = {};
 		for (const team of [...projects.map((project) => project.id), NO_PROJECT]) {
