@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LiveUpdates } from "@/app/live";
 import { Nav, SettingsLink } from "@/app/nav";
 import { ThemeSync } from "@/app/theme";
+import { WorkIndicator } from "@/app/work-indicator";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 					</Link>
 					<Nav />
 					<LiveUpdates />
+					<WorkIndicator />
 					<SettingsLink />
 					<ThemeSync />
 				</header>
