@@ -5629,3 +5629,96 @@
 		}
 	}
 }
+
+.skeleton {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 16px;
+}
+
+.skeleton-bar {
+	display: block;
+	flex: none;
+	max-width: 100%;
+	border-radius: 4px;
+	background: linear-gradient(90deg, var(--lane) 0%, var(--line) 50%, var(--lane) 100%);
+	background-size: 200% 100%;
+	animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.skeleton-columns {
+	display: flex;
+	gap: 12px;
+	overflow: hidden;
+}
+
+.skeleton-column {
+	display: flex;
+	flex: 0 0 260px;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	border-radius: var(--radius);
+	background: var(--surface);
+}
+
+.skeleton-card {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border-radius: var(--radius);
+	background: var(--panel);
+	box-shadow: var(--shadow);
+}
+
+.skeleton-rows,
+.skeleton-fields {
+	display: flex;
+	flex-direction: column;
+}
+
+.skeleton-row {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 10px 4px;
+	border-bottom: 1px solid var(--line);
+}
+
+.skeleton-track {
+	display: block;
+	flex: 1;
+	min-width: 0;
+}
+
+.skeleton-page {
+	max-width: 860px;
+	margin: 0 auto;
+}
+
+.skeleton-page .skeleton-bar {
+	margin-bottom: 4px;
+}
+
+@keyframes skeleton-shimmer {
+	from {
+		background-position: 100% 0;
+	}
+	to {
+		background-position: -100% 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.skeleton-bar {
+		animation: none;
+	}
+}
