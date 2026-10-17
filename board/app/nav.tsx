@@ -8,13 +8,13 @@ import { announce, INBOX_READ, itemKey } from "@/app/notify";
 import type { InboxItem } from "@/lib/shared";
 
 const LINKS = [
+	{ href: "/obeya", label: "Obeya" },
 	{ href: "/projects", label: "Projects" },
 	{ href: "/plan", label: "Plan" },
 	{ href: "/epics", label: "Epics" },
 	{ href: "/sprints", label: "Sprints" },
 	{ href: "/", label: "Cards" },
 	{ href: "/references", label: "References" },
-	{ href: "/obeya", label: "Obeya" },
 	{ href: "/archive", label: "Archive" },
 ];
 
