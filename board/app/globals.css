@@ -4821,6 +4821,11 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.plan-board-tracks {
+		display: flex;
+		align-items: center;
+	}
+
 	.plan-tracks {
 		display: inline-flex;
 		align-items: center;
@@ -5475,6 +5480,37 @@
 		}
 	}
 
+	.plan-breaks {
+		display: grid;
+		gap: 4px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+
+		& li {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			font-size: 12px;
+		}
+
+		& .quiet {
+			height: 22px;
+			padding: 0 6px;
+			font-size: 11.5px;
+		}
+	}
+
+	.plan-breaks-days {
+		display: flex;
+		gap: 6px;
+	}
+
+	.plan-breaks-form select {
+		width: 100%;
+	}
+
 	.plan-empty {
 		padding: 24px 16px;
 		position: sticky;
@@ -5818,72 +5854,5 @@
 		color: var(--muted);
 		font-size: 11.5px;
 		font-weight: 400;
-	}
-
-	.settings-step {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		height: 26px;
-		border: 1px solid var(--line);
-		border-radius: 999px;
-		background: var(--panel);
-
-		& button {
-			width: 26px;
-			height: 24px;
-			padding: 0;
-			border-radius: 999px;
-			font-size: 14px;
-			line-height: 1;
-		}
-
-		& output {
-			min-width: 2ch;
-			text-align: center;
-			font-variant-numeric: tabular-nums;
-		}
-	}
-
-	.settings-list {
-		display: grid;
-		gap: 4px;
-		margin: 0;
-		padding: 0;
-		list-style: none;
-
-		& li {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			gap: 8px;
-			padding: 4px 0;
-			border-top: 1px solid var(--line);
-		}
-
-		& li:first-child {
-			border-top: none;
-		}
-
-		& .danger {
-			color: var(--danger);
-		}
-	}
-
-	.settings-form {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 6px;
-
-		& input:not([type="date"]) {
-			flex: 1 1 12rem;
-			min-width: 0;
-		}
-
-		& input[type="date"],
-		& select {
-			width: auto;
-		}
 	}
 }
