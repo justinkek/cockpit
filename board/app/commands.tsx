@@ -188,7 +188,7 @@ export function themeCommands(): Command[] {
 export function cardCommands(cards: { id: string; name: string; status: string }[], open: (id: string) => void) {
 	return cards.map((card) => ({
 		id: `card:${card.id}`,
-		group: "Cards",
+		group: "Tickets",
 		label: card.name,
 		hint: card.id,
 		keywords: `${card.id} ${card.id.split("-").at(-1)}`,

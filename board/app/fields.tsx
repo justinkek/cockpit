@@ -277,7 +277,7 @@ function Picker({
 	function pick(value: string) {
 		const id = idOf(value, cards);
 		if (!id) {
-			setMissed(`No card is called '${value.trim()}'. Type its id or pick one from the list.`);
+			setMissed(`No ticket is called '${value.trim()}'. Type its id or pick one from the list.`);
 			return;
 		}
 		setMissed("");
@@ -406,7 +406,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 			<dt>Status</dt>
 			<dd>
 				{kind === "card" && record.status === "Done" ? (
-					<span title="Done is final - raise a new card for what is left instead">Done</span>
+					<span title="Done is final - raise a new ticket for what is left instead">Done</span>
 				) : kind ? (
 					<Fallback id={id} op="move" label="Move">
 						<select
@@ -460,7 +460,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 						<Fallback id={id} op="set" field="urgent">
 							<label
 								className={`urgent-toggle${record.urgent ? " urgent-pick" : ""}`}
-								title="An urgent card sits in the Urgent lane at the top of the board and is picked before every other"
+								title="An urgent ticket sits in the Urgent lane at the top of the board and is picked before every other"
 							>
 								<input
 									type="checkbox"
@@ -575,7 +575,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					<dt>Project</dt>
 					<dd>
 						{kind === "card" ? (
-							<span title="A card's project is its epic's">
+							<span title="A ticket's project is its epic's">
 								{inherited ?? <span className="empty">No project</span>}
 							</span>
 						) : (
@@ -679,7 +679,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<Link
 								href={`/plan?open=${due.held}`}
 								className="pill due held"
-								title={`Held to the target of ${due.held} - a new target moves it, and a date set here makes it the card's own`}
+								title={`Held to the target of ${due.held} - a new target moves it, and a date set here makes it the ticket's own`}
 							>
 								{due.held} target
 							</Link>

@@ -41,7 +41,7 @@ export default async function ReferencesPage({ searchParams }: Props) {
 				<span className="spacer" />
 				<NewOther kind="reference" />
 			</header>
-			<p className="report-note">The changes a new card's complexity is compared against when it is sized.</p>
+			<p className="report-note">The changes a new ticket's complexity is compared against when it is sized.</p>
 			{typeof error === "string" && (
 				<p className="notice error" role="alert">
 					{error}

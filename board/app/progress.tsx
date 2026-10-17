@@ -19,7 +19,7 @@ export function ProgressMeter({ progress, wide = false }: { progress: Progress; 
 				<span style={{ width: `${percent}%` }} />
 			</span>
 			<span className="progress-text">
-				{progress.total === 0 ? "No cards" : `${progress.done}/${progress.total}`}
+				{progress.total === 0 ? "No tickets" : `${progress.done}/${progress.total}`}
 				{wide && progress.total > 0 && (
 					<span className="progress-percent">
 						{" "}

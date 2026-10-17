@@ -55,7 +55,7 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 	const wanted = typeof params.sprint === "string" ? params.sprint : null;
 	const sprint = ordered.find((candidate) => candidate.id === wanted) ?? currentSprint(ordered) ?? ordered[0];
 	const measure: Measure = params.measure === "cards" ? "cards" : "points";
-	const unit = measure === "cards" ? "Cards" : "Points";
+	const unit = measure === "cards" ? "Tickets" : "Points";
 	const inSprint = cards.filter((card) => card.sprint === sprint.id);
 	const counted = inSprint.filter((card) => card.status !== "Deprioritised");
 	const burndown = burndownOf(sprint, inSprint, measure);
@@ -85,7 +85,7 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 							className={option === measure ? "on" : undefined}
 							aria-current={option === measure ? "true" : undefined}
 						>
-							{option === "points" ? "Points" : "Cards"}
+							{option === "points" ? "Points" : "Tickets"}
 						</Link>
 					))}
 				</span>
@@ -99,19 +99,19 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 				<div>
 					<span className="stat-label">Scope</span>
 					<span className="stat-value">
-						{points(counted)} <span>pts · {counted.length} cards</span>
+						{points(counted)} <span>pts · {counted.length} tickets</span>
 					</span>
 				</div>
 				<div>
 					<span className="stat-label">Done</span>
 					<span className="stat-value">
-						{points(done)} <span>pts · {done.length} cards</span>
+						{points(done)} <span>pts · {done.length} tickets</span>
 					</span>
 				</div>
 				<div>
 					<span className="stat-label">Left</span>
 					<span className="stat-value">
-						{points(counted) - points(done)} <span>pts · {counted.length - done.length} cards</span>
+						{points(counted) - points(done)} <span>pts · {counted.length - done.length} tickets</span>
 					</span>
 				</div>
 				<div>
@@ -126,8 +126,8 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 				</h2>
 				{measure === "points" && unsized > 0 && (
 					<p className="report-note">
-						{unsized} {unsized === 1 ? "card has" : "cards have"} no points and {unsized === 1 ? "does" : "do"} not
-						show in this burndown - burn down by cards to count {unsized === 1 ? "it" : "them"}.
+						{unsized} {unsized === 1 ? "ticket has" : "tickets have"} no points and {unsized === 1 ? "does" : "do"} not
+						show in this burndown - burn down by tickets to count {unsized === 1 ? "it" : "them"}.
 					</p>
 				)}
 				<BurndownChart burndown={burndown} unit={unit} sprint={sprint} />
@@ -138,8 +138,8 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 					Speed by sprint <span className="count">{ordered.length}</span>
 				</h2>
 				<p className="report-note">
-					The TR complexity of every done card whose sprint is that sprint, and that a week - a card done without a
-					complexity, or a timebox, is counted beside it. A card reaching Done takes the sprint whose dates hold that
+					The TR complexity of every done ticket whose sprint is that sprint, and that a week - a ticket done without a
+					complexity, or a timebox, is counted beside it. A ticket reaching Done takes the sprint whose dates hold that
 					day.
 				</p>
 				<ul className="report-list">
@@ -160,7 +160,7 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 								<span className="report-status">
 									{delivered.perWeek == null
 										? "no dates"
-										: `${delivered.points} pts from ${delivered.tickets} ${delivered.tickets === 1 ? "card" : "cards"}${beside.length > 0 ? ` + ${beside.join(" + ")}` : ""}`}
+										: `${delivered.points} pts from ${delivered.tickets} ${delivered.tickets === 1 ? "ticket" : "tickets"}${beside.length > 0 ? ` + ${beside.join(" + ")}` : ""}`}
 								</span>
 								<span className="points">{delivered.perWeek == null ? "" : `${delivered.perWeek}/wk`}</span>
 							</li>
@@ -171,10 +171,10 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 
 			<div className="report-card">
 				<h2>
-					Cards in {sprint.name} <span className="count">{inSprint.length}</span>
+					Tickets in {sprint.name} <span className="count">{inSprint.length}</span>
 				</h2>
 				{sorted.length === 0 ? (
-					<p className="empty">No card is in this sprint. Set a card's sprint on its panel.</p>
+					<p className="empty">No ticket is in this sprint. Set a ticket's sprint on its panel.</p>
 				) : (
 					<ul className="report-list">
 						{sorted.map((card) => (

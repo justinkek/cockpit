@@ -349,12 +349,12 @@ export function droppedInto(
 	switch (groupBy) {
 		case "epic":
 			if (value && value !== stub.epic) changes.push({ field: "epic", value, change: { epic: value } });
-			else if (!value) return `Every card has an epic, so ${stub.id} cannot be dropped where there is none.`;
+			else if (!value) return `Every ticket has an epic, so ${stub.id} cannot be dropped where there is none.`;
 			break;
 		case "project":
 			if (kind !== "epic") {
 				if (context && value !== groupValue(stub, "project", context))
-					return `A card's project is its epic's, so ${stub.id} moves to another project's lane only when its epic does.`;
+					return `A ticket's project is its epic's, so ${stub.id} moves to another project's lane only when its epic does.`;
 				break;
 			}
 			if (value && value !== stub.project) changes.push({ field: "project", value, change: { project: value } });

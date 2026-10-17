@@ -12,7 +12,7 @@ const LINKS = [
 	{ href: "/plan", label: "Plan" },
 	{ href: "/projects", label: "Projects" },
 	{ href: "/epics", label: "Epics" },
-	{ href: "/", label: "Cards" },
+	{ href: "/", label: "Tickets" },
 	{ href: "/references", label: "References" },
 	{ href: "/archive", label: "Archive" },
 ];

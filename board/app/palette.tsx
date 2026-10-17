@@ -72,7 +72,7 @@ export function Palette({ start, onClose }: { start: Page; onClose: () => void }
 						aria-expanded="true"
 						aria-controls="palette-list"
 						aria-activedescendant={shown[active] ? `palette-${active}` : undefined}
-						placeholder={page.root ? "Type a command, or a card's id or name…" : "Filter…"}
+						placeholder={page.root ? "Type a command, or a ticket's id or name…" : "Filter…"}
 						value={query}
 						onChange={(event) => {
 							setQuery(event.target.value);

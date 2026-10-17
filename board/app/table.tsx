@@ -11,6 +11,7 @@ import {
 	type Card,
 	dueState,
 	type Kind,
+	kindName,
 	MODEL_STAGES,
 	phaseOf,
 	SPLIT_ABOVE,
@@ -445,7 +446,7 @@ export function Table({
 					))}
 				</tbody>
 			</table>
-			{records.length === 0 && <p className="table-empty">No {kind} matches the view and the filters.</p>}
+			{records.length === 0 && <p className="table-empty">No {kindName(kind)} matches the view and the filters.</p>}
 			{footer}
 		</div>
 	);

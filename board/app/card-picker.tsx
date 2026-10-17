@@ -107,7 +107,7 @@ export function CardPicker({
 							}
 						}}
 					/>
-					<ul id={listId} ref={list} role="listbox" aria-label="Cards">
+					<ul id={listId} ref={list} role="listbox" aria-label="Tickets">
 						{shown.map((card, index) => (
 							<li
 								key={card.id}
@@ -125,7 +125,7 @@ export function CardPicker({
 								<span className="card-picker-name">{card.name}</span>
 							</li>
 						))}
-						{found.length === 0 && <li className="empty">No card matches</li>}
+						{found.length === 0 && <li className="empty">No ticket matches</li>}
 						{found.length > SHOWN && (
 							<li className="empty">{found.length - SHOWN} more - type more of the id or name</li>
 						)}

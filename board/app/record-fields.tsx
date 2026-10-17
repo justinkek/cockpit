@@ -228,14 +228,14 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 				<Fallback id={id} op="set" field="card">
 					<Choice
 						label="Taken from"
-						none="No card"
+						none="No ticket"
 						value={record.card}
 						options={lists.cards.map((card) => ({ id: card.id, name: `${card.id} · ${card.name}` }))}
 						onChange={(card) => onEdit("card", card, { card: card || null })}
 					/>
 				</Fallback>
 				{record.card && (
-					<Link href={`/card/${record.card}`} className="quiet-link" aria-label="Open the card">
+					<Link href={`/card/${record.card}`} className="quiet-link" aria-label="Open the ticket">
 						↗
 					</Link>
 				)}

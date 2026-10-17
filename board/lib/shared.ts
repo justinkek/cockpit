@@ -204,8 +204,12 @@ export function homeOf(id: string): string {
 	return `/?open=${id}`;
 }
 
+export function kindName(kind: RecordKind) {
+	return kind === "card" ? "ticket" : kind;
+}
+
 export function contentSearchFailed(kind: Kind, error: string) {
-	return `Only the names and ids of the ${kind}s were searched, because their content could not be: ${error}`;
+	return `Only the names and ids of the ${kindName(kind)}s were searched, because their content could not be: ${error}`;
 }
 
 export function phaseOf(column: string): string {
@@ -226,6 +230,7 @@ const FIELD_NAMES: Record<string, string> = {
 	start: "start date",
 	target: "target date",
 	urgent: "urgent flag",
+	card: "ticket",
 };
 
 export const MODEL_STAGES = ["BR", "TR", "Dev", "CR"] as const;

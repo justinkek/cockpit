@@ -101,6 +101,7 @@ import {
 	dueState,
 	fieldName,
 	type Kind,
+	kindName,
 	kindOf,
 	manualRank,
 	movedTo,
@@ -233,7 +234,7 @@ function TypeMark({ type }: { type: string }) {
 
 function UrgentMark() {
 	return (
-		<span className="pill urgent" title="Urgent - picked before every other card">
+		<span className="pill urgent" title="Urgent - picked before every other ticket">
 			Urgent
 		</span>
 	);
@@ -701,7 +702,7 @@ function PeekDetails({
 			{kind === "epic" && (
 				<section className="timeline">
 					<h3>
-						Cards <span className="count">{cards.length}</span>
+						Tickets <span className="count">{cards.length}</span>
 					</h3>
 					<p className="epic-progress">
 						<ProgressMeter progress={progressOf(cards)} wide />
@@ -746,7 +747,7 @@ function BulkBar({
 	return (
 		<div className="bulk" role="toolbar" aria-label={`${count} selected`}>
 			<span className="bulk-count">{count} selected</span>
-			<select aria-label="Move the selected cards" defaultValue="-" onChange={pick(edits.move)}>
+			<select aria-label="Move the selected tickets" defaultValue="-" onChange={pick(edits.move)}>
 				<option value="-" disabled>
 					Move to…
 				</option>
@@ -757,7 +758,7 @@ function BulkBar({
 			{kind === "card" && (
 				<>
 					<select
-						aria-label="Set the epic of the selected cards"
+						aria-label="Set the epic of the selected tickets"
 						defaultValue="-"
 						onChange={pick((epic) => edits.edit("epic", epic, { epic: epic || null }))}
 					>
@@ -771,7 +772,7 @@ function BulkBar({
 						))}
 					</select>
 					<select
-						aria-label="Set the type of the selected cards"
+						aria-label="Set the type of the selected tickets"
 						defaultValue="-"
 						onChange={pick((type) => edits.edit("type", type, { type: type as Stub["type"] }))}
 					>
@@ -783,7 +784,7 @@ function BulkBar({
 						))}
 					</select>
 					<select
-						aria-label="Set the sprint of the selected cards"
+						aria-label="Set the sprint of the selected tickets"
 						defaultValue="-"
 						onChange={pick((sprint) => edits.edit("sprint", sprint, { sprint: sprint || null }))}
 					>
@@ -798,7 +799,7 @@ function BulkBar({
 						))}
 					</select>
 					<select
-						aria-label="Set the timebox of the selected cards"
+						aria-label="Set the timebox of the selected tickets"
 						defaultValue="-"
 						onChange={pick((minutes) =>
 							edits.edit("timebox_mins", minutes, { timebox_mins: minutes ? Number(minutes) : null }),
@@ -1140,7 +1141,7 @@ export function Board({
 									result.records[0].from,
 									result.records[0].record?.id ?? result.records[0].from,
 								)
-							: label.replace("{n}", `${count} ${kind}s`),
+							: label.replace("{n}", `${count} ${kindName(kind)}s`),
 						result.undo,
 					),
 				);
@@ -1150,7 +1151,7 @@ export function Board({
 
 	function bulkEdits(ids: string[]): Edits {
 		return {
-			label: ids.length === 1 ? ids[0] : `${ids.length} ${kind}s`,
+			label: ids.length === 1 ? ids[0] : `${ids.length} ${kindName(kind)}s`,
 			move: (column) => {
 				if (kind === "epic" && column === "Epic Done") {
 					const open = ids.flatMap((id) => {
@@ -1226,7 +1227,7 @@ export function Board({
 			actions.push({
 				id: "do:select",
 				group: record.id,
-				label: "Select it, to change several cards at once",
+				label: "Select it, to change several tickets at once",
 				hint: "X",
 				run: () => toggleSelected(record.id),
 			});
@@ -1263,7 +1264,7 @@ export function Board({
 			{
 				id: "go:other",
 				group: "Board",
-				label: kind === "card" ? "Go to epics" : "Go to cards",
+				label: kind === "card" ? "Go to epics" : "Go to tickets",
 				run: () => go(kind === "card" ? "/epics" : "/"),
 			},
 			{ id: "go:search", group: "Board", label: "Search the board", hint: "/", run: () => search.current?.focus() },
@@ -1358,17 +1359,17 @@ export function Board({
 	});
 
 	const shortcuts: Shortcut[] = [
-		{ keys: ["j", "k"], label: "Next or previous card" },
+		{ keys: ["j", "k"], label: "Next or previous ticket" },
 		{ keys: ["h", "l"], label: "Previous or next column" },
-		{ keys: ["Enter"], label: "Open the focused card" },
-		{ keys: ["Esc"], label: "Close the card, or clear the focus" },
-		{ keys: ["Cmd/Ctrl", "K"], label: "Command menu: jump to a card or run an action" },
-		{ keys: ["x"], label: "Select the focused card, or Shift-click one" },
-		{ keys: ["s"], label: "Move the card, or the selected cards, to a column" },
-		...(kind === "card" ? [{ keys: ["e"], label: "Set the epic of the card, or the selected cards" }] : []),
+		{ keys: ["Enter"], label: "Open the focused ticket" },
+		{ keys: ["Esc"], label: "Close the ticket, or clear the focus" },
+		{ keys: ["Cmd/Ctrl", "K"], label: "Command menu: jump to a ticket or run an action" },
+		{ keys: ["x"], label: "Select the focused ticket, or Shift-click one" },
+		{ keys: ["s"], label: "Move the ticket, or the selected tickets, to a column" },
+		...(kind === "card" ? [{ keys: ["e"], label: "Set the epic of the card, or the selected tickets" }] : []),
 		{ keys: ["/"], label: "Search" },
-		{ keys: ["Cmd/Ctrl", "."], label: "Copy the card's id" },
-		{ keys: ["Cmd/Ctrl", "Shift", "."], label: "Copy a link to the card" },
+		{ keys: ["Cmd/Ctrl", "."], label: "Copy the ticket's id" },
+		{ keys: ["Cmd/Ctrl", "Shift", "."], label: "Copy a link to the ticket" },
 		{ keys: ["Cmd/Ctrl", "Z"], label: "Undo the last change" },
 		{ keys: ["?"], label: "Show these shortcuts" },
 	];
@@ -1616,7 +1617,7 @@ export function Board({
 		});
 		const fresh = result.record;
 		if (!fresh) {
-			if (!result.moved) return `Could not create the ${kind}: ${result.error ?? "board-card made nothing"}`;
+			if (!result.moved) return `Could not create the ${kindName(kind)}: ${result.error ?? "board-card made nothing"}`;
 			setComposing(false);
 			setNotice({ id: "", text: result.error ?? "" });
 			router.refresh();
@@ -1774,7 +1775,7 @@ export function Board({
 								value={groupBy}
 								onChange={(event) => update({ groupBy: groupingOf(kind, event.target.value) })}
 								aria-label="Group by"
-								title="Swimlanes on the board layout - dropping a card into one sets that field"
+								title="Swimlanes on the board layout - dropping a ticket into one sets that field"
 							>
 								{GROUPINGS[kind].map(([key, label]) => (
 									<option key={key} value={key}>
@@ -1855,7 +1856,7 @@ export function Board({
 												type="button"
 												className={`chip-toggle label${view.labels.includes(label) ? " on" : ""}`}
 												aria-pressed={view.labels.includes(label)}
-												title={`Only the ${kind}s labelled ${label}`}
+												title={`Only the ${kindName(kind)}s labelled ${label}`}
 												onClick={() => toggleLabel(label)}
 											>
 												{label}
@@ -1943,8 +1944,8 @@ export function Board({
 										? "This epic needs a project"
 										: "These epics need a project"
 									: homeless.length === 1
-										? "This card needs an epic"
-										: "These cards need an epic"}
+										? "This ticket needs an epic"
+										: "These tickets need an epic"}
 								, which only a person can give {homeless.length === 1 ? "it" : "them"}:{" "}
 								{homeless.map((stub, index) => (
 									<span key={stub.id}>

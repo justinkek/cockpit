@@ -340,7 +340,7 @@ export function Ticket({
 	return (
 		<article className="stub">
 			{neighbours && (
-				<nav className="neighbours" aria-label={`Cards in ${record.status}`}>
+				<nav className="neighbours" aria-label={`Tickets in ${record.status}`}>
 					{neighbours.previous ? (
 						<Link
 							href={`/card/${neighbours.previous.id}`}
@@ -416,7 +416,7 @@ export function Ticket({
 			{members.length > 0 && (
 				<section className="timeline members">
 					<h3>
-						{recordKindOf(record.id) === "project" ? "Epics and cards" : "Cards"}{" "}
+						{recordKindOf(record.id) === "project" ? "Epics and tickets" : "Tickets"}{" "}
 						<span className="count">{members.length}</span>
 					</h3>
 					<ol>

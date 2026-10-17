@@ -24,7 +24,7 @@ export function undoable(
 	if (!span) return null;
 	made += 1;
 	const held =
-		more.length === 0 ? "" : ` and the due date of ${more.length === 1 ? more[0].id : `${more.length} cards`}`;
+		more.length === 0 ? "" : ` and the due date of ${more.length === 1 ? more[0].id : `${more.length} tickets`}`;
 	return { key: made, text: `${text}${held}`, changes: [{ id, ...span }, ...more] };
 }
 

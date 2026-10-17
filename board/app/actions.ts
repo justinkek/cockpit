@@ -13,6 +13,7 @@ import {
 	type CommentThread,
 	type HistoryEntry,
 	type Kind,
+	kindName,
 	changeStatus,
 	closeProjectRecord,
 	commentAuthor,
@@ -175,7 +176,7 @@ export async function dropCard(id: string, column: string, rank?: number, sets: 
 		let current = id;
 		const before = await readRecord(id);
 		if (kindOf(id) === "card" && before.status === "Done" && column !== "Done")
-			throw new BoardError(`${id} is Done, and Done is final - raise a new card for what is left instead`);
+			throw new BoardError(`${id} is Done, and Done is final - raise a new ticket for what is left instead`);
 		for (const { field, value } of sets) {
 			const change = await setFieldHolding(current, field, value);
 			held.push(...change.held);
@@ -191,7 +192,7 @@ export async function dropCard(id: string, column: string, rank?: number, sets: 
 
 export async function createCard(kind: Kind, name: string, status: string, options: NewOptions = {}): Promise<Result> {
 	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
-	if (!typed) return { error: `a new ${kind} needs a name` };
+	if (!typed) return { error: `a new ${kindName(kind)} needs a name` };
 	let id = "";
 	try {
 		id = await createRecord(kind, typed, status, {
@@ -261,7 +262,7 @@ export async function submitNew(form: FormData): Promise<void> {
 	if (made)
 		redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
 	redirect(
-		`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kind}: ${result.error}`)}`,
+		`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kindName(kind)}: ${result.error}`)}`,
 	);
 }
 
@@ -527,7 +528,7 @@ async function cardNamed(typed: string): Promise<string> {
 	const id = typed.match(/^([A-Za-z]+-\d+)\b/)?.[1]?.toUpperCase();
 	if (id) return id;
 	const named = (await listRecords("card")).find((card) => card.name.toLowerCase() === typed.toLowerCase());
-	if (!named) throw new BoardError(`no card called '${typed}'`);
+	if (!named) throw new BoardError(`no ticket called '${typed}'`);
 	return named.id;
 }
 

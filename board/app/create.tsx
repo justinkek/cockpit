@@ -5,7 +5,7 @@ import { type NewOptions, submitNew } from "@/app/actions";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { recordOptions, SearchSelect } from "@/app/search-select";
 import type { Lists } from "@/app/fields";
-import { boardColumns, type Kind, TYPES } from "@/lib/shared";
+import { boardColumns, type Kind, kindName, TYPES } from "@/lib/shared";
 
 export type Draft = { name: string; status: string } & NewOptions;
 
@@ -85,12 +85,12 @@ export function NewRecord({
 	async function create() {
 		if (busy) return;
 		if (!name.trim()) {
-			setError(`Give the ${kind} a name before creating it.`);
+			setError(`Give the ${kindName(kind)} a name before creating it.`);
 			box.current?.focus();
 			return;
 		}
 		if (kind === "card" && !epic) {
-			setError("Every card has an epic: choose one before creating it.");
+			setError("Every ticket has an epic: choose one before creating it.");
 			return;
 		}
 		if (kind === "epic" && !project) {
@@ -133,19 +133,19 @@ export function NewRecord({
 		>
 			<summary
 				className="new-open"
-				title={`New ${kind}`}
-				aria-label={label ? `New ${kind}` : undefined}
+				title={`New ${kindName(kind)}`}
+				aria-label={label ? `New ${kindName(kind)}` : undefined}
 				onClick={(event) => {
 					event.preventDefault();
 					onOpenChange(!open);
 				}}
 			>
-				{label ?? `+ New ${kind}`}
+				{label ?? `+ New ${kindName(kind)}`}
 			</summary>
 			<form
 				className="new-panel"
 				action={submitNew}
-				aria-label={`New ${kind}`}
+				aria-label={`New ${kindName(kind)}`}
 				onSubmit={(event) => {
 					event.preventDefault();
 					create();
@@ -170,7 +170,7 @@ export function NewRecord({
 						name="name"
 						className="new-name"
 						aria-label="Name"
-						placeholder={`${kind === "card" ? "Card" : "Epic"} name`}
+						placeholder={`${kind === "card" ? "Ticket" : "Epic"} name`}
 						required
 						value={name}
 						disabled={busy}
@@ -212,7 +212,7 @@ export function NewRecord({
 						/>
 					)}
 					{kind === "card" ? (
-						<span className="new-project" aria-label="Project" title="A card's project is its epic's">
+						<span className="new-project" aria-label="Project" title="A ticket's project is its epic's">
 							{inherited ?? "No project"}
 						</span>
 					) : (
@@ -244,7 +244,7 @@ export function NewRecord({
 						Cancel
 					</button>
 					<button type="submit" disabled={busy}>
-						{busy ? "Creating…" : `Create ${kind}`}
+						{busy ? "Creating…" : `Create ${kindName(kind)}`}
 					</button>
 				</span>
 			</form>

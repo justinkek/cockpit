@@ -109,7 +109,7 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 					<span className="stat-label">Done in the last 7 days</span>
 					<span className="stat-value">{doneThisWeek.length}</span>
 				</Link>
-				<div title={`The median from In Dev to Done of the ${recentCycles.length} cards done in the last 30 days`}>
+				<div title={`The median from In Dev to Done of the ${recentCycles.length} tickets done in the last 30 days`}>
 					<span className="stat-label">Median cycle time</span>
 					<span className="stat-value">
 						{cycle == null ? "-" : span(cycle)} <span>last 30 days</span>
@@ -120,7 +120,7 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 			<div className="obeya-grid">
 				<div className="report-card">
 					<h2>
-						Flow <span className="count">cards in each column</span>
+						Flow <span className="count">tickets in each column</span>
 					</h2>
 					<ul className="flow-bars">
 						{FLOW_COLUMNS.map((column) => {
@@ -146,13 +146,13 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 
 				<div className="report-card">
 					<h2>
-						Throughput <span className="count">cards done each week</span>
+						Throughput <span className="count">tickets done each week</span>
 					</h2>
 					<ol className="week-bars">
 						{weeks.map((week) => (
 							<li
 								key={week.start}
-								title={`${week.done} ${week.done === 1 ? "card" : "cards"} and ${week.points} points done in the week of ${weekLabel(week.start)}`}
+								title={`${week.done} ${week.done === 1 ? "ticket" : "tickets"} and ${week.points} points done in the week of ${weekLabel(week.start)}`}
 							>
 								<span className="week-value">{week.done}</span>
 								<span className="week-track">
@@ -170,7 +170,7 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 						<Link href="/epics">All epics</Link>
 					</h2>
 					{epicsInFlight.length === 0 ? (
-						<p className="empty">No epic has cards left to do.</p>
+						<p className="empty">No epic has tickets left to do.</p>
 					) : (
 						<ul className="epic-bars">
 							{epicsInFlight.map(({ epic, progress }) => (

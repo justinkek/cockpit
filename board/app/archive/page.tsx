@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 type Props = { searchParams: Promise<{ error?: string | string[]; restored?: string | string[] }> };
 
 const KINDS: { kind: RecordKind; title: string }[] = [
-	{ kind: "card", title: "Cards" },
+	{ kind: "card", title: "Tickets" },
 	{ kind: "epic", title: "Epics" },
 	{ kind: "project", title: "Projects" },
 	{ kind: "sprint", title: "Sprints" },

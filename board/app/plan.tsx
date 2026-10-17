@@ -484,7 +484,7 @@ function cardPointsTitle(card: Card) {
 function blockedWhy(epic: Card | undefined, row: Row, cards: Card[]) {
 	if (row.blocked === "epic") return `its own blocked flag says "${epic?.blocked ?? ""}"`;
 	const open = openWorkOf(cards);
-	return `every open feature or bug card on it is blocked: ${open.map((card) => `${card.id}, "${card.blocked}"`).join("; ")}`;
+	return `every open feature or bug ticket on it is blocked: ${open.map((card) => `${card.id}, "${card.blocked}"`).join("; ")}`;
 }
 
 function blockedForecast(row: Row) {
@@ -689,7 +689,7 @@ function PlanPanel({
 			<EstimateFacts estimates={estimatesOf(cards)} left />
 			<section className="timeline">
 				<h3>
-					Cards <span className="count">{cards.length}</span>
+					Tickets <span className="count">{cards.length}</span>
 				</h3>
 				<p className="epic-progress">
 					<ProgressMeter progress={progressOf(cards)} wide />
@@ -1746,7 +1746,7 @@ export function Plan({
 						key="delivered"
 						className="plan-run delivered"
 						style={{ left: x(row.refineEnd), width: x(until) - x(row.refineEnd) }}
-						title={`${row.phase === "done" ? "Delivered" : "Delivering"} from ${short(row.refineEnd)}${row.phase === "done" ? ` to ${short(until - 1)}` : " to today"}: ${delivered.done} of ${delivered.total} cards done, ${figure(delivered.donePoints)} pts of TR complexity - done work stays behind today and never moves`}
+						title={`${row.phase === "done" ? "Delivered" : "Delivering"} from ${short(row.refineEnd)}${row.phase === "done" ? ` to ${short(until - 1)}` : " to today"}: ${delivered.done} of ${delivered.total} tickets done, ${figure(delivered.donePoints)} pts of TR complexity - done work stays behind today and never moves`}
 					/>,
 				);
 			}
@@ -1892,7 +1892,7 @@ export function Plan({
 			);
 			words.push(
 				row.remaining.open === 0
-					? `All cards done ${short(row.projected)}`
+					? `All tickets done ${short(row.projected)}`
 					: `Projected ${short(row.projected)}${row.blocked != null ? " if unblocked" : ""}`,
 			);
 		} else if (row.remaining.points > 0 && tracksOf(row.team) === 0) {
@@ -1900,13 +1900,13 @@ export function Plan({
 		} else if (row.remaining.unsized > 0) {
 			words.push("Unsized");
 		} else if (row.remaining.open + row.remaining.done === 0) {
-			words.push("No cards to project");
+			words.push("No tickets to project");
 			if (target != null && target < today) words.push(`target passed ${short(target)}`);
 		}
 		if (!row.done && row.late > 0 && target != null) {
 			const why =
 				row.remaining.open === 0
-					? `its last card was done ${row.late === 1 ? "1 day" : `${row.late} days`} after its target of ${short(target)}`
+					? `its last ticket was done ${row.late === 1 ? "1 day" : `${row.late} days`} after its target of ${short(target)}`
 					: row.projected != null && row.projected > today
 						? `projected to end ${short(row.projected)}, past its target of ${short(target)}`
 						: `its target of ${short(target)} has passed with work still open`;
@@ -2009,8 +2009,8 @@ export function Plan({
 								</span>
 							)}
 							{row && !row.done && row.remaining.open + row.remaining.done === 0 && (
-								<span className="plan-points none" title="Give it cards to project when it ends">
-									No cards
+								<span className="plan-points none" title="Give it tickets to project when it ends">
+									No tickets
 								</span>
 							)}
 							{needed != null && (
