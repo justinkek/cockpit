@@ -1482,7 +1482,7 @@ command_bounce() {
 }
 
 hop() {
-  local id="$1" column="$2" kind record from epic stamped=false starting=false
+  local id="$1" column="$2" kind record from stamped=false starting=false
   kind="$(kind_of "$id")"
   record="$(read_record "$id")"
   from="$(printf '%s' "$record" | jq --raw-output '.status')"
@@ -1499,12 +1499,6 @@ hop() {
     | if $starting and .start == null then .start = $stamp[:10] else . end
     | if $kind == "epic" and $column == "Backlog" then del(.start) else . end' | write_record "$id"
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
-  if [ "$kind" = card ] && { [ "$column" = Done ] || [ "$column" = Deprioritised ]; }; then
-    epic="$(printf '%s' "$record" | jq --raw-output '.epic // ""')"
-    if [ -n "$epic" ] && [ -f "$(record_file "$epic")" ] && read_record "$epic" | jq --exit-status "$maintenance_program" >/dev/null; then
-      close_maintenance_locked
-    fi
-  fi
   return 0
 }
 
@@ -1512,6 +1506,7 @@ hops() {
   local column="$1" id
   shift
   for id in "$@"; do hop "$id" "$column"; done
+  close_maintenance_locked
 }
 
 command_move() {
@@ -1560,6 +1555,7 @@ walk_locked() {
     [ "$skipped" = true ] && continue
     hop "$id" "$column"
   done
+  close_maintenance_locked
 }
 
 command_walk() {
@@ -2281,25 +2277,46 @@ maintenance_files() {
   grep --files-with-matches --extended-regexp '^maintenance: ' "$BOARD_DIR"/epics/*.md 2>/dev/null | sort --version-sort || true
 }
 
-epic_has_open_cards() {
-  local epic="$1" file
+open_maintenance_files() {
+  local files=() file
+  while IFS= read -r file; do [ -z "$file" ] || files+=("$file"); done < <(maintenance_files)
+  [ "${#files[@]}" -gt 0 ] || return 0
+  grep --files-without-match --fixed-strings 'status: "Epic Done"' "${files[@]}" | sort --version-sort || true
+}
+
+open_cards_of() {
+  local epic="$1" file card
   while IFS= read -r file; do
-    parse_file "$file" | jq --exit-status --arg epic "$epic" '.epic == $epic and .status != "Done" and .status != "Deprioritised"' >/dev/null && return 0
-  done < <(grep --files-with-matches --fixed-strings "\"$epic\"" "$BOARD_DIR"/cards/*.md 2>/dev/null || true)
-  return 1
+    parse_file "$file" | jq --exit-status --arg epic "$epic" '.epic == $epic and .status != "Done" and .status != "Deprioritised"' >/dev/null || continue
+    card="${file##*/}"
+    printf '%s\n' "${card%.md}"
+  done < <(grep --files-with-matches --fixed-strings "\"$epic\"" "$BOARD_DIR"/cards/*.md 2>/dev/null | sort --version-sort || true)
 }
 
 close_maintenance_locked() {
-  local keep="${1:-}" month file epic
-  month="$(now | cut -c1-7)"
+  local keep="${1:-}" today month file epic record project target card cards
+  today="$(now | cut -c1-10)"
+  month="${today:0:7}"
   while IFS= read -r file; do
     [ -n "$file" ] || continue
-    parse_file "$file" | jq --exit-status --arg month "$month" "$maintenance_program and .status != \"Epic Done\" and .maintenance < \$month" >/dev/null || continue
+    record="$(parse_file "$file")"
+    printf '%s' "$record" | jq --exit-status --arg month "$month" "$maintenance_program and .status != \"Epic Done\" and .maintenance < \$month" >/dev/null || continue
     epic="${file##*/}"
     epic="${epic%.md}"
     [ "$epic" != "$keep" ] || continue
-    epic_has_open_cards "$epic" || hop "$epic" "Epic Done"
-  done < <(maintenance_files)
+    cards="$(open_cards_of "$epic")"
+    if [ -n "$cards" ]; then
+      project="$(printf '%s' "$record" | jq --raw-output '.project // ""')"
+      [ -n "$project" ] && [ -f "$(record_file "$project")" ] || continue
+      target="$(maintenance_epic_for "$project" "$today")"
+      for card in $cards; do
+        update_record "$card" --arg epic "$target" '.epic = $epic'
+        hold_card "$card" >/dev/null
+        printf '%s\tepic %s -> %s\n' "$card" "$epic" "$target"
+      done
+    fi
+    hop "$epic" "Epic Done"
+  done < <(open_maintenance_files)
 }
 
 maintenance_epic_of() {
@@ -2311,10 +2328,10 @@ maintenance_epic_of() {
     file="${file##*/}"
     printf '%s\n' "${file%.md}"
     return 0
-  done < <(maintenance_files)
+  done < <(open_maintenance_files)
 }
 
-maintenance_locked() {
+maintenance_epic_for() {
   local project="$1" day="$2" month="${2:0:7}" id name fields
   id="$(maintenance_epic_of "$project" "$month")"
   if [ -z "$id" ]; then
@@ -2323,6 +2340,12 @@ maintenance_locked() {
       '{project: $project, labels: ["maintenance"], maintenance: $month, start: $start}')"
     id="$(create_locked epic "$name" "" "Tickets In Dev" "" "" "$fields")"
   fi
+  printf '%s\n' "$id"
+}
+
+maintenance_locked() {
+  local id
+  id="$(maintenance_epic_for "$1" "$2")"
   close_maintenance_locked "$id" >&2
   printf '%s\n' "$id"
 }
@@ -2542,7 +2565,7 @@ migrate_homes() {
 
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_homes)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; close_maintenance_locked; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 

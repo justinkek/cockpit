@@ -70,36 +70,46 @@ assert_eq "named for that one" "Cockpit maintenance - Dec 2026" "$(field EPIC-6 
 assert_eq "and its month is kept" "2026-12" "$(field EPIC-6 .maintenance)"
 assert_eq "January rolls the year" "Cockpit maintenance - Jan 2027" "$(field "$(stub maintenance PRJ-1 --date 2027-01-01)" .name)"
 
-printf "\nTest group: a maintenance epic closes once its month is over and its cards are done\n"
+printf "\nTest group: at month end a maintenance epic's unfinished cards move to the new month's epic and it closes\n"
 
 stub create --epic EPIC-2 --name "Fix the drag" --type Bug >/dev/null
 stub create --epic EPIC-2 --name "Look into the lag" --type Timebox >/dev/null
+stub create --epic EPIC-2 --name "Shipped already" >/dev/null
+stub create --epic EPIC-2 --name "Dropped" >/dev/null
+stub move FEAT-3 Done >/dev/null
+stub move FEAT-4 Deprioritised >/dev/null
+assert_eq "a move within the month leaves the month's epic open" "Tickets In Dev" "$(field EPIC-2 .status)"
 COCKPIT_NOW=2026-11-02T09:00:00Z stub maintenance --close >/dev/null
-assert_eq "a month that is over with cards still open stays open" "Tickets In Dev" "$(field EPIC-2 .status)"
+assert_eq "once the month is over its epic closes, cards still open and all" "Epic Done" "$(field EPIC-2 .status)"
+assert_eq "its unfinished cards move to the same project's epic for the new month" "EPIC-5 EPIC-5" "$(field BUG-1 .epic) $(field TIME-2 .epic)"
+assert_eq "a done card and a deprioritised one stay where they were done" "EPIC-2 EPIC-2" "$(field FEAT-3 .epic) $(field FEAT-4 .epic)"
 assert_eq "an empty epic of a month that is over closes" "Epic Done" "$(field EPIC-4 .status)"
 assert_eq "and so does another project's" "Epic Done" "$(field EPIC-3 .status)"
 assert_eq "the month that is not over stays open" "Tickets In Dev" "$(field EPIC-5 .status)"
 assert_eq "a plain epic is never swept" "Backlog" "$(field EPIC-1 .status)"
-assert_eq "the sweep is committed under maintenance" "maintenance EPIC-3 EPIC-4" "$(last_commit %s)"
+assert_eq "the cards and the epics they left go in one commit" "maintenance BUG-1 TIME-2 EPIC-2 EPIC-3 EPIC-4" "$(last_commit %s)"
 
-stub move BUG-1 Done >/dev/null
-assert_eq "a card done in the month leaves its epic open" "Tickets In Dev" "$(field EPIC-2 .status)"
-COCKPIT_NOW=2026-11-02T09:00:00Z stub move TIME-2 Deprioritised >/dev/null
-assert_eq "the last card leaving after the month closes it" "Epic Done" "$(field EPIC-2 .status)"
-assert_eq "in the same commit as the move" "move TIME-2 EPIC-2" "$(last_commit %s)"
-
-stub create --epic EPIC-5 --name "Tidy the plan" >/dev/null
-COCKPIT_NOW=2026-12-03T09:00:00Z stub walk FEAT-3 Done >/dev/null
-assert_eq "a walk that lands a card on Done after the month closes its epic" "Epic Done" "$(field EPIC-5 .status)"
-assert_eq "in the walk's own commit" "walk FEAT-3 EPIC-5" "$(last_commit %s)"
+COCKPIT_NOW=2026-12-03T09:00:00Z stub walk BUG-1 Done >/dev/null
+assert_eq "a walk after the month rolls the epic over" "Epic Done" "$(field EPIC-5 .status)"
+assert_eq "taking the card still open to December's" "EPIC-6" "$(field TIME-2 .epic)"
+assert_eq "and leaving the card it walked to Done behind" "EPIC-5" "$(field BUG-1 .epic)"
+assert_eq "in the walk's own commit" "walk BUG-1 TIME-2 EPIC-5" "$(last_commit %s)"
 assert_eq "while a month not over yet stays open through the walk's sweep" "Tickets In Dev" "$(field EPIC-6 .status)"
 
-COCKPIT_NOW=2027-01-05T09:00:00Z stub maintenance PRJ-1 2>/dev/null >/dev/null
-assert_eq "asking for a month's epic sweeps the ones that are over" "Epic Done" "$(field EPIC-6 .status)"
-assert_eq "asking for a month that is over gives its open epic" "EPIC-7" "$(COCKPIT_NOW=2027-03-01T00:00:00Z stub maintenance PRJ-1 --date 2027-01-20 2>/dev/null)"
-assert_eq "rather than closing it under the card about to be filed there" "Tickets In Dev" "$(field EPIC-7 .status)"
-COCKPIT_NOW=2027-03-01T00:00:00Z stub maintenance --close >/dev/null
-assert_eq "the next sweep closes it" "Epic Done" "$(field EPIC-7 .status)"
+COCKPIT_NOW=2027-01-05T09:00:00Z stub move EPIC-1 "Ready for FD by AI" >/dev/null
+assert_eq "a move of any record sweeps, so nobody has to ask" "Epic Done EPIC-7" "$(field EPIC-6 .status) $(field TIME-2 .epic)"
+assert_eq "in the move's own commit" "move TIME-2 EPIC-1 EPIC-6" "$(last_commit %s)"
+
+output="$(COCKPIT_NOW=2027-02-02T09:00:00Z stub migrate)"
+assert_eq "migrate sweeps too, making the new month's epic when there is none" "EPIC-8" "$(field TIME-2 .epic)"
+assert_eq "named for the new month" "Cockpit maintenance - Feb 2027" "$(field EPIC-8 .name)"
+assert_eq "starting the day of the sweep, in Tickets In Dev" "2027-02-02 Tickets In Dev 2027-02" "$(field EPIC-8 '"\(.start) \(.status) \(.maintenance)"')"
+assert_eq "and migrate names each card it moved and each epic it closed" \
+  "TIME-2	epic EPIC-7 -> EPIC-8|EPIC-7	Tickets In Dev -> Epic Done" "$(printf '%s\n' "$output" | grep 'EPIC-7' | paste -sd '|' -)"
+
+COCKPIT_NOW=2027-03-01T00:00:00Z stub maintenance PRJ-1 --date 2027-03-01 2>/dev/null >/dev/null
+assert_eq "asking for the new month's epic across the boundary rolls the old one into it" "EPIC-9 Epic Done" "$(field TIME-2 .epic) $(field EPIC-8 .status)"
+assert_eq "which is the epic the call printed" "EPIC-9" "$(COCKPIT_NOW=2027-03-01T00:00:00Z stub maintenance PRJ-1 --date 2027-03-01 2>/dev/null)"
 
 printf "\nTest group: maintenance refuses what it cannot file under\n"
 
