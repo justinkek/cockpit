@@ -475,8 +475,8 @@ function tracksText(count: number) {
 function speedFrom(speed: AverageSpeed) {
 	const counted =
 		speed.source === "measured"
-			? `${figure(speed.points)} pts from ${speed.tickets} ${speed.tickets === 1 ? "ticket" : "tickets"}, last ${figure(speed.weeks)} ${speed.weeks === 1 ? "week" : "weeks"}`
-			: "nothing with TR complexity done in the last 6 weeks";
+			? `${figure(speed.points)} pts from ${speed.tickets} ${speed.tickets === 1 ? "ticket" : "tickets"} over ${figure(speed.weeks)} active ${speed.weeks === 1 ? "week" : "weeks"}`
+			: "nothing with TR complexity done in the last 6 active weeks";
 	const beside = [
 		speed.uncounted > 0 ? `${speed.uncounted} done without complexity` : "",
 		speed.timeboxes > 0 ? `${speed.timeboxes} ${speed.timeboxes === 1 ? "timebox" : "timeboxes"}` : "",
@@ -490,7 +490,7 @@ function speedText(speed: TrackSpeed) {
 			speed.speed.source === "measured" ? "measured" : speed.speed.source === "sprint" ? "sprint speed" : "default";
 		return {
 			short: "overall average, no history",
-			title: `No ticket of this project with a TR complexity was done in the last six weeks, so it takes the board's overall average speed a track (${from})`,
+			title: `No ticket of this project with a TR complexity was done in its last six weeks that finished anything, so it takes the board's overall average speed a track (${from})`,
 		};
 	}
 	const split =
@@ -1449,10 +1449,10 @@ export function Plan({
 	const planEnd = Math.max(...open_rows.map((row) => row.projected ?? Number.NEGATIVE_INFINITY));
 	const rateTitle =
 		rate.source === "measured"
-			? `The TR complexity of the tickets done in the last ${rate.weeks} ${rate.weeks === 1 ? "week" : "weeks"}, a week - a ticket done without one, or a timebox, is counted beside it and not in it`
+			? `The TR complexity of the tickets done in the last ${rate.weeks} ${rate.weeks === 1 ? "week" : "weeks"} that finished anything, a week - a week that finished nothing never counts, and a ticket done without one, or a timebox, is counted beside it and not in it`
 			: rate.source === "sprint"
-				? "No ticket with a TR complexity was done in the last six weeks, so this is the current sprint's speed a day times five"
-				: "No ticket with a TR complexity was done in the last six weeks and no sprint has a speed, so this is the default";
+				? "No ticket with a TR complexity was done in the last six weeks that finished anything, so this is the current sprint's speed a day times five"
+				: "No ticket with a TR complexity was done in the last six weeks that finished anything and no sprint has a speed, so this is the default";
 
 	const nameOf = (id: string) => epics.find((epic) => epic.id === id)?.name ?? id;
 	const trackNotes = Object.values(committedRows).flatMap((row) => {
@@ -1768,7 +1768,7 @@ export function Plan({
 							{row && !row.done && row.projected != null && row.remaining.points > 0 && fallbackOf(row.team) && (
 								<span
 									className="plan-points fallback"
-									title={`Projected at ${figure(row.perWeek)} points a week a track, a fallback rather than a measured speed: ${teamName(row.team)} has no ticket with a TR complexity done in the last six weeks, so it takes the board's overall average`}
+									title={`Projected at ${figure(row.perWeek)} points a week a track, a fallback rather than a measured speed: ${teamName(row.team)} has no ticket with a TR complexity done in its last six weeks that finished anything, so it takes the board's overall average`}
 								>
 									<Icon name="plan" />
 									Fallback speed

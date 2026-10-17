@@ -83,19 +83,25 @@ assert_eq "an epic with no tickets has no totals, which read as none rather than
 printf "\nTest group: the average speed is the TR complexity done a week, or the sprint's speed, or a default\n"
 
 DONE='[{"status":"Done","complexity":5,"dates":{"Done":"2026-10-12T10:00:00Z"}},{"status":"Done","complexity":3,"dates":{"Done":"2026-09-10T10:00:00Z"}},{"status":"Done","dates":{"Done":"2026-08-01T10:00:00Z"}},{"status":"In Dev","complexity":8,"dates":{"Done":"2026-10-13T10:00:00Z"}}]'
-assert_eq "six weeks of done cards make the average speed, an older one counting only to start the window" \
-  '{"perWeek":1.3333333333333333,"source":"measured","points":8,"weeks":6,"tickets":2,"uncounted":0,"timeboxes":0}' "$(evaluate "p.averageSpeedOf($DONE, [], $NOW)")"
-assert_eq "a board done for under six weeks divides by the weeks it has" \
-  '{"perWeek":4,"source":"measured","points":8,"weeks":2,"tickets":1,"uncounted":0,"timeboxes":0}' \
-  "$(evaluate 'p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-09-30T12:00:00Z"}}], [], '"$NOW"')')"
+assert_eq "the average speed divides the points by the weeks something was finished in, never a week with nothing finished" \
+  '{"perWeek":2.6666666666666665,"source":"measured","points":8,"weeks":3,"tickets":2,"uncounted":1,"timeboxes":0,"mondays":[20738,20703,20661]}' "$(evaluate "p.averageSpeedOf($DONE, [], $NOW)")"
+assert_eq "a board with one week of finished cards divides by that one week" \
+  '{"perWeek":8,"weeks":1}' \
+  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-09-30T12:00:00Z"}}], [], '"$NOW"'), "perWeek weeks")')"
+WEEKLY='[7,14,21,28,35,42,49].map((back) => ({status:"Done",complexity:back,dates:{Done:new Date(Date.parse("2026-08-31T12:00:00Z") - back * 86400000).toISOString()}}))'
+assert_eq "a break in the work reaches back past it for the last six weeks that finished something" \
+  '{"perWeek":24.5,"points":147,"weeks":6}' \
+  "$(evaluate "pick(p.averageSpeedOf($WEEKLY, [], $NOW), \"perWeek points weeks\")")"
+assert_eq "a week counts once, however many cards it finished" '{"perWeek":4,"weeks":2}' \
+  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:3,dates:{Done:"2026-10-12T12:00:00Z"}},{status:"Done",complexity:2,dates:{Done:"2026-10-13T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-06-03T12:00:00Z"}}], [], '"$NOW"'), "perWeek weeks")')"
 assert_eq "a done card counts only its TR complexity, and one without it or a timebox is counted apart, whatever its estimate" '{"points":5,"tickets":1,"uncounted":2,"timeboxes":1}' \
   "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:5,estimate:8,dates:{Done:"2026-10-01T12:00:00Z"}},{status:"Done",estimate:3,dates:{Done:"2026-10-01T12:00:00Z"}},{status:"Done",dates:{Done:"2026-10-02T12:00:00Z"}},{status:"Done",type:"Timebox",complexity:2,dates:{Done:"2026-10-03T12:00:00Z"}}], [], '"$NOW"'), "points tickets uncounted timeboxes")')"
 assert_eq "a board done only without complexity has no measured speed" 'default' \
   "$(evaluate 'p.averageSpeedOf([{status:"Done",estimate:3,dates:{Done:"2026-10-01T12:00:00Z"}}], [], '"$NOW"').source')"
 assert_eq "with nothing done, the current sprint's speed a day makes the average speed a week" \
-  '{"perWeek":12.5,"source":"sprint","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0}' \
+  '{"perWeek":12.5,"source":"sprint","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0,"mondays":[]}' \
   "$(evaluate 'p.averageSpeedOf([], [{start:"2026-10-12",end:"2026-10-23",speed:2.5}], '"$NOW"')')"
-assert_eq "with no sprint speed either, the average speed is the default" '{"perWeek":10,"source":"default","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0}' \
+assert_eq "with no sprint speed either, the average speed is the default" '{"perWeek":10,"source":"default","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0,"mondays":[]}' \
   "$(evaluate 'p.averageSpeedOf([], [{start:"2026-10-12",end:"2026-10-23",speed:0}], '"$NOW"')')"
 
 SPRINT='{start:"2026-09-28",end:"2026-10-11"}'
@@ -232,11 +238,11 @@ printf "\nTest group: each project's speed a track comes from its own finished c
 SPEED_EPICS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","dates":{"Tickets In Dev":"2026-08-01T10:00:00Z"}},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-1","dates":{"Tickets In Dev":"2026-08-01T10:00:00Z"}},{"id":"EPIC-3","status":"In FD","project":"PRJ-2"}]'
 SPEED_CARDS='[{"epic":"EPIC-1","status":"Done","complexity":12,"dates":{"Done":"2026-10-10T10:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":1,"dates":{"Done":"2026-08-05T10:00:00Z"}},{"status":"Done","complexity":6,"dates":{"Done":"2026-10-12T10:00:00Z"}}]'
 speeds="p.trackSpeedsOf($SPEED_CARDS, $SPEED_EPICS, [\"PRJ-1\",\"PRJ-2\"], [], $NOW)"
-assert_eq "a project's average speed is split across the epics it had in progress on average" '{"perWeek":1,"source":"measured","inProgress":2}' \
+assert_eq "a project's average speed is split across the epics it had in progress on average" '{"perWeek":3.25,"source":"measured","inProgress":2}' \
   "$(evaluate "pick($speeds.teams[\"PRJ-1\"], \"perWeek source inProgress\")")"
-assert_eq "a project with no history takes the overall speed a track, and says so" '{"perWeek":1.5,"source":"overall","inProgress":2}' \
+assert_eq "a project with no history takes the overall speed a track, and says so" '{"perWeek":3.1666666666666665,"source":"overall","inProgress":2}' \
   "$(evaluate "pick($speeds.teams[\"PRJ-2\"], \"perWeek source inProgress\")")"
-assert_eq "a card with no epic and no project counts toward the overall speed alone" 'undefined,18' \
+assert_eq "a card with no epic and no project counts toward the overall speed alone" 'undefined,19' \
   "$(evaluate "[String($speeds.teams[\"\"]), $speeds.overall.speed.points].join()")"
 assert_eq "an epic counts as in progress from its first card in dev until it is done" '0.5' \
   "$(evaluate 'p.epicsInProgressOver([{id:"EPIC-1",status:"Epic Done",dates:{"Epic Done":"2026-10-11T00:00:00Z"}}], [{epic:"EPIC-1",status:"Done",dates:{"In Dev":"2026-10-09T00:00:00Z","Done":"2026-10-10T00:00:00Z"}}], Date.parse("2026-10-07T00:00:00Z"), Date.parse("2026-10-11T00:00:00Z"))')"
