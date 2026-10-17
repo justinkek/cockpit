@@ -883,12 +883,18 @@ fn time_prefix_ok(value: &str) -> bool {
 }
 
 pub fn set(args: &[String]) {
-    let ids: Vec<String> = vec![normalise_id(args.first().map(|s| s.as_str()).unwrap_or(""))];
-    let at = 0;
+    let mut ids: Vec<String> = Vec::new();
+    let mut at = 0;
+    while at + 2 < args.len() && is_id_shape(&upper(&args[at])) && is_id_shape(&upper(&args[at + 1])) {
+        ids.push(normalise_id(&args[at]));
+        at += 1;
+    }
+    let first = args.get(at).cloned().unwrap_or_default();
+    ids.push(normalise_id(&first));
     let field = args.get(at + 1).cloned().unwrap_or_default();
     let value = args.get(at + 2).cloned().unwrap_or_default();
     if args.len() < at + 3 {
-        die(2, "usage: board-card set <id> <field> <value> [--close] | set <id> body <value> --base <file | ->");
+        die(2, "usage: board-card set <id>... <field> <value> [--close] | set <id> body <value> --base <file | ->");
     }
     let mut rest = at + 3;
     while rest < args.len() {
@@ -922,6 +928,9 @@ pub fn set(args: &[String]) {
             }
             other => die(2, &format!("set: unknown option '{}' - only --close, or --base on a body write", other)),
         }
+    }
+    if ids.len() > 1 && ctx::with(|s| s.body_base.is_some()) {
+        die(2, "--base merges one body - pass one id with it");
     }
     let mut unique: Vec<String> = Vec::new();
     for id in ids {

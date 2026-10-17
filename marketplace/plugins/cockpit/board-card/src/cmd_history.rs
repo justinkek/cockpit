@@ -849,8 +849,18 @@ fn apply_undo(id: &str, plan: Plan) {
 }
 
 pub fn undo(args: &[String]) {
-    let ids: Vec<String> = vec![normalise_id(args.first().map(|s| s.as_str()).unwrap_or(""))];
-    let mut at = 1;
+    let mut ids: Vec<String> = Vec::new();
+    let mut at = 0;
+    while at < args.len() && !args[at].starts_with("--") {
+        let id = normalise_id(&args[at]);
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+        at += 1;
+    }
+    if ids.is_empty() {
+        normalise_id("");
+    }
     let first = ids[0].clone();
     let (mut since, mut until) = (String::new(), String::new());
     while at < args.len() {

@@ -1221,5 +1221,24 @@ assert_eq "an archive and an unarchive show as the record leaving and coming bac
 stub history "$traced" --wide >/dev/null 2>&1
 assert_eq "history takes --json and nothing else" "2" "$?"
 
+printf "\nTest group: set and undo take several ids in one call and one commit\n"
+
+pair_one="$(stub create --epic EPIC-1 --name "Pair one")"
+pair_two="$(stub create --epic EPIC-1 --name "Pair two")"
+commits() { git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD; }
+before="$(commits)"
+assert_eq "set gives each id the value and reads each back" "Rank	7|Rank	7" "$(stub set "$pair_one" "$pair_two" rank 7 | paste -sd '|' -)"
+assert_eq "in one commit naming both" "1|set $pair_one $pair_two" "$(($(commits) - before))|$(last_commit %s)"
+stub move "$pair_one" "$pair_two" "In BR" >/dev/null
+moved="$(last_commit '%h %s')"
+before="$(commits)"
+assert_eq "undo takes back each id's last change" "$pair_one	undid $moved|$pair_two	undid $moved" "$(stub undo "$pair_one" "$pair_two" | paste -sd '|' -)"
+assert_eq "putting both back in one commit" "Backlog Backlog 1 undo $pair_one $pair_two" \
+  "$(field "$pair_one" .status) $(field "$pair_two" .status) $(($(commits) - before)) $(last_commit %s)"
+stub undo "$pair_one" HOM-999 >/dev/null 2>&1
+assert_eq "an id the board does not hold refuses the whole undo" "3 Backlog" "$? $(field "$pair_one" .status)"
+printf 'base' | stub set "$pair_one" "$pair_two" body "merged" --base - >/dev/null 2>&1
+assert_eq "and a body merge takes one id" "2" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

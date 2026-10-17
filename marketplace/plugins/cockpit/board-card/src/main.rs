@@ -25,7 +25,7 @@ const USAGE: &str = "board-card - the cockpit board, kept as one markdown file p
   board-card list [--kind ticket|epic|project|sprint|reference|milestone] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
   board-card search <text> [--kind ticket|epic|project|sprint|reference|milestone]
   board-card statuses [--kind ticket|epic]
-  board-card set <id> <field> <value> [--close] | set <id> body <value> --base <file | ->
+  board-card set <id>... <field> <value> [--close] | set <id> body <value> --base <file | ->
   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
   board-card bounce <id> <gate>
   board-card move <id>... <column>
@@ -47,7 +47,7 @@ const USAGE: &str = "board-card - the cockpit board, kept as one markdown file p
   board-card unarchive <id>
   board-card duplicate <id> [--name <name>] [--status <column>]
   board-card history <id> [--json]
-  board-card undo <id> [--since <commit> [--until <commit>]]
+  board-card undo <id>... [--since <commit> [--until <commit>]]
   board-card flush [--now]
   board-card revision
   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
