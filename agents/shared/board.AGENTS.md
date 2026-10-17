@@ -192,7 +192,7 @@ An epic's row on the plan carries no figure of its own: its TD estimate, its TR 
 
 `board-card migrate` brings a board written before a change to its records' shape up to date, prints each record it changed or `nothing to migrate`, and changes nothing the second time it runs. It gives every epic a `rank` in the order the plan drew them, an old `plan_rank` first, then a rank dragged on the Epics board, then by target and number, and drops `plan_rank`. It gives each project with no share and an epic not in `Epic Done` a share of 1, sets the board's count of tracks to the shares added up when there is none, and removes the old `no-project-tracks` file. It gives an epic past `Backlog` with no `start` the day it was first stamped into a column past `Backlog`, else the day it was created. It names each card with no epic and each epic with no project, which only a person can give them.
 
-The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run dev`; it listens on every interface at port 4646.
+The app in `board/` reads and writes through `board-card` alone. Start it with `npm --prefix board run serve`, which builds it and then serves the build; it listens on every interface at port 4646. `npm --prefix board run dev` serves it in development mode on the same port, rebuilding each page when it is opened, so a page switch takes seconds rather than under one.
 
 ## Claim locks
 
