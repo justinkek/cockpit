@@ -82,7 +82,7 @@ struct Batch {
 
 impl Batch {
     fn start() -> Option<Batch> {
-        let mut command = Command::new("git");
+        let mut command = Command::new(git::program());
         command.arg("-C").arg(ctx::board_dir());
         for name in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR"] {
             command.env_remove(name);

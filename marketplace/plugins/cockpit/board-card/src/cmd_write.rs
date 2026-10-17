@@ -550,7 +550,7 @@ fn merge_body(id: &str, edited: &str) -> String {
     write("edited", edited);
     write("base", &base);
     write("current", &current);
-    let status = Command::new("git")
+    let status = Command::new(crate::git::program())
         .args(["merge-file", "--quiet", "-L", "your edit", "-L", "where your edit started", "-L", "on the board now"])
         .arg(format!("{}/edited", scratch))
         .arg(format!("{}/base", scratch))

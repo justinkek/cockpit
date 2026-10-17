@@ -66,17 +66,7 @@ fn init() {
         let _ = fs::create_dir_all(format!("{}/{}", board, folder));
     }
     if !Path::new(&format!("{}/.git", board)).is_dir() {
-        let _ = std::process::Command::new("git")
-            .arg("-C")
-            .arg(&board)
-            .args(["init", "--quiet"])
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_WORK_TREE")
-            .env_remove("GIT_INDEX_FILE")
-            .env_remove("GIT_OBJECT_DIRECTORY")
-            .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES")
-            .env_remove("GIT_COMMON_DIR")
-            .status();
+        let _ = git::bare(&["-C", &board, "init", "--quiet"]).status();
         changed = true;
     }
     let ignore = format!("{}/.gitignore", board);

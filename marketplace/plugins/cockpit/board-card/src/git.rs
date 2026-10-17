@@ -14,8 +14,50 @@ const CLEARED: &[&str] = &[
     "GIT_COMMON_DIR",
 ];
 
+fn native(path: &Path) -> bool {
+    let Ok(mut file) = fs::File::open(path) else { return false };
+    let mut head = [0u8; 2];
+    use std::io::Read;
+    match file.read_exact(&mut head) {
+        Ok(()) => &head != b"#!",
+        Err(_) => false,
+    }
+}
+
+fn find_git() -> String {
+    let given = ctx::env("BOARD_CARD_GIT");
+    if !given.is_empty() {
+        return given;
+    }
+    for directory in ctx::env("PATH").split(':').filter(|d| !d.is_empty()) {
+        let candidate = Path::new(directory).join("git");
+        let executable = fs::metadata(&candidate).map(|m| {
+            use std::os::unix::fs::PermissionsExt;
+            m.is_file() && m.permissions().mode() & 0o111 != 0
+        });
+        if executable.unwrap_or(false) && native(&candidate) {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+    "git".to_string()
+}
+
+pub fn program() -> String {
+    static GIT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    GIT.get_or_init(find_git).clone()
+}
+
+pub fn bare(args: &[&str]) -> Command {
+    let mut command = Command::new(program());
+    for name in CLEARED {
+        command.env_remove(name);
+    }
+    command.args(args);
+    command
+}
+
 fn command(index: Option<&str>, args: &[&str]) -> Command {
-    let mut command = Command::new("git");
+    let mut command = Command::new(program());
     command.arg("-C").arg(ctx::board_dir());
     for name in CLEARED {
         command.env_remove(name);
