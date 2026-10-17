@@ -5,6 +5,32 @@ guard="${1:-}"
 
 input="$(cat)"
 
+command -v jq >/dev/null 2>&1 || exit 0
+
+. "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/hooks/hook-argv-lib.sh"
+
+[ "$(printf '%s' "$input" | jq --raw-output '.tool_name // empty')" = "Bash" ] || exit 0
+cmd="$(printf '%s' "$input" | jq --raw-output '.tool_input.command // empty')"
+printf '%s' "$cmd" | grep --quiet 'board-card' || exit 0
+
+words="$(hook_argv_after "$cmd" board-card)"
+action="$(printf '%s\n' "$words" | sed -n 1p)"
+target="$(printf '%s\n' "$words" | sed -n 3p)"
+while [ "${target#\#}" != "$target" ]; do target="${target#\#}"; done
+target="${target# }"
+
+case "$action:$target" in
+  "section:Tech Steps")
+    content="$(printf '## Tech Steps\n%s' "$(hook_heredoc_body "$cmd")")"
+    ;;
+  "set:body")
+    content="$(hook_heredoc_body "$cmd")"
+    [ -n "$content" ] || content="$(printf '%s\n' "$words" | sed -n 4p)"
+    ;;
+  *) exit 0 ;;
+esac
+[ -n "$content" ] || exit 0
+
 search_root="${COCKPIT_PLUGIN_SEARCH_ROOT:-}"
 if [ -z "$search_root" ]; then
   directory="${CLAUDE_PLUGIN_ROOT:-}"
@@ -18,8 +44,18 @@ if [ -z "$search_root" ]; then
 fi
 [ -n "$search_root" ] || exit 0
 
-found="$(find "$search_root" -type f -name "$guard" -path '*/hooks/*' -print 2>/dev/null | head -1)"
-[ -n "$found" ] || exit 0
-[ -x "$found" ] || exit 0
+guard_not_run() {
+  local note="[cockpit] $guard $1 on this account, so this write to the card went unchecked - run sync.sh plugins --apply"
+  jq --null-input --compact-output --arg note "$note" \
+    '{systemMessage: $note, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $note}}'
+  exit 0
+}
 
-printf '%s' "$input" | "$found"
+found="$(find "$search_root" -type f -name "$guard" -path '*/hooks/*' -print 2>/dev/null | head -1)"
+[ -n "$found" ] || guard_not_run "is installed in no plugin"
+[ -x "$found" ] || guard_not_run "is not executable"
+
+printf '%s' "$input" \
+  | jq --compact-output --arg content "$content" \
+    '{session_id, transcript_path, cwd, hook_event_name, tool_name: "Write", tool_input: {content: $content}}' \
+  | "$found"

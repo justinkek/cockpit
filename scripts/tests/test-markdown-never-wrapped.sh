@@ -7,6 +7,7 @@ repo_root_through_symlink() {
 REPO="$(repo_root_through_symlink)"
 CONFIG="$REPO/.prettierrc"
 BIOME="$REPO/agents/claude/biome.json"
+HOOK="$REPO/agents/claude/hooks/format-on-edit.sh"
 
 pass=0
 fail=0
@@ -62,16 +63,28 @@ assert_equal "and holds the same line width biome does" \
 
 printf "\nTest group: every tracked markdown file is already unwrapped\n"
 
-cd "$REPO" || exit 1
-if npx prettier --version >/dev/null 2>&1; then
-  assert_ok "prettier runs here"
+prettier_version="$(sed -n 's/^prettier_version="\(.*\)"$/\1/p' "$HOOK")"
+pinned_prettier="prettier@$prettier_version"
+
+if printf '%s' "$prettier_version" | grep --quiet --extended-regexp -- '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  assert_ok "the format hook pins one exact prettier version"
 else
-  assert_ko "prettier runs here" "npx prettier --version failed, so the check below proves nothing"
+  assert_ko "the format hook pins one exact prettier version" "found '${prettier_version:-nothing}' in $HOOK"
   printf "\n%d passed, %d failed\n" "$pass" "$fail"
   exit 1
 fi
 
-still_wrapped="$(git ls-files "*.md" | xargs npx prettier --list-different 2>/dev/null)"
+cd "$REPO" || exit 1
+if npx --yes --prefer-offline "$pinned_prettier" --version >/dev/null 2>&1 ||
+  npx --yes --prefer-offline=false "$pinned_prettier" --version >/dev/null 2>&1; then
+  assert_ok "and that version runs here"
+else
+  assert_ko "and that version runs here" "npx $pinned_prettier --version failed, so the check below proves nothing"
+  printf "\n%d passed, %d failed\n" "$pass" "$fail"
+  exit 1
+fi
+
+still_wrapped="$(git ls-files "*.md" | xargs npx --yes --prefer-offline "$pinned_prettier" --list-different 2>/dev/null)"
 
 if [ -z "$still_wrapped" ]; then
   assert_ok "and the formatter has nothing left to rewrite"

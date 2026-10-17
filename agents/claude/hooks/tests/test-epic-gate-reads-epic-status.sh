@@ -34,10 +34,11 @@ printf "Test group: neither path takes a populated relation on trust\n"
 assert_absent "$REGISTER" "If it is populated, continue immediately"
 assert_absent "$NEW" "Default to the same epic for the new ticket."
 
-printf "\nTest group: both read the status off the cache, never off the epic page\n"
+printf "\nTest group: both read the status off the local epics, never off a cache\n"
 
 for path in "$REGISTER" "$NEW"; do
-  assert_names "$path" "cockpit-cache-query\" epic-statuses"
+  assert_names "$path" "list --kind epic"
+  assert_absent "$path" "cockpit-cache-query"
   assert_names "$path" "Epic Done"
   assert_absent "$path" "notion-fetch the epic"
 done
@@ -49,10 +50,9 @@ assert_names "$REGISTER" "for step 4.1 to write"
 assert_names "$REGISTER" "when point 5 picked a replacement"
 assert_names "$REGISTER" "raise-a-decision.md"
 
-printf "\nTest group: a cache that predates the epic is not read as a closed one\n"
+printf "\nTest group: no cache is left to predate the epic\n"
 
-assert_names "$REGISTER" "the cache predates the epic"
-assert_names "$REGISTER" "/cockpit:cache"
+assert_absent "$REGISTER" "/cockpit:cache"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

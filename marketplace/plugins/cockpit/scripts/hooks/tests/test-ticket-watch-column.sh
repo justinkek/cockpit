@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
+export CLAUDE_SHARED_DIR="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)"
+
 WATCHER="$(cd "$(dirname "$0")/../.." && pwd)/ticket-watch-column"
+BOARD_CARD="$(cd "$(dirname "$0")/../.." && pwd)/board-card"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -35,39 +38,46 @@ FIXTURE="$TMPDIR/fixture"
 mkdir -p "$BIN" "$STATE_DIR" "$FIXTURE"
 
 SESSION="test-watch-$$"
-PAGE_ID="3b38f3776f4f819aa509d6ebf233eb71"
 
-cat > "$BIN/curl" <<'STUB'
+export COCKPIT_BOARD_DIR="$TMPDIR/board"
+"$BOARD_CARD" init >/dev/null
+"$BOARD_CARD" create --kind project --name Home --key HOM >/dev/null
+"$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
+PAGE_ID="$("$BOARD_CARD" create --epic EPIC-1 --name "the registered ticket")"
+SOURCE_PAGE_ID="$("$BOARD_CARD" create --epic EPIC-1 --name "a second watched card")"
+
+cat > "$BIN/board-card" <<STUB
 #!/usr/bin/env bash
-# Serve the next scripted column as a Notion page response, one per call.
-n="$(cat "$TICKET_WATCH_FIXTURE/count")"
-total="$(wc -l < "$TICKET_WATCH_FIXTURE/script" | tr -d ' ')"
-if [ "$n" -ge "$total" ]; then
-  : > "$TICKET_WATCH_FIXTURE/done"
+# Move the card to the next scripted column, one per read, then read it back
+# through the real board.
+n="\$(cat "\$TICKET_WATCH_FIXTURE/count")"
+total="\$(wc -l < "\$TICKET_WATCH_FIXTURE/script" | tr -d ' ')"
+if [ "\$n" -ge "\$total" ]; then
+  : > "\$TICKET_WATCH_FIXTURE/done"
   sleep 5
   exit 0
 fi
-printf '%s' "$((n + 1))" > "$TICKET_WATCH_FIXTURE/count"
-scripted="$(sed -n "$((n + 1))p" "$TICKET_WATCH_FIXTURE/script")"
-live_column="${scripted%%|*}"
-case "$scripted" in
+printf '%s' "\$((n + 1))" > "\$TICKET_WATCH_FIXTURE/count"
+scripted="\$(sed -n "\$((n + 1))p" "\$TICKET_WATCH_FIXTURE/script")"
+live_column="\${scripted%%|*}"
+case "\$scripted" in
   *"|"*)
-    walked_by_the_agent="${scripted#*|}"
-    printf '%s' "$walked_by_the_agent" > "${TICKET_WATCH_TEST_COLUMN_FILE:-/dev/null}"
+    walked_by_the_agent="\${scripted#*|}"
+    printf '%s' "\$walked_by_the_agent" > "\${TICKET_WATCH_TEST_COLUMN_FILE:-/dev/null}"
     ;;
 esac
-printf '{"properties":{"Status":{"status":{"name":"%s"}}}}' "$live_column"
+if [ "\$(cat "\$TICKET_WATCH_FIXTURE/last-\$2" 2>/dev/null)" != "\$live_column" ]; then
+  if [ "\$("$BOARD_CARD" show "\$2" Status | cut -f2)" = Done ] && [ "\$live_column" != Done ]; then
+    LIVE_COLUMN="\$live_column" perl -pi -e 's/^status: .*/status: "\$ENV{LIVE_COLUMN}"/' "\$("$BOARD_CARD" path "\$2")"
+  else
+    "$BOARD_CARD" move "\$2" "\$live_column" >/dev/null
+  fi
+  printf '%s' "\$live_column" > "\$TICKET_WATCH_FIXTURE/last-\$2"
+fi
+exec "$BOARD_CARD" "\$@"
 STUB
 
-cat > "$BIN/security" <<'STUB'
-#!/usr/bin/env bash
-# Stand in for the Keychain read. No token in the environment means the
-# credential is missing, which is the case the watcher must announce.
-[ -n "${TICKET_WATCH_TEST_TOKEN:-}" ] || exit 1
-printf '%s\n' "$TICKET_WATCH_TEST_TOKEN"
-STUB
-
-chmod +x "$BIN/curl" "$BIN/security"
+chmod +x "$BIN/board-card"
 
 # Run the watcher against a scripted sequence of live columns and return
 # whatever it emitted. $1 is the recorded column (empty for none), the rest are
@@ -89,9 +99,8 @@ run_watch() {
   local out="$TMPDIR/out"
   : > "$out"
 
-  PATH="$BIN:$PATH" \
+  COCKPIT_BOARD_CARD="$BIN/board-card" \
   TICKET_WATCH_FIXTURE="$FIXTURE" \
-  TICKET_WATCH_TEST_TOKEN="stub-token" \
   TICKET_WATCH_TEST_COLUMN_FILE="$STATE_DIR/$SESSION.column" \
   TICKET_WATCH_INTERVAL=0 \
   TICKET_STATE_DIR="$STATE_DIR" \
@@ -205,12 +214,26 @@ assert_eq "a card sitting where it was recorded leaves the record alone" "In Dev
 
 printf "\nTest group: the watcher disarms itself once the ticket is Done\n"
 
-output="$(run_watch "In CR" "Done")"
+output="$(run_watch "In CR" "Done" "Done")"
 assert_contains "announces the disarm" "watcher disarmed" "$output"
 assert_contains "names Done as the end" "ticket done" "$output"
 assert_contains "asks for the close-out nobody ran" "/cockpit:ticket:7:done" "$output"
+assert_eq "records Done for the status line" "Done" "$(cat "$STATE_DIR/$SESSION.column")"
 
-output="$(run_watch "Done" "Done")"
+output="$(run_watch "In CR" "Done")"
+assert_eq "one poll reading Done does not disarm it" "0" \
+  "$(printf '%s' "$output" | grep -cF "watcher disarmed" | tr -d ' ')"
+
+output="$(run_watch "In CR" "Done" "Done|Done")"
+assert_contains "the agent's walk recorded on the second poll still disarms it" "watcher disarmed" "$output"
+assert_eq "and asks for no close-out, because the walk ran it" "0" \
+  "$(printf '%s' "$output" | grep --count --fixed-strings "/cockpit:ticket:7:done" | tr -d ' ')"
+
+output="$(run_watch "In CR" "Done" "In CR" "Done")"
+assert_eq "Done read on two polls that are not consecutive does not disarm it" "0" \
+  "$(printf '%s' "$output" | grep -cF "watcher disarmed" | tr -d ' ')"
+
+output="$(run_watch "Done" "Done" "Done")"
 assert_eq "the agent's own walk to Done asks for nothing" "0" \
   "$(printf '%s' "$output" | grep --count --fixed-strings "/cockpit:ticket:7:done" | tr -d ' ')"
 
@@ -232,15 +255,14 @@ run_watch_unnamed() {
   printf '0' > "$FIXTURE/count"
   printf '%s\n' "$@" > "$FIXTURE/script"
   printf '%s' "$recorded" > "$STATE_DIR/$SESSION.column"
-  printf 'https://app.notion.com/p/%s\n' "$PAGE_ID" > "$STATE_DIR/$SESSION.ticket"
+  printf '%s\n' "$PAGE_ID" > "$STATE_DIR/$SESSION.ticket"
 
   local out="$TMPDIR/out-unnamed"
   : > "$out"
 
   env -u CLAUDE_SESSION_ID -u CLAUDE_CODE_SESSION_ID \
-  PATH="$BIN:$PATH" \
+  COCKPIT_BOARD_CARD="$BIN/board-card" \
   TICKET_WATCH_FIXTURE="$FIXTURE" \
-  TICKET_WATCH_TEST_TOKEN="stub-token" \
   TICKET_WATCH_INTERVAL=0 \
   TICKET_STATE_DIR="$STATE_DIR" \
     bash "$WATCHER" "$PAGE_ID" > "$out" 2>&1 &
@@ -276,9 +298,8 @@ run_watch_with_no_session_id_and_no_marker() {
   : > "$out"
 
   env -u CLAUDE_SESSION_ID -u CLAUDE_CODE_SESSION_ID \
-  PATH="$BIN:$PATH" \
+  COCKPIT_BOARD_CARD="$BIN/board-card" \
   TICKET_WATCH_FIXTURE="$FIXTURE" \
-  TICKET_WATCH_TEST_TOKEN="stub-token" \
   TICKET_WATCH_INTERVAL=0 \
   TICKET_STATE_DIR="$STATE_DIR" \
     bash "$WATCHER" "$PAGE_ID" > "$out" 2>&1 &
@@ -301,9 +322,7 @@ assert_eq "both landings fire, with no record to silence either" "2" "$(count_ev
 assert_eq "and nothing is recorded for a session that does not exist" "absent" \
   "$([ -f "$STATE_DIR/.column" ] && echo present || echo absent)"
 
-printf "\nTest group: a cross-board session is told which of its two cards moved\n"
-
-SOURCE_PAGE_ID="3b48f3776f4f81d3813bc32528dcbacf"
+printf "\nTest group: a second watched card is named by its id\n"
 
 run_watch_two_cards() {
   local recorded="$1"
@@ -317,9 +336,8 @@ run_watch_two_cards() {
   local out="$TMPDIR/out-two-cards"
   : > "$out"
 
-  PATH="$BIN:$PATH" \
+  COCKPIT_BOARD_CARD="$BIN/board-card" \
   TICKET_WATCH_FIXTURE="$FIXTURE" \
-  TICKET_WATCH_TEST_TOKEN="stub-token" \
   TICKET_WATCH_TEST_COLUMN_FILE="$STATE_DIR/$SESSION.column" \
   TICKET_WATCH_INTERVAL=0 \
   TICKET_STATE_DIR="$STATE_DIR" \
@@ -343,49 +361,49 @@ output="$(run_watch_two_cards "In Dev" \
   "In Dev" "In Dev" \
   "In Dev" "Ready for CR" \
   "In Dev" "Ready for CR")"
-assert_contains "the project board's move names its own board" \
-  "Project board card moved to Ready for CR" "$output"
-assert_contains "and says which card the status is read from" \
-  "the project board owns status" "$output"
+assert_contains "the second card's move names that card" \
+  "Card $SOURCE_PAGE_ID moved to Ready for CR" "$output"
 
 output="$(run_watch_two_cards "In CR" \
-  "In CR" "In Review" \
-  "In CR" "In Progress" \
-  "In CR" "In Progress")"
-assert_contains "a backward move on the project board is reported like any other" \
-  "Project board card moved to In Progress - the project board owns status." "$output"
-assert_eq "and asks for no bounce-back, which the cockpit card has not had" "0" \
+  "In CR" "In CR" \
+  "In CR" "In Dev" \
+  "In CR" "In Dev")"
+assert_eq "a backward move on the second card asks for no bounce-back" "0" \
   "$(printf '%s' "$output" | grep --count --fixed-strings "dragged back" | tr -d ' ')"
 
 output="$(run_watch_two_cards "In Dev" \
-  "In Dev" "In Progress" \
-  "In CR" "In Progress" \
-  "In CR" "In Progress")"
-assert_contains "the cockpit's own move names the cockpit" \
-  "Cockpit card moved to In CR." "$output"
-assert_eq "and does not claim the cockpit owns status" "0" \
-  "$(printf '%s' "$output" | grep --count --fixed-strings "owns status" | tr -d ' ')"
+  "In Dev" "In Dev" \
+  "In CR" "In Dev" \
+  "In CR" "In Dev")"
+assert_contains "the registered card's own move is the ticket's" \
+  "Ticket moved to In CR." "$output"
 
 output="$(run_watch "Ready for TR" "In Dev" "In Dev")"
-assert_contains "one watched card has no second board to be confused with" \
+assert_contains "one watched card is the ticket" \
   "Ticket moved to In Dev - invoke /cockpit:ticket:3:dev now." "$output"
 
-printf "\nTest group: a missing credential is loud, not silent\n"
+printf "\nTest group: a card the board cannot read is loud, not silent\n"
 
-printf '0' > "$FIXTURE/count"
-printf '%s\n' "Ready for TR by AI" > "$FIXTURE/script"
+out="$TMPDIR/out-unreadable"
+TICKET_WATCH_INTERVAL=0 \
+TICKET_STATE_DIR="$STATE_DIR" \
+CLAUDE_SESSION_ID="$SESSION" \
+  bash "$WATCHER" HOM-999 > "$out" 2>&1 &
+pid=$!
+waited=0
+while ! grep --quiet --fixed-strings "poll failing" "$out" && [ "$waited" -lt 100 ]; do
+  sleep 0.1
+  waited=$((waited + 1))
+done
+kill "$pid" 2>/dev/null
+wait "$pid" 2>/dev/null
 
-output="$(PATH="$BIN:$PATH" \
-  TICKET_WATCH_FIXTURE="$FIXTURE" \
-  TICKET_WATCH_INTERVAL=0 \
-  TICKET_STATE_DIR="$STATE_DIR" \
-  CLAUDE_SESSION_ID="$SESSION" \
-  bash "$WATCHER" "$PAGE_ID" 2>&1)"
-status=$?
+assert_contains "says the poll is failing" "[ticket-watch] poll failing" "$(cat "$out")"
+assert_eq "and announces no move" "0" "$(count_events "$(cat "$out")")"
 
-assert_contains "announces the missing credential" "[ticket-watch] no credential" "$output"
-assert_eq "one line only" "1" "$(printf '%s' "$output" | grep -c . | tr -d ' ')"
-assert_eq "exits non-zero" "1" "$status"
+output="$(bash "$WATCHER" 2>&1)"
+assert_eq "no card named is refused" "1" "$?"
+assert_contains "and says how to call it" "usage: ticket-watch-column <ticket-id>" "$output"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

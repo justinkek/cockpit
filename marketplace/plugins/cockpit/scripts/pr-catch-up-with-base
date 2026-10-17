@@ -1,6 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+refuse_interval() {
+  printf "[pr-catch-up] the polling interval is a whole number of seconds above zero, not '%s'.\n" "$1" >&2
+  exit 2
+}
+
+accept_interval() {
+  case "$1" in
+    "" | *[!0-9]*) refuse_interval "$1" ;;
+    *[1-9]*) interval="$1" ;;
+    *) refuse_interval "$1" ;;
+  esac
+}
+
+interval=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --every)
+      accept_interval "${2:-}"
+      shift 2
+      ;;
+    --every=*)
+      accept_interval "${1#--every=}"
+      shift
+      ;;
+    *)
+      printf "[pr-catch-up] does not take '%s' - the one option is --every <seconds>.\n" "$1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -z "$interval" ] && [ -n "${PR_CATCH_UP_INTERVAL:-}" ]; then
+  accept_interval "$PR_CATCH_UP_INTERVAL"
+fi
+
 for required in gh git; do
   command -v "$required" >/dev/null 2>&1 || exit 0
 done
@@ -66,8 +102,6 @@ catch_up_with_base() {
 
   printf '[pr-catch-up] merged origin/%s in and pushed - the pull request keeps its review comments.\n' "$base"
 }
-
-interval="${PR_CATCH_UP_INTERVAL:-}"
 
 if [ -z "$interval" ]; then
   status=0

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 HOOKS="$(cd "$(dirname "$0")/.." && pwd)"
+export CLAUDE_SHARED_DIR="$(cd "$HOOKS/.." && pwd)"
 GUARD="$HOOKS/note-unflagged-question.sh"
 RECORDER="$(cd "$HOOKS/../../../marketplace/plugins/cockpit/scripts/hooks" && pwd)/require-blocked-comment.sh"
 TMPDIR="$(mktemp -d)"
@@ -13,10 +14,10 @@ STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
 
 SESSION="test-question-$$"
-PAGE="3b68f3776f4f8123a2c7e6ec05d98cc4"
+CARD="FEAT-42"
 TRANSCRIPT="$TMPDIR/transcript.jsonl"
 
-printf 'https://app.notion.com/p/%s\n' "$PAGE" > "$STATE_DIR/$SESSION.ticket"
+printf '%s\n' "$CARD" > "$STATE_DIR/$SESSION.ticket"
 
 reply_of() {
   jq --null-input --compact-output --arg t "$1" \
@@ -44,11 +45,13 @@ run_guard() {
 }
 
 run_recorder() {
-  local page_id="$1" properties="$2"
-  jq --null-input --compact-output --arg sid "$SESSION" --arg page "$page_id" --argjson properties "$properties" \
-    '{hook_event_name:"PostToolUse",session_id:$sid,tool_input:{page_id:$page,properties:$properties}}' \
+  local command="$1" exit_code="${2:-0}"
+  jq --null-input --compact-output --arg sid "$SESSION" --arg command "$command" --argjson code "$exit_code" \
+    '{hook_event_name:"PostToolUse",session_id:$sid,tool_name:"Bash",tool_input:{command:$command},tool_response:{exitCode:$code}}' \
     | HOME="$TMPDIR" bash "$RECORDER" >/dev/null 2>&1
 }
+
+board_card='"$HOME/.cockpit/scripts/board-card"'
 
 assert_blocks() {
   local label="$1" note="$2"
@@ -123,19 +126,27 @@ printf "\nTest group: the flag is what clears the refusal\n"
 reply_of '1. Q: Which board serves this checkout?'
 assert_blocks "unflagged" "$(run_guard)"
 
-run_recorder "$PAGE" '{"Blocked":"Blocked"}'
+run_recorder "$board_card set $CARD blocked 'waiting on the venue'" 1
+assert_marker "a set that failed records nothing" absent
+
+run_recorder "$board_card set $CARD blocked 'waiting on the venue'"
 assert_marker "setting the flag records it" present
 assert_passes "the same question once the flag is set" "$(run_guard)"
 
-run_recorder "$PAGE" '{"Status":"In Dev"}'
-assert_marker "an unrelated property write leaves the flag alone" present
+run_recorder "$board_card set $CARD prs https://github.com/owner/name/pull/1"
+assert_marker "an unrelated field write leaves the flag alone" present
 
-run_recorder "3b58f3776f4f81d4808ef39ef9033f10" '{"Blocked":null}'
-assert_marker "clearing the flag on another ticket leaves this one alone" present
+run_recorder "$board_card set FEAT-7 blocked ''"
+assert_marker "clearing the flag on another card leaves this one alone" present
 
-run_recorder "$PAGE" '{"Blocked":null}'
+run_recorder "$board_card set $CARD blocked ''"
 assert_marker "clearing the flag takes the record away" absent
 assert_blocks "the question is refused again once unblocked" "$(run_guard)"
+
+run_recorder "$board_card set feat-42 blocked 'lower case id'"
+assert_marker "a card id typed in lower case is the same card" present
+run_recorder "$board_card set $CARD blocked \"\""
+assert_marker "and a double-quoted empty value clears it" absent
 
 printf "\nTest group: a card that is finished has nothing left to block on\n"
 
@@ -148,25 +159,10 @@ assert_passes "a card already at Done" "$(run_guard)"
 
 rm -f "$STATE_DIR/$SESSION.column"
 
-printf "\nTest group: the shapes a registered ticket url comes in\n"
-
-for url in \
-  "https://app.notion.com/p/$PAGE" \
-  "https://app.notion.com/m33/A-reply-that-asks-a-question-$PAGE" \
-  "https://app.notion.com/team/3928f3776f4f80909ee6d4cd230224de?v=3a58f3776f4f80c5a25e000cfd94acf8&p=$PAGE&pm=s" \
-  "https://app.notion.com/p/3b68f377-6f4f-8123-a2c7-e6ec05d98cc4"; do
-  printf '%s\n' "$url" > "$STATE_DIR/$SESSION.ticket"
-  run_recorder "$PAGE" '{"Blocked":"Blocked"}'
-  assert_marker "${url##*notion.com}" present
-  run_recorder "$PAGE" '{"Blocked":null}'
-done
-
-printf 'https://app.notion.com/p/%s\n' "$PAGE" > "$STATE_DIR/$SESSION.ticket"
-
 printf "\nTest group: the guards\n"
 
-jq --null-input --compact-output --arg page "$PAGE" \
-  '{hook_event_name:"PostToolUse",session_id:"no-such-session",tool_input:{page_id:$page,properties:{Blocked:"Blocked"}}}' \
+jq --null-input --compact-output --arg command "board-card set $CARD blocked reason" \
+  '{hook_event_name:"PostToolUse",session_id:"no-such-session",tool_name:"Bash",tool_input:{command:$command}}' \
   | HOME="$TMPDIR" bash "$RECORDER" >/dev/null 2>&1
 if [ -f "$STATE_DIR/no-such-session.blocked" ]; then
   printf "  KO  a session with no registered ticket records no flag — the marker was written\n"

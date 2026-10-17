@@ -24,7 +24,7 @@ A bracket over ~25 characters is shortened to the phrase that identifies it at a
 | `aaoperator, given the team has grown, when i open settings, i can manage roles` | `[manage roles] ticket name`                              |
 | `claude setup`                                                                   | `[claude setup] ticket name` (unchanged - under 25 chars) |
 
-A session holding neither a ticket nor an epic names the area the way the two above name theirs: `[claude] permissions`, `[cve] scanning`, `[notion] cockpit`.
+A session holding neither a ticket nor an epic names the area the way the two above name theirs: `[claude] permissions`, `[cve] scanning`, `[board] cockpit`.
 
 ## Setting it
 
@@ -34,6 +34,6 @@ A session holding neither a ticket nor an epic names the area the way the two ab
 
 ## Naming twice
 
-A session named before its card was known is renamed once the card is: the bracket becomes the epic, the description the ticket name. One named with the card already in hand matches what registration would have built, and registration leaves it.
+A session named before its ticket was known is renamed once the ticket is: the bracket becomes the epic, the description the ticket name. One named with the ticket already in hand matches what registration would have built, and registration leaves it.
 
 A ticket retitled during refinement takes the new title as the description, and the bracket stays as it is.

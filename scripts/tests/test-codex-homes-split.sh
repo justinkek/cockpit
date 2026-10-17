@@ -86,7 +86,7 @@ assert_contains "the default home list names the wrapped home" \
 printf "\nTest group: the home a wrapper points at gets the board\n"
 
 if [ -f "$WRAPPED" ]; then
-  assert_contains "the ticket registration rule" "$WRAPPED" "Cockpit URL-first"
+  assert_contains "the ticket registration rule" "$WRAPPED" "Cockpit id-first"
   assert_contains "the claim lock rule" "$WRAPPED" "## Claim locks"
   assert_contains "and the writing rules too" "$WRAPPED" "## Solution ladder"
 else
@@ -102,7 +102,7 @@ run_agents_md "$OVERLAY_TREE" "$OVERLAY_HOME"
 UNWRAPPED="$OVERLAY_HOME/.codex/AGENTS.md"
 if [ -f "$UNWRAPPED" ]; then
   ok "the overlay puts the unwrapped home back in the list"
-  assert_absent "no ticket registration rule" "$UNWRAPPED" "Cockpit URL-first"
+  assert_absent "no ticket registration rule" "$UNWRAPPED" "Cockpit id-first"
   assert_absent "no claim lock rule" "$UNWRAPPED" "## Claim locks"
   assert_contains "and it keeps the writing rules" "$UNWRAPPED" "## Solution ladder"
 else

@@ -31,7 +31,7 @@ run_hook() {
 SESSION="test-session-$$"
 STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
-VALID_URL="https://app.notion.com/p/abc123"
+VALID_URL="FEAT-31"
 printf '%s\n' "$VALID_URL" > "$STATE_DIR/$SESSION.ticket"
 
 printf "Test group: piped commands must not corrupt existing marker\n"
@@ -58,7 +58,7 @@ assert_marker "grep -c (no pipe)" "$VALID_URL" "$STATE_DIR/$SESSION.ticket"
 
 printf "\nTest group: genuine registration must still write the marker\n"
 
-NEW_URL="https://app.notion.com/p/def456"
+NEW_URL="FEAT-32"
 run_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register" "'"$NEW_URL"'"'
 assert_marker "genuine ticket-register" "$NEW_URL" "$STATE_DIR/$SESSION.ticket"
 
@@ -68,7 +68,7 @@ printf "\nTest group: chained registration records the URL it was given\n"
 # $NF}', so a trailing `; echo done` yielded "done" and writing was unsafe.
 # Extraction now anchors on the script name and captures the https argument,
 # so a chained registration is recorded rather than dropped.
-CHAINED_URL="https://app.notion.com/p/ghi789"
+CHAINED_URL="FEAT-33"
 run_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register" "'"$CHAINED_URL"'" ; echo done'
 assert_marker "ticket-register with a trailing semicolon" "$CHAINED_URL" "$STATE_DIR/$SESSION.ticket"
 

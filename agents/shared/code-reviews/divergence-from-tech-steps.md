@@ -4,9 +4,9 @@ Read the ticket's `## Tech Steps` and the diff side by side, and report where th
 
 ## Getting the steps
 
-The registered ticket's URL is on one line in the session marker at `~/.local/state/claude-ticket-sessions/<session id>.ticket`. Fetch that page and read `## Tech Steps` off it.
+The registered ticket's id is on one line in the session marker at `~/.local/state/claude-ticket-sessions/<session id>.ticket` - read it with the Read tool. Read the steps with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"`.
 
-A page with no `## Tech Steps` ends the pass: say so and report nothing.
+Exit 7 means the ticket has no `## Tech Steps`: say so and report nothing.
 
 ## What counts
 
@@ -22,6 +22,8 @@ Wording. A step delivered in different words from the ones it was drafted in is 
 A step whose code block was elided down to the decisions, where the diff fills in what was elided.
 
 A fix made in response to an earlier pass on this same landing.
+
+A divergence a person approved in a reply on the ticket before this pass ran. A settled thread may already be resolved, and the section read above prints only open ones, so read every thread with `"$HOME/.cockpit/scripts/board-card" comments <id> --all`.
 
 ## Reporting
 

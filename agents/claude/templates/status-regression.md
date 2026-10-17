@@ -6,7 +6,7 @@ A backward target is a **regression**. It is only legal when the current column 
 
 **Regression source → counter mapping:**
 
-| Current column         | Counter property       |
+| Current column         | Counter                |
 | ---------------------- | ---------------------- |
 | `In BR by AI`          | `Back from BR`         |
 | `Ready for BR`         | `Back from BR`         |
@@ -20,4 +20,4 @@ A backward target is a **regression**. It is only legal when the current column 
 | `In FR`                | `Back from FR`         |
 | `Ready for Validation` | `Back from Validation` |
 
-**Regression procedure:** delegate to the `cockpit:ticket:x:back-from-column` skill. It owns the full regression flow: infer structured summary from session context, increment counter, write nested toggle to ticket page under `## Details`, post short comment, and set status directly (no intermediate walk). Invoke `/cockpit:ticket:x:back-from-column` with the source column, target column, and inferred reason. Do not duplicate any of these steps inline.
+**Regression procedure:** delegate to the `cockpit:ticket:x:back-from-column` skill. It owns the full regression flow: infer structured summary from session context, `board-card bounce` the counter, write the nested subsection under `## Details`, post short comment, and `board-card move` the ticket directly (no intermediate walk). Invoke `/cockpit:ticket:x:back-from-column` with the source column, target column, and inferred reason. Do not duplicate any of these steps inline.

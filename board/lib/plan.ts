@@ -1,0 +1,800 @@
+import { currentSprint, DAY, doneAt, timeOf } from "./metrics";
+import type { Break, Card } from "./shared";
+
+export const CONFIDENCES = ["On track", "At risk - plan in place", "At risk - no plan"] as const;
+
+export type Confidence = (typeof CONFIDENCES)[number];
+
+export const AVERAGE_SPEED_DAYS = 30;
+export const WORKING_DAYS_A_WEEK = 5;
+export const DEFAULT_AVERAGE_SPEED = 10;
+export const DEFAULT_REFINEMENT_DAYS = 2;
+export const PAST_DAYS = 730;
+export const FUTURE_DAYS = 1826;
+
+export function dayOf(text: string | null | undefined): number | null {
+	const match = text?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	if (!match) return null;
+	return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / DAY;
+}
+
+export function localDay(date: Date): number {
+	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY;
+}
+
+export function dayText(day: number): string {
+	return new Date(day * DAY).toISOString().slice(0, 10);
+}
+
+export function mondayOf(day: number): number {
+	return day - ((new Date(day * DAY).getUTCDay() + 6) % 7);
+}
+
+export type Off = [number, number];
+
+export function daysOff(breaks: Pick<Break, "from" | "to">[]): Off[] {
+	const spans = breaks
+		.flatMap((one): Off[] => {
+			const from = dayOf(one.from);
+			const to = dayOf(one.to);
+			return from != null && to != null && to >= from ? [[from, to]] : [];
+		})
+		.sort((a, b) => a[0] - b[0]);
+	const merged: Off[] = [];
+	for (const [from, to] of spans) {
+		const last = merged.at(-1);
+		if (last && from <= last[1] + 1) last[1] = Math.max(last[1], to);
+		else merged.push([from, to]);
+	}
+	return merged;
+}
+
+export function isOff(day: number, off: Off[]): boolean {
+	return off.some(([from, to]) => day >= from && day <= to);
+}
+
+export function isWorkingDay(day: number, off: Off[]): boolean {
+	const weekday = new Date(day * DAY).getUTCDay();
+	return weekday !== 0 && weekday !== 6 && !isOff(day, off);
+}
+
+export function openFrom(day: number, off: Off[]): number {
+	let open = day;
+	while (!isWorkingDay(open, off)) open += 1;
+	return open;
+}
+
+export function afterOpen(day: number, count: number, off: Off[]): number {
+	let open = day;
+	let left = Math.ceil(count);
+	while (left > 0) {
+		if (isWorkingDay(open, off)) left -= 1;
+		open += 1;
+	}
+	return open;
+}
+
+export function openDays(first: number, last: number, off: Off[]): number {
+	let days = 0;
+	for (let day = first; day <= last; day += 1) if (isWorkingDay(day, off)) days += 1;
+	return days;
+}
+
+export function workingDaysTo(today: number, off: Off[], count = AVERAGE_SPEED_DAYS): number[] {
+	const days: number[] = [];
+	for (let day = today; days.length < count && day > today - PAST_DAYS; day -= 1) {
+		if (isWorkingDay(day, off)) days.push(day);
+	}
+	return days;
+}
+
+type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on"> & Partial<Pick<Card, "blocked">>;
+
+function splitParent(card: Pick<Sized, "dependent_on">) {
+	return (card.dependent_on?.length ?? 0) > 0;
+}
+
+function positive(value: number | null | undefined): number | null {
+	return value != null && value > 0 ? value : null;
+}
+
+export function pointsOf(card: Pick<Sized, "complexity" | "estimate" | "type">): number | null {
+	if (card.type === "Timebox") return null;
+	return positive(card.complexity) ?? positive(card.estimate);
+}
+
+export type AverageSpeed = {
+	perWeek: number;
+	perDay: number;
+	source: "measured" | "sprint" | "default";
+	points: number;
+	days: number;
+	tickets: number;
+	uncounted: number;
+	timeboxes: number;
+	workingDays: number[];
+};
+
+type Delivered = Sized & Pick<Card, "dates" | "moved">;
+
+export function averageSpeedOf(
+	cards: Delivered[],
+	sprints: Pick<Card, "start" | "end" | "speed">[],
+	now = new Date(),
+	off: Off[] = [],
+): AverageSpeed {
+	const end = now.getTime();
+	const today = Math.floor(end / DAY);
+	const finished = cards.map(doneAt).filter((at): at is number => at != null && at <= end);
+	const first = finished.length > 0 ? Math.floor(Math.min(...finished) / DAY) : today;
+	const workingDays = workingDaysTo(today, off, Math.min(AVERAGE_SPEED_DAYS, openDays(first, today, off)));
+	const window = new Set(workingDays);
+	let points = 0;
+	let tickets = 0;
+	let uncounted = 0;
+	let timeboxes = 0;
+	for (const card of cards) {
+		if (splitParent(card)) continue;
+		const at = doneAt(card);
+		if (at == null || at > end || !window.has(Math.floor(at / DAY))) continue;
+		const complexity = card.type === "Timebox" ? null : positive(card.complexity);
+		if (card.type === "Timebox") timeboxes += 1;
+		else if (complexity == null) uncounted += 1;
+		else {
+			points += complexity;
+			tickets += 1;
+		}
+	}
+	const counts = { tickets, uncounted, timeboxes };
+	if (points > 0) {
+		const perDay = points / workingDays.length;
+		return {
+			perWeek: perDay * WORKING_DAYS_A_WEEK,
+			perDay,
+			source: "measured",
+			points,
+			days: workingDays.length,
+			...counts,
+			workingDays,
+		};
+	}
+	const speed = currentSprint(sprints, now)?.speed ?? 0;
+	if (speed > 0) {
+		return {
+			perWeek: speed * WORKING_DAYS_A_WEEK,
+			perDay: speed,
+			source: "sprint",
+			points: 0,
+			days: 0,
+			...counts,
+			workingDays: [],
+		};
+	}
+	return {
+		perWeek: DEFAULT_AVERAGE_SPEED,
+		perDay: DEFAULT_AVERAGE_SPEED / WORKING_DAYS_A_WEEK,
+		source: "default",
+		points: 0,
+		days: 0,
+		...counts,
+		workingDays: [],
+	};
+}
+
+export type SprintDelivery = {
+	points: number;
+	tickets: number;
+	uncounted: number;
+	timeboxes: number;
+	workingDays: number | null;
+	perWeek: number | null;
+};
+
+export function deliveredIn(
+	sprint: Pick<Card, "id" | "start" | "end">,
+	cards: (Sized & Pick<Card, "dates" | "moved" | "sprint">)[],
+	off: Off[] = [],
+): SprintDelivery {
+	const first = dayOf(sprint.start);
+	const last = dayOf(sprint.end);
+	const delivered: SprintDelivery = {
+		points: 0,
+		tickets: 0,
+		uncounted: 0,
+		timeboxes: 0,
+		workingDays: null,
+		perWeek: null,
+	};
+	if (first == null || last == null || last < first) return delivered;
+	for (const card of cards) {
+		if (card.sprint !== sprint.id || splitParent(card) || doneAt(card) == null) continue;
+		const complexity = card.type === "Timebox" ? null : positive(card.complexity);
+		if (card.type === "Timebox") delivered.timeboxes += 1;
+		else if (complexity == null) delivered.uncounted += 1;
+		else {
+			delivered.points += complexity;
+			delivered.tickets += 1;
+		}
+	}
+	const days = openDays(first, last, off);
+	delivered.workingDays = days;
+	if (days > 0) delivered.perWeek = Math.round((delivered.points / days) * WORKING_DAYS_A_WEEK * 10) / 10;
+	return delivered;
+}
+
+export type Remaining = {
+	points: number;
+	complexity: number;
+	fromEstimate: number;
+	estimate: number;
+	open: number;
+	tickets: number;
+	sized: number;
+	estimated: number;
+	unsized: number;
+	done: number;
+	dropped: number;
+};
+
+export function remainingOf(cards: Sized[]): Remaining {
+	const left: Remaining = {
+		points: 0,
+		complexity: 0,
+		fromEstimate: 0,
+		estimate: 0,
+		open: 0,
+		tickets: 0,
+		sized: 0,
+		estimated: 0,
+		unsized: 0,
+		done: 0,
+		dropped: 0,
+	};
+	for (const card of cards) {
+		if (card.status === "Deprioritised") left.dropped += 1;
+		else if (splitParent(card)) continue;
+		else if (card.status === "Done") left.done += 1;
+		else {
+			left.open += 1;
+			if (card.type === "Timebox") continue;
+			left.tickets += 1;
+			const complexity = positive(card.complexity);
+			const estimate = positive(card.estimate);
+			if (complexity != null) {
+				left.sized += 1;
+				left.complexity += complexity;
+			}
+			if (estimate != null) {
+				left.estimated += 1;
+				left.estimate += estimate;
+			}
+			if (complexity == null && estimate != null) left.fromEstimate += estimate;
+			if (complexity == null && estimate == null) left.unsized += 1;
+		}
+	}
+	left.points = left.complexity + left.fromEstimate;
+	return left;
+}
+
+export type Totals = { tickets: number; estimate: number; estimated: number; complexity: number; sized: number };
+
+export type Estimates = { total: Totals; left: Remaining };
+
+export function estimatesOf(cards: Sized[]): Estimates {
+	const total: Totals = { tickets: 0, estimate: 0, estimated: 0, complexity: 0, sized: 0 };
+	for (const card of cards) {
+		if (card.status === "Deprioritised" || splitParent(card) || card.type === "Timebox") continue;
+		total.tickets += 1;
+		const complexity = positive(card.complexity);
+		const estimate = positive(card.estimate);
+		if (complexity != null) {
+			total.sized += 1;
+			total.complexity += complexity;
+		}
+		if (estimate != null) {
+			total.estimated += 1;
+			total.estimate += estimate;
+		}
+	}
+	return { total, left: remainingOf(cards) };
+}
+
+type Planned = Pick<
+	Card,
+	"id" | "status" | "start" | "target" | "rank" | "confidence" | "dates" | "moved" | "project" | "track"
+> &
+	Partial<Pick<Card, "blocked" | "dependent_on">>;
+
+export type Team = { tracks: number; perWeek: number };
+
+export function teamOf(entity: Pick<Card, "project">, known: Record<string, unknown>): string | null {
+	return entity.project && entity.project in known ? entity.project : null;
+}
+
+type Worked = Sized & Pick<Card, "epic" | "dates" | "moved">;
+
+function startedAt(epic: Pick<Card, "dates">, all: Worked[]): number | null {
+	const cards = all.filter((card) => card.type !== "Timebox");
+	const stamps = [
+		timeOf(epic.dates?.["Tickets In Dev"]),
+		...cards.map((card) => timeOf(card.dates?.["In Dev"])),
+		...cards.map((card) => doneAt(card)),
+	].filter((time): time is number => time != null);
+	return stamps.length > 0 ? Math.min(...stamps) : null;
+}
+
+export function inProgressOf(epic: Pick<Card, "status" | "dates">, cards: Worked[]): boolean {
+	if (epic.status === "Epic Done") return false;
+	if (epic.status === "Tickets In Dev") return true;
+	return cards.some(
+		(card) =>
+			card.type !== "Timebox" &&
+			card.status !== "Deprioritised" &&
+			(card.status === "Done" || card.dates?.["In Dev"] != null),
+	);
+}
+
+export function epicsInProgressOver(
+	epics: Pick<Card, "id" | "status" | "dates" | "moved">[],
+	cards: Worked[],
+	from: number,
+	to: number,
+): number {
+	return coveredBy(inProgressSpansOf(epics, cards), from, to);
+}
+
+function inProgressSpansOf(epics: Pick<Card, "id" | "status" | "dates" | "moved">[], cards: Worked[]) {
+	return epics.flatMap((epic) => {
+		const began = startedAt(
+			epic,
+			cards.filter((card) => card.epic === epic.id),
+		);
+		return began == null ? [] : [{ began, ended: doneAt(epic) }];
+	});
+}
+
+function coveredBy(spans: { began: number; ended: number | null }[], from: number, to: number): number {
+	if (to <= from) return 0;
+	let covered = 0;
+	for (const { began, ended } of spans) covered += Math.max(0, Math.min(ended ?? to, to) - Math.max(began, from));
+	return covered / (to - from);
+}
+
+export type TrackSpeed = {
+	perWeek: number;
+	source: "measured" | "overall";
+	speed: AverageSpeed;
+	inProgress: number;
+};
+
+function trackSpeedOf(
+	speed: AverageSpeed,
+	epics: Pick<Card, "id" | "status" | "dates" | "moved">[],
+	cards: Worked[],
+	now: Date,
+	source: TrackSpeed["source"],
+): TrackSpeed {
+	const end = now.getTime();
+	const spans = inProgressSpansOf(epics, cards);
+	const daily = speed.workingDays.map((day) => coveredBy(spans, day * DAY, Math.min(end, (day + 1) * DAY)));
+	const inProgress =
+		speed.source === "measured" && daily.length > 0 ? daily.reduce((sum, one) => sum + one, 0) / daily.length : 0;
+	return {
+		perWeek: speed.perWeek / Math.max(1, inProgress),
+		source,
+		speed,
+		inProgress: Math.round(inProgress * 10) / 10,
+	};
+}
+
+export function trackSpeedsOf(
+	cards: Worked[],
+	epics: Pick<Card, "id" | "status" | "dates" | "moved" | "project">[],
+	projects: string[],
+	sprints: Pick<Card, "start" | "end" | "speed">[],
+	now = new Date(),
+	breaks: Pick<Break, "from" | "to">[] = [],
+): { overall: TrackSpeed; teams: Record<string, TrackSpeed> } {
+	const known = Object.fromEntries(projects.map((id) => [id, true]));
+	const off = daysOff(breaks);
+	const overall = trackSpeedOf(averageSpeedOf(cards, sprints, now, off), epics, cards, now, "overall");
+	const teamOfEpic = Object.fromEntries(epics.map((epic) => [epic.id, teamOf(epic, known)]));
+	const teamOfCard = (card: Worked & Pick<Card, "project">) =>
+		card.epic && card.epic in teamOfEpic ? teamOfEpic[card.epic] : teamOf(card, known);
+	const teams: Record<string, TrackSpeed> = {};
+	for (const team of projects) {
+		const own = cards.filter((card) => teamOfCard(card) === team);
+		const speed = averageSpeedOf(own, [], now, off);
+		teams[team] =
+			speed.source === "measured"
+				? trackSpeedOf(
+						speed,
+						epics.filter((epic) => teamOfEpic[epic.id] === team),
+						own,
+						now,
+						"measured",
+					)
+				: overall;
+	}
+	return { overall, teams };
+}
+
+function idNumber(id: string) {
+	return Number(id.split("-").at(-1));
+}
+
+export function planOrder<T extends Pick<Card, "id" | "rank" | "target">>(epics: T[]): T[] {
+	const last = Number.POSITIVE_INFINITY;
+	return [...epics].sort(
+		(a, b) =>
+			(a.rank ?? last) - (b.rank ?? last) ||
+			(dayOf(a.target) ?? last) - (dayOf(b.target) ?? last) ||
+			idNumber(a.id) - idNumber(b.id),
+	);
+}
+
+export function refinedAtOf(epic: Pick<Card, "dates">): number | null {
+	return timeOf(epic.dates?.["Ready for Dev"]) ?? timeOf(epic.dates?.["Tickets In Dev"]);
+}
+
+export type Refinement = { days: number; source: "measured" | "default"; epics: number };
+
+export function refinementOf(epics: Pick<Card, "start" | "dates">[], off: Off[] = []): Refinement {
+	const spans = epics.flatMap((epic) => {
+		const start = dayOf(epic.start);
+		const at = refinedAtOf(epic);
+		const end = at == null ? null : localDay(new Date(at));
+		return start != null && end != null && end >= start ? [openDays(start, end - 1, off)] : [];
+	});
+	if (spans.length === 0) return { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 };
+	const days = Math.max(1, Math.round(spans.reduce((sum, span) => sum + span, 0) / spans.length));
+	return { days, source: "measured", epics: spans.length };
+}
+
+export type Phase = "backlog" | "refinement" | "delivery" | "done";
+
+export type Blocked = "epic" | "cards" | null;
+
+export function openWorkOf<T extends Sized>(cards: T[]): T[] {
+	return cards.filter(
+		(card) =>
+			card.type !== "Timebox" &&
+			!splitParent(card) &&
+			card.status !== "Done" &&
+			card.status !== "Deprioritised",
+	);
+}
+
+export function lateOf(
+	target: number | null,
+	remaining: Pick<Remaining, "open" | "done">,
+	cards: Pick<Card, "status" | "dates" | "moved">[],
+	today: number,
+): number {
+	if (target == null) return 0;
+	if (remaining.open > 0) return Math.max(0, today - target);
+	const finished = cards.map((card) => doneAt(card)).filter((at): at is number => at != null);
+	if (remaining.done === 0 || finished.length === 0) return 0;
+	return Math.max(0, localDay(new Date(Math.max(...finished))) - target);
+}
+
+export function blockedOf(epic: Pick<Card, "status"> & Partial<Pick<Card, "blocked">>, cards: Sized[]): Blocked {
+	if (epic.status === "Epic Done") return null;
+	if (epic.blocked) return "epic";
+	const open = openWorkOf(cards);
+	return open.length > 0 && open.every((card) => card.blocked) ? "cards" : null;
+}
+
+export type BlockedSpan = { from: number; to: number; open: boolean };
+
+type Spelled = Partial<Pick<Card, "type" | "status" | "moved" | "dates" | "blocked_spans">>;
+
+function closedOn(entity: Spelled): number | null {
+	if (entity.status === "Deprioritised") return dayOf(entity.moved);
+	if (entity.status !== "Done" && entity.status !== "Epic Done") return null;
+	const at = doneAt({ status: entity.status, dates: entity.dates, moved: entity.moved });
+	return at == null ? null : localDay(new Date(at));
+}
+
+export function blockedSpansOf(epic: Spelled, cards: Spelled[], today: number): BlockedSpan[] {
+	const spans = [epic, ...cards.filter((card) => card.type !== "Timebox")]
+		.flatMap((entity) => (entity.blocked_spans ?? []).map((span) => ({ span, closed: closedOn(entity) })))
+		.flatMap(({ span, closed }) => {
+			const from = dayOf(span.from);
+			const open = span.to == null && closed == null;
+			const to = span.to != null ? dayOf(span.to) : (closed ?? today);
+			return from == null || to == null ? [] : [{ from, to: Math.max(from, to), open }];
+		})
+		.sort((a, b) => a.from - b.from);
+	const merged: BlockedSpan[] = [];
+	for (const span of spans) {
+		const last = merged[merged.length - 1];
+		if (last && span.from <= last.to + 1) {
+			last.open = span.to > last.to ? span.open : last.open || (span.to === last.to && span.open);
+			last.to = Math.max(last.to, span.to);
+		} else merged.push({ ...span });
+	}
+	return merged;
+}
+
+export type Row = {
+	id: string;
+	phase: Phase;
+	refineStart: number | null;
+	refineEnd: number | null;
+	refineForecast: boolean;
+	team: string;
+	remaining: Remaining;
+	done: boolean;
+	doneDay: number | null;
+	start: number | null;
+	target: number | null;
+	backwards: boolean;
+	begin: number | null;
+	projected: number | null;
+	late: number;
+	needed: number | null;
+	atRisk: boolean;
+	perWeek: number;
+	inProgress: boolean;
+	track: number | null;
+	pin: number | null;
+	pinIgnored: boolean;
+	pausedUntil: number | null;
+	blocked: Blocked;
+	dependsOn: string[];
+	waitingOn: string | null;
+	stalledOn: Stalled | null;
+};
+
+export type Undated = "unsized" | "no tickets" | "no tracks" | "off the board" | "waiting";
+
+export type Stalled = { id: string; why: Undated; on: string | null };
+
+type PlanCards = (Sized & Pick<Card, "epic"> & Partial<Pick<Card, "dates" | "moved">>)[];
+
+export function waitingOnOf(
+	id: string,
+	epics: Record<string, Planned>,
+	blocked: Record<string, Blocked>,
+	seen: Set<string> = new Set(),
+): string | null {
+	seen.add(id);
+	for (const dependency of epics[id]?.dependent_on ?? []) {
+		const epic = epics[dependency];
+		if (!epic || epic.status === "Epic Done" || seen.has(dependency)) continue;
+		if (blocked[dependency] != null) return dependency;
+		const deeper = waitingOnOf(dependency, epics, blocked, seen);
+		if (deeper) return deeper;
+	}
+	return null;
+}
+
+export function planOf(
+	epics: Planned[],
+	cards: PlanCards,
+	teams: Record<string, Team> | number,
+	today: number,
+	refinement: Refinement = { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 },
+	breaks: Pick<Break, "from" | "to">[] = [],
+): Record<string, Row> {
+	let ends: Record<string, number> = {};
+	let rows: Record<string, Row> = {};
+	for (let pass = 0; pass <= epics.length + 1; pass += 1) {
+		rows = scheduleOnce(epics, cards, teams, today, refinement, breaks, ends);
+		const next: Record<string, number> = {};
+		for (const row of Object.values(rows)) if (row.projected != null) next[row.id] = row.projected;
+		if (JSON.stringify(next) === JSON.stringify(ends)) break;
+		ends = next;
+	}
+	return rows;
+}
+
+function scheduleOnce(
+	epics: Planned[],
+	cards: PlanCards,
+	teams: Record<string, Team> | number,
+	today: number,
+	refinement: Refinement,
+	breaks: Pick<Break, "from" | "to">[],
+	ends: Record<string, number>,
+): Record<string, Row> {
+	const off = daysOff(breaks);
+	const rows: Record<string, Row> = {};
+	const byEpic: Record<string, Worked[]> = {};
+	for (const card of cards) if (card.epic) (byEpic[card.epic] ??= []).push(card);
+	const byId: Record<string, Planned> = Object.fromEntries(epics.map((epic) => [epic.id, epic]));
+	const blocked: Record<string, Blocked> = Object.fromEntries(
+		epics.map((epic) => [epic.id, blockedOf(epic, byEpic[epic.id] ?? [])]),
+	);
+	const known: Record<string, Team> = typeof teams === "number" ? { "": { tracks: 1, perWeek: teams } } : teams;
+	const undated: Record<string, { why: Undated; on: string | null } | null> = {};
+	const undatedOf = (id: string, seen: Set<string> = new Set()): { why: Undated; on: string | null } | null => {
+		if (id in undated) return undated[id];
+		const epic = byId[id];
+		if (!epic || epic.status === "Epic Done" || seen.has(id)) return null;
+		seen.add(id);
+		const team = typeof teams === "number" ? "" : teamOf(epic, known);
+		const left = remainingOf(byEpic[id] ?? []);
+		let found: { why: Undated; on: string | null } | null = null;
+		if (team == null) found = { why: "off the board", on: null };
+		else if (Math.floor(known[team].tracks) <= 0) found = { why: "no tracks", on: null };
+		else if (left.open === 0) found = left.done > 0 ? null : { why: "no tickets", on: null };
+		else if (left.points === 0) found = { why: "unsized", on: null };
+		else {
+			for (const dependency of epic.dependent_on ?? []) {
+				if (dependency === id || !undatedOf(dependency, seen)) continue;
+				found = { why: "waiting", on: dependency };
+				break;
+			}
+		}
+		undated[id] = found;
+		return found;
+	};
+	const stalledOf = (id: string): Stalled | null => {
+		const own = undatedOf(id);
+		if (own?.why !== "waiting" || own.on == null) return null;
+		const reason = undatedOf(own.on);
+		return reason == null ? null : { id: own.on, ...reason };
+	};
+	const endOf = (id: string): number | null => {
+		const row = rows[id];
+		if (row?.done) return null;
+		if (row?.projected != null) return row.projected;
+		return ends[id] ?? null;
+	};
+	const dependenciesReady = (row: Row) =>
+		Math.max(
+			today,
+			...row.dependsOn.map((id) => endOf(id)).flatMap((end) => (end == null ? [] : [openFrom(end + 1, off)])),
+		);
+	const grouped: Record<string, Planned[]> = {};
+	for (const epic of epics) {
+		const team = typeof teams === "number" ? "" : teamOf(epic, known);
+		if (team != null) (grouped[team] ??= []).push(epic);
+	}
+	for (const [team, members] of Object.entries(grouped)) {
+		const { tracks: count, perWeek } = known[team];
+		const tracks = Math.max(0, Math.floor(count));
+		const perDay = Math.max(perWeek, 0.01) / WORKING_DAYS_A_WEEK;
+		const free: number[] = Array.from({ length: tracks }, () => today);
+		const ahead: number[] = Array.from({ length: tracks }, () => 0);
+		const queue: Row[] = [];
+		for (const epic of planOrder(members)) {
+			const start = dayOf(epic.start);
+			const target = dayOf(epic.target);
+			const own = byEpic[epic.id] ?? [];
+			const pin = epic.track != null && epic.track > 0 ? Math.floor(epic.track) : null;
+			const inProgress = inProgressOf(epic, own);
+			const refinedAt = refinedAtOf(epic) ?? (inProgress ? startedAt(epic, own) : null);
+			const phase: Phase =
+				epic.status === "Epic Done"
+					? "done"
+					: refinedAt != null || inProgress
+						? "delivery"
+						: epic.status === "Backlog"
+							? "backlog"
+							: "refinement";
+			const row: Row = {
+				id: epic.id,
+				phase,
+				refineStart: phase === "backlog" ? null : start,
+				refineEnd: refinedAt == null ? null : localDay(new Date(refinedAt)),
+				refineForecast: false,
+				team,
+				remaining: remainingOf(own),
+				done: epic.status === "Epic Done",
+				doneDay: null,
+				start,
+				target,
+				backwards: start != null && target != null && start > target,
+				begin: null,
+				projected: null,
+				late: 0,
+				needed: null,
+				atRisk: false,
+				perWeek,
+				inProgress,
+				track: null,
+				pin,
+				pinIgnored: pin != null && pin > tracks,
+				pausedUntil: null,
+				blocked: blocked[epic.id],
+				dependsOn: (epic.dependent_on ?? []).filter(
+					(id) => id !== epic.id && byId[id] != null && byId[id].status !== "Epic Done",
+				),
+				waitingOn: null,
+				stalledOn: stalledOf(epic.id),
+			};
+			row.waitingOn = blocked[epic.id] == null && row.stalledOn == null ? waitingOnOf(epic.id, byId, blocked) : null;
+			rows[epic.id] = row;
+			if (row.done) {
+				const at = doneAt(epic);
+				row.doneDay = at == null ? null : localDay(new Date(at));
+				row.late = target != null && row.doneDay != null ? Math.max(0, row.doneDay - target) : 0;
+			} else {
+				row.late = lateOf(target, row.remaining, own, today);
+				if (row.remaining.open === 0 && row.remaining.done > 0) {
+					row.begin = today;
+					row.projected = today;
+				} else if (row.remaining.open > 0) {
+					queue.push(row);
+				}
+			}
+		}
+		if (tracks === 0) continue;
+		for (const row of Object.values(rows)) {
+			if (row.team !== team || (row.phase !== "refinement" && row.phase !== "backlog")) continue;
+			row.refineStart ??= openFrom(today, off);
+			row.refineEnd = Math.max(today, afterOpen(row.refineStart, refinement.days, off));
+			row.refineForecast = true;
+		}
+		const readyOf = (row: Row) =>
+			Math.max(today, row.phase === "delivery" ? today : (row.refineEnd ?? today), dependenciesReady(row));
+		const laneOf = (row: Row) => (row.pin != null && !row.pinIgnored ? row.pin - 1 : null);
+		for (const row of queue) {
+			if (row.remaining.points > 0 && row.stalledOn == null) continue;
+			row.begin = readyOf(row);
+			row.track = row.stalledOn == null && row.pin != null && !row.pinIgnored ? row.pin : null;
+		}
+		const sized = queue.filter((row) => row.remaining.points > 0 && row.stalledOn == null);
+		const held = (row: Row) => row.blocked != null || row.waitingOn != null;
+		for (const waiting of [sized.filter((row) => !held(row)), sized.filter(held)]) {
+			let now = today;
+			while (waiting.length > 0) {
+				const wanted: number[] = Array.from({ length: tracks }, () => 0);
+				for (const row of waiting) {
+					const lane = laneOf(row);
+					if (lane != null) wanted[lane] += 1;
+				}
+				for (const row of [...waiting]) {
+					if (readyOf(row) > now) continue;
+					const pinned = laneOf(row);
+					const open = Array.from({ length: tracks }, (_, index) => index).filter(
+						(index) => free[index] <= now && (pinned == null || index === pinned),
+					);
+					if (open.length === 0) continue;
+					const lane = open.find((index) => wanted[index] === 0) ?? open[0];
+					if (pinned != null) wanted[pinned] -= 1;
+					waiting.splice(waiting.indexOf(row), 1);
+					row.track = lane + 1;
+					row.begin = openFrom(now, off);
+					const crowded = now > today && dependenciesReady(row) <= today;
+					if (row.inProgress && !held(row) && crowded) row.pausedUntil = row.begin;
+					const days = Math.ceil(row.remaining.points / perDay);
+					const end = afterOpen(row.begin, days, off);
+					row.projected = Math.max(row.begin, end - 1);
+					free[lane] = end;
+					ahead[lane] += row.remaining.points;
+					row.late = row.target != null ? Math.max(0, row.projected - row.target) : 0;
+					if (row.target != null) {
+						const weeks = openDays(today, row.target, off) / WORKING_DAYS_A_WEEK;
+						row.needed = weeks > 0 ? Math.round((ahead[lane] / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
+					}
+					const epic = members.find((one) => one.id === row.id);
+					row.atRisk = row.late > 0 && (epic?.confidence == null || epic.confidence === "On track");
+				}
+				const next = [...free, ...waiting.map(readyOf)].filter((day) => day > now);
+				if (next.length === 0) break;
+				now = Math.min(...next);
+			}
+		}
+	}
+	return rows;
+}
+
+export type Span = { first: number; last: number; clippedBefore: boolean; clippedAfter: boolean };
+
+export function spanOf(days: (number | null | undefined)[], today: number): Span {
+	const known = days.filter((day): day is number => day != null && Number.isFinite(day));
+	const earliest = Math.min(today - 14, ...known);
+	const latest = Math.max(today + 56, ...known) + 28;
+	const first = mondayOf(Math.max(earliest, today - PAST_DAYS));
+	const last = Math.min(latest, today + FUTURE_DAYS);
+	return { first, last, clippedBefore: earliest < today - PAST_DAYS, clippedAfter: latest > today + FUTURE_DAYS };
+}
+
+export function lateText(days: number, done: boolean) {
+	const count = days === 1 ? "1 day late" : `${days} days late`;
+	return done ? `Delivered ${count}` : count;
+}

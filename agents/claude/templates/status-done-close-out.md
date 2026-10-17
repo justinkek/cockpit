@@ -1,16 +1,16 @@
 # Closing a ticket out on Done
 
-Read this on the hop that lands the card on `Done` - and on a card found there, which a person dragged and left every one of these outstanding. Nothing here fires on any other column.
+Read this on the hop that lands the ticket on `Done` - and on a ticket found there, which a person dragged and left every one of these outstanding. Nothing here fires on any other column.
 
 ## Release the claim
 
-Clear `Agent: Session Id` in the same `update_properties` call that sets the status (and on the source ticket when the session has one), and release the local lock:
+One call clears `Agent: Session Id` on the ticket and releases the local lock:
 
 ```
-"$HOME/.cockpit/scripts/ticket-claim-lock" release <page-id>
+"$HOME/.cockpit/scripts/board-card" release <id>
 ```
 
-Both: the lock stops two sessions on this machine taking the same card, the property tells a person and any session elsewhere that it is taken.
+Both go together: the lock stops two sessions on this machine taking the same ticket, the field tells a person and the board that it is taken.
 
 `Done` is the only hop that ends the claim - never a refinement column boundary. The other end is the session itself: the SessionEnd hook releases whatever it was still holding.
 
@@ -25,7 +25,7 @@ git worktrees-clean --include-locked <worktree-path>
 It decides whether the worktree's work has reached the default branch and removes the worktree and its branch when it has, so there is nothing to verify first and no raw `git worktree remove` or `git branch --delete --force` to reach for - both are denied. `--include-locked` gets past the lock Claude Code holds on a running session's worktree, and every other check still applies. `git-worktrees-clean` is installed separately, with `brew install justinkek/tap/git-worktrees-clean`.
 
 - **Exit 0** - it removed the worktree and its branch.
-- **Exit 1** - it kept both, and printed why. Report that reason as it stands. Never `discard_changes`: a card reaching Done is not a licence to throw away work nobody has looked at.
+- **Exit 1** - it kept both, and printed why. Report that reason as it stands. Never `discard_changes`: a ticket reaching Done is not a licence to throw away work nobody has looked at.
 - **Exit 2** - a usage error, or a path that is not a worktree of this repository. Say what it printed.
 - **Exit 3** - not in a git repository, no `origin` default branch, or git older than 2.38. Say what it printed.
 
@@ -34,25 +34,19 @@ It decides whether the worktree's work has reached the default branch and remove
 Merging into the default branch happens on GitHub, so nothing here merges: the checkout only takes what the remote already holds. The checkout is not necessarily the directory the session is in, so resolve it before the cleanup above - a session launched inside the worktree has none to run from afterwards:
 
 ```
-
 git rev-parse --path-format=absolute --git-common-dir
-
 ```
 
 That names the main checkout's `.git`; its parent is the checkout. Reading the session's own directory instead is how a walk that kept the worktree reports on the ticket branch and pulls nothing.
 
 ```
-
 git -C <main-checkout> branch --show-current
-
 ```
 
 Only when that answers with the default branch:
 
 ```
-
 git -C <main-checkout> pull --ff-only
-
 ```
 
 - **Nothing printed** - the checkout is on no branch at all, which the command reports by saying nothing and succeeding. Say so and leave it; empty output is never a reason to carry on to the pull.
@@ -65,41 +59,26 @@ git -C <main-checkout> pull --ff-only
 A checkout that generates the live config has moved on disk without coming into effect, so the pull is only half the hop. Skip this when the pull moved nothing. Otherwise ask whether this is that kind of checkout:
 
 ```
-
 git -C "$HOME/.claude-shared" rev-parse --path-format=absolute --git-common-dir
-
 ```
 
 The same answer as the main checkout's own `--git-common-dir` above means this repo generates the live profiles. A different answer, or a failure, means it generates nothing - say nothing and carry on.
 
 ```
-
 "$HOME/.claude-shared/sync.sh" --apply
-
 ```
 
 No check pass first and no question: the pull already moved, and the apply names the concerns it found in sync alongside the ones it wrote. It needs no assume-yes flag either - its own prompt answers itself when there is no terminal, which is every agent session.
 
 - **Say what came into effect** - name each concern the apply wrote, in the same run report as the pull.
-- **A concern that refused** - name it and what it printed. The walk carries on; a card reaching Done is not held up by one concern.
+- **A concern that refused** - name it and what it printed. The walk carries on; a ticket reaching Done is not held up by one concern.
 
 ## Record usage
 
 Safe to repeat: both totals are recomputed from the session usage files and overwritten, so a second run writes the same numbers.
 
 ```
-
-"$HOME/.cockpit/scripts/ticket-done-usage" <ticket-url>
-
+"$HOME/.cockpit/scripts/board-card" usage <id>
 ```
 
-Parse the JSON output (`cost_usd`, `tokens_k`) and update the ticket via `notion-update-page` (`update_properties`):
-
-- `Session Cost (USD)` ← `cost_usd` (if not null)
-- `Session Tokens (k)` ← `tokens_k`
-
-If `cost_usd` is `null`, do not set `Session Cost (USD)` - leave the property blank to signal that cost data was unavailable.
-
-```
-
-```
+It writes `cost_usd` and `tokens_k` onto the ticket and prints them. Either can come back `null`, and each is worked out on its own: `cost_usd` is `null` when no session that worked the ticket recorded a cost, and `tokens_k` when none recorded a token count. A `null` stays blank on the ticket, which signals that figure was unavailable - never write `0` in its place. Both `null` means no session on this machine left usage for the ticket at all; say so in the run report rather than reading it as a ticket that cost nothing.

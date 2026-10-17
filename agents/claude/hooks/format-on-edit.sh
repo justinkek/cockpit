@@ -13,10 +13,43 @@ fi
 
 git_root="$(git -C "$(dirname "$fp")" rev-parse --show-toplevel 2>/dev/null)" || git_root=""
 
+prettier_version="3.9.10"
+
+project_prettier() {
+  local directory parent
+  directory="$(cd "$(dirname "$fp")" && pwd -P)" || return 1
+  while :; do
+    if [ -x "$directory/node_modules/.bin/prettier" ]; then
+      printf '%s\n' "$directory/node_modules/.bin/prettier"
+      return 0
+    fi
+    [ "$directory" = "$git_root" ] && return 1
+    parent="$(dirname "$directory")"
+    [ "$parent" = "$directory" ] && return 1
+    directory="$parent"
+  done
+}
+
+pinned_prettier() {
+  local status
+  npx --yes --prefer-offline "prettier@$prettier_version" "$@" 2>/dev/null && return 0
+  status=$?
+  [ "$status" -eq 2 ] && return "$status"
+  npx --yes --prefer-offline=false "prettier@$prettier_version" "$@" 2>/dev/null
+}
+
+format_with_prettier() {
+  local local_prettier
+  if local_prettier="$(project_prettier)"; then
+    "$local_prettier" --ignore-unknown --write "$fp" 2>/dev/null
+  else
+    pinned_prettier --ignore-unknown --write "$fp"
+  fi || echo "[format] warning: prettier format failed for $fp" >&2
+}
+
 case "${fp##*.}" in
   md|mdx)
-    npx prettier --write "$fp" 2>/dev/null || \
-      echo "[format] warning: prettier format failed for $fp" >&2
+    format_with_prettier
     exit 0
     ;;
 esac
@@ -38,8 +71,7 @@ if has_project_config biome.json biome.jsonc; then
       echo "[format] warning: biome format failed for $fp" >&2
   fi
 elif has_project_config .prettierrc .prettierrc.json .prettierrc.yml .prettierrc.yaml .prettierrc.js .prettierrc.cjs .prettierrc.mjs prettier.config.js prettier.config.cjs prettier.config.mjs .prettierrc.toml; then
-  npx prettier --write "$fp" 2>/dev/null || \
-    echo "[format] warning: prettier format failed for $fp" >&2
+  format_with_prettier
 else
   if [ -n "$biome_bin" ]; then
     "$biome_bin" format --write --config-path "$HOME/.claude-shared/biome.json" "$fp" 2>/dev/null || \

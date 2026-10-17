@@ -70,7 +70,7 @@ fi
 
 printf "Test group: the account an unwrapped launch lands in loses the board\n"
 
-assert_absent "no ticket registration rule" "$DESKTOP" "Cockpit URL-first"
+assert_absent "no ticket registration rule" "$DESKTOP" "Cockpit id-first"
 assert_absent "no worktree rule" "$DESKTOP" "Dev on a ticket happens in that ticket's own worktree"
 assert_absent "no claim lock rule" "$DESKTOP" "## Claim locks"
 assert_absent "no commit routing through the board" "$DESKTOP" "/cockpit:ticket:4:commit"
@@ -84,7 +84,7 @@ assert_contains "the Claude adapter" "$DESKTOP" "## Claude directories"
 
 printf "\nTest group: an account reached through a wrapper gets the board\n"
 
-assert_contains "the ticket registration rule" "$BOARD" "Cockpit URL-first"
+assert_contains "the ticket registration rule" "$BOARD" "Cockpit id-first"
 assert_contains "the worktree rule" "$BOARD" "Dev on a ticket happens in that ticket's own worktree"
 assert_contains "the claim lock rule" "$BOARD" "## Claim locks"
 assert_contains "the commit routing" "$BOARD" "/cockpit:ticket:4:commit"

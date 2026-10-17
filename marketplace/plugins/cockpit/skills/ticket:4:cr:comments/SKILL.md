@@ -73,13 +73,13 @@ Always include the permalink on each thread presentation so the user can open it
 
 ## Recording the bounce-back
 
-A defect found in CR is a bounce-back even though the card never moves — so nothing else in the flow will record it, and the counter stays empty unless this skill does it. Record as part of the walk, not afterwards.
+A defect found in CR is a bounce-back even though the ticket never moves — so nothing else in the flow will record it, and the counter stays empty unless this skill does it. Record as part of the walk, not afterwards.
 
 **When** — the moment an approved thread's (or group's) fix is applied and reported, before presenting the next one. Recording at presentation time instead would count groups the user goes on to decline.
 
 **Unit** — one bounce per root cause. A group of threads sharing a root cause is one bounce; 90 comments collapsing to 12 groups is 12 bounces. Never one per thread, never one per review round.
 
-**How** — invoke `/cockpit:ticket:x:back-from-column` with source and target both set to the ticket's current column (an in-place bounce — the card stays put). Hand it the `[problem]` / `[fix]` / `[earlier detection]` / `[prevention]` framing already produced for the thread instead of letting it re-derive one from session context.
+**How** — invoke `/cockpit:ticket:x:back-from-column` with source and target both set to the ticket's current column (an in-place bounce — the ticket stays put). Hand it the `[problem]` / `[fix]` / `[earlier detection]` / `[prevention]` framing already produced for the thread instead of letting it re-derive one from session context.
 
 **When not to** — only four columns carry a counter (`In Dev`, `In CR`, `In FR`, `Ready for Validation`), the same gate as `marketplace/plugins/cockpit/scripts/hooks/remind-back-from-column.sh`. If the session's ticket sits anywhere else, or no ticket is registered, skip the recording silently and carry on with the walk.
 

@@ -11,9 +11,7 @@ Read `~/.claude-shared/templates/cockpit-dev-gates.md` before the first edit.
 
 Read `~/.claude-shared/templates/coding-conventions.md` before the first edit.
 
-Read `~/.claude-shared/templates/cockpit-cross-board.md` when a source ticket is registered alongside the stub.
-
-Read the ticket's open comments before the first edit, following `~/.claude-shared/templates/page-comments.md`.
+Read the ticket's open comments before the first edit with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`. `<id>` is the registered ticket's id, e.g. `COC-123`.
 
 ## Prerequisite
 
@@ -23,13 +21,13 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 ## Workflow
 
-1. **Check current status.** Fetch the registered ticket. If the status is already `In Dev` or later in the board walk, skip step 3 — there is nothing to walk — and go straight to step 4. Never stop here: a card claimed by `/cockpit:ticket:0:copilot` arrives already at `In Dev`, and so does one a person dragged there by hand, so stopping would leave file edits locked for the whole session.
+1. **Check current status.** Read it with `"$HOME/.cockpit/scripts/board-card" show <id> Status "Dependent on"`. If the status is already `In Dev` or later in the board walk, skip step 3 - run step 2, then go to step 4. There is nothing to walk, but a split parent dragged or claimed into `In Dev` is still a split parent. Never stop here: a ticket claimed by `/cockpit:ticket:0:copilot` arrives already at `In Dev`, and so does one a person dragged there by hand, so stopping would leave file edits locked for the whole session.
 
 2. **Refuse on a split parent.** If the ticket's `Dependent on` relation is populated, it has no Tech Steps and Complexity 0 - there is nothing here to build. Name why, list the sub-tickets, and tell the user to open a new session registered on the one they want. One ticket per session, so cost attributes to the part actually being built. Stop.
 
 3. **Advance to In Dev.** Use the `cockpit:ticket:x:status` skill to walk the board from the current status to `In Dev`. This handles intermediate hops, date stamps, and skip-list filtering.
 
-4. **Unlock file edits.** Run:
+4. **Unlock file edits.** When step 3 ran, read the column it left the ticket in first, with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. A gate in the walk can refuse a hop and leave the ticket short of `In Dev` - out of `Backlog`, or out of `In BR` or `In TR` with a section missing. Anything short of `In Dev` keeps file edits locked: name the column and what the walk refused, and stop. On `In Dev`, run:
 
    ```
    "$HOME/.cockpit/scripts/ticket-status-confirm" dev
@@ -43,7 +41,15 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
    Read its exit status. A non-zero one means the remote reference is still whatever the last successful fetch left, and the call below cuts the branch off exactly that reference. So name what the fetch printed and stop - carrying on from a base of unknown age is the user's call, not the agent's. Never cut the branch on a failed fetch.
 
-   Then call `EnterWorktree` with `name` set to the branch this ticket's work belongs on, in the same conventional form as a commit message's subject - `feat/agents-use-worktrees`. The diff is then written off the main checkout.
+   A session already in a worktree cannot make the call below - it refuses a second create - and being in one says nothing about whose work it holds. A session started in a worktree of its own sits on a branch that may carry anything. So before the call, and before any rename, read which branch it is on:
+
+   ```
+   git branch --show-current
+   ```
+
+   In the main checkout, go on to the call. In a worktree, skip the call and the rename only when that prints this ticket's own branch, the name the call would be given. On any other branch, say which one it is and stop - building the ticket there, or leaving the worktree for one of its own, is the user's call. Never rename a worktree's branch to make it read as this ticket's own: the rename below is for the branch the call just cut, and no other. The fetch above still runs on a skip, because the checks below read the default branch off the remote.
+
+   Otherwise call `EnterWorktree` with `name` set to the branch this ticket's work belongs on, in the same conventional form as a commit message's subject - `feat/agents-use-worktrees`. The diff is then written off the main checkout.
 
    The call names the branch after the worktree with a prefix of its own, so rename it to the name you passed:
 
@@ -53,7 +59,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
    A branch of that name an earlier session on this ticket left behind makes the rename fail. Say which branch is in the way, and stop - the pull request lookup is by branch name, so carrying on under the auto-prefixed name opens a second pull request for the one ticket.
 
-   Worktree and branch then read as the same name wherever either is shown. Skip the call and the rename when the session is already in a worktree - the call refuses a second create, and the one it is in is the one it claimed. The fetch above still runs, because a branch cut on the default setting starts from what it refreshes.
+   Worktree and branch then read as the same name wherever either is shown.
 
    Where the new branch starts is set by `worktree.baseRef`, which nothing here pins - `origin/<default-branch>` on its default, the local HEAD when it is set the other way. So read the base off the branch rather than name a reference the branch may not have been cut from. In a repo where commits land on main directly, check the main checkout for commits that never left it before building on that base:
 
@@ -69,7 +75,23 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
    Anything listed is missing from the worktree. Say so and let the user decide whether to push it first - never rebase or cherry-pick it in yourself.
 
-6. **Read the tech steps off the ticket.** Fetch the ticket page and read `## Tech Steps` from that response. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the card lands In Dev, and the amendment exists only on the page. When the fetched steps differ from the drafted ones, say what changed before writing any code.
+   That check only looks one way. Before the first edit, look the other way too, at what the branch already carries that the default branch does not:
+
+   ```
+   git log origin/<default-branch>..HEAD --oneline
+   ```
+
+   This ticket's own branch lists only the commits earlier sessions on the ticket made. A branch just cut off `origin/<default-branch>` lists nothing, but one cut off the local HEAD lists whatever that HEAD held beyond the remote. Anything other than this ticket's own commits is work the ticket would be built on top of, and its pull request would carry it. Name those commits and stop - pushing them first, stacking the ticket on that branch, or waiting for that branch to merge, is the user's call.
+
+6. **Read the tech steps off the ticket.** Read them with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"`, which prints the open comments anchored in them too. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the ticket lands In Dev, and the amendment exists only on the ticket. When the steps read back differ from the drafted ones, say what changed before writing any code.
+
+   Then check the branch itself holds every file the tech steps' file tree marks `!` or `-` - a file the steps edit or remove, so one that must already exist. Check `HEAD`, not a remote reference, because the branch may not have been cut from one. One command per file:
+
+   ```
+   git cat-file -e HEAD:<path>
+   ```
+
+   A non-zero exit means the steps were written against a tree this branch does not hold - a branch whose work has not merged yet, or a local HEAD that had fallen behind the remote when the branch was cut off it. Name the missing files and stop before the first edit - building there would create what the steps say to change. A `-` file this ticket's own earlier commits already removed is done, not missing.
 
 7. **Report.** Confirm dev is active and file edits are unlocked.
 
@@ -77,7 +99,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 9. **Advance when the tech steps are built and committed.** Invoke the `cockpit:ticket:x:status` skill with target `In CR by AI`. Landing there runs the machine gates against the branch as it stands on the machine, so a finding is fixed before anything is published. Do not wait to be asked - a session that stops at `In Dev` leaves a reviewed-by-nobody branch behind.
 
-   Go through that skill, never a direct `Status` write: landing on the column is what fires its step 7, and that step is the only thing that runs the review. A card moved by hand or by a property update arrives in the column with nothing run, and the session cannot tell the difference afterwards.
+   Go through that skill, never a bare `board-card move` or `walk`: landing on the column through the skill is what fires its step 7, and that step is the only thing that runs the review. A ticket moved by hand or by a bare `board-card` call arrives in the column with nothing run, and the session cannot tell the difference afterwards.
 
    The review is `/code-review low`, which this session runs itself. Name the level every time - left off, it reuses whatever a person last typed. The billed cloud form (`/code-review ultra`) is the user's to launch and is never a next step handed back to them.
 
@@ -87,4 +109,4 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
     **Clean means every finding is fixed, not that a further pass came back empty.** Publish on the fixes; never re-run the gates over them.
 
-    That skill lands the card on `Ready for CR` once the PR is up. `In CR` is the human pull.
+    That skill lands the ticket on `Ready for CR` once the PR is up. `In CR` is the human pull.

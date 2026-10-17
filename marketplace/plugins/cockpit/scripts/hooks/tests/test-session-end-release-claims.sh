@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
+export CLAUDE_SHARED_DIR="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)"
+
 HOOK_SRC="$(cd "$(dirname "$0")/.." && pwd)/session-end-release-claims.sh"
+BOARD_CARD="$(cd "$(dirname "$0")/../.." && pwd)/board-card"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -29,17 +32,6 @@ assert_contains() {
   fi
 }
 
-assert_absent() {
-  local label="$1" needle="$2" output="$3"
-  if printf '%s' "$output" | grep -qF -- "$needle"; then
-    printf "  KO  %s — '%s' should not appear in output '%s'\n" "$label" "$needle" "$output"
-    fail=$((fail + 1))
-  else
-    printf "  OK  %s\n" "$label"
-    pass=$((pass + 1))
-  fi
-}
-
 ROOT="$TMPDIR/agents"
 BIN="$TMPDIR/bin"
 mkdir -p "$ROOT/hooks" "$BIN"
@@ -47,36 +39,17 @@ cp "$HOOK_SRC" "$ROOT/hooks/"
 
 SESSION="test-session-end-$$"
 
-# Field order is the contract under test: board, page id, status, claim, name,
-# liveness. The In Dev row is the case the column listing could not answer: a
-# claim runs from pickup to Done, so a session ending mid-dev is holding a card
-# no by-AI column contains.
-cat > "$ROOT/ticket-waiting-cards" <<STUB
-#!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$TMPDIR/waiting-args"
-# %b, not %s: the tabs are the field separators the hook parses on.
-printf '%b\n' \\
-  "Cockpit\tpage-mine\tReady for BR by AI\t$SESSION @ 2026-08-06T13:00:00Z\tmine\tlive" \\
-  "ProjectBoard\tpage-cross\tReady for TR by AI\t$SESSION @ 2026-08-06T13:00:00Z\tmine too\tlive" \\
-  "Cockpit\tpage-dev\tIn Dev\t$SESSION @ 2026-08-06T13:00:00Z\tmine, mid-dev\tlive" \\
-  "Cockpit\tpage-theirs\tReady for BR by AI\tsomeone-else @ 2026-08-06T13:00:00Z\ttheirs\tlive" \\
-  "Cockpit\tpage-free\tReady for BR by AI\t-\tunclaimed\t-"
-STUB
-
+ln -s "$BOARD_CARD" "$ROOT/board-card"
+export COCKPIT_BOARD_DIR="$TMPDIR/board"
+"$ROOT/board-card" init >/dev/null
+"$ROOT/board-card" create --kind project --name Home --key HOM >/dev/null
+"$ROOT/board-card" create --kind epic --name Home --project PRJ-1 >/dev/null
+for name in mine "mine, mid-dev" theirs unclaimed; do
+  "$ROOT/board-card" create --epic EPIC-1 --name "$name" >/dev/null
+done
 cat > "$ROOT/ticket-claim-lock" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$TMPDIR/locks"
-STUB
-
-cat > "$BIN/security" <<'STUB'
-#!/usr/bin/env bash
-printf 'stub-token\n'
-STUB
-
-# Record the request rather than making one. The url line names the page.
-cat > "$BIN/curl" <<STUB
-#!/usr/bin/env bash
-cat >> "$TMPDIR/requests"
 STUB
 
 CLAUDE_RUNNING_THE_HOOK=9001
@@ -108,57 +81,36 @@ cat > "$BIN/pgrep" <<STUB
 cat "$TMPDIR/watcher-pids"
 STUB
 
-chmod +x "$ROOT/ticket-waiting-cards" "$ROOT/ticket-claim-lock" "$BIN/security" "$BIN/curl" \
-  "$BIN/ps" "$BIN/pgrep"
+chmod +x "$ROOT/ticket-claim-lock" "$BIN/ps" "$BIN/pgrep"
 
-: > "$TMPDIR/requests"
+CLAUDE_SESSION_ID="$SESSION" "$ROOT/board-card" claim HOM-1 >/dev/null
+CLAUDE_SESSION_ID="$SESSION" "$ROOT/board-card" claim HOM-2 >/dev/null
+CLAUDE_SESSION_ID=someone-else "$ROOT/board-card" claim HOM-3 >/dev/null
 : > "$TMPDIR/locks"
-: > "$TMPDIR/waiting-args"
+
+holder_of() { "$ROOT/board-card" show "$1" "Agent: Session Id" | cut -f2; }
 
 printf '{"session_id":"%s","reason":"prompt_input_exit"}' "$SESSION" \
   | PATH="$BIN:$PATH" bash "$ROOT/hooks/session-end-release-claims.sh"
 status=$?
 
-requests="$(cat "$TMPDIR/requests")"
-
 printf "Test group: the claims this session holds are released\n"
 
 assert_eq "exits zero" "0" "$status"
-assert_contains "releases the local locks first" "release-all" "$(cat "$TMPDIR/locks")"
-assert_contains "asks for this session's cards, not for the waiting ones" \
-  "--claimed-by $SESSION" "$(cat "$TMPDIR/waiting-args")"
-assert_contains "patches the cockpit card it claimed" "/v1/pages/page-mine" "$requests"
-assert_contains "patches the card it claimed on another board" "/v1/pages/page-cross" "$requests"
-assert_contains "patches the card it was holding mid-dev" "/v1/pages/page-dev" "$requests"
-assert_eq "three pages patched, no more" "3" \
-  "$(printf '%s' "$requests" | grep -c 'v1/pages/' | tr -d ' ')"
+assert_contains "releases the local locks" "release-all" "$(cat "$TMPDIR/locks")"
+assert_eq "clears the card it claimed" "" "$(holder_of HOM-1)"
+assert_eq "clears the card it was holding mid-dev" "" "$(holder_of HOM-2)"
 
 printf "\nTest group: nothing else is touched\n"
 
-assert_absent "leaves another session's claim alone" "page-theirs" "$requests"
-assert_absent "leaves an unclaimed card alone" "page-free" "$requests"
+assert_eq "leaves another session's claim alone" "someone-else" "$(holder_of HOM-3)"
+assert_eq "leaves an unclaimed card unclaimed" "" "$(holder_of HOM-4)"
 
-printf "\nTest group: the fields read are the fields meant\n"
-
-assert_absent "never mistakes the board name for a page id" "/v1/pages/Cockpit" "$requests"
-assert_absent "never mistakes the status for a claim" "/v1/pages/Ready" "$requests"
-assert_absent "never mistakes the liveness verdict for a claim" "/v1/pages/live" "$requests"
-assert_contains "sends a property update, not a read" 'request = "PATCH"' "$requests"
-
-printf "\nTest group: a missing credential is a quiet no-op, not a failure\n"
-
-: > "$TMPDIR/requests"
-cat > "$BIN/security" <<'STUB'
-#!/usr/bin/env bash
-exit 1
-STUB
-chmod +x "$BIN/security"
+printf "\nTest group: no board is a quiet no-op, not a failure\n"
 
 printf '{"session_id":"%s","reason":"other"}' "$SESSION" \
-  | PATH="$BIN:$PATH" bash "$ROOT/hooks/session-end-release-claims.sh"
-assert_eq "exits zero without a token" "0" "$?"
-assert_eq "patches nothing" "0" \
-  "$(grep -c 'v1/pages/' "$TMPDIR/requests" | tr -d ' ')"
+  | COCKPIT_BOARD_DIR="$TMPDIR/no-board" PATH="$BIN:$PATH" bash "$ROOT/hooks/session-end-release-claims.sh"
+assert_eq "exits zero without a board" "0" "$?"
 
 printf "\nTest group: the watchers this session armed are stopped\n"
 

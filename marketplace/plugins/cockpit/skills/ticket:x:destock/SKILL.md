@@ -9,26 +9,22 @@ Save work in progress at the end of the day: commit, push, open a draft PR, link
 
 Reference: the "De-stock at the end of the day" standard.
 
-## Board constants
-
-- Board ids - read with `"$HOME/.cockpit/scripts/cockpit-board-id" get <key>`, following `~/.claude-shared/templates/board-ids.md`. This skill needs `tickets-data-source`.
-
 ## Workflow
 
 ### 1. Check ticket registration
 
-Read the session marker at `~/.local/state/claude-ticket-sessions/$CLAUDE_SESSION_ID.ticket`.
+Take the ticket id from this session's `/cockpit:ticket:0:register` step, or Read the session marker at `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
 
-If it does not exist, tell the user to register a ticket first (`/cockpit:ticket:0:register`) and stop.
+If neither gives one, tell the user to register a ticket first (`/cockpit:ticket:0:register`) and stop.
 
 ### 2. Read the ticket
 
-Run `"$HOME/.cockpit/scripts/ticket-read" <ticket-url> Name Status PRs` with the URL from the marker, and on a non-zero exit `notion-fetch` on it instead. Either way, take:
+Run `"$HOME/.cockpit/scripts/board-card" show <id> Name Status PRs` with the ticket id from step 1, and take:
 
 - `Name` (ticket title)
 - `Status` (current column)
 - `PRs` (existing PR links, if any)
-- The ticket page URL
+- The ticket id
 
 ### 3. Check git state
 
@@ -88,7 +84,7 @@ If already at `In Dev` or beyond, skip.
 
 ### 9. Summarise problems and fixes
 
-Write a structured summary of bug fixes to the ticket page when the session included fix commits.
+Write a structured summary of bug fixes to the ticket when the session included fix commits.
 
 1. List branch commits: `git log main..HEAD --oneline`.
 2. Filter for commits whose message starts with `fix(` (conventional commit type prefix). If none, skip this step entirely.
@@ -97,26 +93,23 @@ Write a structured summary of bug fixes to the ticket page when the session incl
    - `[fix]` - what was done
    - `[earlier detection]` - how to catch sooner
    - `[prevention]` - how to prevent recurrence
-4. Format the entries inside a toggle:
+4. Format the entries as a subsection:
 
 ```
-<details>
-<summary>Session summary</summary>
-	`[problem]` Root cause of first fix
-	`[fix]` What was done
-	`[earlier detection]` How to catch sooner
-	`[prevention]` How to prevent recurrence
+### Session summary
 
-	`[problem]` Root cause of second fix
-	`[fix]` What was done
-	`[earlier detection]` How to catch sooner
-	`[prevention]` How to prevent recurrence
-</details>
+- `[problem]` Root cause of first fix
+- `[fix]` What was done
+- `[earlier detection]` How to catch sooner
+- `[prevention]` How to prevent recurrence
+
+- `[problem]` Root cause of second fix
+- `[fix]` What was done
+- `[earlier detection]` How to catch sooner
+- `[prevention]` How to prevent recurrence
 ```
 
-5. Fetch the ticket page. Check whether `## Details` already exists in the page content.
-   - If `## Details` exists, append the toggle inside it using `notion-update-page` with `insert_content`.
-   - If `## Details` does not exist, insert `## Details` followed by the toggle at the end of the page using `insert_content`.
+5. Write it into `## Details` - creating the section at the end of the page when it does not exist - the way `~/.cockpit/skills/ticket:x:back-from-column/SKILL.md` says under "Writing under `## Details`". A `### Session summary` already there keeps its entries and gains the new ones.
 
 ### 10. Confirm
 
@@ -126,7 +119,7 @@ Report a summary:
 - What was pushed
 - PR URL (created or existing)
 - Ticket status (advanced or unchanged)
-- Whether a session summary was written to the ticket page
+- Whether a session summary was written to the ticket
 - Final line: "You're de-stocked."
 
 If nothing needed doing (clean tree, pushed, PR exists), just confirm: "Already de-stocked - nothing to do."

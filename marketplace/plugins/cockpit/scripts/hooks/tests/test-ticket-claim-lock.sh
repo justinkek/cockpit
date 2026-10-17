@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
+export CLAUDE_SHARED_DIR="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)"
+
 LOCK="$(cd "$(dirname "$0")/../.." && pwd)/ticket-claim-lock"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 export TICKET_CLAIM_LOCK_DIR="$TMPDIR/claims"
+export TICKET_STATE_DIR="$TMPDIR/state"
+mkdir -p "$TICKET_STATE_DIR"
 
 PAGE="3b38f377-6f4f-811a-977d-e66660f87d04"
 BARE="3b38f3776f4f811a977de66660f87d04"
@@ -109,6 +113,30 @@ printf "\nTest group: a bad argument is refused, not guessed at\n"
 
 assert_eq "rejects a non-id" 2 "$(run session-a take "not a page id")"
 assert_eq "rejects a missing action" 2 "$(CLAUDE_SESSION_ID=x bash "$LOCK" >/dev/null 2>&1; echo $?)"
+
+printf "\nTest group: a stale holder's lock can be taken over\n"
+
+hours_ago() {
+  date -v-"$1"H +%Y%m%d%H%M 2>/dev/null || date -d "-$1 hours" +%Y%m%d%H%M
+}
+
+run stale-holder take FEAT-50 >/dev/null
+touch -t "$(hours_ago 2)" "$TICKET_CLAIM_LOCK_DIR/FEAT-50/session"
+assert_eq "an old claim with no heartbeat is taken over" 0 "$(run taker take FEAT-50)"
+assert_eq "and the lock is the taker's now" "taker" "$(CLAUDE_SESSION_ID=x bash "$LOCK" owner FEAT-50)"
+
+run beating-holder take FEAT-51 >/dev/null
+touch -t "$(hours_ago 2)" "$TICKET_CLAIM_LOCK_DIR/FEAT-51/session"
+touch "$TICKET_STATE_DIR/beating-holder.alive"
+assert_eq "an old claim whose session still beats is kept" 1 "$(run taker take FEAT-51)"
+
+run fresh-holder take FEAT-52 >/dev/null
+assert_eq "a claim under the floor is kept, heartbeat or not" 1 "$(run taker take FEAT-52)"
+
+run quiet-holder take FEAT-53 >/dev/null
+touch -t "$(hours_ago 2)" "$TICKET_CLAIM_LOCK_DIR/FEAT-53/session"
+touch -t "$(hours_ago 1)" "$TICKET_STATE_DIR/quiet-holder.alive"
+assert_eq "a heartbeat older than the window does not save it" 0 "$(run taker take FEAT-53)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

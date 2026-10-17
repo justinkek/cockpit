@@ -41,15 +41,15 @@ ls_bare='ls'
 ls_flags='ls -la /tmp'
 grep_flags='grep -rn foo .'
 absolute='/bin/ls'
-board_members='"$HOME/.cockpit/scripts/ticket-board-members"'
+waiting_cards='"$HOME/.cockpit/scripts/ticket-waiting-cards"'
 # Every script the copilot skill runs before the session has a name or a ticket.
 # One of them missing from a gate's cross-allow list is a deadlock the skill
 # cannot work around — its own rules forbid naming the session to get past it —
-# and that is exactly how cockpit-board-claim shipped broken.
+# and that is exactly how a board claim script once shipped broken.
 copilot_scripts=(
   '"$HOME/.cockpit/scripts/ticket-waiting-cards"'
-  '"$HOME/.cockpit/scripts/ticket-board-members"'
-  '"$HOME/.cockpit/scripts/cockpit-board-claim" ProjectBoard'
+  '"$HOME/.cockpit/scripts/board-card" list --json'
+  '"$HOME/.cockpit/scripts/board-card" claim FEAT-1'
   '"$HOME/.cockpit/scripts/ticket-claim-lock" take abc123'
 )
 
@@ -68,7 +68,7 @@ for hook in require-ticket.sh require-rename.sh; do
   assert_decision "lets a read with flags through"       none "$hook" "$ls_flags"
   assert_decision "lets a grep with flags through"       none "$hook" "$grep_flags"
   assert_decision "matches on the basename, not the path" none "$hook" "$absolute"
-  assert_decision "still cross-allows the repo script"   none "$hook" "$board_members"
+  assert_decision "still cross-allows the repo script"   none "$hook" "$waiting_cards"
   for script in "${copilot_scripts[@]}"; do
     assert_decision "cross-allows $(printf '%s' "$script" | awk '{print $1}' | sed 's|.*/||' | tr -d '"')" \
       none "$hook" "$script"

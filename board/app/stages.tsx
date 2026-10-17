@@ -1,0 +1,109 @@
+"use client";
+
+import { flowOf, span, stagesOf } from "@/lib/metrics";
+import { type Card, phaseOf } from "@/lib/shared";
+
+export function stampText(stamp: string, now = new Date()) {
+	const date = new Date(stamp);
+	if (Number.isNaN(date.getTime())) return stamp;
+	return date.toLocaleString(undefined, {
+		weekday: "short",
+		day: "numeric",
+		month: "short",
+		year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+function FlowLine({ entity }: { entity: Card }) {
+	const flow = flowOf(entity);
+	const parts: [string, string, string][] = [];
+	if (flow.lead != null) parts.push(["Lead time", span(flow.lead), "From when it was created to when it was done"]);
+	if (flow.age != null) parts.push(["Open for", span(flow.age), "Since it was created"]);
+	if (flow.cycle != null)
+		parts.push([
+			flow.lead != null ? "Cycle time" : "In progress for",
+			span(flow.cycle),
+			"From when it first went into dev to when it was done, or to now",
+		]);
+	if (parts.length === 0) return null;
+	return (
+		<p className="flow-line">
+			{parts.map(([label, value, title]) => (
+				<span key={label} title={title}>
+					{label} <strong suppressHydrationWarning>{value}</strong>
+				</span>
+			))}
+		</p>
+	);
+}
+
+type Step = { column: string; phase: string; at: string | null; ms: number | null; current: boolean; until?: string };
+
+function stepTitle(step: Step) {
+	const lines = [step.column, step.at ? `Reached ${stampText(step.at)}` : "No date recorded"];
+	if (step.ms != null && step.current) lines.push(`${span(step.ms)} so far, in this column now`);
+	else if (step.ms != null) lines.push(`${span(step.ms)}${step.until ? ` until it reached ${step.until}` : ""}`);
+	return lines.join("\n");
+}
+
+export function Stages({ entity }: { entity: Card }) {
+	const stages = stagesOf(entity);
+	const created = entity.created && !Number.isNaN(new Date(entity.created).getTime()) ? entity.created : null;
+	if (stages.length === 0 && !created) return null;
+	const first = stages[0]?.at ? new Date(stages[0].at).getTime() : null;
+	const before = created && first != null ? Math.max(0, first - new Date(created).getTime()) : null;
+	const steps: Step[] = [
+		...(created
+			? [
+					{
+						column: "Created",
+						phase: "created",
+						at: created,
+						ms: stages[0] ? before : null,
+						current: false,
+						until: stages[0]?.column,
+					},
+				]
+			: []),
+		...stages.map((stage, index) => ({
+			column: stage.column,
+			phase: phaseOf(stage.column),
+			at: stage.at,
+			ms: stage.ms,
+			current: stage.current,
+			until: stages[index + 1]?.column,
+		})),
+	];
+	const total = steps.reduce((sum, step) => sum + (step.ms ?? 0), 0);
+	return (
+		<section className="timeline stages">
+			<h3>Timeline</h3>
+			<FlowLine entity={entity} />
+			<ol className="stage-strip">
+				{steps.map((step, index) => (
+					<li
+						key={`${index}-${step.column}`}
+						className={`stage-step phase-${step.phase}${step.current ? " current" : ""}`}
+						style={{ flexGrow: total > 0 && step.ms ? (step.ms / total) * 100 : 0 }}
+						title={stepTitle(step)}
+						suppressHydrationWarning
+					>
+						<span className="stage-bar" aria-hidden="true" />
+						<span className="stage-column">{step.column}</span>
+						<span className="stage-span" suppressHydrationWarning>
+							{step.ms == null ? "" : span(step.ms)}
+							{step.current && " · now"}
+						</span>
+						{step.at && (
+							<time className="stage-when" dateTime={step.at} suppressHydrationWarning>
+								{stampText(step.at)}
+							</time>
+						)}
+					</li>
+				))}
+			</ol>
+		</section>
+	);
+}

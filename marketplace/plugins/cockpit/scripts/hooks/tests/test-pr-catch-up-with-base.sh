@@ -20,7 +20,7 @@ assert_eq() {
 
 assert_contains() {
   local label="$1" expected="$2" output="$3"
-  if printf '%s' "$output" | grep --quiet --fixed-strings "$expected"; then
+  if printf '%s' "$output" | grep --quiet --fixed-strings --regexp="$expected"; then
     printf "  OK  %s\n" "$label"
     pass=$((pass + 1))
   else
@@ -38,7 +38,18 @@ cat > "$BIN/gh" <<'STUB'
 printf '%s %s\n' "$PR_CATCH_UP_TEST_BASE" "${PR_CATCH_UP_TEST_REVIEWS:-0}"
 STUB
 
-chmod +x "$BIN/gh"
+cat > "$BIN/sleep" <<'STUB'
+#!/usr/bin/env bash
+[ -n "${PR_CATCH_UP_TEST_SLEEPS:-}" ] || exit 1
+printf '%s\n' "$1" >> "$PR_CATCH_UP_TEST_SLEEPS"
+[ "$(grep --count . < "$PR_CATCH_UP_TEST_SLEEPS")" -lt 3 ]
+STUB
+
+chmod +x "$BIN/gh" "$BIN/sleep"
+
+sleeps_taken() {
+  [ -f "$1" ] && tr '\n' ' ' < "$1"
+}
 
 build_repository() {
   local name="$1"
@@ -206,15 +217,57 @@ printf "\nTest group: a watcher says a standing refusal once, not once per poll\
 clone="$(build_repository repeated-refusal)"
 move_base_ahead "$clone" "moved.txt" "moved"
 printf 'work in progress' > "$clone/branch.txt"
-watched="$TMPDIR/watched-output"
-(cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" PR_CATCH_UP_TEST_REVIEWS="0" \
-  PR_CATCH_UP_INTERVAL=1 bash "$CATCHER" > "$watched" 2>&1) &
-watcher="$!"
-sleep 4
-kill "$watcher" 2>/dev/null || true
-wait "$watcher" 2>/dev/null || true
-assert_contains "the refusal is said" "uncommitted changes" "$(cat "$watched")"
-assert_eq "and said once across several polls" "1" "$(grep --count . < "$watched" | tr -d ' ')"
+sleeps="$TMPDIR/repeated-refusal-sleeps"
+output="$( (cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" PR_CATCH_UP_TEST_REVIEWS="0" \
+  PR_CATCH_UP_TEST_SLEEPS="$sleeps" PR_CATCH_UP_INTERVAL=1 bash "$CATCHER" 2>&1) )"
+assert_eq "it polls three times, sleeping the interval between them" "1 1 1 " "$(sleeps_taken "$sleeps")"
+assert_contains "the refusal is said" "uncommitted changes" "$output"
+assert_eq "and said once across several polls" "1" "$(printf '%s\n' "$output" | grep --count .)"
+
+printf "\nTest group: --every makes it poll with nothing in the environment\n"
+
+clone="$(build_repository every-argument)"
+move_base_ahead "$clone" "moved.txt" "moved"
+printf 'work in progress' > "$clone/branch.txt"
+sleeps="$TMPDIR/every-argument-sleeps"
+output="$( (cd "$clone" && env -u PR_CATCH_UP_INTERVAL PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" \
+  PR_CATCH_UP_TEST_REVIEWS="0" PR_CATCH_UP_TEST_SLEEPS="$sleeps" bash "$CATCHER" --every 1 2>&1) )"
+assert_eq "it goes on polling after the first pass, sleeping the interval it was given" "1 1 1 " "$(sleeps_taken "$sleeps")"
+assert_contains "the refusal is said" "uncommitted changes" "$output"
+assert_eq "and said once across several polls" "1" "$(printf '%s\n' "$output" | grep --count .)"
+
+clone="$(build_repository every-over-environment)"
+sleeps="$TMPDIR/every-over-environment-sleeps"
+output="$( (cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" PR_CATCH_UP_INTERVAL="soon" \
+  PR_CATCH_UP_TEST_SLEEPS="$sleeps" bash "$CATCHER" --every=1 2>&1) )"
+assert_eq "the argument wins over the environment" "1 1 1 " "$(sleeps_taken "$sleeps")"
+assert_eq "and a branch already on its base stays silent" "" "$output"
+
+printf "\nTest group: an interval that is not whole seconds is refused before anything moves\n"
+
+clone="$(build_repository bad-interval)"
+move_base_ahead "$clone" "moved.txt" "moved"
+before="$(git -C "$clone" rev-parse HEAD)"
+for arguments in "--every" "--every soon" "--every 0" "--every=1.5" "--every -5"; do
+  output="$( (cd "$clone" && env -u PR_CATCH_UP_INTERVAL PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" \
+    bash "$CATCHER" $arguments 2>&1) )"
+  status=$?
+  assert_eq "'$arguments' exits 2" "2" "$status"
+  assert_contains "'$arguments' says what an interval is" "a whole number of seconds above zero" "$output"
+done
+assert_eq "and the branch was never rebased" "$before" "$(git -C "$clone" rev-parse HEAD)"
+
+output="$( (cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" PR_CATCH_UP_INTERVAL="soon" \
+  bash "$CATCHER" 2>&1) )"
+status=$?
+assert_eq "a bad interval in the environment exits 2 too" "2" "$status"
+assert_eq "and the branch was still never rebased" "$before" "$(git -C "$clone" rev-parse HEAD)"
+
+output="$( (cd "$clone" && PATH="$BIN:$PATH" PR_CATCH_UP_TEST_BASE="main" bash "$CATCHER" --once 2>&1) )"
+status=$?
+assert_eq "an option it does not take exits 2" "2" "$status"
+assert_contains "and names the one it does" "the one option is --every" "$output"
+assert_eq "and the branch was never rebased by it" "$before" "$(git -C "$clone" rev-parse HEAD)"
 
 printf "\nTest group: a conflict is undone, never left half-applied\n"
 
@@ -247,8 +300,14 @@ printf "\nTest group: the ready-for-cr skill is what arms it\n"
 
 READY_FOR_CR="$(cd "$(dirname "$0")/../../../skills/ticket:4:ready-for-cr" && pwd)/SKILL.md"
 assert_contains "the skill names the script" "pr-catch-up-with-base" "$(cat "$READY_FOR_CR")"
-assert_contains "and the interval that makes it poll" "PR_CATCH_UP_INTERVAL" "$(cat "$READY_FOR_CR")"
+assert_contains "and the interval that makes it poll, in the form the allowlist matches" \
+  '`"$HOME/.cockpit/scripts/pr-catch-up-with-base" --every 300`' "$(cat "$READY_FOR_CR")"
 assert_contains "and arms it persistently" "persistent" "$(cat "$READY_FOR_CR")"
+assert_contains "and checks the branch against the base the open pull request names, as the script does" \
+  "--json baseRefName" "$(cat "$READY_FOR_CR")"
+assert_contains "leaving out the merge the script makes on a reviewed pull request" \
+  'git log --no-merges origin/<base>..HEAD' "$(cat "$READY_FOR_CR")"
+assert_contains "and opens the pull request against that same base" "--base <base>" "$(cat "$READY_FOR_CR")"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

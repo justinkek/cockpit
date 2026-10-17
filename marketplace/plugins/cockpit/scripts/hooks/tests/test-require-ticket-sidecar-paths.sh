@@ -53,7 +53,7 @@ run_hook() {
 SESSION="test-sidecar-$$"
 STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
-printf 'https://app.notion.com/p/abc123\n' > "$STATE_DIR/$SESSION.ticket"
+printf 'FEAT-31\n' > "$STATE_DIR/$SESSION.ticket"
 
 printf "Test group: ticket-register-type writes to correct path\n"
 
@@ -70,18 +70,11 @@ assert_file_exists "column file at \$session_id.column" "$STATE_DIR/$SESSION.col
 assert_file_absent "no column file at \$session_id.ticket.column" "$STATE_DIR/$SESSION.ticket.column"
 assert_content "column file contains correct data" "In Dev" "$STATE_DIR/$SESSION.column"
 
-printf "\nTest group: ticket-register-source-ticket writes to correct path\n"
-
-run_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register-source-ticket" "https://app.notion.com/p/source123"'
-assert_file_exists "source-ticket file at \$session_id.source-ticket" "$STATE_DIR/$SESSION.source-ticket"
-assert_file_absent "no source-ticket file at \$session_id.ticket.source-ticket" "$STATE_DIR/$SESSION.ticket.source-ticket"
-assert_content "source-ticket file contains correct URL" "https://app.notion.com/p/source123" "$STATE_DIR/$SESSION.source-ticket"
-
 printf "\nTest group: compound commands still record state\n"
 
 # The defect this covers: the hook used to write sidecars only inside the
 # safe-shape branch, so a chained invocation printed success and wrote nothing.
-rm -f "$STATE_DIR/$SESSION.column" "$STATE_DIR/$SESSION.type" "$STATE_DIR/$SESSION.source-ticket"
+rm -f "$STATE_DIR/$SESSION.column" "$STATE_DIR/$SESSION.type"
 
 run_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register-column" "In Dev" && "$HOME/.cockpit/scripts/ticket-status-confirm" dev'
 assert_file_exists "column file written from a chained command" "$STATE_DIR/$SESSION.column"
@@ -92,8 +85,6 @@ assert_content "chained type has the requested values" "type=ticket
 name=chained session name
 ticket_type=bug" "$STATE_DIR/$SESSION.type"
 
-run_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register-source-ticket" "https://app.notion.com/p/chained123"; echo done'
-assert_content "chained source-ticket has the requested URL" "https://app.notion.com/p/chained123" "$STATE_DIR/$SESSION.source-ticket"
 
 printf "\nTest group: missing arguments write nothing\n"
 

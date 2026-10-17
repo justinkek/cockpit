@@ -18,7 +18,6 @@
 		"unsolicited-comments@unsolicited-comments": "user",
 		"unsolicited-text@unsolicited-text": "user",
 		"warp@claude-code-warp": "user",
-		"notion@claude-plugins-official": "user",
 		"typescript-lsp@claude-plugins-official": "user",
 		"github@claude-plugins-official": "user",
 		"slack@claude-plugins-official": "user"

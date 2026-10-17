@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+absolute_directory() {
+  local directory="."
+  case "$1" in */*) directory="${1%/*}" ;; esac
+  case "$directory" in /*) ;; *) directory="$PWD/$directory" ;; esac
+  printf -v REPLY '%s' "$directory"
+}
+
+absolute_directory "$0"
+here="$REPLY"
+source="$0"
+while [ -L "$source" ]; do
+  target="$(readlink "$source")"
+  case "$target" in
+    /*) source="$target" ;;
+    *) absolute_directory "$source"; source="$REPLY/$target" ;;
+  esac
+done
+absolute_directory "$source"
+crate="$REPLY/../board-card"
+binary="$crate/target/release/board-card"
+
+stale=false
+if [ ! -x "$binary" ]; then
+  stale=true
+else
+  for file in "$crate/Cargo.toml" "$crate/Cargo.lock" "$crate"/src/*.rs; do
+    if [ "$file" -nt "$binary" ]; then
+      stale=true
+      break
+    fi
+  done
+fi
+
+if [ "$stale" = true ]; then
+  cargo="$(command -v cargo || true)"
+  [ -n "$cargo" ] || [ ! -x "$HOME/.cargo/bin/cargo" ] || cargo="$HOME/.cargo/bin/cargo"
+  if [ -z "$cargo" ]; then
+    echo "[board-card] cargo is needed to build $crate - install Rust from https://rustup.rs, then run board-card again" >&2
+    exit 2
+  fi
+  echo "[board-card] building board-card from $crate, which takes a moment the first time" >&2
+  if ! CARGO_TARGET_DIR="$crate/target" "$cargo" build --release --quiet --manifest-path "$crate/Cargo.toml" >&2; then
+    echo "[board-card] could not build $crate - run: cargo build --release --manifest-path $crate/Cargo.toml" >&2
+    exit 2
+  fi
+fi
+
+BOARD_CARD_SCRIPTS="$here" exec "$binary" "$@"

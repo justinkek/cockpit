@@ -37,10 +37,6 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/refresh-cockpit-cache.sh"
-					},
-					{
-						"type": "command",
 						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/pull-main.sh"
 					}
 				]
@@ -89,50 +85,11 @@
 				]
 			},
 			{
-				"matcher": "mcp__plugin_Notion_notion__notion-create-pages|mcp__plugin_Notion_notion__notion-update-page|mcp__plugin_Notion_notion__notion-create-database|mcp__plugin_Notion_notion__notion-create-view|mcp__plugin_Notion_notion__notion-update-view|mcp__plugin_Notion_notion__notion-create-attachment|mcp__plugin_Notion_notion__notion-move-pages|mcp__plugin_Notion_notion__notion-create-comment",
+				"matcher": "mcp__.*[Nn]otion.*",
 				"hooks": [
 					{
 						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-rename.sh"
-					},
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-ticket.sh"
-					}
-				]
-			},
-			{
-				"matcher": "mcp__plugin_Notion_notion__notion-update-page",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-notion-content-revival.sh"
-					},
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/spawn-plugin-guard.sh guard-tech-steps.sh"
-					}
-				]
-			},
-			{
-				"matcher": "mcp__plugin_Notion_notion__notion-create-comment",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-ticket-comment-length.sh"
-					}
-				]
-			},
-			{
-				"matcher": "mcp__plugin_Notion_notion__notion-create-pages",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-emoji.sh"
-					},
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-ticket-type.sh"
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/deny-notion-writes.sh"
 					}
 				]
 			},
@@ -142,6 +99,14 @@
 					{
 						"type": "command",
 						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/redirect-state-to-read-write.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/spawn-plugin-guard.sh guard-tech-steps.sh"
+					},
+					{
+						"type": "command",
+						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/guard-ticket-comment-length.sh"
 					}
 				]
 			},
@@ -170,27 +135,10 @@
 					{
 						"type": "command",
 						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto-populate-pr.sh"
-					}
-				]
-			},
-			{
-				"matcher": "mcp__plugin_Notion_notion__notion-update-page",
-				"hooks": [
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/verify-notion-content-edit.sh"
 					},
 					{
 						"type": "command",
 						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/require-blocked-comment.sh"
-					},
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/sprint-backlog-sync.sh"
-					},
-					{
-						"type": "command",
-						"command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/auto-populate-pr.sh"
 					}
 				]
 			}

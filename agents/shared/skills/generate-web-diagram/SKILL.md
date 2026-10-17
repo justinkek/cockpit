@@ -14,7 +14,7 @@ One HTML file, one diagram, one path reported back. The caller uploads that file
     mkdir -p .artifacts
     echo '.artifacts/' >> .gitignore
 
-Report the path as the last thing you say. A caller that attaches the file to a Notion page reads it off that line.
+Report the path as the last thing you say. A caller that attaches the file to a ticket reads it off that line.
 
 ## Picking the form
 

@@ -5,7 +5,7 @@
 This repo IS the source of truth that `~/.claude-shared`, `~/.agents-shared` and `~/.cockpit` symlink into. Both paths reach the same file, so which one to use depends on the verb:
 
 - **Reading or editing a file** → repo path, e.g. `agents/claude/settings/base.settings.json`. This keeps `git diff` clean and avoids confusion about which repo the edit lands in.
-- **Executing a script** → the `~/` symlink path, e.g. `"$HOME/.cockpit/scripts/cockpit-cache-query"`. Permission patterns match the literal command string and never resolve symlinks, so the repo path misses the allowlist and prompts on every call.
+- **Executing a script** → the `~/` symlink path, e.g. `"$HOME/.cockpit/scripts/board-card"`. Permission patterns match the literal command string and never resolve symlinks, so the repo path misses the allowlist and prompts on every call.
 
 Which symlink depends on what the file is: the Claude configuration executes via `~/.claude-shared/`, the shared agent rules and the cross-agent skills are read via `~/.agents-shared/`, and everything the ticket board owns - its hooks, its skills and the scripts they call - executes via `~/.cockpit/`.
 
@@ -26,6 +26,8 @@ Key mappings:
 ## The cockpit plugin
 
 `marketplace/` is a plugin marketplace this repo hosts, and `marketplace/plugins/cockpit/` is the one plugin in it. It holds `hooks/hooks.json`, `scripts/` for every script the board's hooks and skills call, `scripts/hooks/` for the hooks themselves, and `skills/` for the board's skills. A test moves with its subject, so a test under `scripts/hooks/tests/` reaches its subject through the same `..` and `../..` a test in the shared root reaches its own.
+
+`board-card` is a Rust program in the crate at `marketplace/plugins/cockpit/board-card/`, which has no dependency outside the standard library and keeps its build in its own `target/`, out of git. `scripts/board-card` is the short bash script every caller runs: it builds the binary with cargo the first time, or once a source is newer than the binary, saying so on one line of stderr, then execs it with its own directory, so `ticket-claim-lock` and `ticket-done-usage` are still found beside it. The `board-card` sync concern builds it up front on a machine that works the board. The binary runs the first `git` on PATH that is a program rather than a script, or the one `BOARD_CARD_GIT` names, and its output, exit codes and commits match the bash and jq version it replaced, which stays in the history.
 
 `hooks/hooks.json` names its commands through the plugin root variable, which Claude Code sets only while it runs a plugin's own hook. Nothing else can read that variable, so the permission allowlist and a skill's shell call reach the same files through `$HOME/.cockpit/` instead.
 
@@ -49,7 +51,7 @@ A worker reached outside `sync.sh` has no home to sync, so `codex_home_from_envi
 
 `agents/claude/board-accounts.sh` is the one statement of which accounts those are, and both the settings sync and the memory sync read it. It sits beside `accounts.sh` rather than inside it because a test stubs `accounts.sh` to control the account list, and a stubbed-away answer here would quietly take the board off every account.
 
-The plugin reads the shared root and nothing reads back. Four libraries stay in `agents/claude/` because a hook or script that is not the board's own also reads them - `hook-argv-lib.sh`, `hook-stop-note-lib.sh`, `session-name-lib.sh` and `ticket-state-lib.sh` - and the plugin reaches each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home. `test-cockpit-plugin-manifest.sh` refuses an arrow in the other direction: a cycle would mean neither directory could be reasoned about alone.
+The plugin reads the shared root and nothing reads back. Four libraries stay in `agents/claude/` because a hook or script that is not the board's own also reads them - `hook-argv-lib.sh`, `hook-stop-note-lib.sh`, `session-name-lib.sh` and `ticket-state-lib.sh` - and the plugin reaches each through `${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}`, so a test can point it at this checkout rather than a temporary home. `test-cockpit-plugin-manifest.sh` refuses an arrow in the other direction: a cycle would mean neither directory could be reasoned about alone. The `launch-agents` sync concern names `board-card` as a command for launchd to run, the way an allowlist entry names one for the permission check, so that test passes over it as it passes over the settings.
 
 The marketplace source is a path inside this repository, so the plugin is only ever installed from a checkout of it. That is what makes the dependency on the shared root safe, and what would have to change before the plugin could be served from anywhere else.
 
@@ -170,3 +172,7 @@ For format rules, checklist, and diagnostics, invoke `/fewest-permission-prompts
 A section describing something that fires outside this repo goes in `agents/shared/base.AGENTS.md` when every client needs it, and in `agents/shared/board.AGENTS.md` when only an account that works the ticket board does. This repo's own layout, tests and sync stay here.
 
 A hook or script whose behaviour is confined to this checkout is exempt, and the check names it alongside the ones documented in neither file.
+
+## The board app
+
+`board/` holds the Next.js app that renders the local board. It sits at the repository root rather than in the cockpit plugin, so an install of the plugin never carries its `node_modules`. It finds `board-card` through this checkout's own `marketplace/` path, or through `BOARD_CARD` when that is set.

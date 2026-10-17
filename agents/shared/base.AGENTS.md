@@ -61,9 +61,9 @@ Treat each code-review comment as a defect, applying the same root-cause/fix/pre
 
 Read `~/.claude-shared/templates/coding-conventions.md` before writing or changing code.
 
-## Notion page formatting
+## Ticket page formatting
 
-Read `~/.claude-shared/templates/notion-writing.md` before writing to a Notion page.
+Read `~/.claude-shared/templates/ticket-page.md` before writing content to a cockpit ticket.
 
 ## Editing agent config
 

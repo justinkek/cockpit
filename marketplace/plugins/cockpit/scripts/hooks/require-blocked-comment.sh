@@ -2,32 +2,39 @@
 
 input="$(cat)"
 
-if ! command -v jq >/dev/null 2>&1; then
-  exit 0
-fi
+command -v jq >/dev/null 2>&1 || exit 0
 
-blocked="$(printf '%s' "$input" | jq -r '.tool_input.properties.Blocked // empty')"
-blocked_was_written="$(printf '%s' "$input" | jq -r '.tool_input.properties | has("Blocked")')"
+. "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/hooks/hook-argv-lib.sh"
 
-page_id="$(printf '%s' "$input" | jq -r '.tool_input.page_id // empty')"
-[ -n "$page_id" ] || exit 0
+[ "$(printf '%s' "$input" | jq --raw-output '.tool_name // "Bash"')" = "Bash" ] || exit 0
+cmd="$(printf '%s' "$input" | jq --raw-output '.tool_input.command // empty')"
+printf '%s' "$cmd" | grep --quiet 'board-card' || exit 0
 
-. "$(dirname "$0")/hook-notion-page-lib.sh"
+exit_code="$(printf '%s' "$input" | jq --raw-output '.tool_response.exitCode // .tool_result.exitCode // 0')"
+[ "$exit_code" = "0" ] || exit 0
 
-session_id="$(printf '%s' "$input" | jq -r '.session_id // empty')"
+words="$(hook_argv_after "$cmd" board-card)"
+[ "$(printf '%s\n' "$words" | sed -n 1p)" = "set" ] || exit 0
+[ "$(printf '%s\n' "$words" | sed -n 3p)" = "blocked" ] || exit 0
+[ "$(printf '%s\n' "$words" | wc -l | tr -d ' ')" -ge 3 ] || exit 0
+
+card="$(printf '%s\n' "$words" | sed -n 2p | tr '[:lower:]' '[:upper:]')"
+reason="$(printf '%s\n' "$words" | sed -n 4p)"
+[ -n "$card" ] || exit 0
+
+session_id="$(printf '%s' "$input" | jq --raw-output '.session_id // empty')"
 state_directory="$HOME/.local/state/claude-ticket-sessions"
-registered_page="$(notion_page_id_of "$(cat "$state_directory/$session_id.ticket" 2>/dev/null)")"
-this_page="$(notion_page_id_of "$page_id")"
+registered_card="$(tr '[:lower:]' '[:upper:]' < "$state_directory/$session_id.ticket" 2>/dev/null | tr -d '[:space:]')"
 
-if [ "$blocked_was_written" = "true" ] && [ -n "$registered_page" ] && [ "$registered_page" = "$this_page" ]; then
-  if [ "$blocked" = "Blocked" ]; then
+if [ -n "$session_id" ] && [ -n "$registered_card" ] && [ "$registered_card" = "$card" ]; then
+  if [ -n "$reason" ]; then
     touch "$state_directory/$session_id.blocked"
   else
     rm -f "$state_directory/$session_id.blocked"
   fi
 fi
 
-[ "$blocked" = "Blocked" ] || exit 0
+[ -n "$reason" ] || exit 0
 
-echo "[blocked-comment] You just set Blocked on page ${page_id}. You MUST now call notion-create-comment on that page with a comment in the format: 🤖 🚧 **Blocked** - <reason>. The robot marker is what tells a reader an agent wrote it. State the specific reason this ticket is blocked. Do not skip this step. Follow ~/.claude-shared/templates/blocked-flag.md."
+echo "[blocked-comment] You just set Blocked on ${card}. You MUST now comment the reason on that ticket: \$HOME/.cockpit/scripts/board-card comment ${card} with the text on stdin, in the format: 🤖 🚧 **Blocked** - <reason>. The robot marker is what tells a reader an agent wrote it. State the specific reason this ticket is blocked. Do not skip this step. Follow ~/.claude-shared/templates/blocked-flag.md."
 exit 0

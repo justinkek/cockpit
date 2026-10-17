@@ -18,24 +18,10 @@ STATE_DIR="$HOME/.local/state/claude-ticket-sessions"
 marker="$STATE_DIR/${session_id}.ticket"
 [ -f "$marker" ] || exit 0
 
-# --- PreToolUse: Edit/Write (first-edit-only) ---
-if [ "$tool" = "Edit" ] || [ "$tool" = "Write" ]; then
-  nudged_marker="$STATE_DIR/${session_id}.edit-nudged"
-  [ -f "$nudged_marker" ] && exit 0
-
-  touch "$nudged_marker"
-  reason="[ticket-status-reminder] First edit in this session. Check whether the cockpit ticket status is behind where the work actually is — if so, prompt to advance it (use the cockpit:ticket:x:status skill)."
-  if command -v jq >/dev/null 2>&1; then
-    jq -nc --arg r "$reason" \
-      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"allow",permissionDecisionReason:$r}}'
-  else
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s"}}\n' "$reason"
-  fi
-  exit 0
-fi
-
 # --- PostToolUse: Bash (git commit) ---
 if [ "$tool" = "Bash" ] && printf '%s' "$cmd" | grep -q 'git commit\|git -C .* commit'; then
+  [ "$(cat "$STATE_DIR/${session_id}.column" 2>/dev/null)" = "In Dev" ] || exit 0
+
   if command -v jq >/dev/null 2>&1; then
     exit_code="$(printf '%s' "$input" | jq --raw-output '.tool_response.exitCode // .tool_result.exitCode // 0')"
   else

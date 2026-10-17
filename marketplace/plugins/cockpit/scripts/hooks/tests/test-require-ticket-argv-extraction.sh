@@ -50,7 +50,7 @@ run_rename_hook() {
 SESSION="test-argv-$$"
 STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
-printf 'https://app.notion.com/p/abc123\n' > "$STATE_DIR/$SESSION.ticket"
+printf 'FEAT-31\n' > "$STATE_DIR/$SESSION.ticket"
 
 printf "Test group: an unquoted argument is still read\n"
 
@@ -60,9 +60,9 @@ assert_content "unquoted ticket type lands in the sidecar" "type=ticket
 name=a session name
 ticket_type=feature" "$STATE_DIR/$SESSION.type"
 
-rm -f "$STATE_DIR/$SESSION.source-ticket"
-run_ticket_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register-source-ticket" https://app.notion.com/p/unquoted1'
-assert_content "unquoted source-ticket URL is recorded" "https://app.notion.com/p/unquoted1" "$STATE_DIR/$SESSION.source-ticket"
+rm -f "$STATE_DIR/$SESSION.ticket"
+run_ticket_hook "$SESSION" '"$HOME/.cockpit/scripts/ticket-register" FEAT-12'
+assert_content "an unquoted card id is recorded" "FEAT-12" "$STATE_DIR/$SESSION.ticket"
 
 printf "\nTest group: a session name echoing the script name does not hijack the match\n"
 
@@ -96,6 +96,180 @@ TRANSCRIPT="$TMPDIR/transcript.jsonl"
 : > "$TRANSCRIPT"
 run_rename_hook "$SESSION-rename" '"$HOME/.cockpit/scripts/auto-rename" "[x] auto-rename swallows the name"' "$TRANSCRIPT"
 assert_contains "custom-title carries the full name, not a fragment" '"customTitle":"[x] auto-rename swallows the name"' "$TRANSCRIPT"
+
+fresh=0
+
+assert_decision() {
+  local label="$1" expected="$2" hook="$3" cmd="$4" actual
+  fresh=$((fresh + 1))
+  actual="$(jq -nc --arg sid "$SESSION-unregistered-unnamed-$fresh" --arg cmd "$cmd" \
+    '{tool_name:"Bash",session_id:$sid,transcript_path:"",tool_input:{command:$cmd}}' \
+    | HOME="$TMPDIR" bash "$hook" 2>/dev/null \
+    | jq -r '.hookSpecificOutput.permissionDecision // empty' 2>/dev/null)"
+  [ -n "$actual" ] || actual="none"
+  if [ "$actual" = "$expected" ]; then
+    printf "  OK  %s\n" "$label"
+    pass=$((pass + 1))
+  else
+    printf "  KO  %s — expected '%s', got '%s'\n" "$label" "$expected" "$actual"
+    fail=$((fail + 1))
+  fi
+}
+
+NEW_SKILL="$(cd "$(dirname "$0")/../../.." && pwd)/skills/ticket:0:new/SKILL.md"
+NEW_CARD_CREATE="$(awk '
+  /^### 3\. Create the ticket/ { step = 1 }
+  open && /^```$/ { exit }
+  open { print }
+  step && /^```sh$/ { open = 1 }
+' "$NEW_SKILL")"
+NEW_CARD_CREATE="${NEW_CARD_CREATE//<title>/a new card}"
+NEW_CARD_CREATE="${NEW_CARD_CREATE//<Type>/Feature}"
+NEW_CARD_CREATE="${NEW_CARD_CREATE//<column>/Ready for BR by AI}"
+NEW_CARD_CREATE="${NEW_CARD_CREATE//<EPIC-n>/EPIC-1}"
+NEW_CARD_CREATE="${NEW_CARD_CREATE//<body>/$'## Context\n\n### Task\nA new card.'}"
+
+printf "\nTest group: the heredoc create ticket:0:new prescribes runs before a ticket and a name exist\n"
+
+case "$NEW_CARD_CREATE" in
+  '"$HOME/.cockpit/scripts/board-card" create '*$'\n'*EOF)
+    printf "  OK  step 3 of ticket:0:new still holds a multi-line board-card create\n"
+    pass=$((pass + 1))
+    ;;
+  *)
+    printf "  KO  step 3 of ticket:0:new no longer holds a multi-line board-card create — got '%s'\n" "$NEW_CARD_CREATE"
+    fail=$((fail + 1))
+    ;;
+esac
+
+assert_decision "the ticket gate lets the heredoc create through" none "$TICKET_HOOK" "$NEW_CARD_CREATE"
+assert_decision "the rename gate lets the heredoc create through" none "$RENAME_HOOK" "$NEW_CARD_CREATE"
+
+printf "\nTest group: only the first line names the command\n"
+
+for hook in "$TICKET_HOOK" "$RENAME_HOOK"; do
+  assert_decision "$(basename "$hook") denies a write whose later line runs ticket-claim-lock" deny "$hook" \
+    "$(printf '%s\n%s' 'touch a-file' '"$HOME/.cockpit/scripts/ticket-claim-lock" FEAT-1')"
+  assert_decision "$(basename "$hook") denies a write whose later line runs board-card show" deny "$hook" \
+    "$(printf '%s\n%s' 'touch a-file' '"$HOME/.cockpit/scripts/board-card" show FEAT-1')"
+done
+
+printf "\nTest group: a line break keeps an intercepted script from approving another command\n"
+
+assert_decision "ticket-register on its own line is still approved" allow "$TICKET_HOOK" \
+  '"$HOME/.cockpit/scripts/ticket-register" FEAT-1'
+assert_decision "ticket-register followed by another line is not approved" none "$TICKET_HOOK" \
+  "$(printf '%s\n%s' '"$HOME/.cockpit/scripts/ticket-register" FEAT-1' 'touch a-file')"
+assert_decision "ticket-register after another line is not approved" none "$TICKET_HOOK" \
+  "$(printf '%s\n%s' 'touch a-file' '"$HOME/.cockpit/scripts/ticket-register" FEAT-1')"
+assert_decision "auto-rename on its own line is still approved" allow "$RENAME_HOOK" \
+  '"$HOME/.cockpit/scripts/auto-rename" "a name"'
+assert_decision "auto-rename followed by another line is not approved" none "$RENAME_HOOK" \
+  "$(printf '%s\n%s' '"$HOME/.cockpit/scripts/auto-rename" "a name"' 'touch a-file')"
+assert_decision "auto-rename after another line is not approved" none "$RENAME_HOOK" \
+  "$(printf '%s\n%s' 'touch a-file' '"$HOME/.cockpit/scripts/auto-rename" "a name"')"
+
+printf "\nTest group: an intercepted script is not approved when the command can run anything else\n"
+
+while IFS= read -r command; do
+  assert_decision "ticket-register is not approved for: $command" none "$TICKET_HOOK" "$command"
+done <<'COMMANDS'
+"$(touch a-file)$HOME/.cockpit/scripts/ticket-register" FEAT-1
+"$(touch${IFS}a-file)$HOME/.cockpit/scripts/ticket-register"
+"$HOME/.cockpit/scripts/ticket-register" "$(touch a-file)"
+"$HOME/.cockpit/scripts/ticket-register" "`touch a-file`"
+"$HOME/.cockpit/scripts/ticket-register" "it's"; touch a-file; echo "'"
+"$HOME/.cockpit/scripts/ticket-register" \"; touch a-file; echo \"
+"$HOME/.cockpit/scripts/ticket-register" $'\'' ; touch a-file ; \'
+"$HOME/.cockpit/scripts/ticket-register" FEAT-1 | tee a-file
+"$HOME/.cockpit/scripts/ticket-register-anything" FEAT-1
+/tmp/elsewhere.cockpit/scripts/ticket-register FEAT-1
+COMMANDS
+
+while IFS= read -r command; do
+  assert_decision "auto-rename is not approved for: $command" none "$RENAME_HOOK" "$command"
+done <<'COMMANDS'
+"$(touch a-file)$HOME/.cockpit/scripts/auto-rename" "a name"
+"$HOME/.cockpit/scripts/auto-rename" "$(touch a-file)"
+"$HOME/.cockpit/scripts/auto-rename" "${name:-$(touch a-file)}"
+"$HOME/.cockpit/scripts/auto-rename" "it's"; touch a-file; echo "'"
+"$HOME/.cockpit/scripts/auto-rename" \"; touch a-file; echo \"
+"$HOME/.cockpit/scripts/auto-rename" $'\'' ; touch a-file ; \'
+/tmp/elsewhere.cockpit/scripts/auto-rename "a name"
+COMMANDS
+
+assert_decision "ticket-register-column on its own is still approved" allow "$TICKET_HOOK" \
+  '"$HOME/.cockpit/scripts/ticket-register-column" "In Dev"'
+assert_decision "ticket-register-type on its own is still approved" allow "$TICKET_HOOK" \
+  '"$HOME/.cockpit/scripts/ticket-register-type" ticket "[board] a name" feature'
+assert_decision "auto-rename with an apostrophe in the name is still approved" allow "$RENAME_HOOK" \
+  "\"\$HOME/.cockpit/scripts/auto-rename\" \"[board] a card's name\""
+assert_decision "auto-rename with a single-quoted name is still approved" allow "$RENAME_HOOK" \
+  "\"\$HOME/.cockpit/scripts/auto-rename\" '[board] a name'"
+
+printf "\nTest group: a script let through before registration runs nothing else\n"
+
+for hook in "$TICKET_HOOK" "$RENAME_HOOK"; do
+  while IFS= read -r command; do
+    assert_decision "$(basename "$hook") denies: $command" deny "$hook" "$command"
+  done <<'COMMANDS'
+"$HOME/.cockpit/scripts/board-card" show FEAT-1 && touch a-file
+"$HOME/.cockpit/scripts/ticket-waiting-cards"; echo "EXIT=$?"
+"$(touch a-file)$HOME/.cockpit/scripts/board-card" show FEAT-1
+"$HOME/.cockpit/scripts/board-card" show "$(touch a-file)"
+("$HOME/.cockpit/scripts/board-card" show FEAT-1)
+"$HOME/.cockpit/scripts/board-card" list --json | xargs rm
+"$HOME/.cockpit/scripts/board-card" list --json | jq . > a-file
+"$HOME/.cockpit/scripts/ticket-claim-lock" take abc123 > a-file
+COMMANDS
+  assert_decision "$(basename "$hook") denies a second line after a cross-allowed script" deny "$hook" \
+    "$(printf '%s\n%s' '"$HOME/.cockpit/scripts/board-card" show FEAT-1' 'touch a-file')"
+  assert_decision "$(basename "$hook") denies a write after a quoted argument that spans lines" deny "$hook" \
+    "$(printf '%s\n%s' '"$HOME/.cockpit/scripts/board-card" show "FEAT-1' '"; touch a-file')"
+  assert_decision "$(basename "$hook") denies a comment that hides a second line" deny "$hook" \
+    "$(printf '%s\n%s\n%s' "\"\$HOME/.cockpit/scripts/board-card\" show FEAT-1 #'" 'touch a-file' "'")"
+  assert_decision "$(basename "$hook") denies a command after the heredoc closes" deny "$hook" \
+    "$(printf '%s\n%s\n%s\n%s' "\"\$HOME/.cockpit/scripts/board-card\" create --name x --body - <<'EOF'" '## Context' 'EOF' 'touch a-file')"
+  assert_decision "$(basename "$hook") denies a heredoc whose body is expanded" deny "$hook" \
+    "$(printf '%s\n%s\n%s' '"$HOME/.cockpit/scripts/board-card" create --name x --body - <<EOF' '$(touch a-file)' 'EOF')"
+  assert_decision "$(basename "$hook") denies a delimiter that runs on past its quotes" deny "$hook" \
+    "$(printf '%s\n%s\n%s\n%s' "\"\$HOME/.cockpit/scripts/board-card\" create --name x --body - <<'EOF'x" 'EOF' 'touch a-file' 'EOFx')"
+  assert_decision "$(basename "$hook") lets board-card list through a pipe into jq" none "$hook" \
+    "\"\$HOME/.cockpit/scripts/board-card\" list --json | jq -r '.[] | \"\\(.id)\"'"
+  assert_decision "$(basename "$hook") lets a create with a body that spans lines through" none "$hook" \
+    "$(printf '%s\n%s' '"$HOME/.cockpit/scripts/board-card" create --name x --body "## Context' 'A new card."')"
+done
+
+EPIC_SKILL="$(cd "$(dirname "$0")/../../.." && pwd)/skills/epic:0:register/SKILL.md"
+EPIC_CARD_CREATE="$(awk '
+  /^4\. Create each ticket/ { step = 1 }
+  open && /^ *```$/ { exit }
+  open { print }
+  step && /^ *```sh$/ { open = 1 }
+' "$EPIC_SKILL")"
+EPIC_CARD_CREATE="${EPIC_CARD_CREATE//<title>/a new card}"
+EPIC_CARD_CREATE="${EPIC_CARD_CREATE//<Feature|Timebox>/Feature}"
+EPIC_CARD_CREATE="${EPIC_CARD_CREATE//<epic-id>/EPIC-1}"
+EPIC_CARD_CREATE="${EPIC_CARD_CREATE//<description>/A new card.}"
+
+printf "\nTest group: the indented heredoc create epic:0:register prescribes runs before a ticket and a name exist\n"
+
+case "$EPIC_CARD_CREATE" in
+  *'"$HOME/.cockpit/scripts/board-card" create '*$'\n'*EOF)
+    printf "  OK  step 4 of epic:0:register still holds a multi-line board-card create\n"
+    pass=$((pass + 1))
+    ;;
+  *)
+    printf "  KO  step 4 of epic:0:register no longer holds a multi-line board-card create — got '%s'\n" "$EPIC_CARD_CREATE"
+    fail=$((fail + 1))
+    ;;
+esac
+
+for hook in "$TICKET_HOOK" "$RENAME_HOOK"; do
+  assert_decision "$(basename "$hook") lets it through as indented in the skill" none "$hook" "$EPIC_CARD_CREATE"
+  assert_decision "$(basename "$hook") lets it through with the indent taken off" none "$hook" \
+    "$(printf '%s\n' "$EPIC_CARD_CREATE" | sed 's/^   //')"
+done
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -1,24 +1,18 @@
 ---
 name: ticket:0:new
-description: Create a new cockpit ticket with body content. The single creation path for all cockpit tickets - called directly for scope drift / follow-ups, or delegated to by the register skill for stubs.
+description: Create a new cockpit ticket with body content. The single creation path for all cockpit tickets - called directly for scope drift / follow-ups, or delegated to by the register skill.
 ---
 
 # raise-ticket
 
-The single creation path for cockpit tickets. Every code path that needs a new ticket page goes through this skill so body content is always included.
+The single creation path for cockpit tickets. Every code path that needs a new ticket goes through this skill so body content is always included.
 
 Two calling contexts:
 
-- **From a session** (scope drift, follow-up, bounce-back): the session stays bound to its existing ticket. This skill creates the stub and reports.
-- **From the register skill** (cases 2 and 3): title, type, epic, user ID, and optional source URL are already resolved. This skill creates the page with body content and returns the URL for registration.
+- **From a session** (scope drift, follow-up, bounce-back): the session stays bound to its existing ticket. This skill creates the ticket and reports.
+- **From the register skill** (case 3): title, type and epic are already resolved. This skill creates the ticket with body content and returns its id for registration.
 
-Read `~/.claude-shared/templates/notion-writing.md` before writing to the page.
-
-## Board constants
-
-Read each with `"$HOME/.cockpit/scripts/cockpit-board-id" get <key>`, following `~/.claude-shared/templates/board-ids.md`.
-
-This skill needs: `tickets-data-source`, `epics-data-source`. Both are read for the board step 3.6 resolves, which is this checkout's own unless the ask named another.
+Read `~/.claude-shared/templates/ticket-page.md` before writing the body.
 
 ## Workflow
 
@@ -31,123 +25,72 @@ Accept the concern as the skill argument (free text describing the new task). If
 
 Infer a ticket title from the concern: succinct, the outcome not an instruction.
 
-**From register:** title, type, epic, user ID, and optional source URL are already resolved - use them directly.
+**From register:** title, type and epic are already resolved - use them directly.
 
-### 2. Resolve the connected user
+### 2. Resolve the epic
 
-Run `"$HOME/.cockpit/scripts/cockpit-cache-query" user-id`. A non-zero exit means the cache is missing or has no such key - call `notion-fetch` with `id: "self"` to get the user ID instead.
+Read the current session's ticket id from `~/.local/state/claude-ticket-sessions/<session_id>.ticket` with the Read tool, then its epic with `"$HOME/.cockpit/scripts/board-card" show <ticket-id> Epic`. Read that epic's status the way the register skill's epic gate does - its line in `"$HOME/.cockpit/scripts/board-card" list --kind epic`, no epic record read on its own. Default to the same epic unless its status is `Epic Done`, in which case pick from the open epics in that listing by the rule below and say on the new ticket which epic had closed.
 
-**From register:** user ID is already resolved - skip.
+If the concern clearly belongs to a different epic, pick the closest match among the open epics in that listing and post what decided it on the new ticket - never ask.
 
-### 3. Resolve the epic
+With no session ticket to take an epic from, pick the closest match among the open epics and post what decided it on the new ticket - never ask. Every ticket has an epic, so `board-card create` refuses one without `--epic`.
 
-Fetch the current session's ticket (the one registered via `/cockpit:ticket:register`) and read its `Epic` relation, then read that epic's status the way the register skill's epic gate does - `"$HOME/.cockpit/scripts/cockpit-cache-query" epic-statuses`, no page fetch. Default to the same epic unless its status is `Epic Done`, in which case pick from `epics` by the rule below and say on the new ticket which epic had closed.
-
-If the concern clearly belongs to a different epic, search the cockpit cache via `"$HOME/.cockpit/scripts/cockpit-cache-query" epics` for a match - it returns open epics only. Pick the closest match and post what decided it on the new ticket - never ask.
+When no open epic fits a bug, a timebox or an improvement to finished work, it goes under its project's maintenance epic for the month instead of the closest match: run `"$HOME/.cockpit/scripts/board-card" maintenance <PRJ-n>` for the project the work belongs to - the project of the session ticket's epic, or with no session ticket the closest open epic's, read with `"$HOME/.cockpit/scripts/board-card" show <EPIC-n> Project` - and use the id it prints. Feature work that fits no open epic still goes under the closest match. Post what decided it on the new ticket either way - never ask.
 
 Same-project siblings follow the epic gate's rule: pick by the kind of work (diff on the product → dev epic, reporting or process → delivery epic), never by the closer name.
 
 **From register:** epic is resolved by register's epic gate - skip.
 
-### 3.5. Detect cross-board context (from a session only)
+### 3. Create the ticket with body content
 
-Check whether the session's registered ticket is cross-board by reading `~/.local/state/claude-ticket-sessions/<session_id>.source-ticket`. If this file exists:
+Every ticket is created with a non-empty body. Never create one without it.
 
-1. Look up the source board's data source URL by running `"$HOME/.cockpit/scripts/cockpit-cache-query" project-boards`. Use the `collection://` URL from the registered session's source ticket.
-2. Create a page on the source board via `notion-create-pages`:
-   - `Name`: the inferred title (from step 1).
-   - Icon: a fitting emoji.
-   - `Status`: the first status in the source board's cached `statuses` list.
-3. Note the new source page URL - step 4 will use it as `Source Ticket URL`.
+```sh
+"$HOME/.cockpit/scripts/board-card" create --name "<title>" --type <Type> --status "<column>" --epic <EPIC-n> --body - <<'EOF'
+<body>
+EOF
+```
 
-If the source-ticket file does not exist, the session is not cross-board - skip to step 4.
+It prints the new ticket id, its epic's project's key and its number in that project, such as `COC-12`. It refuses a ticket whose epic's project has no key yet: name that project and stop, since giving a project its key is the person's call.
 
-**From register:** skip - register handles source ticket URL directly.
-
-### 3.6. Resolve the board the ticket is created on
-
-The board serving this checkout is the default, and nothing is asked for it. A board named in the ask overrides it - "raise a cockpit ticket" from a project session means the Cockpit board.
-
-Run `"$HOME/.cockpit/scripts/cockpit-board-id" boards`. It prints one configured board name per line. Match those names against the words of the ask, case insensitively.
-
-A match is the board, and every id below is read with that name as the third argument. No match leaves the checkout's own board standing. Two names matched is the one case to ask about, naming both.
-
-### 4. Create the stub with body content
-
-Create a page in the Tickets data source via `notion-create-pages`. The call MUST include both properties AND a non-empty `content` field. Never create a ticket page without body content.
-
-**Properties:**
-
-- `Name`: the inferred title.
-- Icon: a fitting emoji.
-- `Status`: depends on the calling context. On a board the ask named over this checkout's, the first status that board carries: run `"$HOME/.cockpit/scripts/cockpit-cache-query" project-boards`, find the entry keyed by that board's `tickets-data-source`, and take the first of its `statuses`.
+- `--name`: the inferred title.
+- `--status`: depends on the calling context.
   - **From a session** (scope drift, follow-up, bounce-back next step): `Backlog`. The ticket is captured, not committed to refinement - only a human pull moves it on.
-  - **From the register skill** (cases 2 and 3): `Ready for BR by AI`. That session starts work on the ticket immediately, so it is committed by definition.
-- `Assignee`: the connected user's ID (from step 2).
-- `Epic`: the resolved epic URL (from step 3), and only when step 3.6 left the checkout's own board standing. Another board keeps its own epics, and an id from this one is refused by the creation call.
-- `Type`: `Feature` by default. Use `Bug` when the concern is a regression in delivered functionality - behavior that contradicts the validation steps of a Done ticket. Use `Timebox` only when the concern is explicitly time-bounded.
-- `Source Ticket URL`: the source URL when present (register case 2).
+  - **From the register skill** (case 3): `Ready for BR by AI`. That session starts work on the ticket immediately, so it is committed by definition.
+- `--epic`: the resolved epic id (from step 2).
+- `--type`: `Feature` by default. Use `Bug` when the concern is a regression in delivered functionality - behavior that contradicts the validation steps of a Done ticket. Use `Timebox` only when the concern is explicitly time-bounded.
 
-**Content** - a `## Context` toggle with enough detail for a fresh session to start without asking questions. Template varies by calling context:
+**Body** - a `## Context` section with enough detail for a fresh session to start without asking questions. Template varies by calling context:
 
 **From a session** (handoff):
 
-```
+```markdown
 ## Context
 
-<details>
-<summary>Handoff from [origin ticket name]</summary>
-	**Origin:** [origin ticket URL]
-	**Reason:** [scope drift / follow-up / bounce-back next step]
-	**What:** [description of the concern]
-	**Session context:** [relevant details from the current session that the new session needs]
-</details>
+### Handoff from [origin ticket name]
+
+- **Origin:** [origin ticket id]
+- **Reason:** [scope drift / follow-up / bounce-back next step]
+- **What:** [description of the concern]
+- **Session context:** [relevant details from the current session that the new session needs]
 ```
 
-**From a session (cross-board split)** - when step 3.5 created a source board page, use this template instead of the standard handoff:
+**From register** (quick-capture):
 
-```
+```markdown
 ## Context
 
-<details>
-<summary>Handoff from [origin ticket name]</summary>
-	**Origin:** [origin ticket URL]
-	**Source ticket:** [new source board page URL from step 3.5]
-	**Reason:** [scope drift / follow-up / bounce-back next step]
-	**What:** [description of the concern]
-	**Session context:** [relevant details from the current session that the new session needs]
-</details>
-```
+### Task
 
-**From register with source URL** (cross-board stub):
-
-```
-## Context
-
-<details>
-<summary>Source</summary>
-	**Source ticket:** [source ticket URL]
-	**What:** [source ticket title or description]
-</details>
-```
-
-**From register without source URL** (quick-capture):
-
-```
-## Context
-
-<details>
-<summary>Task</summary>
-	**What:** [the task description]
-</details>
+- **What:** [the task description]
 ```
 
 Keep content concise - enough to orient a new session, not a full specification.
 
-### 5. Report
+### 4. Report
 
 Report:
 
-- The new ticket's URL and title.
+- The new ticket's id and title.
 - **From a session:** that the current session remains on its original ticket (no registration change).
-- **From register:** just the URL (register handles the rest).
+- **From register:** just the id (register handles the rest).

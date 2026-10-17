@@ -140,7 +140,7 @@ printf "\nTest group: the plugin reads the shared root and nothing reads back\n"
 
 reads_the_plugin="$(grep --recursive --line-number --extended-regexp \
   '(COCKPIT_PLUGIN_DIR|\$HOME/\.cockpit|~/\.cockpit)' \
-  "$REPO/agents/claude" --exclude-dir=tests --exclude-dir=skills --exclude-dir=templates --exclude-dir=settings --exclude-dir=claude-md 2>/dev/null || true)"
+  "$REPO/agents/claude" --exclude-dir=tests --exclude-dir=skills --exclude-dir=templates --exclude-dir=settings --exclude-dir=claude-md --exclude-dir=launch-agents 2>/dev/null || true)"
 
 assert_eq "no script in the shared root reaches into the plugin" "" "$reads_the_plugin"
 

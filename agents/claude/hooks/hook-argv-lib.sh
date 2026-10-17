@@ -90,26 +90,161 @@ hook_is_readonly_bash() {
     }'
 }
 
-# hook_is_cockpit_claim <hook-input-json>
-#
-# True when the tool call is the cockpit ticket claim: an `update_properties`
-# call on notion-update-page writing nothing but `Agent: Session Id` and
-# `Assignee`. That write is how `cockpit:ticket:0:copilot` takes a waiting card,
-# and it necessarily happens before the session has a ticket or a name — the
-# whole point is to find out which ticket this session is on. Both gates
-# therefore have to let it through, in the same narrow way they already let
-# notion-create-pages bootstrap a stub.
-#
-# Narrow is the safeguard: any other property in the same call, or any other
-# command, falls through to the normal deny. jq is required to read the
-# property map; without it the claim is simply not recognised and the gate
-# holds, which is the safe direction.
-hook_is_cockpit_claim() {
-  command -v jq >/dev/null 2>&1 || return 1
-  printf '%s' "$1" | jq -e '
-    .tool_input.command == "update_properties"
-    and (.tool_input.properties | type) == "object"
-    and (.tool_input.properties | keys - ["Agent: Session Id", "Assignee"] | length) == 0
-    and (.tool_input.properties | length) > 0
-  ' >/dev/null 2>&1
+hook_heredoc_body() {
+  printf '%s\n' "$1" | awk '
+    !opened && /<<-?[[:space:]]*[\047"]?[A-Za-z_][A-Za-z_0-9]*[\047"]?/ && !/<<</ {
+      line = $0
+      sub(/^.*<</, "", line)
+      strip = (substr(line, 1, 1) == "-")
+      if (strip) line = substr(line, 2)
+      sub(/^[[:space:]]*/, "", line)
+      match(line, /^[\047"]?[A-Za-z_][A-Za-z_0-9]*/)
+      delimiter = substr(line, RSTART, RLENGTH)
+      gsub(/[\047"]/, "", delimiter)
+      opened = 1
+      next
+    }
+    opened && !closed {
+      body = $0
+      if (strip) sub(/^\t+/, "", body)
+      if (body == delimiter) { closed = 1; next }
+      print body
+      found = 1
+    }
+    !opened && !herestring && /<<</ {
+      line = $0
+      sub(/^.*<<<[[:space:]]*/, "", line)
+      herestring = line
+    }
+    END {
+      if (!found && herestring != "") {
+        quote = substr(herestring, 1, 1)
+        if (quote == "\047" || quote == "\"") {
+          herestring = substr(herestring, 2)
+          end = index(herestring, quote)
+          if (end > 0) herestring = substr(herestring, 1, end - 1)
+        }
+        print herestring
+      }
+    }'
+}
+
+hook_sole_invocation_words() {
+  printf '%s' "$2" | awk -v mode="$1" -v readers="$HOOK_READONLY_CMDS" '
+    function close_word(  name) {
+      if (!inword) return
+      if (segment == 1) words[++count] = word
+      else if (reader_due) {
+        name = word
+        sub(/^.*\//, "", name)
+        if (!(name in reader)) exit 1
+        reader_due = 0
+      }
+      word = ""
+      inword = 0
+    }
+    { s = s (NR > 1 ? "\n" : "") $0 }
+    END {
+      split(readers, list, " ")
+      for (j in list) reader[list[j]] = 1
+      if (mode == "approve" && index(s, "\n")) exit 1
+      n = length(s)
+      i = 1
+      segment = 1
+      while (i <= n) {
+        c = substr(s, i, 1)
+        two = substr(s, i, 2)
+        if (quote == "\047") {
+          if (c == "\047") quote = ""; else word = word c
+          i++
+          continue
+        }
+        if (c == "\\" || c == "`" || two == "$(") exit 1
+        if (two == "${") {
+          if (!match(substr(s, i), /^\$\{[A-Za-z_][A-Za-z0-9_]*\}/)) exit 1
+          word = word substr(s, i, RLENGTH)
+          inword = 1
+          i += RLENGTH
+          continue
+        }
+        if (quote == "\"") {
+          if (c == "\"") quote = ""; else word = word c
+          i++
+          continue
+        }
+        if (two == "$\047" || (c == "#" && !inword)) exit 1
+        if (c == "\047" || c == "\"") {
+          quote = c
+          inword = 1
+          i++
+          continue
+        }
+        if (c == " " || c == "\t") {
+          close_word()
+          i++
+          continue
+        }
+        if (c == "\n") {
+          close_word()
+          i++
+          if (delimiter != "") {
+            while (i <= n) {
+              line_end = index(substr(s, i), "\n")
+              line = line_end ? substr(s, i, line_end - 1) : substr(s, i)
+              i = line_end ? i + line_end : n + 1
+              if (strip) sub(/^\t+/, "", line)
+              if (line == delimiter) break
+            }
+            delimiter = ""
+          }
+          if (substr(s, i) !~ /^[ \t\n]*$/) exit 1
+          break
+        }
+        if (mode == "let-through" && c == "|") {
+          after = substr(s, i + 1, 1)
+          if (after == "|" || after == "&") exit 1
+          close_word()
+          if (count == 0 || reader_due) exit 1
+          segment++
+          reader_due = 1
+          i++
+          continue
+        }
+        if (mode == "let-through" && two == "<<" && !heredoc) {
+          close_word()
+          i += 2
+          if (substr(s, i, 1) == "-") {
+            strip = 1
+            i++
+          }
+          while (substr(s, i, 1) == " " || substr(s, i, 1) == "\t") i++
+          if (!match(substr(s, i), /^\047[A-Za-z_][A-Za-z0-9_]*\047/) && !match(substr(s, i), /^"[A-Za-z_][A-Za-z0-9_]*"/)) exit 1
+          delimiter = substr(s, i + 1, RLENGTH - 2)
+          heredoc = 1
+          i += RLENGTH
+          after = substr(s, i, 1)
+          if (after != "" && after != " " && after != "\t" && after != "\n" && after != "|") exit 1
+          continue
+        }
+        if (index(";&|<>()", c)) exit 1
+        word = word c
+        inword = 1
+        i++
+      }
+      if (quote != "") exit 1
+      close_word()
+      if (reader_due) exit 1
+      for (j = 1; j <= count; j++) print words[j]
+    }'
+}
+
+hook_word_names_home_script() {
+  local word="$1" directory="$2" name
+  shift 2
+  for name in "$@"; do
+    case "$word" in
+      "\$HOME/$directory/$name" | "\${HOME}/$directory/$name" | "~/$directory/$name" | "$HOME/$directory/$name") return 0 ;;
+    esac
+  done
+  return 1
 }

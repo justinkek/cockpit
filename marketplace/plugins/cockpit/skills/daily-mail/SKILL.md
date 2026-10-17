@@ -5,28 +5,27 @@ description: Generate a copy-pasteable daily status email from the cockpit sprin
 
 # Daily Mail
 
-Generate a copy-pasteable daily status email in the team's standardised format by querying the cockpit sprint board for current ticket state.
+Generate a copy-pasteable daily status email in the team's standardised format by reading the cockpit sprint board for current ticket state.
 
 ## Board constants
 
-- Board ids - read with `"$HOME/.cockpit/scripts/cockpit-board-id" get <key>`, following `~/.claude-shared/templates/board-ids.md`. This skill needs `tickets-data-source`.
 - Sprint statuses (tickets on the Sprint Board): `Sprint Backlog`, `Daily Plan`, `In Dev`, `In CR by AI`, `Ready for CR`, `In CR`, `Ready for FR`, `In FR`, `Ready for Validation`
 
 ## Workflow
 
-### 1. Query sprint tickets
+### 1. Read sprint tickets
 
-Query the Tickets data source for all tickets whose `Status` is one of the sprint statuses listed above. Select `Name`, `Status`, `Blocked`, `Assignee`, and `Type`.
+```sh
+"$HOME/.cockpit/scripts/board-card" list --json
+```
 
-If the query limit is hit, fall back to `notion-fetch` on the Tickets data source and say in the mail which sprint could not be determined, naming what was found instead. A mail that names its gap can still be sent.
+Keep the tickets whose `status` is one of the sprint statuses listed above, and read `name`, `status`, `blocked`, `due`, `overrunning`, `days_in_column` and `type` off each. `board-card` works out `overrunning` and `days_in_column` as it reads, so take them as it gives them and never work either out from the card's dates.
 
-Group tickets by `Status` column.
+Group tickets by `status`.
 
 ### 2. Detect blockers
 
-From the query results, find tickets where `Blocked` equals `"Blocked"`.
-
-For each blocked ticket, fetch its page and look for the most recent `notion-get-comments` entry that starts with `**Blocked:**`. Extract the one-line blocker summary from that comment.
+A ticket is blocked when its `blocked` field is set. The field holds the blocker reason, so that is the one-line summary - nothing else is read for it.
 
 If no blocked tickets exist, the Dependencies section will say "No blockers."
 
@@ -34,11 +33,11 @@ If no blocked tickets exist, the Dependencies section will say "No blockers."
 
 Use these heuristics on the sprint board state:
 
-- **🔴 Blocked** — any ticket has `Blocked` = `"Blocked"`.
-- **🟠 Off track** — no blocked tickets, but any ticket has `Overrunning` that evaluates to a truthy value (the formula flags tickets that have been in their current column longer than expected).
+- **🔴 Blocked** — any ticket has `blocked` set.
+- **🟠 Off track** — no blocked tickets, but any ticket is `overrunning` or has a `due` date before today.
 - **🟢 On track** — neither of the above.
 
-Include a one-line explanation after the traffic light emoji.
+Include a one-line explanation after the traffic light emoji. For 🟠, it names each ticket that put the light there, with its `days_in_column` in working days for a ticket that is `overrunning`, or its `due` date for one that is past it.
 
 ### 4. Format output
 
@@ -50,7 +49,7 @@ Template:
 Happy <day of week> team!
 
 *Dependencies*
-<for each blocked ticket: "- [ticket name]: [blocker summary from comment]">
+<for each blocked ticket: "- [ticket name]: [blocker summary]">
 <if none: "No blockers.">
 
 *Status Update*

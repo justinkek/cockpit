@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
+export CLAUDE_SHARED_DIR="$(cd "$(dirname "$0")/../../../../../../agents/claude" && pwd)"
+
 SCRIPT="$(cd "$(dirname "$0")/../.." && pwd)/ticket-waiting-cards"
+BOARD_CARD="$(cd "$(dirname "$0")/../.." && pwd)/board-card"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -29,114 +32,123 @@ assert_contains() {
   fi
 }
 
-BIN="$TMPDIR/bin"
 STATE_DIR="$TMPDIR/state"
-mkdir -p "$BIN" "$STATE_DIR"
+mkdir -p "$STATE_DIR"
+export COCKPIT_BOARD_DIR="$TMPDIR/board"
+"$BOARD_CARD" init >/dev/null
+"$BOARD_CARD" create --kind project --name Home --key HOM >/dev/null
+"$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
 
-BOARDS="$TMPDIR/cockpit-boards.json"
-cat > "$BOARDS" <<JSON
-{"boards":[{"name":"Cockpit","ids":{"tickets-database":"db-cockpit"},"view_id":"","repos":["$TMPDIR"]}]}
-JSON
-
-cat > "$BIN/security" <<'STUB'
-#!/usr/bin/env bash
-printf 'stub-token\n'
-STUB
-
-# Serve the fixture board response and record the request body, so the filter
-# under --claimed-by can be asserted too.
-cat > "$BIN/curl" <<STUB
-#!/usr/bin/env bash
-config="\$(cat)"
-printf '%s\n' "\$config" >> "$TMPDIR/requests"
-body="\$(printf '%s\n' "\$config" | sed -n 's/^data = "@\(.*\)"\$/\1/p')"
-[ -z "\$body" ] || cat "\$body" >> "$TMPDIR/bodies"
-cat "$TMPDIR/response.json"
-STUB
-
-chmod +x "$BIN/security" "$BIN/curl"
-
-# One card per claim case. Ages are relative so the fixture never goes stale.
 now="$(date -u +%s)"
 old_claim="$(TZ=UTC date -u -r "$((now - 7200))" +%Y-%m-%dT%H:%M:%SZ)"
 fresh_claim="$(TZ=UTC date -u -r "$((now - 600))" +%Y-%m-%dT%H:%M:%SZ)"
 
-cat > "$TMPDIR/response.json" <<JSON
-{"results":[
- {"id":"page-beating","properties":{
-   "Status":{"status":{"name":"Ready for TR by AI"}},
-   "Agent: Session Id":{"rich_text":[{"plain_text":"sess-beating @ $old_claim"}]},
-   "Name":{"title":[{"plain_text":"held by a live session"}]}}},
- {"id":"page-dead","properties":{
-   "Status":{"status":{"name":"Ready for TR by AI"}},
-   "Agent: Session Id":{"rich_text":[{"plain_text":"sess-dead @ $old_claim"}]},
-   "Name":{"title":[{"plain_text":"held by a session that went away"}]}}},
- {"id":"page-recent","properties":{
-   "Status":{"status":{"name":"Ready for BR by AI"}},
-   "Agent: Session Id":{"rich_text":[{"plain_text":"sess-elsewhere @ $fresh_claim"}]},
-   "Name":{"title":[{"plain_text":"claimed minutes ago, no beat here"}]}}},
- {"id":"page-free","properties":{
-   "Status":{"status":{"name":"Ready for BR by AI"}},
-   "Agent: Session Id":{"rich_text":[]},
-   "Name":{"title":[{"plain_text":"unclaimed"}]}}}
-]}
-JSON
+card() {
+  local status="$1" name="$2" session="$3" claimed_at="$4" id
+  id="$("$BOARD_CARD" create --epic EPIC-1 --name "$name" --status "$status")"
+  if [ -n "$session" ]; then
+    "$BOARD_CARD" set "$id" session "$session" >/dev/null
+    perl -pi -e "s/^claimed_at: .*/claimed_at: \"$claimed_at\"/" "$("$BOARD_CARD" path "$id")"
+  fi
+  printf '%s\n' "$id"
+}
 
-# Only one session is beating. The other two have no heartbeat file at all,
-# which is what a session that died looks like.
+beating="$(card "Ready for TR by AI" "held by a live session" sess-beating "$old_claim")"
+dead="$(card "Ready for TR by AI" "held by a session that went away" sess-dead "$old_claim")"
+recent="$(card "Ready for BR by AI" "claimed minutes ago, no beat here" sess-elsewhere "$fresh_claim")"
+free="$(card "Ready for BR by AI" "unclaimed" "" "")"
+mid_br="$(card "In BR by AI" "left mid-BR" "" "")"
+mid_tr="$(card "In TR by AI" "left mid-TR" "" "")"
+in_dev="$(card "In Dev" "held mid-dev" sess-beating "$old_claim")"
+person="$(card "In BR" "a person is reviewing it" sess-beating "$old_claim")"
+backlog="$(card "Backlog" "not yet" "" "")"
+blocked="$(card "Ready for BR by AI" "waiting on an answer" "" "")"
+"$BOARD_CARD" set "$blocked" blocked "waiting on the person" >/dev/null
+blocked_held="$(card "In Dev" "blocked mid-dev" sess-beating "$old_claim")"
+"$BOARD_CARD" set "$blocked_held" blocked "waiting on the person" >/dev/null
+
 touch "$STATE_DIR/sess-beating.alive"
 
 run_cards() {
-  : > "$TMPDIR/requests"
-  : > "$TMPDIR/bodies"
-  PATH="$BIN:$PATH" \
-  COCKPIT_BOARDS_FILE="$BOARDS" \
-  COCKPIT_REPO="$TMPDIR" \
-  TICKET_STATE_DIR="$STATE_DIR" \
-    bash "$SCRIPT" "$@" 2>&1
+  TICKET_STATE_DIR="$STATE_DIR" bash "$SCRIPT" "$@" 2>&1
 }
 
 verdict_for() {
-  printf '%s\n' "$1" | awk -F'\t' -v p="$2" '$2 == p { print $6 }'
+  printf '%s\n' "$1" | awk -F'\t' -v card="$2" '$1 == card { print $5 }'
+}
+
+listed() {
+  printf '%s\n' "$1" | awk -F'\t' -v card="$2" '$1 == card { found = 1 } END { print found ? "listed" : "absent" }'
 }
 
 output="$(run_cards)"
 
 printf "Test group: the verdict on each kind of claim\n"
 
-assert_eq "a beating session keeps its claim" "live" "$(verdict_for "$output" page-beating)"
-assert_eq "no beat and an old claim is expirable" "stale" "$(verdict_for "$output" page-dead)"
-assert_eq "no beat but a claim under an hour old is left alone" "live" \
-  "$(verdict_for "$output" page-recent)"
-assert_eq "an empty claim has no verdict to give" "-" "$(verdict_for "$output" page-free)"
+assert_eq "a beating session keeps its claim" "live" "$(verdict_for "$output" "$beating")"
+assert_eq "no beat and an old claim is expirable" "stale" "$(verdict_for "$output" "$dead")"
+assert_eq "no beat but a claim under an hour old is left alone" "live" "$(verdict_for "$output" "$recent")"
+assert_eq "an empty claim has no verdict to give" "-" "$(verdict_for "$output" "$free")"
 
-printf "\nTest group: the five fields before it keep their positions\n"
+printf "\nTest group: the four fields before it keep their positions\n"
 
-line="$(printf '%s\n' "$output" | awk -F'\t' '$2 == "page-beating"')"
-assert_eq "board is still first" "Cockpit" "$(printf '%s' "$line" | cut -f1)"
-assert_eq "status is still third" "Ready for TR by AI" "$(printf '%s' "$line" | cut -f3)"
-assert_contains "claim is still fourth" "sess-beating @" "$(printf '%s' "$line" | cut -f4)"
-assert_eq "name is still fifth" "held by a live session" "$(printf '%s' "$line" | cut -f5)"
-assert_eq "six fields, no more" "6" "$(printf '%s' "$line" | awk -F'\t' '{print NF}')"
+line="$(printf '%s\n' "$output" | awk -F'\t' -v card="$beating" '$1 == card')"
+assert_eq "the card id is first" "$beating" "$(printf '%s' "$line" | cut -f1)"
+assert_eq "status is second" "Ready for TR by AI" "$(printf '%s' "$line" | cut -f2)"
+assert_eq "claim is the session and when it claimed" "sess-beating $old_claim" "$(printf '%s' "$line" | cut -f3)"
+assert_eq "name is fourth" "held by a live session" "$(printf '%s' "$line" | cut -f4)"
+assert_eq "five fields, no more" "5" "$(printf '%s' "$line" | awk -F'\t' '{print NF}')"
 
-printf "\nTest group: the bare query covers the columns an abandoned card sits in\n"
+printf "\nTest group: cards come in pick order\n"
 
-bodies="$(cat "$TMPDIR/bodies")"
-assert_contains "a card left mid-BR is a candidate" '"In BR by AI"' "$bodies"
-assert_contains "a card left mid-TR is a candidate" '"In TR by AI"' "$bodies"
+assert_eq "with no rank the newest card comes first" "$in_dev" "$(printf '%s\n' "$output" | head -1 | cut -f1)"
+"$BOARD_CARD" set "$dead" rank -100 >/dev/null
+"$BOARD_CARD" set "$free" rank -50 >/dev/null
+ranked="$(run_cards | cut -f1 | head -2 | paste -sd ' ' -)"
+assert_eq "a ranked card comes before the rest, lowest rank first" "$dead $free" "$ranked"
 
-printf "\nTest group: --claimed-by asks a different question of the board\n"
+printf "\nTest group: an urgent card comes first, then each epic's cards in the epic's priority\n"
+
+"$BOARD_CARD" create --kind epic --project PRJ-1 --name "Lower priority" >/dev/null
+later="$("$BOARD_CARD" create --epic EPIC-2 --name "in the lower epic" --status "Ready for BR by AI")"
+"$BOARD_CARD" set "$later" rank -1000 >/dev/null
+assert_eq "a card in a lower epic comes after every card in a higher one, whatever its own rank" "$later" "$(run_cards | tail -1 | cut -f1)"
+"$BOARD_CARD" set EPIC-2 rank 0 >/dev/null
+assert_eq "and moves ahead of them once its epic does" "$later" "$(run_cards | head -1 | cut -f1)"
+"$BOARD_CARD" set "$mid_tr" urgent true >/dev/null
+assert_eq "an urgent card comes before them all" "$mid_tr $later" "$(run_cards | head -2 | cut -f1 | paste -sd ' ' -)"
+"$BOARD_CARD" set "$mid_tr" urgent "" >/dev/null
+perl -pi -e 's/^epic: .*/epic: null/' "$("$BOARD_CARD" path "$free")"
+assert_eq "a card with no epic comes after every epic's cards" "$free" "$(run_cards | tail -1 | cut -f1)"
+"$BOARD_CARD" set "$free" epic EPIC-1 >/dev/null
+"$BOARD_CARD" set EPIC-2 rank 2 >/dev/null
+
+printf "\nTest group: the bare listing covers the columns an abandoned card sits in\n"
+
+assert_eq "a card left mid-BR is a candidate" "listed" "$(listed "$output" "$mid_br")"
+assert_eq "a card left mid-TR is a candidate" "listed" "$(listed "$output" "$mid_tr")"
+assert_eq "an In Dev card is a candidate" "listed" "$(listed "$output" "$in_dev")"
+assert_eq "a card a person is reviewing is not" "absent" "$(listed "$output" "$person")"
+assert_eq "a backlog card is not" "absent" "$(listed "$output" "$backlog")"
+assert_eq "a blocked card is not, whatever column it waits in" "absent" "$(listed "$output" "$blocked")"
+
+printf "\nTest group: --claimed-by asks which cards one session holds\n"
 
 output="$(run_cards --claimed-by sess-beating)"
-bodies="$(cat "$TMPDIR/bodies")"
-
-assert_contains "filters on the claim property" '"Agent: Session Id"' "$bodies"
-assert_contains "names the session asked for" 'sess-beating' "$bodies"
-assert_eq "no longer filters on a column" "0" \
-  "$(printf '%s' "$bodies" | grep -cF 'Ready for BR by AI' | tr -d ' ')"
+assert_eq "its card in a by-AI column" "listed" "$(listed "$output" "$beating")"
+assert_eq "its card in a column a person works" "listed" "$(listed "$output" "$person")"
+assert_eq "its card mid-dev" "listed" "$(listed "$output" "$in_dev")"
+assert_eq "and nobody else's" "absent" "$(listed "$output" "$dead")"
+assert_eq "its blocked card too, because it still holds it" "listed" "$(listed "$output" "$blocked_held")"
+assert_eq "four cards, no more" "4" "$(printf '%s\n' "$output" | grep -c . | tr -d ' ')"
 
 output="$(run_cards --claimed-by 2>&1 || true)"
 assert_contains "refuses an empty session id" "needs a session id" "$output"
+
+printf "\nTest group: no board is an error, not an empty list\n"
+
+COCKPIT_BOARD_DIR="$TMPDIR/never-made" TICKET_STATE_DIR="$STATE_DIR" bash "$SCRIPT" >/dev/null 2>&1
+assert_eq "exits with the board's no-record code" "3" "$?"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

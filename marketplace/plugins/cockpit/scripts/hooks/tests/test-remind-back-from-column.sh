@@ -40,7 +40,7 @@ STATE_DIR="$TMPDIR/.local/state/claude-ticket-sessions"
 mkdir -p "$STATE_DIR"
 
 SESSION="test-bounce-$$"
-printf 'https://app.notion.com/p/abc123\n' > "$STATE_DIR/$SESSION.ticket"
+printf 'FEAT-31\n' > "$STATE_DIR/$SESSION.ticket"
 printf 'In Dev\n' > "$STATE_DIR/$SESSION.column"
 
 printf "Test group: fires on a rejection at a counter column\n"
@@ -77,7 +77,7 @@ printf 'In Dev\n' > "$STATE_DIR/$SESSION.column"
 rm -f "$STATE_DIR/$SESSION.ticket"
 assert_silent "no ticket marker" "$(run_hook "$SESSION" 'this is still broken')"
 
-printf 'https://app.notion.com/p/abc123\n' > "$STATE_DIR/$SESSION.ticket"
+printf 'FEAT-31\n' > "$STATE_DIR/$SESSION.ticket"
 rm -f "$STATE_DIR/$SESSION.column"
 assert_silent "no column marker" "$(run_hook "$SESSION" 'this is still broken')"
 
