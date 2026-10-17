@@ -303,7 +303,7 @@ type Planned = Pick<
 	Card,
 	"id" | "status" | "start" | "target" | "rank" | "confidence" | "dates" | "moved" | "project" | "track"
 > &
-	Partial<Pick<Card, "blocked">>;
+	Partial<Pick<Card, "blocked" | "dependent_on">>;
 
 export type Team = { tracks: number; perWeek: number };
 
@@ -542,20 +542,77 @@ export type Row = {
 	pinIgnored: boolean;
 	pausedUntil: number | null;
 	blocked: Blocked;
+	dependsOn: string[];
+	waitingOn: string | null;
 };
+
+type PlanCards = (Sized & Pick<Card, "epic"> & Partial<Pick<Card, "dates" | "moved">>)[];
+
+export function waitingOnOf(
+	id: string,
+	epics: Record<string, Planned>,
+	blocked: Record<string, Blocked>,
+	seen: Set<string> = new Set(),
+): string | null {
+	seen.add(id);
+	for (const dependency of epics[id]?.dependent_on ?? []) {
+		const epic = epics[dependency];
+		if (!epic || epic.status === "Epic Done" || seen.has(dependency)) continue;
+		if (blocked[dependency] != null) return dependency;
+		const deeper = waitingOnOf(dependency, epics, blocked, seen);
+		if (deeper) return deeper;
+	}
+	return null;
+}
 
 export function planOf(
 	epics: Planned[],
-	cards: (Sized & Pick<Card, "epic"> & Partial<Pick<Card, "dates" | "moved">>)[],
+	cards: PlanCards,
 	teams: Record<string, Team> | number,
 	today: number,
 	refinement: Refinement = { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 },
 	breaks: Pick<Break, "from" | "to">[] = [],
 ): Record<string, Row> {
+	let ends: Record<string, number> = {};
+	let rows: Record<string, Row> = {};
+	for (let pass = 0; pass <= epics.length + 1; pass += 1) {
+		rows = scheduleOnce(epics, cards, teams, today, refinement, breaks, ends);
+		const next: Record<string, number> = {};
+		for (const row of Object.values(rows)) if (row.projected != null) next[row.id] = row.projected;
+		if (JSON.stringify(next) === JSON.stringify(ends)) break;
+		ends = next;
+	}
+	return rows;
+}
+
+function scheduleOnce(
+	epics: Planned[],
+	cards: PlanCards,
+	teams: Record<string, Team> | number,
+	today: number,
+	refinement: Refinement,
+	breaks: Pick<Break, "from" | "to">[],
+	ends: Record<string, number>,
+): Record<string, Row> {
 	const off = daysOff(breaks);
 	const rows: Record<string, Row> = {};
 	const byEpic: Record<string, Worked[]> = {};
 	for (const card of cards) if (card.epic) (byEpic[card.epic] ??= []).push(card);
+	const byId: Record<string, Planned> = Object.fromEntries(epics.map((epic) => [epic.id, epic]));
+	const blocked: Record<string, Blocked> = Object.fromEntries(
+		epics.map((epic) => [epic.id, blockedOf(epic, byEpic[epic.id] ?? [])]),
+	);
+	const endOf = (id: string): number | null => {
+		const row = rows[id];
+		if (row?.done) return null;
+		if (row?.projected != null) return row.projected;
+		return ends[id] ?? null;
+	};
+	const dependenciesReady = (row: Row) =>
+		Math.max(
+			today,
+			...row.dependsOn.map((id) => endOf(id)).flatMap((end) => (end == null ? [] : [openFrom(end + 1, off)])),
+		);
 	const known: Record<string, Team> = typeof teams === "number" ? { "": { tracks: 1, perWeek: teams } } : teams;
 	const grouped: Record<string, Planned[]> = {};
 	for (const epic of epics) {
@@ -608,7 +665,11 @@ export function planOf(
 				pin,
 				pinIgnored: pin != null && pin > tracks,
 				pausedUntil: null,
-				blocked: blockedOf(epic, own),
+				blocked: blocked[epic.id],
+				dependsOn: (epic.dependent_on ?? []).filter(
+					(id) => id !== epic.id && byId[id] != null && byId[id].status !== "Epic Done",
+				),
+				waitingOn: blocked[epic.id] == null ? waitingOnOf(epic.id, byId, blocked) : null,
 			};
 			rows[epic.id] = row;
 			if (row.done) {
@@ -632,7 +693,8 @@ export function planOf(
 			row.refineEnd = Math.max(today, afterOpen(row.refineStart, refinement.days, off));
 			row.refineForecast = true;
 		}
-		const readyOf = (row: Row) => Math.max(today, row.phase === "delivery" ? today : (row.refineEnd ?? today));
+		const readyOf = (row: Row) =>
+			Math.max(today, row.phase === "delivery" ? today : (row.refineEnd ?? today), dependenciesReady(row));
 		const laneOf = (row: Row) => (row.pin != null && !row.pinIgnored ? row.pin - 1 : null);
 		for (const row of queue) {
 			if (row.remaining.points > 0) continue;
@@ -640,7 +702,8 @@ export function planOf(
 			row.track = row.pin != null && !row.pinIgnored ? row.pin : null;
 		}
 		const sized = queue.filter((row) => row.remaining.points > 0);
-		for (const waiting of [sized.filter((row) => row.blocked == null), sized.filter((row) => row.blocked != null)]) {
+		const held = (row: Row) => row.blocked != null || row.waitingOn != null;
+		for (const waiting of [sized.filter((row) => !held(row)), sized.filter(held)]) {
 			let now = today;
 			while (waiting.length > 0) {
 				const wanted: number[] = Array.from({ length: tracks }, () => 0);
@@ -660,7 +723,8 @@ export function planOf(
 					waiting.splice(waiting.indexOf(row), 1);
 					row.track = lane + 1;
 					row.begin = openFrom(now, off);
-					if (row.inProgress && row.blocked == null && now > today) row.pausedUntil = row.begin;
+					const crowded = now > today && dependenciesReady(row) <= today;
+					if (row.inProgress && !held(row) && crowded) row.pausedUntil = row.begin;
 					const days = Math.ceil(row.remaining.points / perDay);
 					const end = afterOpen(row.begin, days, off);
 					row.projected = Math.max(row.begin, end - 1);

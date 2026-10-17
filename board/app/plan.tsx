@@ -32,6 +32,7 @@ import {
 	dropCard,
 	editCard,
 	finishEpic,
+	linkCards,
 	loadComments,
 	postComment,
 	type Ranked,
@@ -45,7 +46,7 @@ import {
 } from "@/app/actions";
 import { askOverShares, useConfirm } from "@/app/confirm";
 import { Content, confirmDiscard } from "@/app/content";
-import { Fields, type Handlers, type Lists, TextField, Title, useHydrated } from "@/app/fields";
+import { Fields, type Handlers, Links, type Lists, linkChange, TextField, Title, useHydrated } from "@/app/fields";
 import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { EstimateFacts, estimatesTitle } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
@@ -687,6 +688,7 @@ function PlanPanel({
 				onCommit={(name) => handlers.onEdit("name", name, { name })}
 			/>
 			<Fields record={epic} lists={lists} handlers={handlers} />
+			<Links record={epic} lists={lists} handlers={handlers} />
 			<EstimateFacts estimates={estimatesOf(cards)} left />
 			<section className="timeline">
 				<h3>
@@ -1159,7 +1161,13 @@ export function Plan({
 			onMove: (column) => moveEpic(epic, column),
 			onEdit: (field, value, change) =>
 				apply(epic.id, change, () => editCard(epic.id, field, value), `Changed the ${fieldName(field)} of ${epic.id}`),
-			onLink: () => {},
+			onLink: (parent, child, linked) =>
+				apply(
+					epic.id,
+					linkChange(epic, parent, child, linked),
+					() => linkCards(epic.id, parent, child, linked),
+					linked ? `Made ${parent} depend on ${child}` : `Took ${parent}'s dependency on ${child} off`,
+				),
 			onOpen: (id) => {
 				if (kindOf(id) === "epic") show(id);
 				else router.push(`/?open=${id}`);
@@ -1651,6 +1659,12 @@ export function Plan({
 				)}. It gives up its track to the next epic in ${teamName(row.team)}'s priority, and its delivery is queued for the next track that frees after those epics${row.begin != null ? `, from ${short(row.begin)}` : ""}: the forecast assumes it is unblocked by then.`,
 			});
 		}
+		if (row.waitingOn != null) {
+			notes.push({
+				key: `waiting-${row.id}`,
+				text: `${nameOf(row.id)} is waiting on ${nameOf(row.waitingOn)}, a blocked epic it depends on, so it waits behind it rather than moving up with the unblocked epics${row.begin != null ? `, its delivery queued from ${short(row.begin)}` : ""}.`,
+			});
+		}
 		if (row.pinIgnored && !row.done) {
 			notes.push({
 				key: `pin-${row.id}`,
@@ -1979,6 +1993,15 @@ export function Plan({
 								>
 									<Icon name="blocked" />
 									Blocked
+								</span>
+							)}
+							{row?.waitingOn != null && (
+								<span
+									className="plan-points blocked"
+									title={`Waiting on ${row.waitingOn}, a blocked epic it depends on, so it waits behind it - the forecast assumes ${row.waitingOn} is unblocked by the day its own delivery is queued for`}
+								>
+									<Icon name="blocked" />
+									Waiting on {row.waitingOn}
 								</span>
 							)}
 							{row && !row.done && tracksOf(row.team) > 0 && (

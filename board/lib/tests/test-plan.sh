@@ -285,6 +285,27 @@ assert_eq "a card done while still flagged blocked stops its spell on the day it
   "$(evaluate 'p.blockedSpansOf({}, [{type:"Feature",status:"Done",dates:{Done:"2026-10-04T10:00:00Z"},blocked_spans:[{from:"2026-10-01"}]}], '"$TODAY"').map((span) => p.dayText(span.from) + ".." + p.dayText(span.to) + (span.open ? " open" : "")).join(" ")')"
 assert_eq "an epic never blocked has none" '0' "$(evaluate 'String(p.blockedSpansOf({}, [], '"$TODAY"').length)')"
 
+printf "\nTest group: an epic's delivery waits for the epics it depends on\n"
+
+DEPENDS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","rank":1,"dependent_on":["EPIC-2"]},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-1","rank":2},{"id":"EPIC-3","status":"Tickets In Dev","project":"PRJ-2","rank":3,"dependent_on":["EPIC-2","EPIC-9"]},{"id":"EPIC-9","status":"Epic Done","project":"PRJ-2"}]'
+DEPENDS_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":3},{"epic":"EPIC-3","status":"Backlog","complexity":2}]'
+depends="p.planOf($DEPENDS, $DEPENDS_CARDS, {\"PRJ-1\":{\"tracks\":2,\"perWeek\":5},\"PRJ-2\":{\"tracks\":1,\"perWeek\":5}}, $TODAY, $INSTANT)"
+assert_eq "the epic it depends on starts today, though it is lower in priority" '{"track":1,"begin":20740,"projected":20742}' \
+  "$(evaluate "pick($depends[\"EPIC-2\"], \"track begin projected\")")"
+assert_eq "and the epic that depends on it starts on the next working day after it ends" '{"track":1,"begin":20745,"dependsOn":["EPIC-2"],"waitingOn":null,"pausedUntil":null}' \
+  "$(evaluate "pick($depends[\"EPIC-1\"], \"track begin dependsOn waitingOn pausedUntil\")")"
+assert_eq "an epic of another project waits for it too, and one in Epic Done holds nothing up" '{"begin":20745,"dependsOn":["EPIC-2"]}' \
+  "$(evaluate "pick($depends[\"EPIC-3\"], \"begin dependsOn\")")"
+
+WAITING='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","rank":1,"blocked":"Waiting on the vendor"},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-1","rank":2,"dependent_on":["EPIC-1"]},{"id":"EPIC-3","status":"Tickets In Dev","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"Tickets In Dev","project":"PRJ-1","rank":4,"dependent_on":["EPIC-2"]}]'
+WAITING_CARDS='[{"epic":"EPIC-1","status":"Backlog","complexity":2},{"epic":"EPIC-2","status":"Backlog","complexity":2},{"epic":"EPIC-3","status":"Backlog","complexity":2},{"epic":"EPIC-4","status":"Backlog","complexity":2}]'
+waiting="p.planOf($WAITING, $WAITING_CARDS, {\"PRJ-1\":{\"tracks\":1,\"perWeek\":5}}, $TODAY, $INSTANT)"
+assert_eq "an epic that depends on a blocked one waits on it, as does one further down the chain" 'EPIC-1,EPIC-1,null' \
+  "$(evaluate "[2,4,3].map((n) => String($waiting[\"EPIC-\" + n].waitingOn)).join()")"
+assert_eq "so the unblocked epic below them takes the track first" '20740' "$(evaluate "String($waiting[\"EPIC-3\"].begin)")"
+assert_eq "and the blocked epic goes next, then each epic waiting on it after the one it depends on" '20742<20746<20748' \
+  "$(evaluate "[1,2,4].map((n) => $waiting[\"EPIC-\" + n].begin).join(\"<\")")"
+
 printf "\nTest group: an epic is late once its target passes with work open, or once its last card was done after it\n"
 
 LATE_TEAM='{"PRJ-1":{tracks:1,perWeek:5},"PRJ-2":{tracks:0,perWeek:5}}'

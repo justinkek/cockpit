@@ -771,15 +771,27 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 }
 
 export function Links({ record, lists, handlers }: { record: Card; lists: Lists; handlers: Handlers }) {
-	if (kindOf(record.id) !== "card") return null;
+	const kind = kindOf(record.id);
+	if (kind !== "card" && kind !== "epic") return null;
 	const { onLink, onOpen } = handlers;
-	const names = Object.fromEntries(lists.cards.map((card) => [card.id, card.name]));
+	const pool: Picked[] =
+		kind === "epic" ? lists.epics.map(({ id, name, status }) => ({ id, name, status: status ?? "" })) : lists.cards;
+	const names = Object.fromEntries(pool.map((card) => [card.id, card.name]));
 	const children = record.dependent_on ?? [];
 	const parents = record.dependency_for ?? [];
-	const linkable = lists.cards.filter((card) => card.id !== record.id);
+	const linkable = pool.filter((card) => card.id !== record.id);
+	const words =
+		kind === "epic"
+			? {
+					children: "Depends on",
+					parents: "Needed by",
+					child: "Add an epic it depends on",
+					parent: "Add an epic that needs it",
+				}
+			: { children: "Dependent on", parents: "Dependency for", child: "Add a child", parent: "Add a parent" };
 	return (
 		<section className="links">
-			<h3>Dependent on</h3>
+			<h3>{words.children}</h3>
 			<Linked
 				owner={record.id}
 				ids={children}
@@ -791,11 +803,11 @@ export function Links({ record, lists, handlers }: { record: Card; lists: Lists;
 			<Picker
 				id={record.id}
 				side="child"
-				label="Add a child"
+				label={words.child}
 				cards={linkable.filter((card) => !children.includes(card.id))}
 				onPick={(child) => onLink(record.id, child, true)}
 			/>
-			<h3>Dependency for</h3>
+			<h3>{words.parents}</h3>
 			<Linked
 				owner={record.id}
 				ids={parents}
@@ -807,7 +819,7 @@ export function Links({ record, lists, handlers }: { record: Card; lists: Lists;
 			<Picker
 				id={record.id}
 				side="parent"
-				label="Add a parent"
+				label={words.parent}
 				cards={linkable.filter((card) => !parents.includes(card.id))}
 				onPick={(parent) => onLink(parent, record.id, true)}
 			/>
