@@ -16,7 +16,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
 	type CSSProperties,
-	type KeyboardEvent as ReactKeyboardEvent,
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
 	useEffect,
@@ -439,7 +438,7 @@ function CommentsCell({ epic, onCount }: { epic: Card; onCount: (id: string) => 
 	);
 }
 
-function Handle({ id, name, onKey }: { id: string; name: string; onKey: (event: ReactKeyboardEvent) => void }) {
+function Handle({ id, name }: { id: string; name: string }) {
 	const { attributes, listeners, setNodeRef } = useDraggable({ id: `row:${id}` });
 	return (
 		<button
@@ -448,9 +447,8 @@ function Handle({ id, name, onKey }: { id: string; name: string; onKey: (event: 
 			className="plan-grip"
 			{...attributes}
 			{...listeners}
-			onKeyDown={onKey}
-			aria-label={`Reorder ${name} - drag, or Alt and an arrow key`}
-			title="Drag onto another epic to rank it just above or below that one, and the row moves to where that priority schedules it (Alt+↑/↓)"
+			aria-label={`Reorder ${name} - drag`}
+			title="Drag onto another epic to rank it just above or below that one, and the row moves to where that priority schedules it"
 		>
 			<svg viewBox="0 0 8 14" aria-hidden="true">
 				<circle cx="2" cy="2" r="1.2" />
@@ -1488,18 +1486,6 @@ export function Plan({
 		reorder(id, overId, to > from);
 	}
 
-	function stepRow(event: ReactKeyboardEvent, id: string) {
-		if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
-		event.preventDefault();
-		const group = groupOf(id);
-		const siblings = planOrder(epics).filter(
-			(epic) => groupOf(epic.id) === group && (epic.id === id || !committedRows[epic.id]?.done),
-		);
-		const index = siblings.findIndex((epic) => epic.id === id);
-		const neighbour = siblings[index + (event.key === "ArrowDown" ? 1 : -1)];
-		if (neighbour) reorder(id, neighbour.id, event.key === "ArrowDown");
-	}
-
 	function editMilestone(id: string, field: string, value: string, label: string) {
 		const before = milestones.find((one) => one.id === id);
 		if (!before) return;
@@ -1953,7 +1939,7 @@ export function Plan({
 				className={`plan-row${openId === epic.id ? " open" : ""}${rowDragging === epic.id ? " lifted" : ""}`}
 			>
 				<div className="plan-left">
-					<Handle id={epic.id} name={epic.name} onKey={(event) => stepRow(event, epic.id)} />
+					<Handle id={epic.id} name={epic.name} />
 					<div className="plan-who">
 						<button
 							type="button"
