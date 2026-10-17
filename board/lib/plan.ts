@@ -7,7 +7,7 @@ export type Confidence = (typeof CONFIDENCES)[number];
 
 export const AVERAGE_SPEED_WEEKS = 6;
 export const DEFAULT_AVERAGE_SPEED = 10;
-export const DEFAULT_REFINEMENT_DAYS = 14;
+export const DEFAULT_REFINEMENT_DAYS = 2;
 export const PAST_DAYS = 730;
 export const FUTURE_DAYS = 1826;
 

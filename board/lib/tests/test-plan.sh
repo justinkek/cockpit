@@ -215,7 +215,7 @@ printf "\nTest group: an epic is refined before it is delivered, and only its de
 PAST='[{"id":"EPIC-1","status":"Epic Done","start":"2026-08-01","dates":{"Tickets In Dev":"2026-08-11T10:00:00Z"}},{"id":"EPIC-2","status":"Tickets In Dev","start":"2026-09-01","dates":{"Tickets In Dev":"2026-09-21T10:00:00Z"}},{"id":"EPIC-3","status":"In FD","start":"2026-10-01"},{"id":"EPIC-4","status":"Backlog"}]'
 assert_eq "the refinement average is the days from an epic's start to its Tickets In Dev, over the epics that reached it" '{"days":15,"source":"measured","epics":2}' \
   "$(evaluate "p.refinementOf($PAST)")"
-assert_eq "with no epic refined yet it is a default, and says so" '{"days":14,"source":"default","epics":0}' \
+assert_eq "with no epic refined yet it is a default, and says so" '{"days":2,"source":"default","epics":0}' \
   "$(evaluate 'p.refinementOf([{status:"In FD",start:"2026-10-01"}])')"
 REFINE='{days:10,source:"measured",epics:3}'
 STAGES='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","rank":1,"start":"2026-09-20","dates":{"Tickets In Dev":"2026-10-02T10:00:00Z"}},{"id":"EPIC-2","status":"In TD","project":"PRJ-1","rank":2,"start":"2026-10-09"},{"id":"EPIC-3","status":"Backlog","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"Backlog","project":"PRJ-1","rank":4},{"id":"EPIC-5","status":"In FD","project":"PRJ-1","rank":5,"start":"2026-09-01"}]'
