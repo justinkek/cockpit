@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { type MouseEvent, type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
 import { ActivitySection } from "@/app/activity";
 import {
 	archiveOne,
@@ -11,6 +11,7 @@ import {
 	duplicateCard,
 	editCard,
 	findInContent,
+	finishEpic,
 	linkCards,
 	type Span,
 	undoChange,
@@ -26,9 +27,9 @@ import {
 } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
-import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
+import { type Closing, EpicDoneDialog, type Finishing, openTickets, ProjectDoneDialog } from "@/app/epic-done";
 import { EstimateFacts } from "@/app/estimates";
-import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
+import { Fields, type Handlers, Links, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
 import { attachmentHref, MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Page, Palette } from "@/app/palette";
@@ -46,9 +47,8 @@ import {
 	undoable,
 	withNewId,
 } from "@/app/toast";
-import { loadView, neighboursIn, type View } from "@/app/view";
-import type { Progress } from "@/lib/metrics";
-import type { Estimates } from "@/lib/plan";
+import { loadView, type Neighbours, neighboursIn, type View } from "@/app/view";
+import type { RecordViewData } from "@/lib/record-view";
 import {
 	type Card,
 	contentSearchFailed,
@@ -56,6 +56,7 @@ import {
 	homeOf,
 	kindOf,
 	movedTo,
+	type Named,
 	phaseOf,
 	recordKindOf,
 } from "@/lib/shared";
@@ -70,27 +71,40 @@ type Result = {
 	closed?: Change[];
 };
 
-export function Ticket({
-	initial,
-	lists,
+export type OverlayHost = {
+	siblings?: { label: string; records: Named[] };
+	onOpen: (id: string, replace?: boolean) => void;
+	onClose: () => void;
+	onChanged: () => void;
+	onReload: () => void;
+};
+
+function siblingsOf(siblings: OverlayHost["siblings"], id: string): Neighbours {
+	const index = siblings?.records.findIndex((record) => record.id === id) ?? -1;
+	if (!siblings || index < 0) return null;
+	const near = (record?: Named) => (record ? { id: record.id, name: record.name } : null);
+	return {
+		previous: near(siblings.records[index - 1]),
+		next: near(siblings.records[index + 1]),
+		position: index + 1,
+		total: siblings.records.length,
+	};
+}
+
+function plainClick(event: MouseEvent) {
+	return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
+export function RecordView({
+	data,
 	failure,
-	column,
-	records,
-	attachments = [],
-	progresses = {},
-	estimates,
-	members = [],
+	overlay,
 }: {
-	initial: Card;
-	lists: Lists;
+	data: RecordViewData;
 	failure?: string;
-	column: Card[];
-	records: Card[];
-	attachments?: string[];
-	progresses?: Record<string, Progress>;
-	estimates?: Estimates;
-	members?: Picked[];
+	overlay?: OverlayHost;
 }) {
+	const { record: initial, lists, column, records, attachments, progresses, estimates, members } = data;
 	const router = useRouter();
 	const [record, setRecord] = useState(initial);
 	const [error, setError] = useState(failure ?? "");
@@ -99,6 +113,7 @@ export function Ticket({
 	const [undoing, setUndoing] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
 	const [closing, setClosing] = useState<Closing | null>(null);
+	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [confirmDialog, ask] = useConfirm();
 
 	const [view, setView] = useState<View | null>(null);
@@ -135,6 +150,7 @@ export function Ticket({
 	const epicNames = useMemo(() => Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.name])), [lists.epics]);
 	const inContent = found?.query === query ? found.ids : undefined;
 	const neighbours = useMemo(() => {
+		if (overlay) return siblingsOf(overlay.siblings, initial.id);
 		const kindOfRecord = kindOf(initial.id);
 		const found = { names: epicNames, inContent };
 		if (view?.layout !== "table" || !kindOfRecord) return neighboursIn(column, initial.id, view, found);
@@ -142,7 +158,7 @@ export function Ticket({
 		return neighboursIn(records, initial.id, view, found, (sorted) =>
 			tableOrder(kindOfRecord, sorted, lists, tableSort, progresses),
 		);
-	}, [column, records, initial.id, view, epicNames, inContent, lists, progresses]);
+	}, [column, records, initial.id, view, epicNames, inContent, lists, progresses, overlay?.siblings]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);
@@ -159,6 +175,28 @@ export function Ticket({
 		if (confirmDiscard()) router.push(href);
 	}
 
+	function to(id: string, replace = false) {
+		if (overlay) overlay.onOpen(id, replace);
+		else if (replace) router.replace(`/card/${id}`);
+		else go(`/card/${id}`);
+	}
+
+	function recordLink(id: string, children: ReactNode, rest: { title?: string; rel?: string } = {}) {
+		return (
+			<Link
+				href={`/card/${id}`}
+				{...rest}
+				onClick={(event) => {
+					if (!overlay || !plainClick(event)) return;
+					event.preventDefault();
+					to(id, rest.rel !== undefined);
+				}}
+			>
+				{children}
+			</Link>
+		);
+	}
+
 	function save(change: Partial<Card>, request: () => Promise<Result>, label: string) {
 		const before = record;
 		setRecord((current) => ({ ...current, ...change }));
@@ -169,7 +207,9 @@ export function Ticket({
 			if (result.error) {
 				setRecord(before);
 				setError(result.error);
-				if (result.moved || result.archived) {
+				if (overlay && result.moved) overlay.onOpen(result.moved, true);
+				else if (overlay && result.archived) overlay.onReload();
+				else if (result.moved || result.archived) {
 					router.replace(`/card/${result.moved ?? before.id}?error=${encodeURIComponent(result.error)}`);
 				}
 				return;
@@ -179,9 +219,10 @@ export function Ticket({
 			const shown = undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id), result.more);
 			shown?.changes.push(...(result.closed ?? []));
 			setToast(shown);
+			overlay?.onChanged();
 			if (result.record.id !== before.id) {
 				carryTo(result.record.id, shown);
-				router.replace(`/card/${result.record.id}`);
+				to(result.record.id, true);
 			}
 		});
 	}
@@ -206,7 +247,8 @@ export function Ticket({
 			}
 			if (!result.record) return;
 			setRecord(result.record);
-			if (result.record.id !== change.id) router.replace(`/card/${result.record.id}`);
+			if (result.record.id !== change.id) to(result.record.id, true);
+			else if (overlay) overlay.onChanged();
 			else router.refresh();
 		});
 	}
@@ -214,6 +256,35 @@ export function Ticket({
 	function close(shown: Closing) {
 		setClosing(null);
 		save({ status: "Done" }, () => closeProject(shown.id), `Closed ${shown.id} and everything open in it`);
+	}
+
+	function finish(shown: Finishing) {
+		setFinishing(null);
+		setError("");
+		setToast(null);
+		startTransition(async () => {
+			const result = await finishEpic(
+				shown.id,
+				shown.open.map((card) => card.id),
+			);
+			if (result.record) setRecord(result.record);
+			if (result.errors.length > 0) setError(result.errors.join("; "));
+			const count = shown.open.length === 1 ? "1 open ticket" : `${shown.open.length} open tickets`;
+			if (result.undo.length > 0)
+				setToast(
+					toastOf(
+						`Deprioritised ${count} of ${shown.id}${result.record ? " and moved it to Epic Done" : ""}`,
+						result.undo,
+					),
+				);
+			if (overlay) overlay.onChanged();
+			else router.refresh();
+		});
+	}
+
+	function finishAnyway(shown: Finishing) {
+		setFinishing(null);
+		save(movedTo("Epic Done"), () => dropCard(shown.id, "Epic Done"), `Moved ${shown.id} to Epic Done`);
 	}
 
 	function closeAnyway(shown: Closing) {
@@ -233,6 +304,9 @@ export function Ticket({
 		onMove: async (status) => {
 			const leavingDone = kindOf(record.id) === "card" && record.status === "Done" && status !== "Done";
 			if (leavingDone && !(await askMoveDone(ask))) return;
+			const open = kindOf(record.id) === "epic" && status === "Epic Done" && record.status !== status;
+			const tickets = open ? openTickets(members) : [];
+			if (tickets.length > 0) return setFinishing({ id: record.id, name: record.name, open: tickets });
 			save(movedTo(status), () => dropCard(record.id, status), `Moved ${record.id} to ${status}`);
 		},
 		onEdit: async (field, value, change) => {
@@ -251,17 +325,19 @@ export function Ticket({
 				() => linkCards(record.id, parent, child, linked),
 				linked ? `Linked ${parent} to ${child}` : `Unlinked ${parent} from ${child}`,
 			),
+		onOpen: overlay ? (id) => to(id) : undefined,
 	};
 
 	const mentions = useMemo<Mentions>(
 		() => ({
 			nameOf: mentionNames([...lists.cards, ...lists.epics], lists.aliases),
 			onOpen: (id) => {
-				go(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
+				if (overlay) to(id);
+				else go(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
 				return true;
 			},
 		}),
-		[lists.cards, lists.epics, lists.aliases, router],
+		[lists.cards, lists.epics, lists.aliases, router, overlay],
 	);
 
 	const kind = kindOf(record.id);
@@ -283,7 +359,10 @@ export function Ticket({
 				setError(`Could not archive ${record.id}: ${result.error}`);
 				return;
 			}
-			router.push(`/card/${record.id}`);
+			if (overlay) {
+				overlay.onChanged();
+				overlay.onReload();
+			} else router.push(`/card/${record.id}`);
 		});
 	}
 
@@ -299,7 +378,9 @@ export function Ticket({
 				return;
 			}
 			carryTo(result.record.id, toastOf(`Duplicated ${record.id} as ${result.record.id}`));
-			router.push(`/card/${result.record.id}`);
+			overlay?.onChanged();
+			if (overlay) overlay.onOpen(result.record.id);
+			else router.push(`/card/${result.record.id}`);
 		});
 	}
 
@@ -324,6 +405,9 @@ export function Ticket({
 						]),
 				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
 				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(true) },
+				...(overlay
+					? [{ id: "do:page", group: record.id, label: "Open as page", run: () => go(`/card/${record.id}`) }]
+					: []),
 				{
 					id: "go:board",
 					group: "Board",
@@ -333,27 +417,35 @@ export function Ticket({
 				...themeCommands(),
 				...cardCommands(
 					lists.cards.filter((card) => card.id !== record.id),
-					(id) => go(`/card/${id}`),
+					(id) => to(id),
 				),
 			],
 		};
 	}
 
 	useKeys((event) => {
-		if (palette || event.defaultPrevented) return;
+		if (palette || closing || finishing || event.defaultPrevented) return;
 		const command = event.metaKey || event.ctrlKey;
 		const typing = typingIn(event.target);
-		if (command && !event.shiftKey && event.key.toLowerCase() === "k") {
+		const arrow = event.key === "ArrowDown" || event.key === "ArrowUp";
+		if (overlay && event.key === "Escape" && !typing) {
+			event.preventDefault();
+			overlay.onClose();
+		} else if (overlay && arrow && !command && !event.altKey && !event.shiftKey && !typing) {
+			const next = event.key === "ArrowDown" ? neighbours?.next : neighbours?.previous;
+			event.preventDefault();
+			if (next) overlay.onOpen(next.id, true);
+		} else if (command && !event.shiftKey && event.key.toLowerCase() === "k") {
 			event.preventDefault();
 			setPalette(rootPage());
 		} else if (command && !typing && (event.code === "Period" || event.key === "." || event.key === ">")) {
 			event.preventDefault();
 			copy(event.shiftKey);
 		} else if (!command && !event.altKey && !typing && (event.key === "j" || event.key === "k")) {
-			const to = event.key === "j" ? neighbours?.next : neighbours?.previous;
-			if (!to) return;
+			const next = event.key === "j" ? neighbours?.next : neighbours?.previous;
+			if (!next) return;
 			event.preventDefault();
-			go(`/card/${to.id}`);
+			to(next.id, Boolean(overlay));
 		} else if (!command && !event.altKey && !typing && kind && (event.key === "s" || event.key === "e")) {
 			if (event.key === "e" && kind !== "card") return;
 			event.preventDefault();
@@ -364,25 +456,23 @@ export function Ticket({
 	return (
 		<article className="stub">
 			{neighbours && (
-				<nav className="neighbours" aria-label={`Tickets in ${record.status}`}>
+				<nav className="neighbours" aria-label={`Records in ${overlay?.siblings?.label ?? record.status}`}>
 					{neighbours.previous ? (
-						<Link
-							href={`/card/${neighbours.previous.id}`}
-							title={`Previous: ${neighbours.previous.name} (k)`}
-							rel="prev"
-						>
-							‹ {neighbours.previous.id}
-						</Link>
+						recordLink(neighbours.previous.id, `‹ ${neighbours.previous.id}`, {
+							title: `Previous: ${neighbours.previous.name} (${overlay ? "Up" : "k"})`,
+							rel: "prev",
+						})
 					) : (
 						<span className="empty">‹</span>
 					)}
 					<span className="neighbours-at">
-						{neighbours.position} of {neighbours.total} in {record.status}
+						{neighbours.position} of {neighbours.total} in {overlay?.siblings?.label ?? record.status}
 					</span>
 					{neighbours.next ? (
-						<Link href={`/card/${neighbours.next.id}`} title={`Next: ${neighbours.next.name} (j)`} rel="next">
-							{neighbours.next.id} ›
-						</Link>
+						recordLink(neighbours.next.id, `${neighbours.next.id} ›`, {
+							title: `Next: ${neighbours.next.name} (${overlay ? "Down" : "j"})`,
+							rel: "next",
+						})
 					) : (
 						<span className="empty">›</span>
 					)}
@@ -402,6 +492,9 @@ export function Ticket({
 				{record.status && <span>{record.status}</span>}
 				{saving && <span className="saving">Saving…</span>}
 				<span className="record-actions">
+					<button type="button" className="quiet" onClick={() => copy(true)} title="Copy link (Cmd/Ctrl+Shift+.)">
+						Copy link
+					</button>
 					{kind && (
 						<button type="button" className="quiet" onClick={duplicate} title="Make a copy of it in the first column">
 							Duplicate
@@ -447,7 +540,7 @@ export function Ticket({
 						{members.map((member) => (
 							<li key={member.id}>
 								<span className={`dot phase-${phaseOf(member.status)}`} aria-hidden="true" />
-								<Link href={`/card/${member.id}`}>{member.name}</Link>
+								{recordLink(member.id, member.name)}
 								<span className="ident">{member.id}</span>
 							</li>
 						))}
@@ -509,9 +602,10 @@ export function Ticket({
 					onSaved={(saved, span, label) => {
 						const shown = undoable(saved.id, span, label ?? `Changed the content of ${saved.id}`);
 						setToast(shown);
+						overlay?.onChanged();
 						if (saved.id !== initial.id) {
 							carryTo(saved.id, shown);
-							router.replace(`/card/${saved.id}`);
+							to(saved.id, true);
 						}
 					}}
 				/>
@@ -525,8 +619,9 @@ export function Ticket({
 					setToast(shown);
 					if (restored.id !== initial.id) {
 						carryTo(restored.id, shown);
-						router.replace(`/card/${restored.id}`);
-					} else router.refresh();
+						to(restored.id, true);
+					} else if (overlay) overlay.onChanged();
+					else router.refresh();
 				}}
 			/>
 			{closing && (
@@ -536,6 +631,15 @@ export function Ticket({
 					onClose={() => close(closing)}
 					onAnyway={() => closeAnyway(closing)}
 					onCancel={() => setClosing(null)}
+				/>
+			)}
+			{finishing && (
+				<EpicDoneDialog
+					finishing={finishing}
+					busy={saving}
+					onDeprioritise={() => finish(finishing)}
+					onAnyway={() => finishAnyway(finishing)}
+					onCancel={() => setFinishing(null)}
 				/>
 			)}
 			{confirmDialog}

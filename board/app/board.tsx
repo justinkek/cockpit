@@ -16,7 +16,6 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
 	createContext,
@@ -47,21 +46,20 @@ import {
 	storeView,
 	undoChange,
 } from "@/app/actions";
-import { Activity } from "@/app/activity";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
-import { Content, confirmDiscard } from "@/app/content";
+import { confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
 import { EpicDoneDialog, EpicsDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
+import { RecordOverlay, useOpenRecord } from "@/app/record-overlay";
 import { ViewDialog, type ViewDialogAsk } from "@/app/view-dialog";
 import { ChoiceSelect, type SearchOption } from "@/app/search-select";
-import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
+import { type Handlers, type Lists, linkChange } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
 import { type Command, type Page, Palette } from "@/app/palette";
-import { EstimateFacts, EstimatePill } from "@/app/estimates";
+import { EstimatePill } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
-import { Stages } from "@/app/stages";
 import { contextOf, LabelPills, nextTableSort, parseTableSort, sortTable, Table, tableColumns } from "@/app/table";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from "@/app/toast";
 import {
@@ -167,41 +165,6 @@ const effectiveRank = manualRank;
 
 function swimKey(swimlane: Swimlane) {
 	return `swim:${swimlane.key}`;
-}
-
-const FROM_PANEL = "peek:";
-
-function draggedId(active: string | number) {
-	return String(active).replace(FROM_PANEL, "");
-}
-
-function PanelHandle({ id }: { id: string }) {
-	const [covering, setCovering] = useState(false);
-	useEffect(() => {
-		const query = window.matchMedia("(width < 760px)");
-		const update = () => setCovering(query.matches);
-		update();
-		query.addEventListener("change", update);
-		return () => query.removeEventListener("change", update);
-	}, []);
-	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-		id: `${FROM_PANEL}${id}`,
-		disabled: covering,
-	});
-	return (
-		<button
-			ref={setNodeRef}
-			type="button"
-			className={`ident drag-handle${isDragging ? " dragging" : ""}`}
-			title="Drag to a column"
-			{...listeners}
-			{...attributes}
-			aria-roledescription="Drag to a column"
-		>
-			<span aria-hidden="true">⠿</span>
-			{id}
-		</button>
-	);
 }
 
 const collisions: CollisionDetection = (args) => {
@@ -570,161 +533,6 @@ function ListGroup({
 	);
 }
 
-function Peek({
-	stub,
-	kind,
-	cards,
-	lists,
-	handlers,
-	notice,
-	onDismiss,
-	onClose,
-	onCopy,
-	onSaved,
-	onDuplicate,
-	onArchive,
-}: {
-	stub: Stub;
-	kind: Kind;
-	cards: Child[];
-	lists: Lists;
-	handlers: Handlers;
-	notice: Notice;
-	onDismiss: () => void;
-	onClose: () => void;
-	onCopy: () => void;
-	onSaved: (record: Stub, undo?: Span, label?: string) => void;
-	onDuplicate: () => void;
-	onArchive: () => void;
-}) {
-	const panel = useRef<HTMLElement>(null);
-	const number = stub.id.split("-").at(-1);
-	const [tab, setTab] = useState<"details" | "history">("details");
-	useEffect(() => {
-		panel.current?.scrollTo({ top: 0 });
-	}, [number]);
-	return (
-		<aside className="peek" ref={panel} aria-label={`${stub.id} details`}>
-			<header className="peek-head">
-				<PanelHandle id={stub.id} />
-				<span className="peek-actions">
-					<button type="button" className="quiet peek-copy" onClick={onCopy} title="Copy link (Cmd/Ctrl+Shift+.)">
-						Copy link
-					</button>
-					<button type="button" className="quiet" onClick={onDuplicate} title="Make a copy of it in the first column">
-						Duplicate
-					</button>
-					<button
-						type="button"
-						className="quiet"
-						onClick={onArchive}
-						title="Take it off the board - bring it back from the Archive page"
-					>
-						Archive
-					</button>
-					<Link href={`/card/${stub.id}`} className="quiet-link">
-						Open
-					</Link>
-					<button type="button" className="quiet" onClick={onClose} title="Close (Esc)" aria-keyshortcuts="Escape">
-						Close
-					</button>
-				</span>
-			</header>
-			<NoticeBar notice={notice} onDismiss={onDismiss} />
-			{stub.icon && <span className="page-icon">{stub.icon}</span>}
-			<Title
-				id={stub.id}
-				className="peek-title"
-				value={stub.name}
-				onCommit={(name) => handlers.onEdit("name", name, { name })}
-			/>
-			<div className="peek-tabs" role="tablist" aria-label={`${stub.id} panel`}>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={tab === "details"}
-					className={tab === "details" ? "chip-toggle on" : "chip-toggle"}
-					onClick={() => setTab("details")}
-				>
-					Details
-				</button>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={tab === "history"}
-					className={tab === "history" ? "chip-toggle on" : "chip-toggle"}
-					onClick={() => setTab("history")}
-				>
-					History
-				</button>
-			</div>
-			{tab === "history" ? (
-				<Activity id={stub.id} revision={stub.updated} onRestored={onSaved} />
-			) : (
-				<PeekDetails stub={stub} kind={kind} cards={cards} lists={lists} handlers={handlers} onSaved={onSaved} />
-			)}
-		</aside>
-	);
-}
-
-function PeekDetails({
-	stub,
-	kind,
-	cards,
-	lists,
-	handlers,
-	onSaved,
-}: {
-	stub: Stub;
-	kind: Kind;
-	cards: Child[];
-	lists: Lists;
-	handlers: Handlers;
-	onSaved: (record: Stub, undo?: Span, label?: string) => void;
-}) {
-	return (
-		<>
-			<Fields record={stub} lists={lists} handlers={handlers} />
-			<Links record={stub} lists={lists} handlers={handlers} />
-			<dl className="props">
-				<dt>Claimed by</dt>
-				<dd>{stub.session ?? <span className="empty">Nobody</span>}</dd>
-				{stub.cost_usd != null && (
-					<>
-						<dt>Cost</dt>
-						<dd>
-							${stub.cost_usd}
-							{stub.tokens_k != null && ` · ${stub.tokens_k}k tokens`}
-						</dd>
-					</>
-				)}
-			</dl>
-			{kind === "epic" && <EstimateFacts estimates={estimatesOf(cards)} />}
-			{kind === "epic" && (
-				<section className="timeline">
-					<h3>
-						Tickets <span className="count">{cards.length}</span>
-					</h3>
-					<p className="epic-progress">
-						<ProgressMeter progress={progressOf(cards)} wide />
-					</p>
-					<ol>
-						{cards.map((card) => (
-							<li key={card.id}>
-								<StatusDot status={card.status} />
-								<Link href={`/?open=${card.id}`}>{card.name}</Link>
-								<span className="ident">{card.id}</span>
-							</li>
-						))}
-					</ol>
-				</section>
-			)}
-			<Stages record={stub} />
-			<Content id={stub.id} revision={stub.updated} onSaved={onSaved} />
-		</>
-	);
-}
-
 function BulkBar({
 	kind,
 	count,
@@ -849,7 +657,7 @@ export function Board({
 	const [dragging, setDragging] = useState<Stub | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const [notice, setNotice] = useState<Notice>(null);
-	const [openId, setOpenId] = useState<string | null>(null);
+	const [openId, openRecord] = useOpenRecord();
 	const shownId = useRef(openId);
 	shownId.current = openId;
 	const [filtersOpen, setFiltersOpen] = useState(false);
@@ -886,30 +694,16 @@ export function Board({
 		const failure = params.get("error");
 		if (failure) setNotice({ id: "", text: failure });
 		if (saved || epic) setView({ ...(saved ?? defaultView(kind)), ...(epic ? { epics: { include: [epic], exclude: [] } } : {}) });
-		const opening = params.get("open")?.toUpperCase();
-		if (opening) {
-			const number = opening.split("-").at(-1);
-			const found =
-				initial.find((stub) => stub.id === opening) ??
-				initial.find((stub) => kindOf(stub.id) === kindOf(opening) && stub.id.split("-").at(-1) === number);
-			setOpenId(found?.id ?? opening);
-		}
+		const url = new URL(window.location.href);
+		url.searchParams.delete("error");
+		url.searchParams.delete("view");
+		if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
 		setLoaded(true);
 	}, []);
 
 	useEffect(() => {
 		if (loaded) saveView(kind, view);
 	}, [view, loaded]);
-
-	useEffect(() => {
-		if (!loaded) return;
-		const url = new URL(window.location.href);
-		if (openId) url.searchParams.set("open", openId);
-		else url.searchParams.delete("open");
-		url.searchParams.delete("error");
-		url.searchParams.delete("view");
-		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
-	}, [openId, loaded]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -991,7 +785,6 @@ export function Board({
 		const all = [...columnsOfKind, ...extra];
 		return view.hideEmpty ? all.filter((column) => visible.some((stub) => stub.status === column)) : all;
 	}, [stubs, visible, view.hideEmpty, columnsOfKind]);
-	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
 	const progresses = useMemo(
 		() =>
 			kind === "epic" ? Object.fromEntries(stubs.map((stub) => [stub.id, progressOf(children[stub.id] ?? [])])) : {},
@@ -1046,6 +839,13 @@ export function Board({
 		return open.flatMap((column) => visible.filter((stub) => stub.status === column));
 	}, [columns, visible, view.collapsed, view.listCollapsed, view.layout, rows, swimlanes]);
 
+	const siblings = useMemo(() => {
+		const opened = stubs.find((stub) => stub.id === openId);
+		if (!opened) return undefined;
+		if (view.layout === "table") return { label: "the table", records: order };
+		return { label: opened.status, records: order.filter((stub) => stub.status === opened.status) };
+	}, [stubs, openId, order, view.layout]);
+
 	useEffect(() => {
 		if (!focusedId) return;
 		const target = document.querySelector(`[data-card="${CSS.escape(focusedId)}"]`);
@@ -1054,8 +854,12 @@ export function Board({
 
 	function show(id: string | null) {
 		if (id !== shownId.current && !confirmDiscard()) return false;
-		setOpenId(id);
+		openRecord(id);
 		return true;
+	}
+
+	function retarget(from: string, to: string | null) {
+		if (shownId.current === from && to !== from) openRecord(to);
 	}
 
 	function go(href: string) {
@@ -1128,7 +932,7 @@ export function Board({
 				return [...kept, ...back];
 			});
 			const renamed = new Map(result.records.flatMap(({ from, record }) => (record ? [[from, record.id]] : [])));
-			setOpenId((opened) => (opened && done.has(opened) ? (done.get(opened)?.id ?? null) : opened));
+			for (const [from, record] of done) retarget(from, record?.id ?? null);
 			setSelected(
 				(current) =>
 					new Set([...current].map((id) => renamed.get(id) ?? id).filter((id) => !done.has(id) || done.get(id))),
@@ -1293,7 +1097,7 @@ export function Board({
 	}
 
 	useKeys((event) => {
-		if (helpOpen || palette || viewAsk || event.defaultPrevented) return;
+		if (openId || helpOpen || palette || viewAsk || event.defaultPrevented) return;
 		const typing = typingIn(event.target);
 		const command = event.metaKey || event.ctrlKey;
 		const target = openId ?? focusedId;
@@ -1310,13 +1114,11 @@ export function Board({
 		}
 		if (event.key === "Escape") {
 			if (typing) (event.target as HTMLElement).blur();
-			else if (openId) show(null);
 			else if (chosen.length > 0) setSelected(new Set());
 			else setFocusedId(null);
 			return;
 		}
 		if (typing || command || event.altKey) return;
-		const inPanel = event.target instanceof HTMLElement && event.target.closest(".peek") !== null;
 		switch (event.key) {
 			case "/":
 				event.preventDefault();
@@ -1333,7 +1135,6 @@ export function Board({
 				break;
 			case "ArrowDown":
 			case "ArrowUp":
-				if (inPanel) return;
 				event.preventDefault();
 				step(event.key === "ArrowDown" ? 1 : -1);
 				break;
@@ -1346,7 +1147,7 @@ export function Board({
 			case "o": {
 				const control =
 					event.target instanceof HTMLElement && event.target.closest("button, a, summary, [role=dialog]");
-				if (!focusedId || inPanel || (control && !(control as HTMLElement).dataset.card)) return;
+				if (!focusedId || (control && !(control as HTMLElement).dataset.card)) return;
 				event.preventDefault();
 				show(focusedId);
 				break;
@@ -1474,14 +1275,14 @@ export function Board({
 				const moved = result.moved;
 				setStubs((current) => current.map((s) => (s.id === id ? before : s)));
 				setNotice({ id: moved ?? id, text: moved ? result.error : `${id}: ${result.error}` });
-				if (moved) setOpenId((opened) => (opened === id ? moved : opened));
+				if (moved) retarget(id, moved);
 				if (moved || result.archived) router.refresh();
 				return;
 			}
 			const fresh = result.record;
 			if (fresh) {
 				setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
-				if (fresh.id !== id) setOpenId((opened) => (opened === id ? fresh.id : opened));
+				if (fresh.id !== id) retarget(id, fresh.id);
 				setToast(undoable(fresh.id, result.undo, withNewId(label, id, fresh.id), result.more));
 			}
 			router.refresh();
@@ -1506,7 +1307,7 @@ export function Board({
 							? current.map((s) => (s.id === change.id ? fresh : s))
 							: [...current, fresh],
 					);
-					if (fresh.id !== change.id) setOpenId((opened) => (opened === change.id ? fresh.id : opened));
+					if (fresh.id !== change.id) retarget(change.id, fresh.id);
 				}
 			}
 			setUndoing(false);
@@ -1699,14 +1500,14 @@ export function Board({
 	}
 
 	function onDragStart(event: DragStartEvent) {
-		const id = draggedId(event.active.id);
+		const id = String(event.active.id);
 		setDragging(stubs.find((stub) => stub.id === id) ?? null);
 	}
 
 	function onDragEnd(event: DragEndEvent) {
 		setDragging(null);
 		if (!event.over) return;
-		const id = draggedId(event.active.id);
+		const id = String(event.active.id);
 		const place = placement(id, String(event.over.id));
 		if (!place) return;
 		const stub = stubs.find((s) => s.id === id);
@@ -1755,7 +1556,7 @@ export function Board({
 		<Names.Provider value={names}>
 			<Rollups progresses={progresses} estimates={estimates}>
 				<MentionContext.Provider value={mentions}>
-					<div className={`board${open ? " peeking" : ""}`}>
+					<div className="board">
 						<div className="toolbar">
 							<select
 								className="view-pick saved-views"
@@ -1959,7 +1760,7 @@ export function Board({
 							)}
 						</div>
 
-						<NoticeBar notice={open && notice?.id === open.id ? null : notice} onDismiss={() => setNotice(null)} />
+						<NoticeBar notice={notice} onDismiss={() => setNotice(null)} />
 
 						{homeless.length > 0 && (
 							<p className="board-homeless">
@@ -2055,30 +1856,19 @@ export function Board({
 										</div>
 									)}
 								</DragOverlay>
-								{open && (
-									<Peek
-										stub={open}
-										kind={kind}
-										cards={children[open.id] ?? []}
-										lists={lists}
-										handlers={handlersFor(open)}
-										notice={notice?.id === open.id ? notice : null}
-										onDismiss={() => setNotice(null)}
-										onClose={() => show(null)}
-										onCopy={() => copy(open.id, true)}
-										onDuplicate={() => duplicate(open.id)}
-										onArchive={() => bulkEdits([open.id]).archive?.()}
-										onSaved={(saved, span, label) => {
-											const was = open.id;
-											setStubs((current) => current.map((s) => (s.id === saved.id || s.id === was ? saved : s)));
-											if (saved.id !== was) setOpenId((opened) => (opened === was ? saved.id : opened));
-											setToast(undoable(saved.id, span, label ?? `Changed the content of ${saved.id}`));
-											router.refresh();
-										}}
-									/>
-								)}
 							</DndContext>
 						</div>
+						{openId && (
+							<RecordOverlay
+								id={openId}
+								siblings={siblings}
+								onOpen={(id) => {
+									if (show(id)) setFocusedId(id);
+								}}
+								onClose={() => show(null)}
+								onChanged={() => router.refresh()}
+							/>
+						)}
 						{chosen.length > 0 && (
 							<BulkBar
 								kind={kind}

@@ -45,6 +45,7 @@ import {
 	unarchiveRecord,
 	undoSince,
 } from "@/lib/board";
+import { lookupRecord, type RecordLookup } from "@/lib/record-view";
 
 type Failure = { error?: string; moved?: string; archived?: boolean };
 export type Span = { since: string; until: string };
@@ -604,4 +605,8 @@ export async function bulkChange(ids: string[], change: Bulk): Promise<BulkResul
 		}
 	}
 	return result;
+}
+
+export async function loadRecordView(id: string): Promise<RecordLookup> {
+	return lookupRecord(id);
 }
