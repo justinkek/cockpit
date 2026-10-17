@@ -951,6 +951,34 @@ pub fn set(args: &[String]) {
     }
 }
 
+pub fn rank(args: &[String]) {
+    if args.is_empty() || args.len() % 2 != 0 {
+        die(2, "usage: board-card rank <id> <n> [<id> <n>]...");
+    }
+    let mut ranks: Vec<(String, String)> = Vec::new();
+    for pair in args.chunks(2) {
+        let id = normalise_id(&pair[0]);
+        if !is_decimal(&pair[1], true) {
+            die(2, &format!("rank is a number, not '{}'", pair[1]));
+        }
+        if ranks.iter().any(|(seen, _)| *seen == id) {
+            die(2, &format!("{} is ranked twice - give each id one rank", id));
+        }
+        ranks.push((id, pair[1].clone()));
+    }
+    for (id, _) in &ranks {
+        require_record(id);
+    }
+    with_lock(|| {
+        for (id, value) in &ranks {
+            set_locked(id, "rank", value);
+        }
+    });
+    for (id, _) in &ranks {
+        outln(&format!("{}\trank {}", id, read_record(id).get("rank").compact()));
+    }
+}
+
 fn show_after_set(id: &str, field: &str) {
     let id = if exists(&record_file(id)) { id.to_string() } else { normalise_id(id) };
     let property = property_of_field(field);

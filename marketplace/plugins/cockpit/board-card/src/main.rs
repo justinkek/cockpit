@@ -26,6 +26,7 @@ const USAGE: &str = "board-card - the cockpit board, kept as one markdown file p
   board-card search <text> [--kind ticket|epic|project|sprint|reference|milestone]
   board-card statuses [--kind ticket|epic]
   board-card set <id>... <field> <value> [--close] | set <id> body <value> --base <file | ->
+  board-card rank <id> <n> [<id> <n>]...
   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
   board-card bounce <id> <gate>
   board-card move <id>... <column>
@@ -106,6 +107,7 @@ fn main() {
         "search" => cmd_read::search(&rest),
         "statuses" => cmd_read::statuses(&rest),
         "set" => cmd_write::set(&rest),
+        "rank" => cmd_write::rank(&rest),
         "section" => cmd_write::section(&rest),
         "bounce" => cmd_write::bounce(&rest),
         "move" => cmd_write::move_records(&rest),

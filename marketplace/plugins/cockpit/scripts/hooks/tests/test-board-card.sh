@@ -1240,5 +1240,17 @@ assert_eq "an id the board does not hold refuses the whole undo" "3 Backlog" "$?
 printf 'base' | stub set "$pair_one" "$pair_two" body "merged" --base - >/dev/null 2>&1
 assert_eq "and a body merge takes one id" "2" "$?"
 
+printf "\nTest group: rank gives several entities each its own rank in one call and one commit\n"
+
+before="$(commits)"
+assert_eq "rank sets each id's rank and reads each back" "$pair_one	rank 2.5|$pair_two	rank 9" "$(stub rank "$pair_one" 2.5 "$pair_two" 9 | paste -sd '|' -)"
+assert_eq "in one commit naming both" "1|rank $pair_one $pair_two|2.5 9" "$(($(commits) - before))|$(last_commit %s)|$(field "$pair_one" .rank) $(field "$pair_two" .rank)"
+stub rank "$pair_one" 1 "$pair_two" high >/dev/null 2>&1
+assert_eq "a rank that is not a number refuses the whole call" "2 2.5" "$? $(field "$pair_one" .rank)"
+stub rank "$pair_one" 1 "$pair_one" 2 >/dev/null 2>&1
+assert_eq "and so does an id given twice" "2" "$?"
+stub rank "$pair_one" >/dev/null 2>&1
+assert_eq "and an id with no rank after it" "2" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
