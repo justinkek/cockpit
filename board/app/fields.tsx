@@ -752,7 +752,7 @@ export function Fields({ entity, lists, handlers }: { entity: Card; lists: Lists
 								<Fallback id={id} op="set" field={`models.${stage}`}>
 									<TextField
 										label={`${stage} model`}
-										placeholder="Not  ENTITYED"
+										placeholder="Not recorded"
 										value={entity.models?.[stage] ?? ""}
 										onCommit={(model) => {
 											const models = { ...entity.models, [stage]: model };
