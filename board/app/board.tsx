@@ -50,6 +50,7 @@ import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeComm
 import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
 import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
+import { ViewDialog, type ViewDialogAsk } from "@/app/view-dialog";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -810,6 +811,7 @@ export function Board({
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 	const [saved, setSaved] = useState(views);
 	const [savingView, startSavingView] = useTransition();
+	const [viewAsk, setViewAsk] = useState<ViewDialogAsk | null>(null);
 	const [inContent, setInContent] = useState<{ query: string; ids: Set<string> } | null>(null);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
@@ -1166,7 +1168,13 @@ export function Board({
 				keywords: "view saved recall",
 				run: () => recallView(other.name),
 			})),
-			{ id: "go:save-view", group: "Board", label: "Save this view as…", keywords: "view name", run: saveCurrentView },
+			{
+				id: "go:save-view",
+				group: "Board",
+				label: "Save this view as…",
+				keywords: "view name",
+				run: () => setViewAsk({ mode: "save", name: currentView ?? "" }),
+			},
 			{
 				id: "go:other",
 				group: "Board",
@@ -1188,7 +1196,7 @@ export function Board({
 	}
 
 	useKeys((event) => {
-		if (helpOpen || palette || event.defaultPrevented) return;
+		if (helpOpen || palette || viewAsk || event.defaultPrevented) return;
 		const typing = typingIn(event.target);
 		const command = event.metaKey || event.ctrlKey;
 		const target = openId ?? focusedId;
@@ -1298,11 +1306,8 @@ export function Board({
 		setToast(toastOf(`Showing the saved view ${name}`));
 	}
 
-	function saveCurrentView() {
-		const name = window.prompt("Save the filters, grouping, sort and layout as a view called", currentView ?? "");
-		if (name === null || !name.trim()) return;
-		const typed = name.trim();
-		if (saved.some((other) => other.name === typed) && !window.confirm(`Replace the saved view ${typed}?`)) return;
+	function saveCurrentView(typed: string) {
+		setViewAsk(null);
 		startSavingView(async () => {
 			const result = await storeView(kind, typed, viewToSave());
 			if (result.error) setNotice({ id: "", text: `Could not save the view: ${result.error}` });
@@ -1314,7 +1319,7 @@ export function Board({
 	}
 
 	function deleteView(name: string) {
-		if (!window.confirm(`Delete the saved view ${name}?`)) return;
+		setViewAsk(null);
 		startSavingView(async () => {
 			const result = await forgetView(kind, name);
 			if (result.error) setNotice({ id: "", text: `Could not delete the view: ${result.error}` });
@@ -1637,8 +1642,8 @@ export function Board({
 									const [action, name] = event.target.value.split(/:(.*)/s);
 									event.target.value = "";
 									if (action === "recall") recallView(name);
-									else if (action === "save") saveCurrentView();
-									else if (action === "delete") deleteView(name);
+									else if (action === "save") setViewAsk({ mode: "save", name: currentView ?? "" });
+									else if (action === "delete") setViewAsk({ mode: "delete", name });
 								}}
 								aria-label="Saved views"
 								title="Name the filters, grouping, sort and layout, kept on the board, and bring them back"
@@ -1993,6 +1998,15 @@ export function Board({
 									move(finishing.id, "Epic Done", finishing.rank, true);
 								}}
 								onCancel={() => setFinishing(null)}
+							/>
+						)}
+						{viewAsk && (
+							<ViewDialog
+								ask={viewAsk}
+								existing={saved.map((other) => other.name)}
+								onSave={saveCurrentView}
+								onDelete={deleteView}
+								onCancel={() => setViewAsk(null)}
 							/>
 						)}
 						{helpOpen && <ShortcutHelp shortcuts={shortcuts} onClose={() => setHelpOpen(false)} />}
