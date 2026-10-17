@@ -170,9 +170,9 @@ assert_edit_denied "an edit once the card is dragged to Done, the column file st
 rm -f "$column_file"
 assert_edit_denied "a write once the card is dragged to Done, with no column file at all" Write "Done gate"
 
-"$board_card" move "$card" "In Dev" > /dev/null
+perl -pi -e 's/^status: .*/status: "In Dev"/' "$("$board_card" path "$card")"
 printf 'Done\n' > "$column_file"
-assert_edit_allowed "an edit once the card is dragged back off Done, the column file still on Done" Edit
+assert_edit_allowed "an edit once the board holds the card off Done again, the column file still on Done" Edit
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

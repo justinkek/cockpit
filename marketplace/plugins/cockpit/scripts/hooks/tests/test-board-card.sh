@@ -1040,5 +1040,29 @@ assert_eq "leaving nothing stored" "0" "$(grep --count '^project:' "$COCKPIT_BOA
 assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "cards/$placed.md" | cut -d' ' -f1)"
 assert_eq "a second migrate leaves the cards alone" "0" "$(stub migrate | grep --count 'project')"
 
+printf "\nTest group: a card never leaves Done, though the move that put it there can be undone\n"
+
+finished="$(stub create --name Finished --epic "$home")"
+stub move "$finished" "In Dev" >/dev/null
+stub move "$finished" Done >/dev/null
+stub move "$finished" "In Dev" >/dev/null 2>&1
+assert_eq "a move out of Done is refused" "2 Done" "$? $(field "$finished" .status)"
+assert_eq "saying Done is final and to raise a new card" "[board-card] $finished is Done, and Done is final - raise a new card for what is left instead" "$(stub move "$finished" Backlog 2>&1 >/dev/null)"
+stub move "$finished" Deprioritised >/dev/null 2>&1
+assert_eq "and so is a move to Deprioritised" "2 Done" "$? $(field "$finished" .status)"
+other="$(stub create --name "Still open" --epic "$home")"
+stub move "$other" "$finished" "In Dev" >/dev/null 2>&1
+assert_eq "a move of several that holds a Done card moves none of them" "2 Backlog" "$? $(field "$other" .status)"
+stub walk "$finished" "In Dev" >/dev/null 2>&1
+assert_eq "a walk from Done is refused the same way" "2" "$?"
+stub bounce "$finished" CR >/dev/null 2>&1
+assert_eq "and so is a bounce" "2" "$?"
+assert_eq "a move to Done, where it already is, is no change" "" "$(stub move "$finished" Done)"
+stub undo "$finished" >/dev/null
+assert_eq "undoing the move that put it in Done is allowed" "In Dev" "$(field "$finished" .status)"
+stub move "$home" "Ready for FD" >/dev/null
+stub move "$home" Backlog >/dev/null
+assert_eq "an epic still moves freely" "Backlog" "$(field "$home" .status)"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

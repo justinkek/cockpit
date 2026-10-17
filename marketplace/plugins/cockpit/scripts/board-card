@@ -1492,8 +1492,17 @@ command_bounce() {
   id="$(normalise_id "${1:-}")"
   case "$GATES" in *" $gate "*) ;; *) die 2 "a bounce is back from one of:$GATES- not '$gate'" ;; esac
   require_record "$id"
+  refuse_done_card "$id" ""
   with_lock update_record "$id" --arg gate "$gate" '.back_from = ((.back_from // {}) + {($gate): (((.back_from // {})[$gate] // 0) + 1)})'
   command_show "$id" "Back from $gate"
+}
+
+refuse_done_card() {
+  local id="$1" target="$2"
+  [ "$(kind_of "$id")" = card ] || return 0
+  [ "$target" != Done ] || return 0
+  [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || return 0
+  die 2 "$id is Done, and Done is final - raise a new card for what is left instead"
 }
 
 hop() {
@@ -1537,7 +1546,7 @@ command_move() {
   done
   has_board "$kind" || die 2 "a $kind has no columns"
   require_column "$kind" "$column"
-  for id in "${ids[@]}"; do require_record "$id"; done
+  for id in "${ids[@]}"; do require_record "$id"; refuse_done_card "$id" "$column"; done
   with_lock hops "$column" "${ids[@]}"
 }
 
@@ -1593,6 +1602,7 @@ command_walk() {
   done
   require_column "$kind" "$target"
   require_record "$id"
+  refuse_done_card "$id" "$target"
   with_lock walk_locked "$id" "$target" ${skips[@]+"${skips[@]}"}
 }
 

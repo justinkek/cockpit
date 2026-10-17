@@ -67,7 +67,11 @@ case "\$scripted" in
     ;;
 esac
 if [ "\$(cat "\$TICKET_WATCH_FIXTURE/last-\$2" 2>/dev/null)" != "\$live_column" ]; then
-  "$BOARD_CARD" move "\$2" "\$live_column" >/dev/null
+  if [ "\$("$BOARD_CARD" show "\$2" Status | cut -f2)" = Done ] && [ "\$live_column" != Done ]; then
+    LIVE_COLUMN="\$live_column" perl -pi -e 's/^status: .*/status: "\$ENV{LIVE_COLUMN}"/' "\$("$BOARD_CARD" path "\$2")"
+  else
+    "$BOARD_CARD" move "\$2" "\$live_column" >/dev/null
+  fi
   printf '%s' "\$live_column" > "\$TICKET_WATCH_FIXTURE/last-\$2"
 fi
 exec "$BOARD_CARD" "\$@"
