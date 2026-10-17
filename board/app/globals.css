@@ -1716,6 +1716,163 @@
 		}
 	}
 
+	.peek-tabs {
+		display: flex;
+		gap: 6px;
+	}
+
+	.activity-section {
+		border-top: 1px solid var(--line);
+		padding-top: 14px;
+
+		& > summary {
+			cursor: pointer;
+			list-style: none;
+			width: fit-content;
+
+			&::-webkit-details-marker {
+				display: none;
+			}
+
+			& h3 {
+				display: inline;
+				margin: 0;
+				font-size: 12px;
+				color: var(--muted);
+				font-weight: 500;
+			}
+
+			&::before {
+				content: "▸ ";
+				color: var(--faint);
+				font-size: 11px;
+			}
+		}
+
+		&[open] > summary {
+			margin-bottom: 10px;
+
+			&::before {
+				content: "▾ ";
+			}
+		}
+	}
+
+	.activity {
+		display: grid;
+		gap: 10px;
+		min-width: 0;
+
+		& > ol {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: grid;
+			gap: 12px;
+		}
+	}
+
+	.activity-entry {
+		display: grid;
+		gap: 4px;
+		min-width: 0;
+		border-left: 2px solid var(--line);
+		padding-left: 10px;
+	}
+
+	.activity-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		margin: 0;
+		font-size: 12px;
+		color: var(--muted);
+
+		& time {
+			color: var(--faint);
+			font-variant-numeric: tabular-nums;
+		}
+
+		& .activity-who {
+			color: var(--ink);
+			font-weight: 500;
+		}
+
+		& .activity-session {
+			font: 11px var(--mono);
+			color: var(--faint);
+		}
+
+		& .activity-current {
+			color: var(--faint);
+			margin-left: auto;
+		}
+
+		& button {
+			margin-left: auto;
+			font-size: 12px;
+		}
+	}
+
+	.activity-changes {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 2px;
+		font-size: 13px;
+		min-width: 0;
+		overflow-wrap: anywhere;
+
+		& q {
+			color: var(--muted);
+			margin-left: 6px;
+		}
+	}
+
+	.activity-diff {
+		& > summary {
+			cursor: pointer;
+			width: fit-content;
+		}
+
+		& pre {
+			margin: 6px 0 0;
+			padding: 8px;
+			max-height: 360px;
+			overflow: auto;
+			background: var(--lane);
+			border-radius: var(--radius);
+			font: 12px/1.5 var(--mono);
+		}
+
+		& .diff-line {
+			display: block;
+			white-space: pre-wrap;
+		}
+
+		& .diff-same {
+			color: var(--muted);
+		}
+	}
+
+	.diff-added {
+		color: var(--phase-done);
+	}
+
+	.diff-removed {
+		color: var(--danger);
+	}
+
+	.activity-diff .diff-line.diff-added {
+		background: color-mix(in srgb, var(--phase-done) 14%, transparent);
+	}
+
+	.activity-diff .diff-line.diff-removed {
+		background: color-mix(in srgb, var(--danger) 12%, transparent);
+	}
+
 	.thread.resolved {
 		background: none;
 		color: var(--muted);

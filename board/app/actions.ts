@@ -11,6 +11,7 @@ import {
 	boardTracks,
 	type Card,
 	type CommentThread,
+	type HistoryEntry,
 	type Kind,
 	changeStatus,
 	closeProjectRecord,
@@ -29,6 +30,7 @@ import {
 	mergeBody,
 	moveRecords,
 	readComments,
+	readHistory,
 	readInboxUpTo,
 	readBreaks,
 	readRecord,
@@ -121,6 +123,31 @@ export async function undoChange(id: string, span: Span): Promise<Result> {
 		refresh(id);
 		refresh(current);
 		return { record: await readRecord(current) };
+	} catch (error) {
+		return failed(id, error);
+	}
+}
+
+export async function loadHistory(id: string): Promise<Failure & { entries?: HistoryEntry[] }> {
+	try {
+		return { entries: await readHistory(id) };
+	} catch (error) {
+		return failed(id, error);
+	}
+}
+
+export async function restoreVersion(id: string, commit: string): Promise<Result> {
+	try {
+		const since = await lastCommit(id);
+		if (!since) return { error: `${id} has no history to restore from` };
+		const current = await undoSince(id, commit, since);
+		refresh(id);
+		refresh(current);
+		const after = await lastCommit(current);
+		return {
+			record: await readRecord(current),
+			undo: after && after !== since ? { since, until: after } : undefined,
+		};
 	} catch (error) {
 		return failed(id, error);
 	}

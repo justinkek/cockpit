@@ -31,7 +31,7 @@
 #   board-card archive <id>
 #   board-card unarchive <id>
 #   board-card duplicate <id> [--name <name>] [--status <column>]
-#   board-card history <id>
+#   board-card history <id> [--json]
 #   board-card undo <id> [--since <commit> [--until <commit>]]
 #   board-card flush [--now]
 #   board-card revision
@@ -2101,9 +2101,67 @@ require_history() {
   [ -d "$BOARD_DIR/.git" ] || die 2 "the board at $BOARD_DIR keeps no history - run: board-card init"
 }
 
+history_program='
+  def parse: '"$parse_program"';
+  def lines_of: split("\n") | if .[-1] == "" then .[:-1] else . end;
+  def comments_of: [lines_of[] | select(. != "") | fromjson] | map({key: .id, value: .}) | from_entries;
+  def changed($before; $after):
+    ((($before // {}) | keys) + (($after // {}) | keys) | unique) - ["updated", "moved", "moved_by", "dates", "body"]
+    | map(select(($before // {})[.] != ($after // {})[.]) | {field: ., from: ($before // {})[.], to: ($after // {})[.]});
+  [split("\u0001")[1:][]
+   | split("\u0002") as $parts
+   | ($parts[0] | rtrimstr("\n") | split("\t")) as $head
+   | [$parts[1:][] | index("\n") as $at | {path: .[:$at], text: .[($at + 1):]}] as $files
+   | ($files | map(select(.path | test("^(archive/)?[a-z]+/[A-Z][A-Z0-9]*-[0-9]+\\.md$")))[0]) as $main
+   | {commit: $head[0], at: $head[1], author: $head[2], subject: $head[3],
+      archived: (($main.path // "") | startswith("archive/")),
+      record: (if $main == null then null else $main.text | lines_of | parse end),
+      comments: (($files | map(select(.path | endswith(".comments.jsonl")))[0].text // "") | comments_of),
+      attachments: [$files[] | select(.path | test("^(archive/)?attachments/")) | .path | split("/")[-1]]}]
+  | . as $versions
+  | [range(0; length) as $i
+     | $versions[$i] as $now
+     | ($versions[$i + 1] // {record: null, comments: {}, attachments: [], archived: false}) as $was
+     | {commit: $now.commit, at: $now.at, author: $now.author, subject: $now.subject,
+        id: ($now.record.id // $was.record.id), session: ($now.record.session // null),
+        by: (if ($now.record.moved // null) != ($was.record.moved // null) then $now.record.moved_by // null else null end),
+        created: ($was.record == null and $now.record != null),
+        changes: (if $was.record == null then [] else changed($was.record; $now.record) end
+          + (if $was.archived != $now.archived and $was.record != null then [{field: "archived", from: $was.archived, to: $now.archived}] else [] end)),
+        body: (if ($was.record.body // "") != ($now.record.body // "") and $was.record != null
+               then {from: ($was.record.body // ""), to: ($now.record.body // "")} else null end),
+        comments: [$now.comments[] as $comment | ($was.comments[$comment.id]) as $old
+          | if $old == null then {action: "added", id: $comment.id, thread: $comment.thread, author: $comment.author, text: $comment.text}
+            elif ($comment.deleted // false) and (($old.deleted // false) | not) then {action: "deleted", id: $comment.id, thread: $comment.thread, author: $comment.author, text: $old.text}
+            elif $comment.text != $old.text then {action: "edited", id: $comment.id, thread: $comment.thread, author: $comment.author, text: $comment.text}
+            elif ($comment.resolved // false) != ($old.resolved // false) then {action: (if $comment.resolved then "resolved" else "reopened" end), id: $comment.id, thread: $comment.thread, author: $comment.author, text: $comment.text}
+            else empty end]
+          + [$was.comments[] | select($now.comments[.id] == null) | {action: "removed", id, thread, author, text}],
+        attachments: ([($now.attachments - $was.attachments)[] | {action: "added", name: .}]
+          + [($was.attachments - $now.attachments)[] | {action: "removed", name: .}])}]'
+
+history_json() {
+  local log="$1" commit at author subject path
+  shift
+  while IFS=$'\t' read -r commit at author subject; do
+    printf '\001%s\t%s\t%s\t%s\n' "$commit" "$at" "$author" "$subject"
+    while IFS= read -r path; do
+      printf '\002%s\n' "$path"
+      case "$path" in attachments/* | archive/attachments/*) ;; *) board_git show "$commit:$path" ;; esac
+    done < <(board_git ls-tree -r --name-only "$commit" -- "$@")
+  done <<<"$log" | jq --raw-input --slurp "$history_program"
+}
+
 command_history() {
-  local id paths=() path log
+  local id paths=() path log as_json=false
   id="$(normalise_id "${1:-}")"
+  shift || true
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --json) as_json=true; shift ;;
+      *) die 2 "history takes an id and an optional --json, not '$1'" ;;
+    esac
+  done
   require_history
   if [ -s "$held_file" ]; then
     key_of_id "$id"
@@ -2113,6 +2171,11 @@ command_history() {
   while IFS= read -r path; do paths+=("$path"); done < <(record_paths "$id")
   log="$(TZ=UTC board_git log --format='%h%x09%ad%x09%s' --date=format-local:'%Y-%m-%dT%H:%M:%SZ' -- "${paths[@]}" 2>/dev/null || true)"
   [ -n "$log" ] || die 3 "no history for $id"
+  if [ "$as_json" = true ]; then
+    log="$(TZ=UTC board_git log --format='%h%x09%ad%x09%an%x09%s' --date=format-local:'%Y-%m-%dT%H:%M:%SZ' -- "${paths[@]}")"
+    history_json "$log" "${paths[@]}"
+    return 0
+  fi
   printf '%s\n' "$log"
 }
 

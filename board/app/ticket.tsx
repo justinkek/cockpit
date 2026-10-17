@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { ActivitySection } from "@/app/activity";
 import {
 	archiveOne,
 	closeProject,
@@ -491,6 +492,19 @@ export function Ticket({
 					}}
 				/>
 			</MentionContext.Provider>
+			<ActivitySection
+				id={record.id}
+				revision={record.updated}
+				onRestored={(restored, span, label) => {
+					setRecord(restored);
+					const shown = undoable(restored.id, span, label);
+					setToast(shown);
+					if (restored.id !== initial.id) {
+						carryTo(restored.id, shown);
+						router.replace(`/card/${restored.id}`);
+					} else router.refresh();
+				}}
+			/>
 			{closing && (
 				<ProjectDoneDialog
 					closing={closing}

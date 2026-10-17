@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Break, Card, CommentThread, Inbox, Kind, RecordKind, SavedView } from "./shared";
+import type { Break, Card, CommentThread, HistoryEntry, Inbox, Kind, RecordKind, SavedView } from "./shared";
 
 export * from "./shared";
 
@@ -224,6 +224,10 @@ export async function commitsOf(id: string): Promise<string[]> {
 		if (error instanceof BoardError) return [];
 		throw error;
 	}
+}
+
+export async function readHistory(id: string): Promise<HistoryEntry[]> {
+	return JSON.parse(await boardCard(["history", id, "--json"]));
 }
 
 export async function undoSince(id: string, since: string, until: string): Promise<string> {

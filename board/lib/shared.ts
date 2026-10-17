@@ -123,6 +123,31 @@ export type Card = {
 
 export type Stub = Card;
 
+export type HistoryChange = { field: string; from: unknown; to: unknown };
+
+export type HistoryComment = {
+	action: "added" | "resolved" | "reopened" | "edited" | "deleted" | "removed";
+	id: string;
+	thread: string;
+	author: string;
+	text: string;
+};
+
+export type HistoryEntry = {
+	commit: string;
+	at: string;
+	author: string;
+	subject: string;
+	id: string;
+	session: string | null;
+	by: string | null;
+	created: boolean;
+	changes: HistoryChange[];
+	body: { from: string; to: string } | null;
+	comments: HistoryComment[];
+	attachments: { action: "added" | "removed"; name: string }[];
+};
+
 export type CommentThread = {
 	thread: string;
 	anchor: string | null;

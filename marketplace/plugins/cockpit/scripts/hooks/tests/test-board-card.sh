@@ -1111,5 +1111,38 @@ assert_eq "a card whose epic is in Epic Done is not duplicated, and the refusal 
   "$(stub duplicate "$on_open" >/dev/null 2>&1; echo "$?")|$message|$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
 stub archive "$on_open" >/dev/null
 
+printf "\nTest group: history --json says what each commit changed on the record\n"
+
+traced="$(stub create --epic EPIC-1 --name "Traced")"
+stub set "$traced" name "Traced again" >/dev/null
+stub move "$traced" "In BR" >/dev/null
+printf 'is this right?' | stub comment "$traced" --author tester >/dev/null
+stub resolve "$traced" c1 >/dev/null
+stub set "$traced" body "a new body" >/dev/null
+stub archive "$traced" >/dev/null
+stub unarchive "$traced" >/dev/null
+traced_json="$(stub history "$traced" --json)"
+assert_eq "it holds one entry a commit, newest first, as the plain history does" "$(stub history "$traced" | cut -f1 | paste -sd ' ' -)" \
+  "$(printf '%s' "$traced_json" | jq --raw-output 'map(.commit) | join(" ")')"
+assert_eq "each entry carries its time, author and subject" "true|board-card|create $traced" \
+  "$(printf '%s' "$traced_json" | jq --raw-output '.[-1] | "\(.at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$"))|\(.author)|\(.subject)"')"
+assert_eq "the oldest is the record's creation, with no field diffs" "true|0" \
+  "$(printf '%s' "$traced_json" | jq --raw-output '.[-1] | "\(.created)|\(.changes | length)"')"
+assert_eq "a set names the field it changed, from and to" '[{"field":"name","from":"Traced","to":"Traced again"}]' \
+  "$(printf '%s' "$traced_json" | jq --compact-output '.[-2].changes')"
+assert_eq "a move is the status it left and the one it reached, without the stamps it wrote" '[{"field":"status","from":"Backlog","to":"In BR"}]' \
+  "$(printf '%s' "$traced_json" | jq --compact-output '.[-3].changes')"
+assert_eq "and names who moved it" "claude session-" "$(printf '%s' "$traced_json" | jq --raw-output '.[-3].by')"
+assert_eq "a comment added names its author and text" '[{"action":"added","id":"c1","thread":"c1","author":"tester","text":"is this right?"}]' \
+  "$(printf '%s' "$traced_json" | jq --compact-output '.[-4].comments')"
+assert_eq "and a thread resolved says so" 'resolved c1' \
+  "$(printf '%s' "$traced_json" | jq --raw-output '.[-5].comments[0] | "\(.action) \(.id)"')"
+assert_eq "a body edit carries the body before and after, and no field diff" '{"from":"","to":"a new body"}|0' \
+  "$(printf '%s' "$traced_json" | jq --compact-output --raw-output '.[-6] | "\(.body | tojson)|\(.changes | length)"')"
+assert_eq "an archive and an unarchive show as the record leaving and coming back" '[{"field":"archived","from":false,"to":true}]|[{"field":"archived","from":true,"to":false}]' \
+  "$(printf '%s' "$traced_json" | jq --compact-output --raw-output '"\(.[1].changes | tojson)|\(.[0].changes | tojson)"')"
+stub history "$traced" --wide >/dev/null 2>&1
+assert_eq "history takes --json and nothing else" "2" "$?"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

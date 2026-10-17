@@ -47,6 +47,7 @@ import {
 	storeView,
 	undoChange,
 } from "@/app/actions";
+import { Activity } from "@/app/activity";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
@@ -596,6 +597,7 @@ function Peek({
 }) {
 	const panel = useRef<HTMLElement>(null);
 	const number = stub.id.split("-").at(-1);
+	const [tab, setTab] = useState<"details" | "history">("details");
 	useEffect(() => {
 		panel.current?.scrollTo({ top: 0 });
 	}, [number]);
@@ -634,6 +636,52 @@ function Peek({
 				value={stub.name}
 				onCommit={(name) => handlers.onEdit("name", name, { name })}
 			/>
+			<div className="peek-tabs" role="tablist" aria-label={`${stub.id} panel`}>
+				<button
+					type="button"
+					role="tab"
+					aria-selected={tab === "details"}
+					className={tab === "details" ? "chip-toggle on" : "chip-toggle"}
+					onClick={() => setTab("details")}
+				>
+					Details
+				</button>
+				<button
+					type="button"
+					role="tab"
+					aria-selected={tab === "history"}
+					className={tab === "history" ? "chip-toggle on" : "chip-toggle"}
+					onClick={() => setTab("history")}
+				>
+					History
+				</button>
+			</div>
+			{tab === "history" ? (
+				<Activity id={stub.id} revision={stub.updated} onRestored={onSaved} />
+			) : (
+				<PeekDetails stub={stub} kind={kind} cards={cards} lists={lists} handlers={handlers} onSaved={onSaved} />
+			)}
+		</aside>
+	);
+}
+
+function PeekDetails({
+	stub,
+	kind,
+	cards,
+	lists,
+	handlers,
+	onSaved,
+}: {
+	stub: Stub;
+	kind: Kind;
+	cards: Child[];
+	lists: Lists;
+	handlers: Handlers;
+	onSaved: (record: Stub, undo?: Span, label?: string) => void;
+}) {
+	return (
+		<>
 			<Fields record={stub} lists={lists} handlers={handlers} />
 			<Links record={stub} lists={lists} handlers={handlers} />
 			<dl className="props">
@@ -671,7 +719,7 @@ function Peek({
 			)}
 			<Stages record={stub} />
 			<Content id={stub.id} revision={stub.updated} onSaved={onSaved} />
-		</aside>
+		</>
 	);
 }
 
