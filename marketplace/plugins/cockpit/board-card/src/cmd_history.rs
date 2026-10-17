@@ -395,10 +395,6 @@ fn rev(spec: &str) -> Option<String> {
     }
 }
 
-fn exists_in(commit: &str, path: &str) -> bool {
-    git::run(&["cat-file", "-e", &format!("{}:{}", commit, path)]).ok
-}
-
 fn live_cards(before_id: &str, archived: bool) -> HashMap<String, String> {
     let mut live = HashMap::new();
     for file in md_files(&directory_of_kind("card")) {
@@ -477,11 +473,171 @@ fn owner(id: &str) -> String {
     util::read_text(&file).map(|t| t.trim_end_matches('\n').to_string()).unwrap_or_default()
 }
 
+struct Entry {
+    full: String,
+    short: String,
+    line: String,
+    files: Vec<String>,
+}
+
+struct Walk {
+    child: Option<std::process::Child>,
+    reader: Option<BufReader<std::process::ChildStdout>>,
+    pending: Option<String>,
+    entries: Vec<Entry>,
+}
+
+impl Walk {
+    fn start() -> Walk {
+        let mut command = git::bare(&["-C", &ctx::board_dir(), "log", "--format=%x01%H%x09%h%x09%s", "--name-only", "--no-renames"]);
+        command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+        match command.spawn() {
+            Ok(mut child) => {
+                let reader = child.stdout.take().map(BufReader::new);
+                Walk { child: Some(child), reader, pending: None, entries: Vec::new() }
+            }
+            Err(_) => Walk { child: None, reader: None, pending: None, entries: Vec::new() },
+        }
+    }
+
+    fn read_line(&mut self) -> Option<String> {
+        let reader = self.reader.as_mut()?;
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) | Err(_) => None,
+            Ok(_) => Some(line.trim_end_matches('\n').to_string()),
+        }
+    }
+
+    fn more(&mut self) -> bool {
+        let header = match self.pending.take() {
+            Some(header) => header,
+            None => loop {
+                match self.read_line() {
+                    Some(line) if line.starts_with('\u{1}') => break line,
+                    Some(_) => continue,
+                    None => return false,
+                }
+            },
+        };
+        let mut parts = header[1..].splitn(3, '\t');
+        let full = parts.next().unwrap_or("").to_string();
+        let short = parts.next().unwrap_or("").to_string();
+        let subject = parts.next().unwrap_or("").to_string();
+        let mut files = Vec::new();
+        while let Some(line) = self.read_line() {
+            if line.starts_with('\u{1}') {
+                self.pending = Some(line);
+                break;
+            }
+            if !line.is_empty() {
+                files.push(line);
+            }
+        }
+        let line = format!("{} {}", short, subject);
+        self.entries.push(Entry { full, short, line, files });
+        true
+    }
+
+    fn last_touching(&mut self, paths: &[String]) -> Option<usize> {
+        let mut index = 0;
+        loop {
+            while index >= self.entries.len() {
+                if !self.more() {
+                    return None;
+                }
+            }
+            if touches(&self.entries[index].files, paths) {
+                return Some(index);
+            }
+            index += 1;
+        }
+    }
+
+    fn find(&mut self, full: &str) -> Option<usize> {
+        let mut index = 0;
+        loop {
+            while index >= self.entries.len() {
+                if !self.more() {
+                    return None;
+                }
+            }
+            if self.entries[index].full == full {
+                return Some(index);
+            }
+            index += 1;
+        }
+    }
+}
+
+impl Drop for Walk {
+    fn drop(&mut self) {
+        drop(self.reader.take());
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+fn under(file: &str, path: &str) -> bool {
+    file == path || (file.starts_with(path) && file.as_bytes().get(path.len()) == Some(&b'/'))
+}
+
+fn touches(files: &[String], paths: &[String]) -> bool {
+    files.iter().any(|f| paths.iter().any(|p| under(f, p)))
+}
+
+struct Undoing {
+    since: String,
+    until: String,
+    walk: Walk,
+    batch: Option<Batch>,
+    until_resolved: Option<Option<String>>,
+    since_resolved: Option<Option<String>>,
+    since_changed: Option<Vec<String>>,
+}
+
+impl Undoing {
+    fn until(&mut self) -> Option<String> {
+        if self.until_resolved.is_none() {
+            self.until_resolved = Some(rev(&self.until));
+        }
+        self.until_resolved.clone().unwrap()
+    }
+
+    fn since(&mut self) -> Option<String> {
+        if self.since_resolved.is_none() {
+            self.since_resolved = Some(rev(&self.since));
+        }
+        self.since_resolved.clone().unwrap()
+    }
+
+    fn changed_since(&mut self, base: &str) -> Vec<String> {
+        if self.since_changed.is_none() {
+            let run = git::run(&["diff", "--name-only", "--no-renames", base, "HEAD"]);
+            self.since_changed = Some(util::lines(&run.stdout));
+        }
+        self.since_changed.clone().unwrap()
+    }
+
+    fn blob(&mut self, spec: &str) -> Option<Vec<u8>> {
+        if self.batch.is_none() {
+            self.batch = Batch::start();
+        }
+        let (kind, content) = self.batch.as_mut()?.get(spec)?;
+        if kind == "blob" {
+            Some(content)
+        } else {
+            None
+        }
+    }
+}
+
 struct Plan {
     before_id: String,
     archived: bool,
-    base: String,
-    changed: Vec<String>,
+    changed: Vec<(String, Option<Vec<u8>>)>,
     restored: Value,
     links: Vec<(String, String, bool)>,
     session: String,
@@ -489,47 +645,42 @@ struct Plan {
     subject: String,
 }
 
-fn plan_undo(id: &str, since: &str, until: &str) -> Plan {
+fn plan_undo(id: &str, undoing: &mut Undoing) -> Plan {
     let paths = record_paths(id, false);
-    let commit = log("%H", &paths, &["-1"]).stdout.trim().to_string();
-    if commit.is_empty() {
-        die(2, &format!("{} has no committed version to go back to", id));
-    }
-    if !until.is_empty() {
-        let Some(resolved) = rev(until) else { die(2, &format!("the board has no commit '{}'", until)) };
+    let Some(index) = undoing.walk.last_touching(&paths) else {
+        die(2, &format!("{} has no committed version to go back to", id))
+    };
+    let commit = undoing.walk.entries[index].full.clone();
+    if !undoing.until.is_empty() {
+        let Some(resolved) = undoing.until() else { die(2, &format!("the board has no commit '{}'", undoing.until)) };
         if resolved != commit {
-            let named = git::run(&["log", "-1", "--format=%h %s", &commit]).stdout.trim().to_string();
-            die(2, &format!("{} changed after that, in {} - undoing it now would take that change back too", id, named));
+            die(2, &format!("{} changed after that, in {} - undoing it now would take that change back too", id, undoing.walk.entries[index].line));
         }
     }
-    let (base, subject) = if !since.is_empty() {
-        let Some(base) = rev(since) else { die(2, &format!("the board has no commit '{}'", since)) };
-        if !git::run(&["merge-base", "--is-ancestor", &base, &commit]).ok {
-            die(2, &format!("{} is not in {}'s history", since, id));
-        }
-        let range = format!("{}..{}", base, commit);
-        let mut args: Vec<&str> = vec!["log", "-1", "--format=%H", &range, "--"];
-        for path in &paths {
-            args.push(path);
-        }
-        if git::run(&args).stdout.trim().is_empty() {
+    let (base, subject, changed_paths) = if !undoing.since.is_empty() {
+        let since = undoing.since.clone();
+        let Some(base) = undoing.since() else { die(2, &format!("the board has no commit '{}'", since)) };
+        let Some(base_index) = undoing.walk.find(&base).filter(|b| *b >= index) else {
+            die(2, &format!("{} is not in {}'s history", since, id))
+        };
+        let count = undoing.walk.entries[index..base_index].iter().filter(|e| touches(&e.files, &paths)).count();
+        if count == 0 {
             die(2, &format!("nothing to undo on {}: it has not changed since {}", id, since));
         }
-        let mut count_args: Vec<&str> = vec!["rev-list", "--count", &range, "--"];
-        for path in &paths {
-            count_args.push(path);
-        }
-        let count = git::run(&count_args).stdout.trim().to_string();
-        let short = git::run(&["log", "-1", "--format=%h", &base]).stdout.trim().to_string();
-        (base.clone(), format!("{} changes since {}", count, short))
+        let short = undoing.walk.entries[base_index].short.clone();
+        let changed: Vec<String> = undoing.changed_since(&base).into_iter().filter(|f| paths.iter().any(|p| under(f, p))).collect();
+        (base, format!("{} changes since {}", count, short), changed)
     } else {
-        let subject = git::run(&["log", "-1", "--format=%h %s", &commit]).stdout.trim().to_string();
-        (format!("{}^", commit), subject)
+        let entry = &undoing.walk.entries[index];
+        let changed: Vec<String> = entry.files.iter().filter(|f| paths.iter().any(|p| under(f, p))).cloned().collect();
+        (format!("{}^", commit), entry.line.clone(), changed)
     };
     let mut before_file = String::new();
+    let mut before_text: Vec<u8> = Vec::new();
     for path in record_paths(id, true) {
-        if exists_in(&base, &path) {
+        if let Some(content) = undoing.blob(&format!("{}:{}", base, path)) {
             before_file = path;
+            before_text = content;
         }
     }
     if before_file.is_empty() {
@@ -542,23 +693,15 @@ fn plan_undo(id: &str, since: &str, until: &str) -> Plan {
         current_file = archive_file(id);
     }
     let current = parse_file(&current_file);
-    let shown = git::run(&["show", &format!("{}:{}", base, before_file)]);
-    let Ok(mut restored) = parse_text(&shown.stdout) else {
+    let Ok(mut restored) = parse_text(&String::from_utf8_lossy(&before_text)) else {
         die(8, &format!("{} as it stood before {} does not parse", before_file, subject))
     };
     let live = live_cards(&before_id, archived);
     follow(&mut restored, &live, &aliases_json());
-    let range_args = {
-        let mut args: Vec<String> = vec!["diff".into(), "--name-only".into(), "--no-renames".into(), base.clone(), commit.clone(), "--".into()];
-        args.extend(paths.iter().cloned());
-        args
-    };
-    let refs: Vec<&str> = range_args.iter().map(|s| s.as_str()).collect();
-    let changed = util::lines(&git::run(&refs).stdout);
     let board_prefix = format!("{}/", ctx::board_dir());
     let current_relative = current_file.strip_prefix(&board_prefix).unwrap_or(&current_file).to_string();
-    let all_md = !changed.is_empty()
-        && changed.iter().all(|p| {
+    let all_md = !changed_paths.is_empty()
+        && changed_paths.iter().all(|p| {
             let rest = p.strip_prefix("archive/").unwrap_or(p);
             let check = |text: &str| -> bool {
                 let Some(slash) = text.find('/') else { return false };
@@ -621,22 +764,26 @@ fn plan_undo(id: &str, since: &str, until: &str) -> Plan {
             die(1, &format!("{} is held by session {}", id, owner));
         }
     }
-    Plan { before_id, archived, base, changed, restored, links, session, owner, subject }
+    let changed: Vec<(String, Option<Vec<u8>>)> = changed_paths
+        .into_iter()
+        .map(|path| {
+            let content = undoing.blob(&format!("{}:{}", base, path));
+            (path, content)
+        })
+        .collect();
+    Plan { before_id, archived, changed, restored, links, session, owner, subject }
 }
 
 fn apply_undo(id: &str, plan: Plan) {
     let board = ctx::board_dir();
-    let targets: Vec<(String, Option<String>)> =
-        plan.changed.iter().map(|path| (path.clone(), if exists_in(&plan.base, path) { Some(path.clone()) } else { None })).collect();
-    for (target, source) in &targets {
+    for (target, content) in &plan.changed {
         let full = format!("{}/{}", board, target);
-        match source {
-            Some(source) => {
+        match content {
+            Some(content) => {
                 if let Some(parent) = Path::new(&full).parent() {
                     let _ = fs::create_dir_all(parent);
                 }
-                let shown = git::run(&["show", &format!("{}:{}", plan.base, source)]);
-                let _ = fs::write(&full, &shown.raw);
+                let _ = fs::write(&full, content);
             }
             None => {
                 let _ = fs::remove_file(&full);
@@ -710,13 +857,22 @@ pub fn undo(args: &[String]) {
         }
     }
     with_lock(|| {
+        let mut undoing = Undoing {
+            since: since.clone(),
+            until: until.clone(),
+            walk: Walk::start(),
+            batch: None,
+            until_resolved: None,
+            since_resolved: None,
+            since_changed: None,
+        };
         if ids.len() > 1 {
             for id in &ids {
-                plan_undo(id, &since, &until);
+                plan_undo(id, &mut undoing);
             }
         }
         for id in &ids {
-            let plan = plan_undo(id, &since, &until);
+            let plan = plan_undo(id, &mut undoing);
             apply_undo(id, plan);
         }
     });
