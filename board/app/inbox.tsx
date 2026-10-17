@@ -81,7 +81,6 @@ export function InboxList({ inbox }: { inbox: Inbox }) {
 					</button>
 				</span>
 			</header>
-			{inbox.me && <p className="inbox-note">Yours, and never in the inbox: what {inbox.me} wrote or did.</p>}
 			<div className="inbox-filters">
 				<span className="segmented" role="group" aria-label="Show">
 					{FILTERS.map((option) => (
