@@ -746,6 +746,8 @@ command_create() {
     epic="$(normalise_id "$epic")"
     require_record "$epic"
     [ "$(kind_of "$epic")" = epic ] || die 2 "$epic is not an epic"
+    [ "$(read_record "$epic" | jq --raw-output '.status // ""')" != "Epic Done" ] \
+      || die 2 "$epic is in Epic Done, so it takes no new card - pass an open epic, one of: board-card list --kind epic"
   fi
   if [ -n "$project" ]; then
     [ "$kind" != card ] || die 2 "a card's project is its epic's - pass --epic <EPIC-n> with an epic of that project instead of --project"

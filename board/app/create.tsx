@@ -26,11 +26,16 @@ export function NewRecord({
 	onOpenChange: (open: boolean) => void;
 	onCreate: (draft: Draft) => Promise<string | null>;
 }) {
+	const openEpics = lists.epics.filter((other) => other.status !== "Epic Done");
+	const openProjects = lists.projects.filter((other) => other.status !== "Done");
+	const openEpic = (wanted?: string) => openEpics.find((other) => other.id === wanted)?.id ?? openEpics[0]?.id ?? "";
+	const openProject = (wanted?: string) =>
+		kind === "epic" ? (openProjects.find((other) => other.id === wanted)?.id ?? openProjects[0]?.id ?? "") : "";
 	const [name, setName] = useState("");
 	const [status, setStatus] = useState(defaults.status);
 	const [type, setType] = useState(defaults.type ?? "Feature");
-	const [epic, setEpic] = useState(defaults.epic ?? lists.epics[0]?.id ?? "");
-	const [project, setProject] = useState(kind === "epic" ? (defaults.project ?? lists.projects[0]?.id ?? "") : "");
+	const [epic, setEpic] = useState(openEpic(defaults.epic));
+	const [project, setProject] = useState(openProject(defaults.project));
 	const [timebox, setTimebox] = useState("60");
 	const [icon, setIcon] = useState("");
 	const [body, setBody] = useState("");
@@ -43,12 +48,8 @@ export function NewRecord({
 		if (!open) return;
 		setStatus(defaults.status);
 		setType(defaults.type ?? "Feature");
-		setEpic(
-			(current) =>
-				defaults.epic ??
-				(lists.epics.some((other) => other.id === current) ? current : (lists.epics[0]?.id ?? "")),
-		);
-		setProject(kind === "epic" ? (defaults.project ?? lists.projects[0]?.id ?? "") : "");
+		setEpic((current) => openEpic(defaults.epic ?? current));
+		setProject(openProject(defaults.project));
 		setError("");
 		box.current?.focus();
 	}, [open, defaults.status, defaults.type, defaults.epic, defaults.project]);

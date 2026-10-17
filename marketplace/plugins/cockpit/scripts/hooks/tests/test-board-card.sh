@@ -292,6 +292,11 @@ stub create --name Homeless >/dev/null 2>&1
 assert_eq "a card created with no epic is refused" "2" "$?"
 stub create --name Misplaced --epic FEAT-1 >/dev/null 2>&1
 assert_eq "and so is one whose epic is not an epic" "2" "$?"
+finished="$(stub create --kind epic --name Finished --project PRJ-1)"
+stub move "$finished" "Epic Done" >/dev/null
+assert_eq "and so is one whose epic is in Epic Done, writing nothing" "2|0" \
+  "$(stub create --name Late --epic "$finished" >/dev/null 2>&1; echo "$?")|$(stub list --epic "$finished" | wc -l | tr -d ' ')"
+stub archive "$finished" >/dev/null
 stub create --kind epic --name Unowned >/dev/null 2>&1
 assert_eq "an epic created with no project is refused" "2" "$?"
 stub create --kind epic --name Misowned --project EPIC-1 >/dev/null 2>&1
