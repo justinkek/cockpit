@@ -57,6 +57,36 @@ function weekOff(monday: number, off: Off[]): boolean {
 	return [0, 1, 2, 3, 4].every((weekday) => isOff(monday + weekday, off));
 }
 
+export function openFrom(day: number, off: Off[]): number {
+	let open = day;
+	for (const [from, to] of off) if (open >= from && open <= to) open = to + 1;
+	return open;
+}
+
+export function afterOpen(day: number, count: number, off: Off[]): number {
+	let open = day;
+	let left = count;
+	for (const [from, to] of off) {
+		if (left <= 0) return open;
+		if (to < open) continue;
+		if (from > open) {
+			const gap = from - open;
+			if (gap >= left) return open + left;
+			left -= gap;
+		}
+		open = Math.max(open, to + 1);
+	}
+	return open + Math.max(0, left);
+}
+
+export function openDays(first: number, last: number, off: Off[]): number {
+	if (last < first) return 0;
+	return off.reduce(
+		(days, [from, to]) => days - Math.max(0, Math.min(to, last) - Math.max(from, first) + 1),
+		last - first + 1,
+	);
+}
+
 type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on">;
 
 function splitParent(card: Pick<Sized, "dependent_on">) {
@@ -416,6 +446,7 @@ export function planOf(
 	teams: Record<string, Team> | number,
 	today: number,
 	refinement: Refinement = { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 },
+	breaks: Pick<Break, "from" | "to" | "project">[] = [],
 ): Record<string, Row> {
 	const rows: Record<string, Row> = {};
 	const byEpic: Record<string, Worked[]> = {};
@@ -428,6 +459,7 @@ export function planOf(
 	}
 	for (const [team, members] of Object.entries(grouped)) {
 		const { tracks: count, perWeek } = known[team];
+		const off = daysOff(breaks, team === "" ? null : team);
 		const tracks = Math.max(0, Math.floor(count));
 		const perDay = Math.max(perWeek, 0.01) / 7;
 		const free: number[] = Array.from({ length: tracks }, () => today);
@@ -490,7 +522,7 @@ export function planOf(
 		for (const row of Object.values(rows)) {
 			if (row.team !== team || row.phase !== "refinement") continue;
 			row.refineStart ??= today;
-			row.refineEnd = Math.max(today, row.refineStart + refinement.days);
+			row.refineEnd = Math.max(today, afterOpen(row.refineStart, refinement.days, off));
 			row.refineForecast = true;
 			busy.push(row.refineEnd);
 		}
@@ -500,8 +532,8 @@ export function planOf(
 			const ends = [...busy].sort((a, b) => a - b);
 			const freed = ends.length >= tracks ? ends[ends.length - tracks] : today;
 			slot = Math.max(slot, freed);
-			row.refineStart = slot;
-			row.refineEnd = slot + refinement.days;
+			row.refineStart = openFrom(slot, off);
+			row.refineEnd = afterOpen(row.refineStart, refinement.days, off);
 			row.refineForecast = true;
 			busy.push(row.refineEnd);
 		}
@@ -531,15 +563,16 @@ export function planOf(
 				if (pinned != null) wanted[pinned] -= 1;
 				waiting.splice(waiting.indexOf(row), 1);
 				row.track = lane + 1;
-				row.begin = now;
-				if (row.inProgress && row.begin > today) row.pausedUntil = row.begin;
+				row.begin = openFrom(now, off);
+				if (row.inProgress && now > today) row.pausedUntil = row.begin;
 				const days = Math.ceil(row.remaining.points / perDay);
-				row.projected = row.begin + Math.max(0, days - 1);
-				free[lane] = row.begin + days;
+				const end = afterOpen(row.begin, days, off);
+				row.projected = Math.max(row.begin, end - 1);
+				free[lane] = end;
 				ahead[lane] += row.remaining.points;
 				row.late = row.target != null ? Math.max(0, row.projected - row.target) : 0;
 				if (row.target != null) {
-					const weeks = (row.target - today + 1) / 7;
+					const weeks = openDays(today, row.target, off) / 7;
 					row.needed = weeks > 0 ? Math.round((ahead[lane] / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
 				}
 				const epic = members.find((one) => one.id === row.id);
