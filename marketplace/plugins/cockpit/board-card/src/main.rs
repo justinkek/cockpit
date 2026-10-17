@@ -1,11 +1,17 @@
 mod board;
+mod cmd_misc;
 mod cmd_read;
+mod cmd_write;
 mod ctx;
 mod git;
 mod json;
 mod record;
 mod time;
 mod util;
+
+use ctx::{die, outln};
+use std::fs;
+use std::path::Path;
 
 const USAGE: &str = "board-card - the cockpit board, kept as one markdown file per record.
 
@@ -51,6 +57,38 @@ const USAGE: &str = "board-card - the cockpit board, kept as one markdown file p
   board-card aliases [--json]
   board-card migrate [--key <PRJ-n>=<KEY>]...";
 
+fn init() {
+    let board = ctx::board_dir();
+    let mut changed = false;
+    for folder in [ctx::ticket_dir().as_str(), "epics", "projects", "sprints", "references", "milestones"] {
+        let _ = fs::create_dir_all(format!("{}/{}", board, folder));
+    }
+    if !Path::new(&format!("{}/.git", board)).is_dir() {
+        let _ = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&board)
+            .args(["init", "--quiet"])
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_OBJECT_DIRECTORY")
+            .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES")
+            .env_remove("GIT_COMMON_DIR")
+            .status();
+        changed = true;
+    }
+    let ignore = format!("{}/.gitignore", board);
+    let has_rule = util::read_text(&ignore).map(|t| util::lines(&t).iter().any(|l| l == "*/.*")).unwrap_or(false);
+    if !has_rule {
+        let _ = util::write_file(&ignore, ".lock\n*/.*\n");
+        changed = true;
+    }
+    if changed && !git::commit_board("init") {
+        die(6, &format!("made {} but could not commit it", board));
+    }
+    outln(&board);
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let action = args.first().cloned().unwrap_or_default();
@@ -69,15 +107,42 @@ fn main() {
         }
     }
     match action.as_str() {
+        "init" => init(),
+        "create" => cmd_write::create(&rest),
         "show" => cmd_read::show(&rest),
         "list" => cmd_read::list(&rest),
         "search" => cmd_read::search(&rest),
         "statuses" => cmd_read::statuses(&rest),
+        "set" => cmd_write::set(&rest),
+        "section" => cmd_write::section(&rest),
+        "bounce" => cmd_write::bounce(&rest),
+        "move" => cmd_write::move_records(&rest),
+        "walk" => cmd_write::walk(&rest),
+        "link" => cmd_write::link("link", &rest),
+        "unlink" => cmd_write::link("unlink", &rest),
+        "claim" => cmd_write::claim(&rest),
+        "release" => cmd_write::release(&rest),
+        "release-session" => cmd_write::release_session(&rest),
+        "comment" => cmd_write::comment(&rest),
         "comments" => cmd_read::comments(&rest),
+        "resolve" => cmd_write::resolve(&rest, true),
+        "reopen" => cmd_write::resolve(&rest, false),
+        "uncomment" => cmd_write::uncomment(&rest),
+        "attach" => cmd_write::attach(&rest),
         "attachments" => cmd_read::attachments(&rest),
+        "usage" => cmd_write::usage(&rest),
+        "archive" => cmd_write::archive(&rest),
+        "unarchive" => cmd_write::unarchive(&rest),
+        "duplicate" => cmd_write::duplicate(&rest),
+        "flush" => cmd_misc::flush(&rest),
         "revision" => cmd_read::revision(),
+        "inbox" => cmd_misc::inbox(&rest),
         "path" => cmd_read::path(&rest),
+        "tracks" => cmd_misc::tracks(&rest),
         "aliases" => cmd_read::aliases(&rest),
+        "views" => cmd_misc::views(&rest),
+        "breaks" => cmd_misc::breaks(&rest),
+        "maintenance" => cmd_misc::maintenance(&rest),
         _ => {
             ctx::err(USAGE);
             ctx::exit(2);
