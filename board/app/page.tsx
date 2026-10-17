@@ -35,9 +35,9 @@ export default async function CardsPage({ searchParams }: Props) {
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: [...epics]
 					.sort((a, b) => manualRank(a) - manualRank(b))
-					.map(({ id, name, project }) => ({ id, name, project })),
+					.map(({ id, name, project, status }) => ({ id, name, project, status })),
 				sprints: sprints.map(({ id, name, start, end }) => ({ id, name, start, end })),
-				projects: projects.map(({ id, name }) => ({ id, name })),
+				projects: projects.map(({ id, name, status }) => ({ id, name, status })),
 			}}
 		/>
 	);

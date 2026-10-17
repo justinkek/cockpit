@@ -134,6 +134,24 @@ export function saveView(kind: Kind, view: View) {
 	} catch {}
 }
 
+function quickParentKey(kind: Kind) {
+	return kind === "card" ? "cockpit-quick-add-epic" : "cockpit-quick-add-project";
+}
+
+export function loadQuickParent(kind: Kind): string | null {
+	try {
+		return window.localStorage.getItem(quickParentKey(kind));
+	} catch {
+		return null;
+	}
+}
+
+export function saveQuickParent(kind: Kind, id: string) {
+	try {
+		window.localStorage.setItem(quickParentKey(kind), id);
+	} catch {}
+}
+
 function ticketNumber(stub: Stub) {
 	return Number(stub.id.split("-").at(-1));
 }

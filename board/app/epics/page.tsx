@@ -48,7 +48,7 @@ export default async function EpicsPage() {
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: epics.map(({ id, name, project }) => ({ id, name, project })),
 				sprints: [],
-				projects: projects.map(({ id, name }) => ({ id, name })),
+				projects: projects.map(({ id, name, status }) => ({ id, name, status })),
 			}}
 		/>
 	);

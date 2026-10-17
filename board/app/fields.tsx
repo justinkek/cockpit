@@ -26,9 +26,9 @@ export type Picked = Named & { status: string };
 
 export type Lists = {
 	cards: Picked[];
-	epics: (Named & { project?: string | null })[];
+	epics: (Named & { project?: string | null; status?: string })[];
 	sprints: Sprint[];
-	projects: Named[];
+	projects: (Named & { status?: string })[];
 };
 
 export type Handlers = {

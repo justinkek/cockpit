@@ -70,12 +70,14 @@ import {
 	type GroupContext,
 	groupingOf,
 	LAYOUTS,
+	loadQuickParent,
 	loadView,
 	restoredView,
 	matches,
 	NO_EPIC,
 	onlyEpic,
 	type Sort,
+	saveQuickParent,
 	saveView,
 	sorter,
 	type Swimlane,
@@ -401,16 +403,20 @@ function Card({ stub, pending, focused, selected, onOpen }: ItemProps) {
 	);
 }
 
+type Parent = { label: string; options: Named[]; value: string; onChange: (id: string) => void };
+
 function QuickAdd({
 	column,
 	open,
 	onOpenChange,
 	onCreate,
+	parent,
 }: {
 	column: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onCreate: (name: string) => Promise<boolean>;
+	parent?: Parent;
 }) {
 	const [name, setName] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -427,7 +433,7 @@ function QuickAdd({
 	}
 	return (
 		<form
-			className="quick-add"
+			className={`quick-add${parent ? " with-parent" : ""}`}
 			onSubmit={async (event) => {
 				event.preventDefault();
 				if (!name.trim() || busy) return;
@@ -437,7 +443,36 @@ function QuickAdd({
 				if (made) setName("");
 				box.current?.focus();
 			}}
+			onKeyDown={(event) => {
+				if (event.key === "Escape") {
+					event.stopPropagation();
+					setName("");
+					onOpenChange(false);
+				}
+			}}
+			onBlur={(event) => {
+				if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+				if (!name.trim() && !busy) onOpenChange(false);
+			}}
 		>
+			{parent && (
+				<select
+					aria-label={parent.label}
+					title={parent.label}
+					value={parent.value}
+					disabled={busy}
+					onChange={(event) => {
+						parent.onChange(event.target.value);
+						box.current?.focus();
+					}}
+				>
+					{parent.options.map((option) => (
+						<option key={option.id} value={option.id}>
+							{option.name}
+						</option>
+					))}
+				</select>
+			)}
 			<input
 				ref={box}
 				value={name}
@@ -445,22 +480,17 @@ function QuickAdd({
 				placeholder="Name, then Enter"
 				disabled={busy}
 				onChange={(event) => setName(event.target.value)}
-				onKeyDown={(event) => {
-					if (event.key === "Escape") {
-						event.stopPropagation();
-						setName("");
-						onOpenChange(false);
-					}
-				}}
-				onBlur={() => {
-					if (!name.trim() && !busy) onOpenChange(false);
-				}}
 			/>
 		</form>
 	);
 }
 
-type Adding = { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (name: string) => Promise<boolean> };
+type Adding = {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	onCreate: (name: string) => Promise<boolean>;
+	parent?: Parent;
+};
 
 function Lane({
 	column,
@@ -869,6 +899,7 @@ export function Board({
 	const [finishBusy, setFinishBusy] = useState(false);
 	const [undoing, setUndoing] = useState(false);
 	const [addingIn, setAddingIn] = useState<string | null>(null);
+	const [lastParent, setLastParent] = useState<string | null>(null);
 	const [composing, setComposing] = useState(false);
 	const [focusedId, setFocusedId] = useState<string | null>(null);
 	const [helpOpen, setHelpOpen] = useState(false);
@@ -884,6 +915,8 @@ export function Board({
 	useEffect(() => setStubs(initial), [initial]);
 
 	useEffect(() => setSaved(views), [views]);
+
+	useEffect(() => setLastParent(loadQuickParent(kind)), [kind]);
 
 	useEffect(() => {
 		const saved = loadView(kind);
@@ -1624,32 +1657,63 @@ export function Board({
 		};
 	}
 
+	function knownParent(swimlane?: Swimlane): string | null {
+		const lane = swimlane && !swimlane.urgent ? swimlane.value : null;
+		if (kind === "epic") return groupBy === "project" ? lane : null;
+		return (groupBy === "epic" ? lane : null) ?? onlyEpic(view) ?? null;
+	}
+
+	function parentOptions(swimlane?: Swimlane): Named[] {
+		if (kind === "epic") return lists.projects.filter((project) => project.status !== "Done");
+		const open = lists.epics.filter((epic) => epic.status !== "Epic Done");
+		const laneProject = groupBy === "project" && swimlane && !swimlane.urgent ? swimlane.value : null;
+		const inProject = laneProject ? open.filter((epic) => epic.project === laneProject) : [];
+		return inProject.length > 0 ? inProject : open;
+	}
+
+	function parentFor(swimlane?: Swimlane): Parent | undefined {
+		if (knownParent(swimlane)) return undefined;
+		const options = parentOptions(swimlane);
+		if (options.length === 0) return undefined;
+		const value = options.find((option) => option.id === lastParent)?.id ?? options[0].id;
+		return {
+			label: kind === "epic" ? "Project" : "Epic",
+			options,
+			value,
+			onChange: (id) => {
+				setLastParent(id);
+				saveQuickParent(kind, id);
+			},
+		};
+	}
+
 	async function create(column: string, name: string, swimlane?: Swimlane): Promise<boolean> {
 		setNotice(null);
-		const laneEpic = groupBy === "epic" && swimlane && !swimlane.urgent ? swimlane.value : null;
-		const laneType = groupBy === "type" && swimlane && !swimlane.urgent ? swimlane.value : null;
-		const epic = laneEpic ?? onlyEpic(view);
-		if (kind === "epic" || !epic) {
+		const laneType = kind === "card" && groupBy === "type" && swimlane && !swimlane.urgent ? swimlane.value : null;
+		const parent = knownParent(swimlane) ?? parentFor(swimlane)?.value;
+		if (!parent) {
 			setNotice({
 				id: column,
-				text:
-					kind === "epic"
-						? "Every epic has a project: create it with + New epic, where a project is chosen."
-						: "Every card has an epic: show one epic on the board to add a card here, or create it with + New card.",
+				text: kind === "epic" ? "Every epic has a project: add a project first." : "Every card has an epic: add an epic first.",
 			});
 			return false;
+		}
+		if (!knownParent(swimlane)) {
+			setLastParent(parent);
+			saveQuickParent(kind, parent);
 		}
 		const lane = (swimlane?.stubs ?? visible).filter((stub) => stub.status === column);
 		const last = lane.at(-1);
 		const result = await createCard(kind, name, column, {
-			type: laneType ?? (view.types.length === 1 ? view.types[0] : undefined),
-			epic,
+			...(kind === "epic"
+				? { project: parent }
+				: { type: laneType ?? (view.types.length === 1 ? view.types[0] : undefined), epic: parent }),
 			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
-			urgent: swimlane?.urgent,
+			urgent: kind === "card" ? swimlane?.urgent : undefined,
 		});
 		const fresh = result.record;
 		if (!fresh) {
-			setNotice({ id: column, text: `Could not create the card: ${result.error ?? "board-card made nothing"}` });
+			setNotice({ id: column, text: `Could not create the ${kind}: ${result.error ?? "board-card made nothing"}` });
 			return false;
 		}
 		setStubs((current) => [...current, fresh]);
@@ -1746,6 +1810,7 @@ export function Board({
 			open: addingIn === (swimlane ? `${swimlane.key}|${column}` : column),
 			onOpenChange: (open: boolean) => setAddingIn(open ? (swimlane ? `${swimlane.key}|${column}` : column) : null),
 			onCreate: (name: string) => create(column, name, swimlane),
+			parent: parentFor(swimlane),
 		},
 	});
 

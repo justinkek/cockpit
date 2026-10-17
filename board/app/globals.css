@@ -2196,6 +2196,24 @@
 			height: 34px;
 			background: var(--raised);
 		}
+
+		&.with-parent {
+			display: flex;
+			gap: 6px;
+
+			& select {
+				flex: 0 1 40%;
+				min-width: 0;
+				height: 34px;
+				background: var(--raised);
+				text-overflow: ellipsis;
+			}
+
+			& input {
+				flex: 1 1 0;
+				min-width: 0;
+			}
+		}
 	}
 
 	.group .quick-add-open {
