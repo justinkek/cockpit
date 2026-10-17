@@ -1,6 +1,7 @@
 mod board;
 mod cmd_read;
 mod ctx;
+mod git;
 mod json;
 mod record;
 mod time;
