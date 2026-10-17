@@ -126,7 +126,7 @@ export async function setFieldHolding(
 	value: string,
 ): Promise<{ id: string; held: string[] }> {
 	const output = await boardCard(["set", id, field, value]);
-	const current = output.match(/^renamed \S+ to (\S+)$/m)?.[1] ?? id;
+	const current = output.match(new RegExp(`^${id.toUpperCase()} -> (\\S+)$`, "m"))?.[1] ?? id;
 	const held = [...output.matchAll(/^(\S+)\tdue /gm)].map((match) => match[1]).filter((card) => card !== current);
 	return { id: current, held };
 }
@@ -136,19 +136,23 @@ export async function mergeBody(id: string, base: string, body: string): Promise
 	return { conflicts: Number(output.match(/^\S+\tmerged the body with (\d+) conflicts? /m)?.[1] ?? 0) };
 }
 
+export async function resolveId(id: string): Promise<string> {
+	const file = (await boardCard(["path", id])).trim();
+	return file.slice(file.lastIndexOf("/") + 1).replace(/\.md$/, "");
+}
+
 export async function findRenamed(id: string): Promise<string | null> {
-	const match = id.toUpperCase().match(/^(?:FEAT|BUG|TIME)-(\d+)$/);
-	if (!match) return null;
-	for (const prefix of ["FEAT", "BUG", "TIME"]) {
-		const alias = `${prefix}-${match[1]}`;
-		if (alias === id.toUpperCase()) continue;
-		try {
-			return (await readRecord(alias)).id;
-		} catch (error) {
-			if (!(error instanceof BoardError)) throw error;
-		}
+	try {
+		const current = await resolveId(id);
+		return current !== id.toUpperCase() ? current : null;
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return null;
 	}
-	return null;
+}
+
+export async function readAliases(): Promise<Record<string, string>> {
+	return JSON.parse(await boardCard(["aliases", "--json"]));
 }
 
 export type CreateOptions = {

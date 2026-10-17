@@ -86,6 +86,17 @@ function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 				</Fallback>
 			</dd>
 			<IconField record={record} onEdit={onEdit} />
+			<dt>Key</dt>
+			<dd className="stack">
+				<Fallback id={id} op="set" field="key">
+					<TextField
+						label="Key"
+						placeholder="2 to 4 letters - changing it renumbers the project's tickets"
+						value={record.key ?? ""}
+						onCommit={(key) => onEdit("key", key.toUpperCase(), { key: key.toUpperCase() || null })}
+					/>
+				</Fallback>
+			</dd>
 			<NumberField
 				record={record}
 				field="priority"

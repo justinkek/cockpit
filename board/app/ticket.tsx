@@ -233,13 +233,13 @@ export function Ticket({
 
 	const mentions = useMemo<Mentions>(
 		() => ({
-			nameOf: mentionNames([...lists.cards, ...lists.epics]),
+			nameOf: mentionNames([...lists.cards, ...lists.epics], lists.aliases),
 			onOpen: (id) => {
 				go(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
 				return true;
 			},
 		}),
-		[lists.cards, lists.epics, router],
+		[lists.cards, lists.epics, lists.aliases, router],
 	);
 
 	const kind = kindOf(record.id);

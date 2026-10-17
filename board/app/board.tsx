@@ -958,10 +958,11 @@ export function Board({
 	}, [query, kind, initial]);
 
 	const mentions = useMemo<Mentions>(() => {
-		const nameOf = mentionNames([...lists.cards, ...lists.epics, ...stubs]);
+		const nameOf = mentionNames([...lists.cards, ...lists.epics, ...stubs], lists.aliases);
 		return {
 			nameOf,
-			onOpen: (id) => {
+			onOpen: (mentioned) => {
+				const id = lists.aliases?.[mentioned] ?? mentioned;
 				if (kindOf(id) !== kind) return false;
 				const number = id.split("-").at(-1);
 				const found =
@@ -972,7 +973,7 @@ export function Board({
 				return true;
 			},
 		};
-	}, [lists.cards, lists.epics, stubs, kind]);
+	}, [lists.cards, lists.epics, lists.aliases, stubs, kind]);
 
 	const labels = useMemo(
 		() => [...new Set([...stubs.flatMap((stub) => stub.labels ?? []), ...view.labels])].sort(),

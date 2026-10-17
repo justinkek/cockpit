@@ -103,6 +103,7 @@ export type Card = {
 	speed?: number | null;
 	priority?: number | null;
 	repo?: string | null;
+	key?: string | null;
 	points?: number | null;
 	why?: string | null;
 	description?: string | null;
@@ -183,8 +184,9 @@ export type Sprint = Named & { start?: string | null; end?: string | null };
 export const TYPES = ["Feature", "Bug", "Timebox"] as const;
 
 export function kindOf(id: string): Kind | null {
-	if (/^(FEAT|BUG|TIME)-/.test(id)) return "card";
 	if (id.startsWith("EPIC-")) return "epic";
+	const prefix = id.match(/^([A-Z]{2,4})-\d+$/)?.[1];
+	if (prefix && !(prefix in RECORD_KINDS)) return "card";
 	return null;
 }
 

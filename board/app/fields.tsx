@@ -30,6 +30,7 @@ export type Lists = {
 	epics: (Named & { project?: string | null; status?: string })[];
 	sprints: Sprint[];
 	projects: (Named & { status?: string })[];
+	aliases?: Record<string, string>;
 };
 
 export type Handlers = {

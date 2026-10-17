@@ -7,7 +7,7 @@ export const MentionContext = createContext<Mentions>({});
 
 const CARD_NUMBER = /^(?:FEAT|BUG|TIME)-(\d+)$/;
 
-export function mentionNames(records: { id: string; name: string }[]) {
+export function mentionNames(records: { id: string; name: string }[], aliases: Record<string, string> = {}) {
 	const byId = new Map(records.map((record) => [record.id, record.name]));
 	const byNumber = new Map(
 		records.flatMap((record) => {
@@ -15,7 +15,8 @@ export function mentionNames(records: { id: string; name: string }[]) {
 			return number ? [[number, record.name] as const] : [];
 		}),
 	);
-	return (id: string) => byId.get(id) ?? byNumber.get(id.match(CARD_NUMBER)?.[1] ?? "");
+	return (id: string) =>
+		byId.get(id) ?? byId.get(aliases[id] ?? "") ?? byNumber.get(id.match(CARD_NUMBER)?.[1] ?? "");
 }
 
 const attachmentPath = /^(?:\.\/)?attachments\/([^/?#]+)\/([^/?#]+)$/;
@@ -40,6 +41,7 @@ export function hrefOf(target: string) {
 function Mention({ id }: { id: string }) {
 	const { nameOf, onOpen } = useContext(MentionContext);
 	const name = nameOf?.(id);
+	if (!name && !ALWAYS_LINKED.test(id)) return <>{id}</>;
 	const href = id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`;
 	function open(event: MouseEvent<HTMLAnchorElement>) {
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
@@ -52,7 +54,9 @@ function Mention({ id }: { id: string }) {
 	);
 }
 
-const mention = /(?<![A-Za-z0-9_/-])(?:FEAT|BUG|TIME|EPIC)-\d+(?![A-Za-z0-9_])/g;
+const ALWAYS_LINKED = /^(?:FEAT|BUG|TIME|EPIC)-\d+$/;
+
+const mention = /(?<![A-Za-z0-9_/-])[A-Z]{2,4}-\d+(?![A-Za-z0-9_])/g;
 
 function mentioned(text: string, key: string): ReactNode[] {
 	const parts: ReactNode[] = [];

@@ -24,6 +24,15 @@ function props(kind: Other): ReactNode {
 						<option key={status}>{status}</option>
 					))}
 				</select>
+				<input
+					name="key"
+					required
+					pattern="[A-Za-z]{2,4}"
+					maxLength={4}
+					aria-label="Key"
+					placeholder="Key, like COC"
+					title="2 to 4 letters no other project has, numbering its tickets"
+				/>
 				<input name="priority" type="number" min={0} aria-label="Priority" placeholder="Priority" />
 				<input name="repo" type="url" aria-label="Repo" placeholder="Repo URL" />
 			</>

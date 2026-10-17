@@ -266,7 +266,7 @@ export async function submitNew(form: FormData): Promise<void> {
 	);
 }
 
-const CREATED_WITH = ["icon", "start", "end", "dev_days", "speed", "priority", "repo"];
+const CREATED_WITH = ["icon", "start", "end", "dev_days", "speed", "priority", "repo", "key"];
 
 const SET_AFTER = ["points", "domain", "stack", "why", "description", "card"];
 

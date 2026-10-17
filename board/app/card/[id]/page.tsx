@@ -12,8 +12,10 @@ import {
 	listAttachments,
 	listRecords,
 	phaseOf,
+	readAliases,
 	readRecord,
 	recordKindOf,
+	resolveId,
 } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
@@ -33,25 +35,29 @@ export default async function CardPage({ params, searchParams }: Props) {
 		if (!(failure instanceof BoardError)) throw failure;
 		const kind = recordKindOf(id.toUpperCase());
 		if (kind && (await isArchived(id))) {
-			const archived = (await listRecords(kind, true)).find((other) => other.id === id.toUpperCase());
+			const current = await resolveId(id);
+			const archived = (await listRecords(kind, true)).find((other) => other.id === current);
 			if (archived) return <ArchivedRecord record={archived} failure={typeof error === "string" ? error : undefined} />;
 		}
 		const renamed = await findRenamed(id);
 		if (renamed) redirect(`/card/${renamed}`);
 		notFound();
 	}
+	if (record.id !== id.toUpperCase()) redirect(`/card/${record.id}`);
 
 	let cards: Card[] = [];
 	let epics: Card[] = [];
 	let sprints: Card[] = [];
 	let projects: Card[] = [];
 	let attachments: string[] = [];
+	let aliases: Record<string, string> = {};
 	try {
-		[cards, epics, sprints, projects] = await Promise.all([
+		[cards, epics, sprints, projects, aliases] = await Promise.all([
 			listRecords("card"),
 			listRecords("epic"),
 			listRecords("sprint"),
 			listRecords("project"),
+			readAliases(),
 		]);
 		attachments = await listAttachments(record.id);
 	} catch (failure) {
@@ -96,6 +102,7 @@ export default async function CardPage({ params, searchParams }: Props) {
 				epics: epics.map(({ id, name, project, status }) => ({ id, name, project, status })),
 				sprints: sprints.map(({ id, name, start, end }) => ({ id, name, start, end })),
 				projects: projects.map(({ id, name, status }) => ({ id, name, status })),
+				aliases,
 			}}
 		/>
 	);
