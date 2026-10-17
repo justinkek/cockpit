@@ -9,8 +9,8 @@ import type { InboxItem } from "@/lib/shared";
 
 const LINKS = [
 	{ href: "/obeya", label: "Obeya" },
-	{ href: "/projects", label: "Projects" },
 	{ href: "/plan", label: "Plan" },
+	{ href: "/projects", label: "Projects" },
 	{ href: "/epics", label: "Epics" },
 	{ href: "/sprints", label: "Sprints" },
 	{ href: "/", label: "Cards" },
