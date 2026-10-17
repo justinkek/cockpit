@@ -814,8 +814,6 @@ command_create() {
     epic="$(normalise_id "$epic")"
     require_record "$epic"
     [ "$(kind_of "$epic")" = epic ] || die 2 "$epic is not an epic"
-    [ "$(read_record "$epic" | jq --raw-output '.status // ""')" != "Epic Done" ] \
-      || die 2 "$epic is in Epic Done, so it takes no new ticket - pass an open epic, one of: board-card list --kind epic"
   fi
   if [ -n "$project" ]; then
     [ "$kind" != card ] || die 2 "a ticket's project is its epic's - pass --epic <EPIC-n> with an epic of that project instead of --project"
@@ -1474,9 +1472,7 @@ set_locked() {
         sprint/end) check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
         epic/target) check_epic_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
-      [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || check_share "$id" "$value"
-      [ "$(kind_of "$id")/$field" != project/status ] || check_reopen "$id" "$value"
-      [ "$(kind_of "$id")/$field" != project/status ] || [ "$value" != Done ] || close_project "$id"
+      [ "$(kind_of "$id")/$field" != project/status ] || [ "$value" != Done ] || [ "$closing_project" != true ] || close_project "$id"
       update_record "$id" --arg field "$field" --argjson value "$json" "$unnest_reference_program | .[\$field] = \$value"
       [ "$field" != target ] || hold_epic_cards "$id"
       ;;
@@ -1491,10 +1487,6 @@ set_locked() {
         reference="$(normalise_id "$value")"
         require_record "$reference"
         [ "$(kind_of "$reference")" = "$field" ] || die 2 "$reference is not a $field"
-        if [ "$field/$(kind_of "$id")" = epic/card ] && [ "$reference" != "$(read_record "$id" | jq --raw-output '.epic // ""')" ] \
-          && [ "$(read_record "$reference" | jq --raw-output '.status // ""')" = "Epic Done" ]; then
-          die 2 "$reference is in Epic Done, so it takes no ticket - move $id to an open epic, one of: board-card list --kind epic"
-        fi
       fi
       local key="" was
       case "$(kind_of "$id")/$field" in
@@ -1584,16 +1576,10 @@ open_cards_of_project() {
 }
 
 close_project() {
-  local project="$1" epics cards epic_count card_count id
+  local project="$1" epics cards id
   [ "$(read_record "$project" | jq --raw-output '.status // ""')" != Done ] || return 0
   epics="$(open_epics_of_project "$project")"
   cards="$(open_cards_of_project "$project")"
-  [ -n "$epics$cards" ] || return 0
-  epic_count="$(printf '%s' "$epics" | grep --count . || true)"
-  card_count="$(printf '%s' "$cards" | grep --count . || true)"
-  if [ "$closing_project" != true ]; then
-    die 2 "$project still has $epic_count open $( [ "$epic_count" -eq 1 ] && echo epic || echo epics) and $card_count open $( [ "$card_count" -eq 1 ] && echo ticket || echo tickets) - deprioritise its tickets, move its epics to Epic Done and mark it Done in one go with: board-card set $project status Done --close"
-  fi
   for id in $cards; do hop "$id" Deprioritised; done
   for id in $epics; do hop "$id" "Epic Done"; done
 }
@@ -1753,17 +1739,8 @@ command_bounce() {
   id="$(normalise_id "${1:-}")"
   case "$GATES" in *" $gate "*) ;; *) die 2 "a bounce is back from one of:$GATES- not '$gate'" ;; esac
   require_record "$id"
-  refuse_done_card "$id" ""
   with_lock update_record "$id" --arg gate "$gate" '.back_from = ((.back_from // {}) + {($gate): (((.back_from // {})[$gate] // 0) + 1)})'
   command_show "$id" "Back from $gate"
-}
-
-refuse_done_card() {
-  local id="$1" target="$2"
-  [ "$(kind_of "$id")" = card ] || return 0
-  [ "$target" != Done ] || return 0
-  [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || return 0
-  die 2 "$id is Done, and Done is final - raise a new ticket for what is left instead"
 }
 
 sprint_covering() {
@@ -1827,7 +1804,7 @@ command_move() {
   done
   has_board "$kind" || die 2 "a $kind has no columns"
   require_column "$kind" "$column"
-  for id in "${ids[@]}"; do require_record "$id"; refuse_done_card "$id" "$column"; done
+  for id in "${ids[@]}"; do require_record "$id"; done
   with_lock hops "$column" "${ids[@]}"
 }
 
@@ -1883,7 +1860,6 @@ command_walk() {
   done
   require_column "$kind" "$target"
   require_record "$id"
-  refuse_done_card "$id" "$target"
   with_lock walk_locked "$id" "$target" ${skips[@]+"${skips[@]}"}
 }
 
@@ -2207,8 +2183,6 @@ require_home() {
   home="$(read_record "$id" | jq --raw-output --arg field "$field" '.[$field] // ""')"
   [ -n "$home" ] || die 2 "$id has no $field, and a copy needs one - give $id one first with: board-card set $id $field <id>"
   [ -f "$(record_file "$home")" ] || die 2 "$id's $field $home is not on the board, and a copy needs one - give $id another first with: board-card set $id $field <id>"
-  [ "$field" != epic ] || [ "$(read_record "$home" | jq --raw-output '.status // ""')" != "Epic Done" ] \
-    || die 2 "$id's epic $home is in Epic Done, so it takes no new ticket - give $id an open epic first with: board-card set $id epic <EPIC-n>"
 }
 
 duplicate_locked() {
@@ -2819,51 +2793,26 @@ command_inbox() {
 }
 
 shares() {
-  local leave="${1:-}" file id value
+  local file id value
   for file in "$BOARD_DIR"/projects/*.md; do
     [ -f "$file" ] || continue
     id="${file##*/}"
     id="${id%.md}"
-    [ "$id" != "$leave" ] || continue
     [ "$(front_matter_values status "$file" | cut -f2)" != '"Done"' ] || continue
     value="$(front_matter_values tracks "$file" | cut -f2 | grep --extended-regexp '^[0-9]+$' || true)"
     [ -z "$value" ] || printf '%s\t%s\n' "$id" "$value"
   done
 }
 
-shares_total() { shares "${1:-}" | awk -F'\t' '{ total += $2 } END { print total + 0 }'; }
-
-shares_text() { shares | awk -F'\t' '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }'; }
+shares_total() { shares | awk -F'\t' '{ total += $2 } END { print total + 0 }'; }
 
 board_tracks() { cat "$BOARD_DIR/tracks" 2>/dev/null || true; }
 
-check_share() {
-  local id="$1" value="$2" total board
-  board="$(board_tracks)"
-  [ -n "$board" ] || return 0
-  total=$(($(shares_total "$id") + value))
-  [ "$total" -le "$board" ] || die 2 "a share of $value for $id takes the projects' shares to $total, over the board's $board tracks - lower another project's share first, or raise the board's count with: board-card tracks <n>"
-}
-
-check_reopen() {
-  local id="$1" value="$2" share total board
-  [ "$value" != Done ] || return 0
-  [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || return 0
-  share="$(read_record "$id" | jq --raw-output '.tracks // ""')"
-  board="$(board_tracks)"
-  [ -n "$share" ] && [ -n "$board" ] || return 0
-  total=$(($(shares_total "$id") + share))
-  [ "$total" -le "$board" ] || die 2 "reopening $id brings back its share of $share, taking the projects' shares to $total, $((total - board)) over the board's $board tracks - lower another project's share first, or raise the board's count with: board-card tracks <n>"
-}
-
 tracks_locked() {
-  local total
   if [ -z "$1" ]; then
     rm -f "$BOARD_DIR/tracks"
     return 0
   fi
-  total="$(shares_total)"
-  [ "$1" -ge "$total" ] || die 2 "the projects' shares add up to $total ($(shares_text)), so the board needs at least $total tracks - lower a project's share first with: board-card set <PRJ-n> tracks <n>"
   printf '%s\n' "$1" > "$BOARD_DIR/tracks"
 }
 

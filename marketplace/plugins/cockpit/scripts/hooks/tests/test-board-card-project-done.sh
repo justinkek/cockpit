@@ -49,12 +49,13 @@ stub create --epic EPIC-2 --name Dropped >/dev/null
 stub move COC-4 Deprioritised >/dev/null
 stub create --epic EPIC-4 --name Elsewhere >/dev/null
 
-printf "Test group: a project with open work is not marked Done on its own\n"
+printf "Test group: a project with open work is marked Done on its own, leaving that work open\n"
 
-message="$(stub set PRJ-1 status Done 2>&1 >/dev/null)"
-assert_eq "it is refused" "2 Not started" "$? $(field PRJ-1 .status)"
-assert_eq "naming how many epics and tickets are still open and the --close that closes them" \
-  "[board-card] PRJ-1 still has 2 open epics and 2 open tickets - deprioritise its tickets, move its epics to Epic Done and mark it Done in one go with: board-card set PRJ-1 status Done --close" "$message"
+stub set PRJ-1 status Done >/dev/null
+assert_eq "plain set marks it Done" "0 Done" "$? $(field PRJ-1 .status)"
+assert_eq "and leaves its tickets and epics where they were" "Backlog In Dev Backlog Backlog" "$(field COC-1 .status) $(field COC-2 .status) $(field EPIC-1 .status) $(field EPIC-2 .status)"
+stub undo PRJ-1 >/dev/null
+assert_eq "undo puts it back" "Not started" "$(field PRJ-1 .status)"
 stub set PRJ-1 priority 1 --close >/dev/null 2>&1
 assert_eq "--close is refused on anything but marking a project Done" "2" "$?"
 

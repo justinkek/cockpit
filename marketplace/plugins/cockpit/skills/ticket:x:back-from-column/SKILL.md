@@ -32,6 +32,8 @@ Only the status write differs; see step 6.
 
 **One bounce per defect, not per message.** A long back-and-forth about a single defect is one entry, not one per prompt.
 
+**Never a ticket in `Done`.** `board-card` no longer refuses moving or bouncing one, so the stop is yours: leave it in `Done` and raise a new ticket for what is left with `/cockpit:ticket:0:new`.
+
 ## Regression source to counter mapping
 
 | Source column          | Counter property       |

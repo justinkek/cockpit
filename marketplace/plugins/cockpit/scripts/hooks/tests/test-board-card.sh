@@ -294,8 +294,6 @@ stub create --name Misplaced --epic HOM-1 >/dev/null 2>&1
 assert_eq "and so is one whose epic is not an epic" "2" "$?"
 finished="$(stub create --kind epic --name Finished --project PRJ-1)"
 stub move "$finished" "Epic Done" >/dev/null
-assert_eq "and so is one whose epic is in Epic Done, writing nothing" "2|0" \
-  "$(stub create --name Late --epic "$finished" >/dev/null 2>&1; echo "$?")|$(stub list --epic "$finished" | wc -l | tr -d ' ')"
 stub archive "$finished" >/dev/null
 stub create --kind epic --name Unowned >/dev/null 2>&1
 assert_eq "an epic created with no project is refused" "2" "$?"
@@ -1124,29 +1122,22 @@ assert_eq "leaving nothing stored" "0" "$(grep --count '^project:' "$COCKPIT_BOA
 assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "cards/$placed.md" | cut -d' ' -f1)"
 assert_eq "a second migrate leaves the cards alone" "0" "$(stub migrate | grep --count 'project')"
 
-printf "\nTest group: a card never leaves Done, though the move that put it there can be undone\n"
+printf "\nTest group: a ticket moves out of Done like any other, as the app is what asks first\n"
 
 finished="$(stub create --name Finished --epic "$home")"
 stub move "$finished" "In Dev" >/dev/null
 stub move "$finished" Done >/dev/null
-stub move "$finished" "In Dev" >/dev/null 2>&1
-assert_eq "a move out of Done is refused" "2 Done" "$? $(field "$finished" .status)"
-assert_eq "saying Done is final and to raise a new card" "[board-card] $finished is Done, and Done is final - raise a new ticket for what is left instead" "$(stub move "$finished" Backlog 2>&1 >/dev/null)"
-stub move "$finished" Deprioritised >/dev/null 2>&1
-assert_eq "and so is a move to Deprioritised" "2 Done" "$? $(field "$finished" .status)"
-other="$(stub create --name "Still open" --epic "$home")"
-stub move "$other" "$finished" "In Dev" >/dev/null 2>&1
-assert_eq "a move of several that holds a Done card moves none of them" "2 Backlog" "$? $(field "$other" .status)"
-stub walk "$finished" "In Dev" >/dev/null 2>&1
-assert_eq "a walk from Done is refused the same way" "2" "$?"
-stub bounce "$finished" CR >/dev/null 2>&1
-assert_eq "and so is a bounce" "2" "$?"
-assert_eq "a move to Done, where it already is, is no change" "" "$(stub move "$finished" Done)"
+stub move "$finished" "In Dev" >/dev/null
+assert_eq "a move out of Done is made" "0 In Dev" "$? $(field "$finished" .status)"
+stub move "$finished" Done >/dev/null
+stub move "$finished" Deprioritised >/dev/null
+assert_eq "and so is a move to Deprioritised" "Deprioritised" "$(field "$finished" .status)"
+stub move "$finished" Done >/dev/null
 stub undo "$finished" >/dev/null
-assert_eq "undoing the move that put it in Done is allowed" "In Dev" "$(field "$finished" .status)"
-stub move "$home" "Ready for FD" >/dev/null
-stub move "$home" Backlog >/dev/null
-assert_eq "an epic still moves freely" "Backlog" "$(field "$home" .status)"
+assert_eq "undo takes back the move to Done as it takes back any other" "Deprioritised" "$(field "$finished" .status)"
+stub move "$finished" Done >/dev/null
+stub bounce "$finished" CR >/dev/null
+assert_eq "a bounce of a Done ticket is counted" "1" "$(field "$finished" '.back_from.CR')"
 
 printf "\nTest group: an epic waits in Ready for Dev until its first card starts dev\n"
 
@@ -1169,25 +1160,19 @@ early="$(stub create --epic "$breaking" --name "Early start")"
 stub move "$early" "In Dev" >/dev/null
 assert_eq "an epic still in ticket breakdown is left where it is" "In Ticket Breakdown" "$(field "$breaking" .status)"
 
-printf "\nTest group: a card is neither moved to nor copied under an epic in Epic Done\n"
+printf "\nTest group: a ticket is moved to and copied under an epic in Epic Done, as the app is what asks first\n"
 
 done_epic="$(stub create --kind epic --name "Finished again" --project PRJ-1)"
 stub move "$done_epic" "Epic Done" >/dev/null
 on_open="$(stub create --name "On an open epic" --epic EPIC-1)"
-message="$(stub set "$on_open" epic "$done_epic" 2>&1 >/dev/null)"
-assert_eq "a card is not moved to an epic in Epic Done, and the refusal names the epic" \
-  "2|EPIC-1|[board-card] $done_epic is in Epic Done, so it takes no ticket - move $on_open to an open epic, one of: board-card list --kind epic" \
-  "$(stub set "$on_open" epic "$done_epic" >/dev/null 2>&1; echo "$?")|$(field "$on_open" .epic)|$message"
-stub move "$done_epic" Backlog >/dev/null
 stub set "$on_open" epic "$done_epic" >/dev/null
-stub move "$done_epic" "Epic Done" >/dev/null
-assert_eq "a card already under an epic in Epic Done can be given that same epic again" "0" \
-  "$(stub set "$on_open" epic "$done_epic" >/dev/null 2>&1; echo "$?")"
-copies="$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
-message="$(stub duplicate "$on_open" 2>&1 >/dev/null)"
-assert_eq "a card whose epic is in Epic Done is not duplicated, and the refusal names the epic, writing nothing" \
-  "2|[board-card] $on_open's epic $done_epic is in Epic Done, so it takes no new ticket - give $on_open an open epic first with: board-card set $on_open epic <EPIC-n>|$copies" \
-  "$(stub duplicate "$on_open" >/dev/null 2>&1; echo "$?")|$message|$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
+assert_eq "a ticket is moved to an epic in Epic Done" "0|$done_epic" "$?|$(field "$on_open" .epic)"
+late="$(stub create --name Late --epic "$done_epic")"
+assert_eq "a ticket is made under an epic in Epic Done" "$done_epic" "$(field "$late" .epic)"
+copy="$(stub duplicate "$on_open")"
+assert_eq "and a ticket whose epic is in Epic Done is duplicated under it" "$done_epic" "$(field "$copy" .epic)"
+stub archive "$late" >/dev/null
+stub archive "$copy" >/dev/null
 stub archive "$on_open" >/dev/null
 
 printf "\nTest group: history --json says what each commit changed on the record\n"
