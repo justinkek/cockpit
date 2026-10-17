@@ -427,14 +427,9 @@ export function EntityView({
 		if (palette || closing || finishing || event.defaultPrevented) return;
 		const command = event.metaKey || event.ctrlKey;
 		const typing = typingIn(event.target);
-		const arrow = event.key === "ArrowDown" || event.key === "ArrowUp";
 		if (overlay && event.key === "Escape" && !typing) {
 			event.preventDefault();
 			overlay.onClose();
-		} else if (overlay && arrow && !command && !event.altKey && !event.shiftKey && !typing) {
-			const next = event.key === "ArrowDown" ? neighbours?.next : neighbours?.previous;
-			event.preventDefault();
-			if (next) overlay.onOpen(next.id, true);
 		} else if (command && !event.shiftKey && event.key.toLowerCase() === "k") {
 			event.preventDefault();
 			setPalette(rootPage());
@@ -459,7 +454,7 @@ export function EntityView({
 				<nav className="neighbours" aria-label={`Entities in ${overlay?.siblings?.label ?? entity.status}`}>
 					{neighbours.previous ? (
 						entityLink(neighbours.previous.id, `‹ ${neighbours.previous.id}`, {
-							title: `Previous: ${neighbours.previous.name} (${overlay ? "Up" : "k"})`,
+							title: `Previous: ${neighbours.previous.name} (k)`,
 							rel: "prev",
 						})
 					) : (
@@ -470,7 +465,7 @@ export function EntityView({
 					</span>
 					{neighbours.next ? (
 						entityLink(neighbours.next.id, `${neighbours.next.id} ›`, {
-							title: `Next: ${neighbours.next.name} (${overlay ? "Down" : "j"})`,
+							title: `Next: ${neighbours.next.name} (j)`,
 							rel: "next",
 						})
 					) : (
