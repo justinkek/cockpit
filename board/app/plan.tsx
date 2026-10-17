@@ -493,8 +493,8 @@ function runTitle(row: Row) {
 
 function refinementText(refinement: Refinement) {
 	return refinement.source === "measured"
-		? `${refinement.days} days on average from leaving Backlog to Tickets In Dev, over ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}`
-		: `${refinement.days} days, a default, as no epic has gone from leaving Backlog to Tickets In Dev yet`;
+		? `${refinement.days} days on average from leaving Backlog to Ready for Dev, over ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}`
+		: `${refinement.days} days, a default, as no epic has gone from leaving Backlog to Ready for Dev yet`;
 }
 
 function tracksText(count: number) {
@@ -1697,7 +1697,7 @@ export function Plan({
 						title={
 							row.refineForecast
 								? `In refinement since ${short(row.refineStart)}`
-								: `Refined from ${short(row.refineStart)} to ${short(row.refineEnd)}, when it reached Tickets In Dev`
+								: `Refined from ${short(row.refineStart)} to ${short(row.refineEnd)}, when it reached Ready for Dev`
 						}
 					/>,
 				);
@@ -2176,7 +2176,7 @@ export function Plan({
 						</span>
 						<span className="plan-speed-from">
 							{refinement.source === "measured"
-								? `from ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}, Backlog to Tickets In Dev`
+								? `from ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}, Backlog to Ready for Dev`
 								: "no epic refined yet"}
 						</span>
 					</div>

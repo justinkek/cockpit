@@ -213,8 +213,13 @@ assert_eq "while a feature or a bug that reached In Dev does" 'true,true' \
 printf "\nTest group: an epic is refined before it is delivered, and only its delivery takes a track\n"
 
 PAST='[{"id":"EPIC-1","status":"Epic Done","start":"2026-08-01","dates":{"Tickets In Dev":"2026-08-11T10:00:00Z"}},{"id":"EPIC-2","status":"Tickets In Dev","start":"2026-09-01","dates":{"Tickets In Dev":"2026-09-21T10:00:00Z"}},{"id":"EPIC-3","status":"In FD","start":"2026-10-01"},{"id":"EPIC-4","status":"Backlog"}]'
-assert_eq "the refinement average is the days from an epic's start to its Tickets In Dev, over the epics that reached it" '{"days":15,"source":"measured","epics":2}' \
+assert_eq "the refinement average is the days from an epic's start to its Tickets In Dev when it never had a Ready for Dev, over the epics that reached it" '{"days":15,"source":"measured","epics":2}' \
   "$(evaluate "p.refinementOf($PAST)")"
+READY='[{"id":"EPIC-1","status":"Tickets In Dev","start":"2026-09-01","dates":{"Ready for Dev":"2026-09-05T10:00:00Z","Tickets In Dev":"2026-09-21T10:00:00Z"}},{"id":"EPIC-2","status":"Ready for Dev","start":"2026-09-01","dates":{"Ready for Dev":"2026-09-09T10:00:00Z"}}]'
+assert_eq "an epic that reached Ready for Dev is measured to that stamp rather than to Tickets In Dev" '{"days":6,"source":"measured","epics":2}' \
+  "$(evaluate "p.refinementOf($READY)")"
+assert_eq "an epic in Ready for Dev counts as refined, its refinement ending that day" 'delivery,2026-09-09' \
+  "$(evaluate '((row) => [row.phase, p.dayText(row.refineEnd)].join())(p.planOf([{id:"EPIC-1",status:"Ready for Dev",start:"2026-09-01",dates:{"Ready for Dev":"2026-09-09T10:00:00Z"}}], [{epic:"EPIC-1",status:"Backlog",complexity:5}], 7, '"$TODAY"', '"$INSTANT"')["EPIC-1"])')"
 assert_eq "with no epic refined yet it is a default, and says so" '{"days":2,"source":"default","epics":0}' \
   "$(evaluate 'p.refinementOf([{status:"In FD",start:"2026-10-01"}])')"
 REFINE='{days:10,source:"measured",epics:3}'

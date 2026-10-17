@@ -1064,5 +1064,26 @@ stub move "$home" "Ready for FD" >/dev/null
 stub move "$home" Backlog >/dev/null
 assert_eq "an epic still moves freely" "Backlog" "$(field "$home" .status)"
 
+printf "\nTest group: an epic waits in Ready for Dev until its first card starts dev\n"
+
+assert_eq "Ready for Dev sits between In Ticket Breakdown and Tickets In Dev" "In Ticket Breakdown|Ready for Dev|Tickets In Dev" \
+  "$(stub statuses --kind epic | grep --after-context=2 --line-regexp "In Ticket Breakdown" | paste -sd '|' -)"
+ready="$(stub create --kind epic --project PRJ-1 --name "Broken down")"
+stub walk "$ready" "Ready for Dev" >/dev/null
+assert_eq "a walk stamps Ready for Dev" "true" "$(field "$ready" '.dates | has("Ready for Dev")')"
+timebox="$(stub create --epic "$ready" --name "Spike" --type Timebox)"
+stub move "$timebox" "In Dev" >/dev/null
+assert_eq "a timebox starting dev leaves its epic in Ready for Dev" "Ready for Dev" "$(field "$ready" .status)"
+feature="$(stub create --epic "$ready" --name "First slice")"
+output="$(stub walk "$feature" "In Dev" --skip "Sprint Backlog")"
+assert_eq "a feature reaching In Dev moves its epic on to Tickets In Dev" "Tickets In Dev" "$(field "$ready" .status)"
+assert_eq "and names that move" "$ready	Ready for Dev -> Tickets In Dev" "$(printf '%s\n' "$output" | grep "^$ready")"
+assert_eq "in the walk's own commit" "walk $feature $ready" "$(last_commit %s)"
+breaking="$(stub create --kind epic --project PRJ-1 --name "Still breaking down")"
+stub move "$breaking" "In Ticket Breakdown" >/dev/null
+early="$(stub create --epic "$breaking" --name "Early start")"
+stub move "$early" "In Dev" >/dev/null
+assert_eq "an epic still in ticket breakdown is left where it is" "In Ticket Breakdown" "$(field "$breaking" .status)"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

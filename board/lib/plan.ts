@@ -399,12 +399,16 @@ export function planOrder<T extends Pick<Card, "id" | "rank" | "target">>(epics:
 	);
 }
 
+export function refinedAtOf(epic: Pick<Card, "dates">): number | null {
+	return timeOf(epic.dates?.["Ready for Dev"]) ?? timeOf(epic.dates?.["Tickets In Dev"]);
+}
+
 export type Refinement = { days: number; source: "measured" | "default"; epics: number };
 
 export function refinementOf(epics: Pick<Card, "start" | "dates">[]): Refinement {
 	const spans = epics.flatMap((epic) => {
 		const start = dayOf(epic.start);
-		const at = timeOf(epic.dates?.["Tickets In Dev"]);
+		const at = refinedAtOf(epic);
 		const end = at == null ? null : localDay(new Date(at));
 		return start != null && end != null && end >= start ? [end - start] : [];
 	});
@@ -505,7 +509,7 @@ export function planOf(
 			const own = byEpic[epic.id] ?? [];
 			const pin = epic.track != null && epic.track > 0 ? Math.floor(epic.track) : null;
 			const inProgress = inProgressOf(epic, own);
-			const refinedAt = timeOf(epic.dates?.["Tickets In Dev"]) ?? (inProgress ? startedAt(epic, own) : null);
+			const refinedAt = refinedAtOf(epic) ?? (inProgress ? startedAt(epic, own) : null);
 			const phase: Phase =
 				epic.status === "Epic Done"
 					? "done"

@@ -39,6 +39,7 @@ export const EPIC_COLUMNS = [
 	"In Ticket Breakdown by AI",
 	"Ready for Ticket Breakdown",
 	"In Ticket Breakdown",
+	"Ready for Dev",
 	"Tickets In Dev",
 	"Epic Done",
 ];
@@ -184,7 +185,7 @@ export function contentSearchFailed(kind: Kind, error: string) {
 export function phaseOf(column: string): string {
 	if (column === "Backlog" || column === "Deprioritised") return "idle";
 	if (/\b(BR|TR|FD|TD)\b/.test(column) || column.includes("Ticket Breakdown")) return "refine";
-	if (["Ready for Sprint", "Sprint Backlog", "Daily Plan"].includes(column)) return "planned";
+	if (["Ready for Sprint", "Sprint Backlog", "Daily Plan", "Ready for Dev"].includes(column)) return "planned";
 	if (column === "In Dev" || column === "Tickets In Dev") return "dev";
 	if (/\b(CR|FR)\b/.test(column)) return "review";
 	if (column === "Ready for Validation") return "validate";

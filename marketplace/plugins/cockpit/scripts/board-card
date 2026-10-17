@@ -89,7 +89,7 @@ EPIC_COLUMNS=(
   "Ready for FD by AI" "In FD by AI" "Ready for FD" "In FD"
   "Ready for TD by AI" "In TD by AI" "Ready for TD" "In TD"
   "Ready for Ticket Breakdown by AI" "In Ticket Breakdown by AI" "Ready for Ticket Breakdown" "In Ticket Breakdown"
-  "Tickets In Dev" "Epic Done"
+  "Ready for Dev" "Tickets In Dev" "Epic Done"
 )
 
 WAITING_COLUMNS=(
@@ -1523,7 +1523,16 @@ hop() {
     | if $starting and .start == null then .start = $stamp[:10] else . end
     | if $kind == "epic" and $column == "Backlog" then del(.start) else . end' | write_record "$id"
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
-  return 0
+  [ "$kind" = card ] && [ "$column" = "In Dev" ] || return 0
+  start_epic_of "$record"
+}
+
+start_epic_of() {
+  local epic
+  epic="$(printf '%s' "$1" | jq --raw-output 'select(.type != "Timebox") | .epic // empty')"
+  [ -n "$epic" ] && [ -f "$(record_file "$epic")" ] || return 0
+  [ "$(read_record "$epic" | jq --raw-output '.status')" = "Ready for Dev" ] || return 0
+  hop "$epic" "Tickets In Dev"
 }
 
 hops() {
