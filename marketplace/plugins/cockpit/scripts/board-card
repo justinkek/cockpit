@@ -828,6 +828,7 @@ command_create() {
     fields="$(jq --compact-output --arg field "${pairs[index]}" --argjson value "$value" '. + {($field): $value}' <<<"$fields")"
   done
   check_sprint_span "$start" "$end"
+  [ "$kind" != sprint ] || check_sprint_overlap "$start" "$end" ""
   check_epic_span "$start" "$target"
   require_board
   with_lock create_locked "$kind" "$name" "$type" "$status" "$epic" "$body" "$fields"
@@ -1137,6 +1138,18 @@ check_icon() {
 check_sprint_span() {
   local start="$1" end="$2"
   [ -z "$start" ] || [ -z "$end" ] || [[ ! "$end" < "$start" ]] || die 2 "a sprint ends on or after the day it starts, and $end is before $start"
+}
+
+check_sprint_overlap() {
+  local start="$1" end="$2" self="$3" file overlap other from to
+  [ -n "$start" ] && [ -n "$end" ] || return 0
+  overlap="$( { for file in "$BOARD_DIR"/sprints/*.md; do [ ! -f "$file" ] || parse_file "$file"; done; } \
+    | jq --raw-output --slurp --arg start "$start" --arg end "$end" --arg self "$self" '
+      map(select(.id != $self and (.start // "") != "" and (.end // "") != "" and .start[:10] <= $end and .end[:10] >= $start))
+      | sort_by(.id | split("-")[1] | tonumber) | first | select(. != null) | "\(.id) \(.start[:10]) \(.end[:10])"')"
+  [ -n "$overlap" ] || return 0
+  read -r other from to <<<"$overlap"
+  die 2 "$other already runs $from to $to, and $start to $end overlaps it - a day belongs to one sprint at most"
 }
 
 check_epic_span() {
@@ -1468,8 +1481,14 @@ set_locked() {
     icon|timebox_mins|start|end|dev_days|speed|priority|repo|status|points|why|description|domain|stack|card|target|date|confidence|learning|tracks|track)
       json="$(field_json "$(kind_of "$id")" "$field" "$value")" || exit "$?"
       case "$(kind_of "$id")/$field" in
-        sprint/start) check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" ;;
-        sprint/end) check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
+        sprint/start)
+          check_sprint_span "$value" "$(read_record "$id" | jq --raw-output '.end // empty')"
+          check_sprint_overlap "$value" "$(read_record "$id" | jq --raw-output '.end // empty')" "$id"
+          ;;
+        sprint/end)
+          check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value"
+          check_sprint_overlap "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" "$id"
+          ;;
         epic/target) check_epic_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
       [ "$(kind_of "$id")/$field" != project/status ] || [ "$value" != Done ] || [ "$closing_project" != true ] || close_project "$id"

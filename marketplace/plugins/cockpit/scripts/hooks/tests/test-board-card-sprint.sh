@@ -59,6 +59,28 @@ open="$(stub create --epic EPIC-1 --name Open)"
 stub move "$open" "In Dev" >/dev/null
 assert_eq "a move to any other column leaves the sprint alone" "null" "$(field "$open" .sprint)"
 
+hand="$(stub create --epic EPIC-1 --name "Set by hand")"
+stub set "$hand" sprint SPR-1 >/dev/null
+COCKPIT_NOW=2026-10-14T10:00:00Z stub move "$hand" Done >/dev/null
+assert_eq "a sprint set by hand gives way to the one covering the day it reaches Done" "SPR-2" "$(field "$hand" .sprint)"
+
+printf "\nTest group: a sprint's dates never overlap another sprint's\n"
+
+message="$(stub create --kind sprint --name "Sprint 3" --start 2026-10-20 --end 2026-11-06 2>&1 >/dev/null)"
+assert_eq "a new sprint overlapping another is refused, naming it" \
+  "2|[board-card] SPR-2 already runs 2026-10-12 to 2026-10-23, and 2026-10-20 to 2026-11-06 overlaps it - a day belongs to one sprint at most" \
+  "$(stub create --kind sprint --name "Sprint 3" --start 2026-10-20 --end 2026-11-06 >/dev/null 2>&1; echo "$?")|$message"
+assert_eq "writing nothing" "2" "$(stub list --kind sprint | wc -l | tr -d ' ')"
+next="$(stub create --kind sprint --name "Sprint 3" --start 2026-10-24 --end 2026-10-30)"
+assert_eq "one that starts the day after the last ends is made" "SPR-3" "$next"
+stub set "$next" start 2026-10-23 >/dev/null 2>&1
+assert_eq "moving its start onto another sprint's last day is refused" "2|2026-10-24" "$?|$(field "$next" .start)"
+stub set SPR-1 end 2026-10-12 >/dev/null 2>&1
+assert_eq "and so is moving an end onto another sprint's first day" "2|2026-10-09" "$?|$(field SPR-1 .end)"
+assert_eq "a sprint's own dates never count against it" "End Date	2026-10-31" "$(stub set "$next" end 2026-10-31)"
+undated="$(stub create --kind sprint --name "Undated")"
+assert_eq "a sprint with no dates overlaps nothing" "Start Date	2026-11-09" "$(stub set "$undated" start 2026-11-09)"
+
 printf "\nTest group: migrate gives every Done card the sprint its Done stamp falls in\n"
 
 stale="$(stub create --epic EPIC-1 --name Stale)"
