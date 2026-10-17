@@ -449,17 +449,23 @@ export function blockedOf(epic: Pick<Card, "status"> & Partial<Pick<Card, "block
 
 export type BlockedSpan = { from: number; to: number; open: boolean };
 
-export function blockedSpansOf(
-	epic: Pick<Card, "blocked_spans">,
-	cards: (Pick<Card, "type"> & Partial<Pick<Card, "blocked_spans">>)[],
-	today: number,
-): BlockedSpan[] {
+type Spelled = Partial<Pick<Card, "type" | "status" | "moved" | "dates" | "blocked_spans">>;
+
+function closedOn(record: Spelled): number | null {
+	if (record.status === "Deprioritised") return dayOf(record.moved);
+	if (record.status !== "Done" && record.status !== "Epic Done") return null;
+	const at = doneAt({ status: record.status, dates: record.dates, moved: record.moved });
+	return at == null ? null : localDay(new Date(at));
+}
+
+export function blockedSpansOf(epic: Spelled, cards: Spelled[], today: number): BlockedSpan[] {
 	const spans = [epic, ...cards.filter((card) => card.type !== "Timebox")]
-		.flatMap((record) => record.blocked_spans ?? [])
-		.flatMap((span) => {
+		.flatMap((record) => (record.blocked_spans ?? []).map((span) => ({ span, closed: closedOn(record) })))
+		.flatMap(({ span, closed }) => {
 			const from = dayOf(span.from);
-			const to = span.to == null ? today : dayOf(span.to);
-			return from == null || to == null ? [] : [{ from, to: Math.max(from, to), open: span.to == null }];
+			const open = span.to == null && closed == null;
+			const to = span.to != null ? dayOf(span.to) : (closed ?? today);
+			return from == null || to == null ? [] : [{ from, to: Math.max(from, to), open }];
 		})
 		.sort((a, b) => a.from - b.from);
 	const merged: BlockedSpan[] = [];

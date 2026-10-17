@@ -270,6 +270,8 @@ SPANS_CARDS='[{type:"Feature",blocked_spans:[{from:"2026-10-03",to:"2026-10-05"}
 assert_eq "an epic's blocked spells are its own and its feature and bug cards', merged where they meet, an open one running to today" \
   '2026-10-01..2026-10-05 2026-10-07..2026-10-08 2026-10-12..2026-10-14 open' \
   "$(evaluate 'p.blockedSpansOf('"$SPANS_EPIC"', '"$SPANS_CARDS"', '"$TODAY"').map((span) => p.dayText(span.from) + ".." + p.dayText(span.to) + (span.open ? " open" : "")).join(" ")')"
+assert_eq "a card done while still flagged blocked stops its spell on the day it was done" '2026-10-01..2026-10-04' \
+  "$(evaluate 'p.blockedSpansOf({}, [{type:"Feature",status:"Done",dates:{Done:"2026-10-04T10:00:00Z"},blocked_spans:[{from:"2026-10-01"}]}], '"$TODAY"').map((span) => p.dayText(span.from) + ".." + p.dayText(span.to) + (span.open ? " open" : "")).join(" ")')"
 assert_eq "an epic never blocked has none" '0' "$(evaluate 'String(p.blockedSpansOf({}, [], '"$TODAY"').length)')"
 
 printf "\nTest group: an epic is late once its target passes with work open, or once its last card was done after it\n"
