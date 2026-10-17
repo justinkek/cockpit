@@ -38,7 +38,6 @@
 #   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
 #   board-card path [<id>]
 #   board-card tracks [<n> | '']
-#   board-card me [<name>... | '']
 #   board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>
 #   board-card breaks [--json] | breaks add <from> <to> [--project <PRJ-n>] [--name <text>] | breaks remove <id | index>
 #   board-card maintenance <PRJ-n> [--date <date>] | maintenance --close
@@ -1681,9 +1680,7 @@ rewrite_comment_locked() {
   file="$(comments_file "$id")"
   [ -f "$file" ] && jq --exit-status --arg comment "$comment_id" 'select(.id == $comment and (.deleted | not))' "$file" >/dev/null \
     || die 3 "no comment $comment_id on $id"
-  jq --exit-status --arg comment "$comment_id" --arg author "$author" --argjson mine "$(me_json)" '
-    select(.id == $comment) | .author as $who
-    | select($who == $author or (($mine | index([$author])) != null and ($mine | index([$who])) != null))' "$file" >/dev/null \
+  jq --exit-status --arg comment "$comment_id" --arg author "$author" 'select(.id == $comment and .author == $author)' "$file" >/dev/null \
     || die 2 "$comment_id on $id was written by $(jq --raw-output --arg comment "$comment_id" 'select(.id == $comment) | .author' "$file"), so only they can change it"
   tmp="$(mktemp "$(dirname "$file")/.$id.comments.XXXXXX")"
   jq --compact-output --arg comment "$comment_id" --arg change "$change" --arg text "$text" --arg at "$(now)" '
@@ -2137,34 +2134,6 @@ command_revision() {
     | LC_ALL=C sort | cksum | cut -d' ' -f1
 }
 
-me_names() {
-  if [ -f "$BOARD_DIR/me" ]; then
-    grep --invert-match '^$' "$BOARD_DIR/me" || true
-  else
-    [ -z "${USER:-}" ] || printf '%s\n' "$USER"
-    printf '%s\n' "Justin Kek (Notion)"
-  fi
-}
-
-me_json() { { me_names; printf '%s' "${1:-}"; } | jq --raw-input --null-input --compact-output 'reduce (inputs | select(. != "")) as $name ([]; if index([$name]) then . else . + [$name] end)'; }
-
-me_locked() {
-  if [ "$#" -eq 1 ] && [ -z "$1" ]; then rm -f "$BOARD_DIR/me"; else printf '%s\n' "$@" > "$BOARD_DIR/me"; fi
-}
-
-command_me() {
-  local name
-  require_board
-  if [ "$#" -gt 0 ]; then
-    for name in "$@"; do
-      [ "$name" = "${name//$'\n'/}" ] || die 2 "a name is one line, not '$name'"
-      [ -n "$name" ] || [ "$#" -eq 1 ] || die 2 "a name is never empty - pass '' alone to go back to the default"
-    done
-    with_lock me_locked "$@"
-  fi
-  me_names
-}
-
 views_json() { if [ -f "$BOARD_DIR/views.json" ]; then cat "$BOARD_DIR/views.json"; else printf '[]\n'; fi; }
 
 views_save_locked() {
@@ -2388,7 +2357,7 @@ inbox_read_locked() {
 }
 
 command_inbox() {
-  local as_json=false reading=false stamp="" author="" limit=100 scratch kind inbox mine
+  local as_json=false reading=false stamp="" author="" limit=100 scratch kind inbox
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --json) as_json=true; shift ;;
@@ -2412,7 +2381,7 @@ command_inbox() {
     return 0
   fi
   printf '%s' "$limit" | grep --quiet --extended-regexp '^[0-9]+$' || die 2 "--limit needs a number"
-  if [ -n "$author" ]; then mine="$(jq --null-input --compact-output --arg author "$author" '[$author]')"; else mine="$(me_json "$(default_author)")"; fi
+  [ -n "$author" ] || author="$(default_author)"
   scratch="$(mktemp -d)"
   { command_list --kind card --json; command_list --kind epic --json; } | jq --slurp 'add' > "$scratch/records.json"
   printf '[]' > "$scratch/comments.json"
@@ -2424,21 +2393,21 @@ command_inbox() {
     mv "$scratch/merged.json" "$scratch/comments.json"
   done
   inbox="$(jq --null-input --slurpfile records "$scratch/records.json" --slurpfile comments "$scratch/comments.json" \
-    --argjson me "$mine" --arg seen "$(cat "$BOARD_DIR/inbox-seen" 2>/dev/null || true)" --arg now "$(now)" \
+    --arg me "$author" --arg seen "$(cat "$BOARD_DIR/inbox-seen" 2>/dev/null || true)" --arg now "$(now)" \
     --argjson limit "$limit" --argjson waiting "$(printf '%s\n' "${WAITING_COLUMNS[@]}" | jq --raw-input . | jq --slurp --compact-output .)" \
     "$derived_program"'
     def at_seconds: (epoch // 0);
     ($records[0] | map({key: .id, value: .}) | from_entries) as $by
     | ($comments[0] | map(select(.id == .thread) | {key: "\(.record) \(.thread)", value: (.resolved // false)}) | from_entries) as $resolved
     | (if $seen == "" then ($now | at_seconds) - 7 * 86400 else ($seen | at_seconds) end) as $since
-    | ([$comments[0][] | select((.deleted | not) and (.author as $who | $me | index([$who]) | not) and $by[.record] != null)
+    | ([$comments[0][] | select((.deleted | not) and .author != $me and $by[.record] != null)
         | {kind: "comment", id: .record, name: $by[.record].name, status: $by[.record].status, at, author, text,
            thread, comment: .id, anchor, resolved: ($resolved["\(.record) \(.thread)"] // false)}]
        + [$records[0][] | select(.status as $status | $waiting | index($status))
           | {kind: "waiting", id, name, status, at: (.dates[.status] // .moved // .created), by: .moved_by}]
        + [$records[0][] | select((.blocked // "") != "")
           | {kind: "blocked", id, name, status, at: (.blocked_at // .moved // .created), text: .blocked, by: .blocked_by}])
-    | map(. + {unread: ((.at | at_seconds) > $since and (.by as $who | $me | index([$who]) | not))})
+    | map(. + {unread: ((.at | at_seconds) > $since and .by != $me)})
     | sort_by(.at | at_seconds) | reverse
     | {me: $me, seen: (if $seen == "" then null else $seen end), now: $now,
        unread: (map(select(.unread)) | length), items: .[:$limit]}')" || { rm -rf "$scratch"; return 1; }
@@ -2559,6 +2528,12 @@ migrate_starts() {
     | select(length == 2) | @tsv')
 }
 
+migrate_me() {
+  [ -f "$BOARD_DIR/me" ] || return 0
+  rm -f "$BOARD_DIR/me"
+  printf 'me\tremoved\n'
+}
+
 migrate_homes() {
   command_list --kind card --json | jq --raw-output '.[] | select((.epic // "") == "") | "\(.id)\tneeds an epic"'
   command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
@@ -2566,7 +2541,7 @@ migrate_homes() {
 
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_homes)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 
@@ -2630,7 +2605,6 @@ case "$action" in
   path) command_path "$@" ;;
   tracks) command_tracks "$@" ;;
   migrate) command_migrate "$@" ;;
-  me) command_me "$@" ;;
   views) command_views "$@" ;;
   breaks) command_breaks "$@" ;;
   maintenance) command_maintenance "$@" ;;

@@ -157,7 +157,7 @@ export type InboxItem = {
 	resolved?: boolean;
 };
 
-export type Inbox = { me: string[]; seen: string | null; now: string; unread: number; items: InboxItem[] };
+export type Inbox = { me: string; seen: string | null; now: string; unread: number; items: InboxItem[] };
 
 export type Named = { id: string; name: string };
 

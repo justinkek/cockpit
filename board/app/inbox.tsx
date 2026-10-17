@@ -81,11 +81,7 @@ export function InboxList({ inbox }: { inbox: Inbox }) {
 					</button>
 				</span>
 			</header>
-			{inbox.me.length > 0 && (
-				<p className="inbox-note" title="Set the list with: board-card me <name>...">
-					Yours, and never in the inbox: what {inbox.me.join(", ")} wrote or did.
-				</p>
-			)}
+			{inbox.me && <p className="inbox-note">Yours, and never in the inbox: what {inbox.me} wrote or did.</p>}
 			<div className="inbox-filters">
 				<span className="segmented" role="group" aria-label="Show">
 					{FILTERS.map((option) => (
