@@ -301,7 +301,7 @@ assert_eq "an epic takes its project on create" "PRJ-1" "$(field "$owned" .proje
 stub set "$owned" project "" >/dev/null 2>&1
 assert_eq "and never loses it" "2 PRJ-1" "$? $(field "$owned" .project)"
 stub create --kind reference --name Unrelated --project PRJ-1 >/dev/null 2>&1
-assert_eq "only a card or an epic belongs to a project" "2" "$?"
+assert_eq "only an epic belongs to a project" "2" "$?"
 stub archive "$owned" >/dev/null
 
 printf "\nTest group: a card is flagged urgent, or not\n"
@@ -1016,6 +1016,29 @@ output="$(inbox migrate)"
 assert_eq "migrate removes the me file" "false" "$([ -f "$inbox_board/me" ] && echo true || echo false)"
 assert_eq "and names it" "me	removed" "$(printf '%s\n' "$output" | grep '^me')"
 assert_eq "and a second migrate leaves it unnamed" "" "$(inbox migrate | grep '^me' || true)"
+
+printf "\nTest group: a card has no project of its own, and takes its epic's\n"
+
+home="$(stub create --kind epic --name Home --project PRJ-1)"
+stub create --name Placed --project PRJ-1 --epic "$home" >/dev/null 2>&1
+assert_eq "a card created with a project of its own is refused" "2" "$?"
+placed="$(stub create --name Placed --epic "$home")"
+assert_eq "show reports the epic's project as the card's" "PRJ-1" "$(field "$placed" .project)"
+assert_eq "and so does the Project property" "Project	PRJ-1" "$(stub show "$placed" Project)"
+assert_eq "and list --json" "PRJ-1" "$(stub list --json | jq --raw-output --arg id "$placed" '.[] | select(.id == $id) | .project')"
+assert_eq "while nothing is stored on the card" "0" "$(grep --count '^project:' "$COCKPIT_BOARD_DIR/cards/$placed.md")"
+stub set "$placed" project PRJ-1 >/dev/null 2>&1
+assert_eq "setting a card's project is refused" "2" "$?"
+stub set "$placed" project "" >/dev/null 2>&1
+assert_eq "and so is clearing it" "2" "$?"
+perl -pi -e 's/^(epic: .*)$/$1\nproject: "PRJ-9"/' "$COCKPIT_BOARD_DIR/cards/$placed.md"
+assert_eq "a project stored before the rule is passed over for the epic's" "PRJ-1" "$(field "$placed" .project)"
+git -C "$COCKPIT_BOARD_DIR" add --all >/dev/null && git -C "$COCKPIT_BOARD_DIR" -c user.name=t -c user.email=t@t commit --quiet -m seed
+output="$(stub migrate)"
+assert_eq "migrate removes it and names the card" "$placed	project PRJ-9 removed" "$(printf '%s\n' "$output" | grep 'project PRJ-9')"
+assert_eq "leaving nothing stored" "0" "$(grep --count '^project:' "$COCKPIT_BOARD_DIR/cards/$placed.md")"
+assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "cards/$placed.md" | cut -d' ' -f1)"
+assert_eq "a second migrate leaves the cards alone" "0" "$(stub migrate | grep --count 'project')"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

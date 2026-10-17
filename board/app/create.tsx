@@ -102,7 +102,7 @@ export function NewRecord({
 			status,
 			type: kind === "card" ? type : undefined,
 			epic: kind === "card" ? epic || undefined : undefined,
-			project: project || undefined,
+			project: kind === "epic" ? project || undefined : undefined,
 			timeboxMins: kind === "card" && type === "Timebox" ? timebox.trim() || undefined : undefined,
 			icon: icon || undefined,
 			body: body.trim() ? body : undefined,
@@ -210,14 +210,19 @@ export function NewRecord({
 							))}
 						</select>
 					)}
-					<select name="project" aria-label="Project" value={project} onChange={changed(setProject)}>
-						{kind === "card" && <option value="">{inherited ? `${inherited} (from the epic)` : "No project"}</option>}
-						{lists.projects.map((option) => (
-							<option key={option.id} value={option.id}>
-								{option.name}
-							</option>
-						))}
-					</select>
+					{kind === "card" ? (
+						<span className="new-project" aria-label="Project" title="A card's project is its epic's">
+							{inherited ?? "No project"}
+						</span>
+					) : (
+						<select name="project" aria-label="Project" value={project} onChange={changed(setProject)}>
+							{lists.projects.map((option) => (
+								<option key={option.id} value={option.id}>
+									{option.name}
+								</option>
+							))}
+						</select>
+					)}
 				</div>
 				<textarea
 					name="body"

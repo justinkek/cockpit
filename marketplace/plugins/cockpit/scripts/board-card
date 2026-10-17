@@ -747,7 +747,8 @@ command_create() {
     [ "$(kind_of "$epic")" = epic ] || die 2 "$epic is not an epic"
   fi
   if [ -n "$project" ]; then
-    case "$kind" in card|epic) ;; *) die 2 "only a card or an epic belongs to a project, and this is a $kind" ;; esac
+    [ "$kind" != card ] || die 2 "a card's project is its epic's - pass --epic <EPIC-n> with an epic of that project instead of --project"
+    [ "$kind" = epic ] || die 2 "only an epic belongs to a project, and this is a $kind"
     project="$(normalise_id "$project")"
     require_record "$project"
     [ "$(kind_of "$project")" = project ] || die 2 "$project is not a project"
@@ -821,12 +822,22 @@ open_comments_json() {
   jq --slurp --argjson all false "$threads_program" "$file"
 }
 
+epic_projects_json() {
+  local file files=()
+  for file in "$BOARD_DIR"/epics/*.md "$BOARD_DIR"/archive/epics/*.md; do [ ! -f "$file" ] || files+=("$file"); done
+  front_matter_values project ${files[@]+"${files[@]}"} | jq --raw-input --null-input --compact-output '
+    [inputs | split("\t") | {key: (.[0] | sub("^.*/"; "") | sub("\\.md$"; "")), value: (.[1] | fromjson? // null)}] | from_entries'
+}
+
+card_project_program='if (.id // "" | test("^(FEAT|BUG|TIME)-")) then .project = ($projects[.epic // ""] // null) else . end'
+
 command_show() {
   local id json property value
   id="$(normalise_id "${1:-}")"
   shift
   require_record "$id"
   json="$(read_record "$id")"
+  [ "$(kind_of "$id")" != card ] || json="$(printf '%s' "$json" | jq --argjson projects "$(epic_projects_json)" "$card_project_program")"
   if [ "${1:-}" = "--json" ]; then
     printf '%s\n' "$json" | jq --arg now "$(now)" "$derived_program derived(\$now)"
     return 0
@@ -893,9 +904,12 @@ command_list() {
              value: (group_by(.thread) | map(select((.[0].resolved | not) and any(.[]; .deleted | not))) | length)})
       | from_entries' "${notes[@]}")"
   fi
+  local projects='{}'
+  [ "$kind" != card ] || projects="$(epic_projects_json)"
   printf '%s' "$records" \
-    | jq --arg status "$status" --arg epic "$epic" --arg now "$(now)" --argjson counts "$counts" "$derived_program"'
-      map(select(($status == "" or .status == $status) and ($epic == "" or .epic == $epic)))
+    | jq --arg status "$status" --arg epic "$epic" --arg now "$(now)" --argjson counts "$counts" --argjson projects "$projects" "$derived_program"'
+      map('"$card_project_program"')
+      | map(select(($status == "" or .status == $status) and ($epic == "" or .epic == $epic)))
       | sort_by(.id | split("-") | (.[0]), (.[1] | tonumber))
       | map(derived($now) + {comments: ($counts[.id] // 0)})' \
     | if [ "$as_json" = true ]; then
@@ -1302,6 +1316,7 @@ set_locked() {
     epic|project|sprint)
       reference=""
       case "$(kind_of "$id")/$field/$value" in
+        card/project/*) die 2 "a card's project is its epic's - move $id to an epic of another project with: board-card set $id epic <EPIC-n>" ;;
         card/epic/) die 2 "every card has an epic - move $id to another with: board-card set $id epic <EPIC-n>" ;;
         epic/project/) die 2 "every epic has a project - move $id to another with: board-card set $id project <PRJ-n>" ;;
       esac
@@ -1909,7 +1924,8 @@ duplicate_locked() {
   source="$(read_record "$id")"
   epic="$(printf '%s' "$source" | jq --raw-output '.epic // ""')"
   [ -z "$epic" ] || [ -f "$(record_file "$epic")" ] || epic=""
-  project="$(printf '%s' "$source" | jq --raw-output '.project // ""')"
+  project=""
+  [ "$kind" != epic ] || project="$(printf '%s' "$source" | jq --raw-output '.project // ""')"
   [ -z "$project" ] || [ -f "$(record_file "$project")" ] || project=""
   fields="$(printf '%s' "$source" | jq --compact-output --arg project "$project" '
     {project: (if $project == "" then null else $project end), icon, timebox_mins, estimate,
@@ -2558,6 +2574,17 @@ migrate_me() {
   printf 'me\tremoved\n'
 }
 
+migrate_card_projects() {
+  local file files=() card project
+  for file in "$BOARD_DIR"/cards/*.md; do [ ! -f "$file" ] || files+=("$file"); done
+  while IFS=$'\t' read -r file project; do
+    card="${file##*/}"
+    card="${card%.md}"
+    update_record "$card" 'del(.project)'
+    printf '%s\tproject %s removed\n' "$card" "$(printf '%s' "$project" | jq --raw-output '. // "null"')"
+  done < <(front_matter_values project ${files[@]+"${files[@]}"} | sort --version-sort)
+}
+
 migrate_homes() {
   command_list --kind card --json | jq --raw-output '.[] | select((.epic // "") == "") | "\(.id)\tneeds an epic"'
   command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
@@ -2565,7 +2592,7 @@ migrate_homes() {
 
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; close_maintenance_locked; migrate_homes)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; close_maintenance_locked; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 

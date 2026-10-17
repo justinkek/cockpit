@@ -158,7 +158,7 @@ export async function createRecord(
 	if (status) args.push("--status", status);
 	if (kind === "card" && options.type) args.push("--type", options.type);
 	if (kind === "card" && options.epic) args.push("--epic", options.epic);
-	if ((kind === "card" || kind === "epic") && options.project) args.push("--project", options.project);
+	if (kind === "epic" && options.project) args.push("--project", options.project);
 	for (const [field, value] of Object.entries(options.fields ?? {})) {
 		if (value) args.push(`--${field.replace(/_/g, "-")}`, value);
 	}

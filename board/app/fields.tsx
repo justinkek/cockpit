@@ -567,16 +567,22 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 				<>
 					<dt>Project</dt>
 					<dd>
-						<Fallback id={id} op="set" field="project">
-							<Choice
-								label="Project"
-								none={inherited && !record.project ? `${inherited} (from the epic)` : "No project"}
-								required={kind === "epic"}
-								value={record.project}
-								options={lists.projects}
-								onChange={(project) => onEdit("project", project, { project: project || null })}
-							/>
-						</Fallback>
+						{kind === "card" ? (
+							<span title="A card's project is its epic's">
+								{inherited ?? <span className="empty">No project</span>}
+							</span>
+						) : (
+							<Fallback id={id} op="set" field="project">
+								<Choice
+									label="Project"
+									none="No project"
+									required
+									value={record.project}
+									options={lists.projects}
+									onChange={(project) => onEdit("project", project, { project: project || null })}
+								/>
+							</Fallback>
+						)}
 					</dd>
 				</>
 			)}
