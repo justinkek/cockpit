@@ -5,7 +5,8 @@ export const CONFIDENCES = ["On track", "At risk - plan in place", "At risk - no
 
 export type Confidence = (typeof CONFIDENCES)[number];
 
-export const AVERAGE_SPEED_WEEKS = 6;
+export const AVERAGE_SPEED_DAYS = 30;
+export const WORKING_DAYS_A_WEEK = 5;
 export const DEFAULT_AVERAGE_SPEED = 10;
 export const DEFAULT_REFINEMENT_DAYS = 2;
 export const PAST_DAYS = 730;
@@ -52,38 +53,39 @@ export function isOff(day: number, off: Off[]): boolean {
 	return off.some(([from, to]) => day >= from && day <= to);
 }
 
-function weekOff(monday: number, off: Off[]): boolean {
-	return [0, 1, 2, 3, 4].every((weekday) => isOff(monday + weekday, off));
+export function isWorkingDay(day: number, off: Off[]): boolean {
+	const weekday = new Date(day * DAY).getUTCDay();
+	return weekday !== 0 && weekday !== 6 && !isOff(day, off);
 }
 
 export function openFrom(day: number, off: Off[]): number {
 	let open = day;
-	for (const [from, to] of off) if (open >= from && open <= to) open = to + 1;
+	while (!isWorkingDay(open, off)) open += 1;
 	return open;
 }
 
 export function afterOpen(day: number, count: number, off: Off[]): number {
 	let open = day;
-	let left = count;
-	for (const [from, to] of off) {
-		if (left <= 0) return open;
-		if (to < open) continue;
-		if (from > open) {
-			const gap = from - open;
-			if (gap >= left) return open + left;
-			left -= gap;
-		}
-		open = Math.max(open, to + 1);
+	let left = Math.ceil(count);
+	while (left > 0) {
+		if (isWorkingDay(open, off)) left -= 1;
+		open += 1;
 	}
-	return open + Math.max(0, left);
+	return open;
 }
 
 export function openDays(first: number, last: number, off: Off[]): number {
-	if (last < first) return 0;
-	return off.reduce(
-		(days, [from, to]) => days - Math.max(0, Math.min(to, last) - Math.max(from, first) + 1),
-		last - first + 1,
-	);
+	let days = 0;
+	for (let day = first; day <= last; day += 1) if (isWorkingDay(day, off)) days += 1;
+	return days;
+}
+
+export function workingDaysTo(today: number, off: Off[], count = AVERAGE_SPEED_DAYS): number[] {
+	const days: number[] = [];
+	for (let day = today; days.length < count && day > today - PAST_DAYS; day -= 1) {
+		if (isWorkingDay(day, off)) days.push(day);
+	}
+	return days;
 }
 
 type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on"> & Partial<Pick<Card, "blocked">>;
@@ -103,13 +105,14 @@ export function pointsOf(card: Pick<Sized, "complexity" | "estimate" | "type">):
 
 export type AverageSpeed = {
 	perWeek: number;
+	perDay: number;
 	source: "measured" | "sprint" | "default";
 	points: number;
-	weeks: number;
+	days: number;
 	tickets: number;
 	uncounted: number;
 	timeboxes: number;
-	mondays: number[];
+	workingDays: number[];
 };
 
 type Delivered = Sized & Pick<Card, "dates" | "moved">;
@@ -121,23 +124,16 @@ export function averageSpeedOf(
 	off: Off[] = [],
 ): AverageSpeed {
 	const end = now.getTime();
-	const finished = new Map<number, Delivered[]>();
-	for (const card of cards) {
-		if (splitParent(card)) continue;
-		const at = doneAt(card);
-		if (at == null || at > end) continue;
-		const monday = mondayOf(localDay(new Date(at)));
-		finished.set(monday, [...(finished.get(monday) ?? []), card]);
-	}
-	const mondays = [...finished.keys()]
-		.filter((monday) => !weekOff(monday, off))
-		.sort((a, b) => b - a)
-		.slice(0, AVERAGE_SPEED_WEEKS);
+	const workingDays = workingDaysTo(Math.floor(end / DAY), off);
+	const window = new Set(workingDays);
 	let points = 0;
 	let tickets = 0;
 	let uncounted = 0;
 	let timeboxes = 0;
-	for (const card of mondays.flatMap((monday) => finished.get(monday) ?? [])) {
+	for (const card of cards) {
+		if (splitParent(card)) continue;
+		const at = doneAt(card);
+		if (at == null || at > end || !window.has(Math.floor(at / DAY))) continue;
 		const complexity = card.type === "Timebox" ? null : positive(card.complexity);
 		if (card.type === "Timebox") timeboxes += 1;
 		else if (complexity == null) uncounted += 1;
@@ -148,11 +144,38 @@ export function averageSpeedOf(
 	}
 	const counts = { tickets, uncounted, timeboxes };
 	if (points > 0) {
-		return { perWeek: points / mondays.length, source: "measured", points, weeks: mondays.length, ...counts, mondays };
+		const perDay = points / workingDays.length;
+		return {
+			perWeek: perDay * WORKING_DAYS_A_WEEK,
+			perDay,
+			source: "measured",
+			points,
+			days: workingDays.length,
+			...counts,
+			workingDays,
+		};
 	}
 	const speed = currentSprint(sprints, now)?.speed ?? 0;
-	if (speed > 0) return { perWeek: speed * 5, source: "sprint", points: 0, weeks: 0, ...counts, mondays: [] };
-	return { perWeek: DEFAULT_AVERAGE_SPEED, source: "default", points: 0, weeks: 0, ...counts, mondays: [] };
+	if (speed > 0) {
+		return {
+			perWeek: speed * WORKING_DAYS_A_WEEK,
+			perDay: speed,
+			source: "sprint",
+			points: 0,
+			days: 0,
+			...counts,
+			workingDays: [],
+		};
+	}
+	return {
+		perWeek: DEFAULT_AVERAGE_SPEED,
+		perDay: DEFAULT_AVERAGE_SPEED / WORKING_DAYS_A_WEEK,
+		source: "default",
+		points: 0,
+		days: 0,
+		...counts,
+		workingDays: [],
+	};
 }
 
 export type SprintDelivery = {
@@ -303,15 +326,23 @@ export function epicsInProgressOver(
 	from: number,
 	to: number,
 ): number {
+	return coveredBy(inProgressSpansOf(epics, cards), from, to);
+}
+
+function inProgressSpansOf(epics: Pick<Card, "id" | "status" | "dates" | "moved">[], cards: Worked[]) {
+	return epics.flatMap((epic) => {
+		const began = startedAt(
+			epic,
+			cards.filter((card) => card.epic === epic.id),
+		);
+		return began == null ? [] : [{ began, ended: doneAt(epic) }];
+	});
+}
+
+function coveredBy(spans: { began: number; ended: number | null }[], from: number, to: number): number {
 	if (to <= from) return 0;
 	let covered = 0;
-	for (const epic of epics) {
-		const own = cards.filter((card) => card.epic === epic.id);
-		const began = startedAt(epic, own);
-		if (began == null) continue;
-		const ended = doneAt(epic) ?? to;
-		covered += Math.max(0, Math.min(ended, to) - Math.max(began, from));
-	}
+	for (const { began, ended } of spans) covered += Math.max(0, Math.min(ended ?? to, to) - Math.max(began, from));
 	return covered / (to - from);
 }
 
@@ -330,11 +361,10 @@ function trackSpeedOf(
 	source: TrackSpeed["source"],
 ): TrackSpeed {
 	const end = now.getTime();
-	const weekly = speed.mondays.map((monday) =>
-		epicsInProgressOver(epics, cards, monday * DAY, Math.min(end, (monday + 7) * DAY)),
-	);
+	const spans = inProgressSpansOf(epics, cards);
+	const daily = speed.workingDays.map((day) => coveredBy(spans, day * DAY, Math.min(end, (day + 1) * DAY)));
 	const inProgress =
-		speed.source === "measured" && weekly.length > 0 ? weekly.reduce((sum, one) => sum + one, 0) / weekly.length : 0;
+		speed.source === "measured" && daily.length > 0 ? daily.reduce((sum, one) => sum + one, 0) / daily.length : 0;
 	return {
 		perWeek: speed.perWeek / Math.max(1, inProgress),
 		source,
@@ -395,12 +425,12 @@ export function refinedAtOf(epic: Pick<Card, "dates">): number | null {
 
 export type Refinement = { days: number; source: "measured" | "default"; epics: number };
 
-export function refinementOf(epics: Pick<Card, "start" | "dates">[]): Refinement {
+export function refinementOf(epics: Pick<Card, "start" | "dates">[], off: Off[] = []): Refinement {
 	const spans = epics.flatMap((epic) => {
 		const start = dayOf(epic.start);
 		const at = refinedAtOf(epic);
 		const end = at == null ? null : localDay(new Date(at));
-		return start != null && end != null && end >= start ? [end - start] : [];
+		return start != null && end != null && end >= start ? [openDays(start, end - 1, off)] : [];
 	});
 	if (spans.length === 0) return { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 };
 	const days = Math.max(1, Math.round(spans.reduce((sum, span) => sum + span, 0) / spans.length));
@@ -521,7 +551,7 @@ export function planOf(
 	for (const [team, members] of Object.entries(grouped)) {
 		const { tracks: count, perWeek } = known[team];
 		const tracks = Math.max(0, Math.floor(count));
-		const perDay = Math.max(perWeek, 0.01) / 7;
+		const perDay = Math.max(perWeek, 0.01) / WORKING_DAYS_A_WEEK;
 		const free: number[] = Array.from({ length: tracks }, () => today);
 		const ahead: number[] = Array.from({ length: tracks }, () => 0);
 		const queue: Row[] = [];
@@ -624,7 +654,7 @@ export function planOf(
 					ahead[lane] += row.remaining.points;
 					row.late = row.target != null ? Math.max(0, row.projected - row.target) : 0;
 					if (row.target != null) {
-						const weeks = openDays(today, row.target, off) / 7;
+						const weeks = openDays(today, row.target, off) / WORKING_DAYS_A_WEEK;
 						row.needed = weeks > 0 ? Math.round((ahead[lane] / weeks) * 10) / 10 : Number.POSITIVE_INFINITY;
 					}
 					const epic = members.find((one) => one.id === row.id);

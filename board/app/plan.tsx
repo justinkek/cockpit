@@ -52,10 +52,12 @@ import { Stages } from "@/app/stages";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { progressOf } from "@/lib/metrics";
 import {
+	AVERAGE_SPEED_DAYS,
 	blockedSpansOf,
 	CONFIDENCES,
 	dayOf,
 	dayText,
+	daysOff,
 	estimatesOf,
 	lateText,
 	mondayOf,
@@ -500,8 +502,8 @@ function runTitle(row: Row) {
 
 function refinementText(refinement: Refinement) {
 	return refinement.source === "measured"
-		? `${refinement.days} days on average from leaving Backlog to Ready for Dev, over ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}`
-		: `${refinement.days} days, a default, as no epic has gone from leaving Backlog to Ready for Dev yet`;
+		? `${refinement.days} working days on average from leaving Backlog to Ready for Dev, over ${refinement.epics} ${refinement.epics === 1 ? "epic" : "epics"}`
+		: `${refinement.days} working days, a default, as no epic has gone from leaving Backlog to Ready for Dev yet`;
 }
 
 function tracksText(count: number) {
@@ -512,8 +514,8 @@ function tracksText(count: number) {
 function speedFrom(speed: AverageSpeed) {
 	const counted =
 		speed.source === "measured"
-			? `${figure(speed.points)} pts from ${speed.tickets} ${speed.tickets === 1 ? "ticket" : "tickets"} over ${figure(speed.weeks)} active ${speed.weeks === 1 ? "week" : "weeks"}`
-			: "nothing with TR complexity done in the last 6 active weeks";
+			? `${figure(speed.points)} pts from ${speed.tickets} ${speed.tickets === 1 ? "ticket" : "tickets"} over ${speed.days} working ${speed.days === 1 ? "day" : "days"}, ${figure(speed.perDay)} a day`
+			: `nothing with TR complexity done in the last ${AVERAGE_SPEED_DAYS} working days`;
 	const beside = [
 		speed.uncounted > 0 ? `${speed.uncounted} done without complexity` : "",
 		speed.timeboxes > 0 ? `${speed.timeboxes} ${speed.timeboxes === 1 ? "timebox" : "timeboxes"}` : "",
@@ -527,7 +529,7 @@ function speedText(speed: TrackSpeed) {
 			speed.speed.source === "measured" ? "measured" : speed.speed.source === "sprint" ? "sprint speed" : "default";
 		return {
 			short: "overall average, no history",
-			title: `No ticket of this project with a TR complexity was done in its last six weeks that finished anything, so it takes the board's overall average speed a track (${from})`,
+			title: `No ticket of this project with a TR complexity was done in the last ${AVERAGE_SPEED_DAYS} working days, so it takes the board's overall average speed a track (${from})`,
 		};
 	}
 	const split =
@@ -996,7 +998,7 @@ export function Plan({
 		);
 	}, [epics, drag]);
 
-	const refinement = useMemo(() => refinementOf(epics), [epics]);
+	const refinement = useMemo(() => refinementOf(epics, daysOff(breaks)), [epics, breaks]);
 	const rows = useMemo(
 		() => planOf(shown, cards, teams, today, refinement, breaks),
 		[shown, cards, teams, today, refinement, breaks],
@@ -1614,10 +1616,10 @@ export function Plan({
 	const planEnd = Math.max(...open_rows.map((row) => row.projected ?? Number.NEGATIVE_INFINITY));
 	const rateTitle =
 		rate.source === "measured"
-			? `The TR complexity of the tickets done in the last ${rate.weeks} ${rate.weeks === 1 ? "week" : "weeks"} that finished anything, a week - a week that finished nothing never counts, and a ticket done without one, or a timebox, is counted beside it and not in it`
+			? `The TR complexity of the tickets finished on the last ${rate.days} working days, Monday to Friday outside a break, divided by those days and shown as a week of five - a working day that finished nothing still counts, a ticket finished at a weekend or in a break is left out, and a ticket done without a complexity, or a timebox, is counted beside it and not in it`
 			: rate.source === "sprint"
-				? "No ticket with a TR complexity was done in the last six weeks that finished anything, so this is the current sprint's speed a day times five"
-				: "No ticket with a TR complexity was done in the last six weeks that finished anything and no sprint has a speed, so this is the default";
+				? `No ticket with a TR complexity was finished on the last ${AVERAGE_SPEED_DAYS} working days, so this is the current sprint's speed a day times five`
+				: `No ticket with a TR complexity was finished on the last ${AVERAGE_SPEED_DAYS} working days and no sprint has a speed, so this is the default`;
 
 	const nameOf = (id: string) => epics.find((epic) => epic.id === id)?.name ?? id;
 	const trackNotes = Object.values(committedRows).flatMap((row) => {
@@ -1983,7 +1985,7 @@ export function Plan({
 							{row && !row.done && row.projected != null && row.remaining.points > 0 && fallbackOf(row.team) && (
 								<span
 									className="plan-points fallback"
-									title={`Projected at ${figure(row.perWeek)} points a week a track, a fallback rather than a measured speed: ${teamName(row.team)} has no ticket with a TR complexity done in its last six weeks that finished anything, so it takes the board's overall average`}
+									title={`Projected at ${figure(row.perWeek)} points a week a track, a fallback rather than a measured speed: ${teamName(row.team)} has no ticket with a TR complexity finished on the last ${AVERAGE_SPEED_DAYS} working days, so it takes the board's overall average`}
 								>
 									<Icon name="plan" />
 									Fallback speed
@@ -2000,7 +2002,7 @@ export function Plan({
 									title={
 										needed === Number.POSITIVE_INFINITY
 											? "Its target has passed with points still left"
-											: `Meeting its target takes ${figure(needed)} points a week, counting every epic ahead of it on its track, against ${figure(row?.perWeek ?? 0)} done a week on a track`
+											: `Meeting its target takes ${figure(needed)} points a week of five working days, over the working days left before it and counting every epic ahead of it on its track, against ${figure(row?.perWeek ?? 0)} done a week on a track`
 									}
 								>
 									{short_of && <Icon name="plan" />}
@@ -2175,7 +2177,7 @@ export function Plan({
 					<div title={`Refinement still to come is forecast at this: ${refinementText(refinement)}`}>
 						<span className="stat-label">Refinement</span>
 						<span className="stat-value">
-							{refinement.days} <span>days · {refinement.source === "measured" ? "measured" : "default"}</span>
+							{refinement.days} <span>working days · {refinement.source === "measured" ? "measured" : "default"}</span>
 						</span>
 						<span className="plan-speed-from">
 							{refinement.source === "measured"
