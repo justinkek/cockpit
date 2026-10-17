@@ -49,7 +49,7 @@ import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { EstimateFacts, estimatesTitle } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
 import { Stages } from "@/app/stages";
-import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
+import { breakToastOf, toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { progressOf } from "@/lib/metrics";
 import {
 	AVERAGE_SPEED_DAYS,
@@ -1279,8 +1279,12 @@ export function Plan({
 		});
 	}
 
+	const breakText = (one: Pick<Break, "from" | "to" | "name">) =>
+		`${one.name || "the break"}, ${short(dayOf(one.from) ?? today)} to ${short(dayOf(one.to) ?? today)}`;
+
 	function addBreakFrom(draft: BreakDraft) {
 		setBreakError(null);
+		setToast(null);
 		startTransition(async () => {
 			const result = await saveBreak(draft.from, draft.to, draft.name);
 			if (result.error || !result.breaks) {
@@ -1288,11 +1292,14 @@ export function Plan({
 				return;
 			}
 			setBreaks(result.breaks);
+			if (result.id) setToast(breakToastOf(`Added ${breakText(draft)}`, { remove: result.id }));
 		});
 	}
 
 	function removeBreakOf(id: string) {
 		setBreakError(null);
+		setToast(null);
+		const removed = breaks.find((one) => one.id === id);
 		startTransition(async () => {
 			const result = await dropBreak(id);
 			if (result.error || !result.breaks) {
@@ -1300,6 +1307,7 @@ export function Plan({
 				return;
 			}
 			setBreaks(result.breaks);
+			if (removed) setToast(breakToastOf(`Removed ${breakText(removed)}`, { restore: removed }));
 		});
 	}
 
@@ -1551,6 +1559,15 @@ export function Plan({
 		setNotice(null);
 		startTransition(async () => {
 			const failures: string[] = [];
+			const back = shownToast.breakUndo;
+			if (back) {
+				const result =
+					"remove" in back
+						? await dropBreak(back.remove)
+						: await saveBreak(back.restore.from, back.restore.to, back.restore.name ?? "", back.restore.id);
+				if (result.error || !result.breaks) failures.push(result.error ?? "board-card changed no break");
+				else setBreaks(result.breaks);
+			}
 			for (const change of shownToast.changes) {
 				const result = await undoChange(change.id, { since: change.since, until: change.until });
 				if (result.error) {

@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Break } from "@/lib/shared";
 
 export type Change = { id: string; since: string; until: string };
 
-export type Undoable = { key: number; text: string; changes: Change[] };
+export type BreakUndo = { remove: string } | { restore: Break };
+
+export type Undoable = { key: number; text: string; changes: Change[]; breakUndo?: BreakUndo };
+
+export function canUndo(toast: Undoable) {
+	return toast.changes.length > 0 || toast.breakUndo != null;
+}
 
 let made = 0;
 
@@ -43,6 +50,11 @@ export function toastOf(text: string, changes: Change[] = []): Undoable {
 	return { key: made, text, changes };
 }
 
+export function breakToastOf(text: string, breakUndo: BreakUndo): Undoable {
+	made += 1;
+	return { key: made, text, changes: [], breakUndo };
+}
+
 export function typingIn(target: EventTarget | null) {
 	return (
 		target instanceof HTMLElement && (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.isContentEditable)
@@ -75,7 +87,7 @@ export function UndoToast({
 
 	useEffect(() => {
 		if (!toast || busy || held) return;
-		const timer = window.setTimeout(() => latest.current.onDismiss(), toast.changes.length > 0 ? 20000 : 8000);
+		const timer = window.setTimeout(() => latest.current.onDismiss(), canUndo(toast) ? 20000 : 8000);
 		return () => window.clearTimeout(timer);
 	}, [toast, busy, held]);
 
@@ -86,7 +98,7 @@ export function UndoToast({
 	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
 			const { toast: shown, busy: undoing, onUndo: undo } = latest.current;
-			if (!shown || shown.changes.length === 0 || undoing || editingText(event.target)) return;
+			if (!shown || !canUndo(shown) || undoing || editingText(event.target)) return;
 			if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
 				event.preventDefault();
 				undo(shown);
@@ -109,7 +121,7 @@ export function UndoToast({
 			}}
 		>
 			<span className="toast-text">{busy ? "Undoing…" : toast.text}</span>
-			{toast.changes.length > 0 && (
+			{canUndo(toast) && (
 				<button
 					type="button"
 					className="toast-undo"

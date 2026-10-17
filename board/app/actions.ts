@@ -344,11 +344,16 @@ export async function setBoardTracks(count: number): Promise<{ tracks?: number; 
 	}
 }
 
-export async function saveBreak(from: string, to: string, name: string): Promise<{ breaks?: Break[]; error?: string }> {
+export async function saveBreak(
+	from: string,
+	to: string,
+	name: string,
+	id?: string,
+): Promise<{ breaks?: Break[]; id?: string; error?: string }> {
 	try {
-		await addBreak(from, to, name.replace(/\s*[\r\n]+\s*/g, " ").trim());
+		const added = await addBreak(from, to, name.replace(/\s*[\r\n]+\s*/g, " ").trim(), id);
 		revalidatePath("/plan");
-		return { breaks: await readBreaks() };
+		return { breaks: await readBreaks(), id: added };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return { error: error.message };

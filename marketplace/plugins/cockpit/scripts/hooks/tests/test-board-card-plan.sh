@@ -289,6 +289,14 @@ assert_eq "or by its id" "b3" "$(stub breaks remove B3)"
 assert_eq "and the others stay" "b1" "$(stub breaks --json | jq --raw-output 'map(.id) | join(",")')"
 assert_eq "a break the list does not have is refused" "3" "$(refused breaks remove b9)"
 assert_eq "a place past the list is refused" "3" "$(refused breaks remove 5)"
+assert_eq "a removed break comes back under its own id, to undo its removal" "b3	2026-11-10	2026-11-10	Away" \
+  "$(stub breaks add 2026-11-10 2026-11-10 --name Away --id B3 >/dev/null; stub breaks | grep '^b3')"
+assert_eq "and is committed under the same verb" "breaks" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s)"
+assert_eq "an id another break has is refused" "2" "$(refused breaks add 2026-11-11 2026-11-11 --id b1)"
+assert_eq "an id that is not b and a number is refused" "2" "$(refused breaks add 2026-11-11 2026-11-11 --id x1)"
+assert_eq "a new break after one brought back takes the next id past the highest" "b4" "$(stub breaks add 2026-11-12 2026-11-12)"
+stub breaks remove b3 >/dev/null
+stub breaks remove b4 >/dev/null
 stub breaks remove b1 >/dev/null
 assert_eq "the file goes with the last break" "false" "$([ -f "$COCKPIT_BOARD_DIR/breaks" ] && echo true || echo false)"
 assert_eq "and its going is committed too" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain)"

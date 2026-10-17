@@ -39,7 +39,7 @@
 #   board-card path [<id>]
 #   board-card tracks [<n> | '']
 #   board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>
-#   board-card breaks [--json] | breaks add <from> <to> [--name <text>] | breaks remove <id | index>
+#   board-card breaks [--json] | breaks add <from> <to> [--name <text>] [--id <bn>] | breaks remove <id | index>
 #   board-card maintenance <PRJ-n> [--date <date>] | maintenance --close
 #   board-card migrate
 #
@@ -2283,8 +2283,12 @@ break_day() {
 }
 
 breaks_add_locked() {
-  local id
-  id="b$(breaks_json | jq '[.[].id | ltrimstr("b") | tonumber] | max // 0 | . + 1')"
+  local id="$4"
+  if [ -n "$id" ]; then
+    breaks_json | jq --exit-status --arg id "$id" 'any(.[]; .id == $id) | not' >/dev/null || die 2 "a break is already called $id"
+  else
+    id="b$(breaks_json | jq '[.[].id | ltrimstr("b") | tonumber] | max // 0 | . + 1')"
+  fi
   breaks_json | jq --arg id "$id" --arg from "$1" --arg to "$2" --arg name "$3" \
     '. + [{id: $id, from: $from, to: $to, name: (if $name == "" then null else $name end)}]
      | sort_by(.from, .to, (.id | ltrimstr("b") | tonumber))' > "$BOARD_DIR/breaks.new"
@@ -2302,8 +2306,8 @@ breaks_remove_locked() {
 }
 
 command_breaks() {
-  local verb="${1:-}" usage="usage: board-card breaks [--json] | breaks add <from> <to> [--name <text>] | breaks remove <id | index>"
-  local from to name="" id
+  local verb="${1:-}" usage="usage: board-card breaks [--json] | breaks add <from> <to> [--name <text>] [--id <bn>] | breaks remove <id | index>"
+  local from to name="" id=""
   require_board
   case "$verb" in
     "" | --json)
@@ -2320,6 +2324,7 @@ command_breaks() {
         case "$1" in
           --project) die 2 "a break is the whole board's - put a project on hold by giving it no share of the tracks: board-card set <PRJ-n> tracks ''" ;;
           --name) [ "$#" -ge 2 ] || die 2 "--name needs a name"; name="$2"; shift 2 ;;
+          --id) [ "$#" -ge 2 ] || die 2 "--id needs a break's id, like b3"; id="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"; shift 2 ;;
           *) die 2 "$usage" ;;
         esac
       done
@@ -2327,7 +2332,8 @@ command_breaks() {
       break_day end "$to"
       [[ ! "$to" < "$from" ]] || die 2 "a break ends on or after it starts, and $to is before $from"
       [ "$name" = "${name//$'\n'/}" ] || die 2 "a break's name is one line, not '$name'"
-      with_lock breaks_add_locked "$from" "$to" "$name"
+      [ -z "$id" ] || printf '%s' "$id" | grep --quiet --extended-regexp '^b[1-9][0-9]*$' || die 2 "a break's id is b and a number, like b3, not '$id'"
+      with_lock breaks_add_locked "$from" "$to" "$name" "$id"
       ;;
     remove)
       shift

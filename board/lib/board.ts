@@ -77,9 +77,10 @@ export async function readBreaks(): Promise<Break[]> {
 	return breaks.filter((one) => one.project == null).map(({ id, from, to, name }) => ({ id, from, to, name }));
 }
 
-export async function addBreak(from: string, to: string, name: string): Promise<string> {
+export async function addBreak(from: string, to: string, name: string, id?: string): Promise<string> {
 	const args = ["breaks", "add", from, to];
 	if (name) args.push("--name", name);
+	if (id) args.push("--id", id);
 	return (await boardCard(args)).trim();
 }
 
