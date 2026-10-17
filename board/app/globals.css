@@ -6159,3 +6159,10 @@
 		}
 	}
 }
+
+@layer components {
+	.report-head > .search {
+		order: 0;
+		max-width: 100%;
+	}
+}

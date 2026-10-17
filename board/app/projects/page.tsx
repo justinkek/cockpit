@@ -41,6 +41,7 @@ export default async function ProjectsPage({ searchParams }: Props) {
 	const entries: ProjectEntry[] = projects.map((project) => ({
 		id: project.id,
 		name: project.name,
+		key: project.key,
 		icon: project.icon,
 		status: project.status,
 		priority: project.priority,

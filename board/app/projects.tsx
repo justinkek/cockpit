@@ -18,13 +18,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { closeProject, editCard, undoChange } from "@/app/actions";
 import { type Notice, NoticeBar } from "@/app/board";
+import { confirmDiscard } from "@/app/content";
 import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
 import { NewOther } from "@/app/new-record";
+import { RecordOverlay, useOpenRecord } from "@/app/record-overlay";
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
 
 export type ProjectEntry = {
 	id: string;
 	name: string;
+	key?: string | null;
 	icon?: string | null;
 	status: string;
 	priority?: number | null;
@@ -168,7 +171,15 @@ function ProjectLane({
 	);
 }
 
-function ProjectList({ projects }: { projects: ProjectEntry[] }) {
+function matching(projects: ProjectEntry[], query: string) {
+	const words = query.trim().toLowerCase();
+	if (!words) return projects;
+	return projects.filter((project) =>
+		[project.id, project.name, project.key ?? ""].some((text) => text.toLowerCase().includes(words)),
+	);
+}
+
+function ProjectList({ projects, onOpen }: { projects: ProjectEntry[]; onOpen: (id: string) => void }) {
 	const groups = [
 		...LIST_ORDER,
 		...new Set(projects.map((project) => project.status).filter((status) => !LIST_ORDER.includes(status))),
@@ -185,7 +196,15 @@ function ProjectList({ projects }: { projects: ProjectEntry[] }) {
 				{group.projects.map((project) => (
 					<li key={project.id}>
 						<span className="ident">{project.id}</span>
-						<Link href={`/card/${project.id}`} className="report-name">
+						<Link
+							href={`/card/${project.id}`}
+							className="report-name"
+							onClick={(event) => {
+								if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+								event.preventDefault();
+								onOpen(project.id);
+							}}
+						>
 							{project.icon && <span className="record-icon">{project.icon}</span>}
 							{project.name.trim() || "(untitled)"}
 						</Link>
@@ -213,6 +232,8 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	const [closing, setClosing] = useState<Closing | null>(null);
+	const [query, setQuery] = useState("");
+	const [openId, openRecord] = useOpenRecord();
 	const [, startTransition] = useTransition();
 	const dndId = useId();
 
@@ -233,6 +254,22 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 		useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
 		useSensor(KeyboardSensor),
 	);
+
+	const shown = useMemo(() => matching(projects, query), [projects, query]);
+
+	const siblings = useMemo(() => {
+		const opened = projects.find((project) => project.id === openId);
+		if (!opened) return undefined;
+		return {
+			label: opened.status,
+			records: shown.filter((project) => project.status === opened.status).sort(byPriority),
+		};
+	}, [projects, shown, openId]);
+
+	function show(id: string | null) {
+		if (id !== openId && !confirmDiscard()) return;
+		openRecord(id);
+	}
 
 	const columns = useMemo(
 		() => [...COLUMNS, ...new Set(projects.map((project) => project.status).filter((status) => !COLUMNS.includes(status)))],
@@ -336,6 +373,14 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 				<h1>Projects</h1>
 				<span className="count">{projects.length}</span>
 				<span className="spacer" />
+				<input
+					type="search"
+					className="search"
+					placeholder="Search"
+					aria-label="Search the projects"
+					value={query}
+					onChange={(event) => setQuery(event.target.value)}
+				/>
 				<div className="segmented" role="group" aria-label="Layout">
 					{LAYOUTS.map(([choice, label]) => (
 						<button
@@ -358,8 +403,9 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 			)}
 			<NoticeBar notice={notice} onDismiss={() => setNotice(null)} />
 			{projects.length === 0 && <p className="empty">No project is on the board yet.</p>}
-			{projects.length > 0 && layout === "list" && <ProjectList projects={projects} />}
-			{projects.length > 0 && layout === "board" && (
+			{projects.length > 0 && shown.length === 0 && <p className="empty">No project matches {query.trim()}.</p>}
+			{shown.length > 0 && layout === "list" && <ProjectList projects={shown} onOpen={show} />}
+			{shown.length > 0 && layout === "board" && (
 				<DndContext
 					id={dndId}
 					sensors={sensors}
@@ -372,9 +418,9 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 							<ProjectLane
 								key={status}
 								status={status}
-								projects={projects.filter((project) => project.status === status).sort(byPriority)}
+								projects={shown.filter((project) => project.status === status).sort(byPriority)}
 								pending={pending}
-								onOpen={(id) => router.push(`/card/${id}`)}
+								onOpen={show}
 							/>
 						))}
 					</div>
@@ -400,6 +446,15 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 				/>
 			)}
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
+			{openId && (
+				<RecordOverlay
+					id={openId}
+					siblings={siblings}
+					onOpen={(id) => show(id)}
+					onClose={() => show(null)}
+					onChanged={() => router.refresh()}
+				/>
+			)}
 		</section>
 	);
 }

@@ -199,7 +199,7 @@ export function recordKindOf(id: string): RecordKind | null {
 export function homeOf(id: string): string {
 	const kind = recordKindOf(id);
 	if (kind === "epic") return `/epics?open=${id}`;
-	if (kind === "project") return "/projects";
+	if (kind === "project") return `/projects?open=${id}`;
 	if (kind === "sprint") return `/obeya?sprint=${id}#sprint`;
 	if (kind === "reference") return "/references";
 	if (kind === "milestone") return "/plan";
