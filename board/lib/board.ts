@@ -82,6 +82,17 @@ export async function readBreaks(): Promise<Break[]> {
 	return JSON.parse(await boardCard(["breaks", "--json"]));
 }
 
+export async function addBreak(from: string, to: string, project: string, name: string): Promise<string> {
+	const args = ["breaks", "add", from, to];
+	if (project) args.push("--project", project);
+	if (name) args.push("--name", name);
+	return (await boardCard(args)).trim();
+}
+
+export async function removeBreak(id: string): Promise<void> {
+	await boardCard(["breaks", "remove", id]);
+}
+
 export async function readInboxUpTo(stamp: string): Promise<void> {
 	await boardCard(["inbox", "--read", stamp]);
 }

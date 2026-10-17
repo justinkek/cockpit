@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+	addBreak,
 	addComment,
 	archiveRecord,
 	BoardError,
+	type Break,
 	boardTracks,
 	type Card,
 	type CommentThread,
@@ -25,8 +27,10 @@ import {
 	moveRecords,
 	readComments,
 	readInboxUpTo,
+	readBreaks,
 	readRecord,
 	readViews,
+	removeBreak,
 	type SavedView,
 	saveNamedView,
 	resolveComment,
@@ -310,6 +314,33 @@ export async function setBoardTracks(count: number): Promise<{ tracks?: number; 
 		const tracks = await boardTracks(String(count));
 		revalidatePath("/plan");
 		return { tracks };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
+}
+
+export async function saveBreak(
+	from: string,
+	to: string,
+	project: string,
+	name: string,
+): Promise<{ breaks?: Break[]; error?: string }> {
+	try {
+		await addBreak(from, to, project, name.replace(/\s*[\r\n]+\s*/g, " ").trim());
+		revalidatePath("/plan");
+		return { breaks: await readBreaks() };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
+}
+
+export async function dropBreak(id: string): Promise<{ breaks?: Break[]; error?: string }> {
+	try {
+		await removeBreak(id);
+		revalidatePath("/plan");
+		return { breaks: await readBreaks() };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return { error: error.message };

@@ -5462,6 +5462,37 @@
 		}
 	}
 
+	.plan-breaks {
+		display: grid;
+		gap: 4px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+
+		& li {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			font-size: 12px;
+		}
+
+		& .quiet {
+			height: 22px;
+			padding: 0 6px;
+			font-size: 11.5px;
+		}
+	}
+
+	.plan-breaks-days {
+		display: flex;
+		gap: 6px;
+	}
+
+	.plan-breaks-form select {
+		width: 100%;
+	}
+
 	.plan-empty {
 		padding: 24px 16px;
 		position: sticky;
