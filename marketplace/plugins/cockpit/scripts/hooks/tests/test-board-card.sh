@@ -64,7 +64,7 @@ assert_eq "a hop into a column with no date stamp still records when it moved" "
   "$([ "$moved" != null ] && [[ "$moved" > "$first_stamp" ]] && echo true)"
 assert_eq "and stamps no date for that column" "false" "$(field HOM-2 '.dates | has("Backlog")')"
 assert_eq "the move time sits after the creation time in the file" "moved" \
-  "$(sed -n '/^created:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/HOM-2.md" | cut -d: -f1)"
+  "$(sed -n '/^created:/{n;p;}' "$COCKPIT_BOARD_DIR/tickets/HOM-2.md" | cut -d: -f1)"
 stub move HOM-2 "In BR" >/dev/null
 assert_eq "re-entering a column keeps the first stamp" "$first_stamp" "$(field HOM-2 '.dates["In BR"]')"
 stub move HOM-2 "In Space" >/dev/null 2>&1
@@ -92,7 +92,7 @@ assert_eq "each record it moves is named, once however often it is given" "HOM-1
 HOM-2	In BR -> Deprioritised" "$(stub move HOM-1 hom-2 HOM-1 Deprioritised)"
 assert_eq "every record lands on the column" "Deprioritised Deprioritised" "$(field HOM-1 .status) $(field HOM-2 .status)"
 assert_eq "as one commit" "1" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count "$base..HEAD")"
-assert_eq "holding both records" "cards/HOM-1.md cards/HOM-2.md" \
+assert_eq "holding both records" "tickets/HOM-1.md tickets/HOM-2.md" \
   "$(git -C "$COCKPIT_BOARD_DIR" show --name-only --format= HEAD | sort | paste -sd ' ' -)"
 moved_commit="$(last_commit %H)"
 stub undo HOM-2 --since "$base" --until "$moved_commit" >/dev/null
@@ -103,7 +103,7 @@ stub move HOM-1 EPIC-1 Deprioritised >/dev/null 2>&1
 assert_eq "records of two kinds are refused" "2" "$?"
 stub move HOM-1 HOM-999 Deprioritised >/dev/null 2>&1
 assert_eq "a record that is not on the board refuses the whole move" "3" "$?"
-assert_eq "naming the entity it could not find" "[board-card] no entity HOM-999 in $COCKPIT_BOARD_DIR/cards" "$(stub move HOM-1 HOM-999 Deprioritised 2>&1 >/dev/null)"
+assert_eq "naming the entity it could not find" "[board-card] no entity HOM-999 in $COCKPIT_BOARD_DIR/tickets" "$(stub move HOM-1 HOM-999 Deprioritised 2>&1 >/dev/null)"
 assert_eq "leaving the others where they were" "In Dev" "$(field HOM-1 .status)"
 stub move Deprioritised >/dev/null 2>&1
 assert_eq "a column with no record is refused" "2" "$?"
@@ -335,14 +335,14 @@ printf "\nTest group: a ticket's type is a field, and its id stays\n"
 
 assert_eq "a timebox is numbered in its project like any ticket" "HOM-3" "$(stub create --epic EPIC-1 --name Spike --type Timebox)"
 assert_eq "changing the type keeps the id" "Type	Feature" "$(stub set HOM-3 type Feature)"
-assert_eq "and the file" "true" "$([ -f "$COCKPIT_BOARD_DIR/cards/HOM-3.md" ] && echo true)"
+assert_eq "and the file" "true" "$([ -f "$COCKPIT_BOARD_DIR/tickets/HOM-3.md" ] && echo true)"
 stub set HOM-3 type feature >/dev/null 2>&1
 assert_eq "a type outside the three is refused on set" "2" "$?"
 assert_eq "and the card keeps its file and its type" "HOM-3 Feature" "$(field HOM-3 '"\(.id) \(.type)"')"
 stub set EPIC-2 type Bug >/dev/null 2>&1
 assert_eq "only a card has a type" "2" "$?"
 assert_eq "and the epic is not copied in as a card" "true false" \
-  "$([ -f "$COCKPIT_BOARD_DIR/epics/EPIC-2.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/cards/EPIC-2.md" ] && echo true || echo false)"
+  "$([ -f "$COCKPIT_BOARD_DIR/epics/EPIC-2.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/tickets/EPIC-2.md" ] && echo true || echo false)"
 assert_eq "so a refused write leaves nothing behind" "" "$(git -C "$COCKPIT_BOARD_DIR" status --short)"
 stub create --epic EPIC-1 --name Bad --assignee me >/dev/null 2>&1
 assert_eq "a card has no assignee" "2" "$?"
@@ -376,7 +376,7 @@ mkdir -p "$TICKET_STATE_DIR"
 printf 'COC-2\n' > "$TICKET_STATE_DIR/session-one.ticket"
 output="$(keyed set EPIC-2 project PRJ-2)"
 assert_eq "an epic moving project renumbers its tickets to the new project's next numbers, in the order they were made" "COC-2 -> AI-2|COC-3 -> AI-3|Project	PRJ-2" "$(printf '%s\n' "$output" | paste -sd '|' -)"
-assert_eq "in one commit" "set AI-3 COC-3 AI-2 COC-1 COC-2 EPIC-2" "$(git -C "$TMPDIR/keyed/" log -1 --format=%s)"
+assert_eq "in one commit" "set AI-3 COC-3 EPIC-2 AI-2 COC-1 COC-2" "$(git -C "$TMPDIR/keyed/" log -1 --format=%s)"
 assert_eq "the link follows the new id" '["AI-2"]' "$(keyed_field COC-1 '.dependent_on | tojson')"
 assert_eq "the comments, the attachment, the claim and the session's marker follow it" "1 true true AI-2" \
   "$(keyed comments AI-2 --json | jq length) $([ -f "$TMPDIR/keyed/attachments/AI-3/keyed-note.txt" ] && echo true) $([ -d "$TICKET_CLAIM_LOCK_DIR/AI-2" ] && echo true) $(cat "$TICKET_STATE_DIR/session-one.ticket")"
@@ -395,7 +395,7 @@ output="$(keyed set PRJ-2 key ML)"
 assert_eq "a key change renumbers the project's tickets under the new key" "AI-1 -> ML-1|AI-2 -> ML-2|Key	ML" "$(printf '%s\n' "$output" | paste -sd '|' -)"
 assert_eq "so the first id still reads the ticket" "ML-2" "$(keyed_field COC-2 .id)"
 keyed undo ML-2 >/dev/null
-assert_eq "undoing a renumbering gives the ticket its old id back" "AI-2 false" "$(keyed_field ML-2 .id) $([ -f "$TMPDIR/keyed/cards/ML-2.md" ] && echo true || echo false)"
+assert_eq "undoing a renumbering gives the ticket its old id back" "AI-2 false" "$(keyed_field ML-2 .id) $([ -f "$TMPDIR/keyed/tickets/ML-2.md" ] && echo true || echo false)"
 assert_eq "and the old ids follow it back" "AI-2 AI-2" "$(keyed_field COC-2 .id) $(keyed_field ML-2 .id)"
 keyed create --kind epic --project PRJ-2 --name "After the change" >/dev/null
 assert_eq "a new ticket under the changed key takes its next number" "ML-3" "$(keyed create --epic EPIC-4 --name Six)"
@@ -421,6 +421,8 @@ ticket archive/cards FEAT-5 'null' '[]' 2026-02-05T00:00:00Z
 COCKPIT_BOARD_DIR="$old" stub flush --now >/dev/null
 git -C "$old" add --all >/dev/null && git -C "$old" -c user.name=t -c user.email=t@t commit --quiet --message seed
 output="$(COCKPIT_BOARD_DIR="$old" stub migrate --key PRJ-1=COC)"
+assert_eq "it moves a board's cards/ and archive/cards/ to tickets/ and archive/tickets/" "cards	renamed to tickets|archive/cards	renamed to archive/tickets|true true false false" \
+  "$(printf '%s\n' "$output" | grep renamed | paste -sd '|' -)|$([ -f "$old/tickets/COC-2.md" ] && echo true) $([ -f "$old/archive/tickets/COC-3.md" ] && echo true) $([ -e "$old/cards" ] && echo true || echo false) $([ -e "$old/archive/cards" ] && echo true || echo false)"
 assert_eq "it gives each project the key it is given, or one made from its name" "PRJ-1	key COC|PRJ-2	key DE|PRJ-3	key PER" "$(printf '%s\n' "$output" | grep key | paste -sd '|' -)"
 assert_eq "and renumbers each project's tickets from 1 in the order they were made, the archive included" "BUG-3 -> COC-1|FEAT-1 -> COC-2|TIME-4 -> COC-3|FEAT-2 -> DE-1" \
   "$(printf '%s\n' "$output" | grep -- ' -> ' | grep -v Backlog | paste -sd '|' -)"
@@ -438,7 +440,7 @@ assert_eq "a key given for a project that holds another is refused" "2" "$?"
 printf "\nTest group: a record carries one emoji as its icon\n"
 
 assert_eq "an icon reads back under its property name" "Icon	🧭" "$(stub set HOM-1 icon "🧭")"
-assert_eq "the icon sits after the name in the file" "icon" "$(sed -n '/^name:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/HOM-1.md" | cut -d: -f1)"
+assert_eq "the icon sits after the name in the file" "icon" "$(sed -n '/^name:/{n;p;}' "$COCKPIT_BOARD_DIR/tickets/HOM-1.md" | cut -d: -f1)"
 stub set HOM-1 icon "👩‍💻" >/dev/null
 assert_eq "an emoji joined from several is still one" "👩‍💻" "$(field HOM-1 .icon)"
 stub set HOM-1 icon "🇬🇧" >/dev/null
@@ -575,20 +577,20 @@ printf "\nTest group: a record is archived and brought back, or copied\n"
 
 assert_eq "archive moves a record off the board" "archived HOM-2" "$(stub archive HOM-2)"
 assert_eq "its file, comments and attachments all go under archive/" "true true true false" \
-  "$([ -f "$COCKPIT_BOARD_DIR/archive/cards/HOM-2.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/archive/cards/HOM-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/archive/attachments/HOM-2/flow.svg" ] && echo true) $([ -e "$COCKPIT_BOARD_DIR/cards/HOM-2.md" ] && echo true || echo false)"
+  "$([ -f "$COCKPIT_BOARD_DIR/archive/tickets/HOM-2.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/archive/tickets/HOM-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/archive/attachments/HOM-2/flow.svg" ] && echo true) $([ -e "$COCKPIT_BOARD_DIR/tickets/HOM-2.md" ] && echo true || echo false)"
 assert_eq "an archive is committed under its verb and id" "archive HOM-2" "$(last_commit %s)"
 assert_eq "list leaves it out" "" "$(stub list | cut -f1 | grep --line-regexp HOM-2)"
 assert_eq "and --archived lists it" "HOM-2" "$(stub list --archived | cut -f1)"
 stub show HOM-2 Status >/dev/null 2>&1
 assert_eq "an archived record cannot be read as if it were on the board" "3" "$?"
 assert_eq "and the refusal says how to bring it back" "true" "$(stub show HOM-2 Status 2>&1 | grep --quiet 'board-card unarchive HOM-2' && echo true)"
-assert_eq "path names the file where it now lies" "$COCKPIT_BOARD_DIR/archive/cards/HOM-2.md" "$(stub path HOM-2)"
+assert_eq "path names the file where it now lies" "$COCKPIT_BOARD_DIR/archive/tickets/HOM-2.md" "$(stub path HOM-2)"
 assert_eq "and attachments names where its attachments now lie" "$COCKPIT_BOARD_DIR/archive/attachments/HOM-2/flow.svg" "$(stub attachments HOM-2)"
 numbered="$(stub create --epic EPIC-1 --name "After the archive")"
 assert_eq "an archived record's number is not given out again" "true" "$([ "${numbered##*-}" -gt 2 ] && echo true)"
-assert_eq "and a record never made, the file it would be" "$COCKPIT_BOARD_DIR/cards/HOM-999.md" "$(stub path HOM-999)"
+assert_eq "and a record never made, the file it would be" "$COCKPIT_BOARD_DIR/tickets/HOM-999.md" "$(stub path HOM-999)"
 assert_eq "unarchive brings it back with its comments and attachments" "unarchived HOM-2 true true" \
-  "$(stub unarchive HOM-2) $([ -f "$COCKPIT_BOARD_DIR/cards/HOM-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/attachments/HOM-2/flow.svg" ] && echo true)"
+  "$(stub unarchive HOM-2) $([ -f "$COCKPIT_BOARD_DIR/tickets/HOM-2.comments.jsonl" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/attachments/HOM-2/flow.svg" ] && echo true)"
 stub unarchive HOM-2 >/dev/null 2>&1
 assert_eq "a record on the board is not archived to bring back" "3" "$?"
 stub link HOM-1 HOM-2 >/dev/null
@@ -669,16 +671,16 @@ assert_eq "a card whose last change only followed another's new id has nothing t
 assert_eq "and keeps its link at the id that card holds now" "[\"$as_bug\"]" "$(field "$renamed_parent" '.dependent_on | tojson')"
 assert_eq "undoing the rename gives the card its old id back" "$renamed	undid" "$(stub undo "$as_bug" | cut -d' ' -f1)"
 assert_eq "with its old epic, under its old file alone" "EPIC-1 true false" \
-  "$(field "$renamed" .epic) $([ -f "$COCKPIT_BOARD_DIR/cards/$renamed.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/cards/$as_bug.md" ] && echo true || echo false)"
+  "$(field "$renamed" .epic) $([ -f "$COCKPIT_BOARD_DIR/tickets/$renamed.md" ] && echo true) $([ -f "$COCKPIT_BOARD_DIR/tickets/$as_bug.md" ] && echo true || echo false)"
 assert_eq "and the link to it follows it back" "[\"$renamed\"]" "$(field "$renamed_parent" '.dependent_on | tojson')"
 stub unlink "$renamed_parent" "$renamed" >/dev/null
 stub archive "$renamed" >/dev/null
 stub undo "$renamed" >/dev/null
-assert_eq "undoing an archive puts the record back on the board" "$COCKPIT_BOARD_DIR/cards/$renamed.md" "$(stub path "$renamed")"
+assert_eq "undoing an archive puts the record back on the board" "$COCKPIT_BOARD_DIR/tickets/$renamed.md" "$(stub path "$renamed")"
 stub archive "$renamed" >/dev/null
 stub unarchive "$renamed" >/dev/null
 stub undo "$renamed" >/dev/null
-assert_eq "and undoing an unarchive puts it back in the archive" "$COCKPIT_BOARD_DIR/archive/cards/$renamed.md" "$(stub path "$renamed")"
+assert_eq "and undoing an unarchive puts it back in the archive" "$COCKPIT_BOARD_DIR/archive/tickets/$renamed.md" "$(stub path "$renamed")"
 stub unarchive "$renamed" >/dev/null
 named_epic="$(stub create --kind epic --project PRJ-1 --name "Back from the archive")"
 stub archive "$named_epic" >/dev/null
@@ -772,14 +774,14 @@ assert_eq "--until without --since is refused" "2" "$?"
 printf "\nTest group: a write the filesystem refuses fails with its status\n"
 
 unwritable="$(stub create --epic EPIC-1 --name "Unwritable")"
-chmod a-w "$COCKPIT_BOARD_DIR/cards"
+chmod a-w "$COCKPIT_BOARD_DIR/tickets"
 stub set "$unwritable" name "Never written" >/dev/null 2>&1
 set_status=$?
 stub walk "$unwritable" "In BR" >/dev/null 2>&1
 walk_status=$?
 created="$(stub create --epic EPIC-1 --name "Never made" 2>/dev/null)"
 create_status=$?
-chmod u+w "$COCKPIT_BOARD_DIR/cards"
+chmod u+w "$COCKPIT_BOARD_DIR/tickets"
 assert_eq "a set, a walk and a create each fail, and the create prints no id" "true true true " \
   "$([ "$set_status" -ne 0 ] && echo true) $([ "$walk_status" -ne 0 ] && echo true) $([ "$create_status" -ne 0 ] && echo true) $created"
 assert_eq "the record is left as it was" "Unwritable Backlog" "$(field "$unwritable" .name) $(field "$unwritable" .status)"
@@ -804,7 +806,7 @@ printf "\nTest group: days in the column and overrunning are worked out as Notio
 
 notion_card() {
   printf -- '---\nid: "%s"\nname: "From Notion"\ntype: "%s"\nstatus: "%s"\ncomplexity: %s\ntimebox_mins: %s\ndates:\n%b---\n' \
-    "$1" "$2" "$3" "$4" "${6:-null}" "$5" > "$COCKPIT_BOARD_DIR/cards/$1.md"
+    "$1" "$2" "$3" "$4" "${6:-null}" "$5" > "$COCKPIT_BOARD_DIR/tickets/$1.md"
 }
 notion_card HOM-901 Feature "In Dev" 8 '  "In Dev": "2026-09-06T17:40:00.000+01:00"\n'
 notion_card HOM-902 Feature Done 1 '  "In Dev": "2026-08-14T15:35:00.000+01:00"\n  "Ready for CR": "2026-08-15T06:25:00.000+01:00"\n  "Done": "2026-08-15T07:00:00.000+01:00"\n'
@@ -821,9 +823,9 @@ assert_eq "a timebox closed before the working day began used none of it" "0 fal
 assert_eq "a card that never reached In Dev is not overrunning" "0 false" "$(derived HOM-906)"
 assert_eq "list carries the same values" "27 true" \
   "$(COCKPIT_NOW=2026-10-13T16:45:51Z stub list --json | jq --raw-output '.[] | select(.id == "HOM-901") | "\(.days_in_column) \(.overrunning)"')"
-assert_eq "and none of it is written to the record" "" "$(grep --extended-regexp '^(days_in_column|overrunning):' "$COCKPIT_BOARD_DIR/cards/HOM-901.md")"
+assert_eq "and none of it is written to the record" "" "$(grep --extended-regexp '^(days_in_column|overrunning):' "$COCKPIT_BOARD_DIR/tickets/HOM-901.md")"
 assert_eq "an epic carries neither" "false" "$(stub show EPIC-2 --json | jq 'has("overrunning")')"
-rm "$COCKPIT_BOARD_DIR"/cards/HOM-90[1-6].md "$COCKPIT_BOARD_DIR"/cards/HOM-90[45].md
+rm "$COCKPIT_BOARD_DIR"/tickets/HOM-90[1-6].md "$COCKPIT_BOARD_DIR"/tickets/HOM-90[45].md
 timed="$(stub create --epic EPIC-1 --name "Waiting for TR by AI")"
 COCKPIT_NOW=2026-10-05T10:00:00Z stub move "$timed" "Ready for TR by AI" >/dev/null
 assert_eq "a move into Ready for TR by AI stamps it, so its days count" "2026-10-05T10:00:00Z 6" \
@@ -840,9 +842,9 @@ assert_eq "back in dev, the time since it returned adds to its first stint" "0 t
 
 printf "\nTest group: a record whose file does not parse is never written over\n"
 
-printf -- '---\nid: "HOM-950"\nname: broken\n---\n' > "$COCKPIT_BOARD_DIR/cards/HOM-950.md"
-broken_before="$(cat "$COCKPIT_BOARD_DIR/cards/HOM-950.md")"
-other_before="$(cat "$COCKPIT_BOARD_DIR/cards/HOM-1.md")"
+printf -- '---\nid: "HOM-950"\nname: broken\n---\n' > "$COCKPIT_BOARD_DIR/tickets/HOM-950.md"
+broken_before="$(cat "$COCKPIT_BOARD_DIR/tickets/HOM-950.md")"
+other_before="$(cat "$COCKPIT_BOARD_DIR/tickets/HOM-1.md")"
 commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 stub move HOM-950 Done >/dev/null 2>&1
 assert_eq "a move onto it is refused with an exit code of its own" "8" "$?"
@@ -851,18 +853,18 @@ assert_eq "so is a link from it" "8" "$?"
 stub link HOM-1 HOM-950 >/dev/null 2>&1
 assert_eq "and a link to it" "8" "$?"
 assert_eq "it, and the card on the other side of the link, are left as they were, with nothing committed" "true true $commits_before" \
-  "$([ "$(cat "$COCKPIT_BOARD_DIR/cards/HOM-950.md")" = "$broken_before" ] && echo true) $([ "$(cat "$COCKPIT_BOARD_DIR/cards/HOM-1.md")" = "$other_before" ] && echo true) $(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
+  "$([ "$(cat "$COCKPIT_BOARD_DIR/tickets/HOM-950.md")" = "$broken_before" ] && echo true) $([ "$(cat "$COCKPIT_BOARD_DIR/tickets/HOM-1.md")" = "$other_before" ] && echo true) $(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 assert_eq "the refusal names the file" "true" "$(stub show HOM-950 2>&1 | grep --quiet --fixed-strings 'HOM-950.md does not parse' && echo true)"
 stub list >/dev/null 2>&1
 assert_eq "a list that meets it is refused the same way" "8" "$?"
-rm "$COCKPIT_BOARD_DIR/cards/HOM-950.md"
+rm "$COCKPIT_BOARD_DIR/tickets/HOM-950.md"
 
 printf "\nTest group: a record says when it last changed\n"
 
 COCKPIT_NOW=2026-10-14T09:00:00Z stub set HOM-2 name "Stamped" >/dev/null
 assert_eq "a write stamps the time it changed the record" "2026-10-14T09:00:00Z" "$(field HOM-2 .updated)"
 assert_eq "the stamp sits after the creation and move times in the file" "updated" \
-  "$(sed -n '/^moved:/{n;p;}' "$COCKPIT_BOARD_DIR/cards/HOM-2.md" | cut -d: -f1)"
+  "$(sed -n '/^moved:/{n;p;}' "$COCKPIT_BOARD_DIR/tickets/HOM-2.md" | cut -d: -f1)"
 COCKPIT_NOW=2026-10-14T10:00:00Z stub set HOM-2 name "Stamped" >/dev/null
 assert_eq "a write that changes nothing leaves the stamp alone" "2026-10-14T09:00:00Z" "$(field HOM-2 .updated)"
 COCKPIT_NOW=2026-10-14T10:30:00Z stub set HOM-2 body "$(field HOM-2 .body)"$'\n' >/dev/null
@@ -892,7 +894,7 @@ commits_before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 stub init >/dev/null
 assert_eq "init on a board already made commits nothing" "$commits_before" "$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 
-printf '\nedited by hand\n' >> "$COCKPIT_BOARD_DIR/cards/HOM-1.md"
+printf '\nedited by hand\n' >> "$COCKPIT_BOARD_DIR/tickets/HOM-1.md"
 stub move HOM-2 Backlog >/dev/null
 assert_eq "a change found before a write is committed on its own, ahead of the write" "move HOM-2|unrecorded HOM-1" \
   "$(git -C "$COCKPIT_BOARD_DIR" log -2 --format=%s | paste -sd '|' -)"
@@ -977,10 +979,10 @@ assert_eq "and the same token while nothing changes" "$first_revision" "$(stub r
 stub set "$found_one" name "Renamed for the revision" >/dev/null
 second_revision="$(stub revision)"
 assert_eq "a write through board-card changes it" "true" "$([ "$second_revision" != "$first_revision" ] && echo true)"
-printf '\nedited by hand\n' >> "$COCKPIT_BOARD_DIR/cards/$found_one.md"
+printf '\nedited by hand\n' >> "$COCKPIT_BOARD_DIR/tickets/$found_one.md"
 third_revision="$(stub revision)"
 assert_eq "so does an edit nobody committed" "true" "$([ "$third_revision" != "$second_revision" ] && echo true)"
-printf 'and again\n' >> "$COCKPIT_BOARD_DIR/cards/$found_one.md"
+printf 'and again\n' >> "$COCKPIT_BOARD_DIR/tickets/$found_one.md"
 assert_eq "and a second edit to the same uncommitted file" "true" "$([ "$(stub revision)" != "$third_revision" ] && echo true)"
 plain_board="$TMPDIR/plain-board"
 mkdir -p "$plain_board/cards"
@@ -1110,18 +1112,18 @@ placed="$(stub create --name Placed --epic "$home")"
 assert_eq "show reports the epic's project as the card's" "PRJ-1" "$(field "$placed" .project)"
 assert_eq "and so does the Project property" "Project	PRJ-1" "$(stub show "$placed" Project)"
 assert_eq "and list --json" "PRJ-1" "$(stub list --json | jq --raw-output --arg id "$placed" '.[] | select(.id == $id) | .project')"
-assert_eq "while nothing is stored on the card" "0" "$(grep --count '^project:' "$COCKPIT_BOARD_DIR/cards/$placed.md")"
+assert_eq "while nothing is stored on the card" "0" "$(grep --count '^project:' "$COCKPIT_BOARD_DIR/tickets/$placed.md")"
 stub set "$placed" project PRJ-1 >/dev/null 2>&1
 assert_eq "setting a card's project is refused" "2" "$?"
 stub set "$placed" project "" >/dev/null 2>&1
 assert_eq "and so is clearing it" "2" "$?"
-perl -pi -e 's/^(epic: .*)$/$1\nproject: "PRJ-9"/' "$COCKPIT_BOARD_DIR/cards/$placed.md"
+perl -pi -e 's/^(epic: .*)$/$1\nproject: "PRJ-9"/' "$COCKPIT_BOARD_DIR/tickets/$placed.md"
 assert_eq "a project stored before the rule is passed over for the epic's" "PRJ-1" "$(field "$placed" .project)"
 git -C "$COCKPIT_BOARD_DIR" add --all >/dev/null && git -C "$COCKPIT_BOARD_DIR" -c user.name=t -c user.email=t@t commit --quiet -m seed
 output="$(stub migrate)"
 assert_eq "migrate removes it and names the card" "$placed	project PRJ-9 removed" "$(printf '%s\n' "$output" | grep 'project PRJ-9')"
-assert_eq "leaving nothing stored" "0" "$(grep --count '^project:' "$COCKPIT_BOARD_DIR/cards/$placed.md")"
-assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "cards/$placed.md" | cut -d' ' -f1)"
+assert_eq "leaving nothing stored" "0" "$(grep --count '^project:' "$COCKPIT_BOARD_DIR/tickets/$placed.md")"
+assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "tickets/$placed.md" | cut -d' ' -f1)"
 assert_eq "a second migrate leaves the cards alone" "0" "$(stub migrate | grep --count 'project')"
 
 printf "\nTest group: a ticket moves out of Done like any other, as the app is what asks first\n"
@@ -1158,7 +1160,7 @@ feature="$(stub create --epic "$ready" --name "First slice")"
 output="$(stub walk "$feature" "In Dev" --skip "Sprint Backlog")"
 assert_eq "a feature reaching In Dev moves its epic on to Tickets In Dev" "Tickets In Dev" "$(field "$ready" .status)"
 assert_eq "and names that move" "$ready	Ready for Dev -> Tickets In Dev" "$(printf '%s\n' "$output" | grep "^$ready")"
-assert_eq "in the walk's own commit" "walk $feature $ready" "$(last_commit %s)"
+assert_eq "in the walk's own commit" "walk $ready $feature" "$(last_commit %s)"
 breaking="$(stub create --kind epic --project PRJ-1 --name "Still breaking down")"
 stub move "$breaking" "In Ticket Breakdown" >/dev/null
 early="$(stub create --epic "$breaking" --name "Early start")"

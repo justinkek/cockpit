@@ -9,6 +9,38 @@ use crate::record::*;
 use crate::util;
 use std::cmp::Ordering;
 use std::fs;
+use std::path::Path;
+
+fn migrate_folders() {
+    let board = ctx::board_dir();
+    for (from, to) in [("cards", "tickets"), ("archive/cards", "archive/tickets")] {
+        let old = format!("{}/{}", board, from);
+        let new = format!("{}/{}", board, to);
+        if !Path::new(&old).is_dir() {
+            continue;
+        }
+        if !Path::new(&new).exists() {
+            if fs::rename(&old, &new).is_err() {
+                die(1, &format!("could not rename {} to {}", old, new));
+            }
+        } else {
+            let Ok(entries) = fs::read_dir(&old) else { continue };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let target = format!("{}/{}", new, name);
+                if Path::new(&target).exists() {
+                    die(2, &format!("{}/{} and {} both hold {} - move one by hand, then run migrate again", from, name, to, name));
+                }
+                if fs::rename(entry.path(), &target).is_err() {
+                    die(1, &format!("could not move {}/{} to {}", from, name, to));
+                }
+            }
+            let _ = fs::remove_dir(&old);
+        }
+        outln(&format!("{}\trenamed to {}", from, to));
+    }
+    ctx::refresh_ticket_dirs();
+}
 
 fn key_candidates(name: &str) -> Vec<String> {
     let cleaned: String = name.chars().map(|c| c.to_ascii_uppercase()).map(|c| if c.is_ascii_uppercase() { c } else { ' ' }).collect();
@@ -285,10 +317,19 @@ fn blocked_history(paths: &[String]) -> Vec<(String, String)> {
 fn migrate_blocked_spans() {
     let mut paths: Vec<String> = Vec::new();
     if git::has_repo() {
-        let output = git::run(&["log", "--format=", "--name-only", "-G", "^blocked: \"", "--", "cards", "epics"]);
+        let output = git::run(&["log", "--format=", "--name-only", "-G", "^blocked: \"", "--", "cards", "tickets", "epics"]);
         paths = util::lines(&output.stdout).into_iter().filter(|p| !p.is_empty()).collect();
-        util::version_sort(&mut paths);
-        paths.dedup();
+        let mut seen: Vec<String> = Vec::new();
+        let mut translated: Vec<String> = Vec::new();
+        for path in paths {
+            let current = translate_folder(&path);
+            if !seen.contains(&current) {
+                seen.push(current.clone());
+                translated.push(current);
+            }
+        }
+        util::version_sort(&mut translated);
+        paths = translated;
     }
     for path in paths {
         if !exists(&format!("{}/{}", ctx::board_dir(), path)) {
@@ -298,7 +339,10 @@ fn migrate_blocked_spans() {
         if read_record(&id).has("blocked_spans") {
             continue;
         }
-        let variants = vec![path.clone()];
+        let mut variants = vec![path.clone()];
+        if let Some(rest) = path.strip_prefix("tickets/") {
+            variants.push(format!("cards/{}", rest));
+        }
         let mut spans: Vec<Value> = Vec::new();
         for (day, value) in blocked_history(&variants) {
             let Ok(value) = Value::parse(&value) else { continue };
@@ -328,6 +372,16 @@ fn migrate_blocked_spans() {
                 outln(&format!("{}\tblocked with no history to date it, so it has no blocked span", record.get("id").tostring()));
             }
         }
+    }
+}
+
+fn translate_folder(path: &str) -> String {
+    match path.strip_prefix("cards/") {
+        Some(rest) => format!("{}/{}", ctx::ticket_dir(), rest),
+        None => match path.strip_prefix("tickets/") {
+            Some(rest) => format!("{}/{}", ctx::ticket_dir(), rest),
+            None => path.to_string(),
+        },
     }
 }
 
@@ -428,6 +482,7 @@ pub fn migrate(args: &[String]) {
     ctx::set_flush_now();
     with_lock(|| {
         ctx::capture_start();
+        migrate_folders();
         migrate_keys(&given);
         migrate_numbers();
         migrate_ranks();

@@ -132,7 +132,7 @@ HOM-3	due 2026-11-20" "$(printf '%s\n' "$output" | grep due)"
 assert_eq "an unset or later due date is pulled in to the target, and an earlier one is left" \
   "HOM-2=2026-11-20@EPIC-3 HOM-3=2026-11-20@EPIC-3 HOM-4=2026-11-01@- HOM-5=-@- HOM-6=-@-" \
   "$(dues | sed 's/^.*HOM-2/HOM-2/')"
-assert_eq "the epic and every card it held land in one commit" "set HOM-2 HOM-3 EPIC-3" \
+assert_eq "the epic and every card it held land in one commit" "set EPIC-3 HOM-2 HOM-3" \
   "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s)"
 stub set EPIC-3 target 2026-12-10 >/dev/null
 assert_eq "a later target carries the due dates it set, and leaves the card's own" \
@@ -320,7 +320,7 @@ assert_eq "the count the epics with no project had is dropped" "false" "$([ -f "
 assert_eq "and migrate names each change" "$open_project	tracks 1|no-project-tracks	removed|tracks	3" \
   "$(printf '%s\n' "$output" | grep --invert-match rank | sort | paste -sd '|' -)"
 assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(on_shared migrate)"
-perl -pi -e 's/^epic: .*/epic: null/' "$shared/cards/OPN-1.md"
+perl -pi -e 's/^epic: .*/epic: null/' "$shared/tickets/OPN-1.md"
 perl -pi -e 's/^project: .*/project: null/' "$shared/epics/EPIC-1.md"
 assert_eq "migrate names a card with no epic and an epic with no project, which only a person can give them" \
   "OPN-1	needs an epic|EPIC-1	needs a project" "$(on_shared migrate | paste -sd '|' -)"

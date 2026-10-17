@@ -87,18 +87,18 @@ assert_eq "an empty epic of a month that is over closes" "Epic Done" "$(field EP
 assert_eq "and so does another project's" "Epic Done" "$(field EPIC-3 .status)"
 assert_eq "the month that is not over stays open" "Tickets In Dev" "$(field EPIC-5 .status)"
 assert_eq "a plain epic is never swept" "Backlog" "$(field EPIC-1 .status)"
-assert_eq "the cards and the epics they left go in one commit" "maintenance COC-1 COC-2 EPIC-2 EPIC-3 EPIC-4" "$(last_commit %s)"
+assert_eq "the cards and the epics they left go in one commit" "maintenance EPIC-2 EPIC-3 EPIC-4 COC-1 COC-2" "$(last_commit %s)"
 
 COCKPIT_NOW=2026-12-03T09:00:00Z stub walk COC-1 Done >/dev/null
 assert_eq "a walk after the month rolls the epic over" "Epic Done" "$(field EPIC-5 .status)"
 assert_eq "taking the card still open to December's" "EPIC-6" "$(field COC-2 .epic)"
 assert_eq "and leaving the card it walked to Done behind" "EPIC-5" "$(field COC-1 .epic)"
-assert_eq "in the walk's own commit" "walk COC-1 COC-2 EPIC-5" "$(last_commit %s)"
+assert_eq "in the walk's own commit" "walk EPIC-5 COC-1 COC-2" "$(last_commit %s)"
 assert_eq "while a month not over yet stays open through the walk's sweep" "Tickets In Dev" "$(field EPIC-6 .status)"
 
 COCKPIT_NOW=2027-01-05T09:00:00Z stub move EPIC-1 "Ready for FD by AI" >/dev/null
 assert_eq "a move of any record sweeps, so nobody has to ask" "Epic Done EPIC-7" "$(field EPIC-6 .status) $(field COC-2 .epic)"
-assert_eq "in the move's own commit" "move COC-2 EPIC-1 EPIC-6" "$(last_commit %s)"
+assert_eq "in the move's own commit" "move EPIC-1 EPIC-6 COC-2" "$(last_commit %s)"
 
 output="$(COCKPIT_NOW=2027-02-02T09:00:00Z stub migrate)"
 assert_eq "migrate sweeps too, making the new month's epic when there is none" "EPIC-8" "$(field COC-2 .epic)"

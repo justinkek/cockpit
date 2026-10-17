@@ -75,7 +75,7 @@ stub set HOM-2 name "Second, again" >/dev/null
 assert_eq "a later write to one of its records commits it first, as one commit" "link HOM-1 HOM-2" "$(subjects 1)"
 stub flush --now >/dev/null
 assert_eq "and every record's own write follows in a commit of its own" "set HOM-2|set HOM-3|link HOM-1 HOM-2" "$(subjects 3)"
-assert_eq "the link commit holds both cards and nothing else" "cards/HOM-1.md cards/HOM-2.md" \
+assert_eq "the link commit holds both cards and nothing else" "tickets/HOM-1.md tickets/HOM-2.md" \
   "$(git -C "$COCKPIT_BOARD_DIR" show --name-only --format= HEAD~2 | paste -sd ' ' -)"
 
 printf "\nTest group: a read of one record's history takes that record's waiting writes first\n"
@@ -86,7 +86,7 @@ stub set HOM-2 name "Second, renamed again" >/dev/null
 assert_eq "a write waits for the quiet that has not come" "$before" "$(commits)"
 assert_eq "history shows the write it would otherwise miss" "set HOM-1" "$(stub history HOM-1 | head -1 | cut -f3)"
 assert_eq "as a commit of its own" "$((before + 1))" "$(commits)"
-assert_eq "leaving another record's write waiting" "M cards/HOM-2.md" "$(git -C "$COCKPIT_BOARD_DIR" status --short | sed 's/^ *//')"
+assert_eq "leaving another record's write waiting" "M tickets/HOM-2.md" "$(git -C "$COCKPIT_BOARD_DIR" status --short | sed 's/^ *//')"
 assert_eq "until its own history is read" "set HOM-2" "$(stub history HOM-2 | head -1 | cut -f3)"
 
 printf "\nTest group: undo commits what is waiting before it takes anything back\n"
@@ -117,7 +117,7 @@ assert_eq "a write finding an overdue batch commits it first, on its own" "set G
 stub flush --now >/dev/null
 assert_eq "and its own write follows in the next" "set HOM-2|set GAR-1" "$(subjects 2)"
 
-printf 'edited by hand\n' >> "$COCKPIT_BOARD_DIR/cards/HOM-3.md"
+printf 'edited by hand\n' >> "$COCKPIT_BOARD_DIR/tickets/HOM-3.md"
 stub set HOM-2 name "Beside a hand edit" >/dev/null
 assert_eq "a change no write made is committed on its own ahead of the write" "unrecorded HOM-3" "$(subjects 1)"
 stub flush --now >/dev/null
@@ -139,7 +139,7 @@ before="$(commits)"
 stub set "$epic" target 2026-11-20 >/dev/null
 assert_eq "the target and the due date it set both wait" "$before" "$(commits)"
 epic_last="$(stub history "$epic" | head -1)"
-assert_eq "the epic's history commits them as one" "set $card $epic" "$(printf '%s' "$epic_last" | cut -f3)"
+assert_eq "the epic's history commits them as one" "set $epic $card" "$(printf '%s' "$epic_last" | cut -f3)"
 assert_eq "which is the card's last commit too" "$(printf '%s' "$epic_last" | cut -f1)" "$(stub history "$card" | head -1 | cut -f1)"
 
 printf "\nTest group: the board's revision follows its content, not its commits\n"

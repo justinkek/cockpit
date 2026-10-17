@@ -90,7 +90,7 @@ output="$(stub migrate)"
 assert_eq "migrate names each card whose sprint it changed and the sprint it had" "$stale	sprint SPR-1 -> SPR-2" "$(printf '%s\n' "$output" | grep 'sprint')"
 assert_eq "and sets it" "SPR-2" "$(field "$stale" .sprint)"
 assert_eq "leaving a Done card whose day no sprint covers as it was" "SPR-1 null" "$(field "$gap" .sprint) $(field "$unplanned" .sprint)"
-assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "cards/$stale.md" | cut -d' ' -f1)"
+assert_eq "in migrate's commit" "migrate" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s -- "tickets/$stale.md" | cut -d' ' -f1)"
 assert_eq "a second migrate changes no sprint" "0" "$(stub migrate | grep --count 'sprint')"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"

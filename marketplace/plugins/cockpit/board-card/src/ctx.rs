@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct State {
     pub board_dir: String,
@@ -52,8 +52,20 @@ fn scripts_dir() -> PathBuf {
     PathBuf::from(".")
 }
 
-pub fn ticket_dir_names(_board_dir: &str) -> (String, String) {
-    ("cards".to_string(), "cards".to_string())
+pub fn ticket_dir_names(board_dir: &str) -> (String, String) {
+    let tickets = Path::new(board_dir).join("tickets").is_dir();
+    let cards = Path::new(board_dir).join("cards").is_dir();
+    let main = if cards && !tickets { "cards" } else { "tickets" };
+    let archive_tickets = Path::new(board_dir).join("archive/tickets").is_dir();
+    let archive_cards = Path::new(board_dir).join("archive/cards").is_dir();
+    let archive = if archive_tickets {
+        "tickets"
+    } else if archive_cards {
+        "cards"
+    } else {
+        main
+    };
+    (main.to_string(), archive.to_string())
 }
 
 pub fn init(action: &str) {
@@ -138,6 +150,14 @@ pub fn ticket_dir() -> String {
 
 pub fn archive_ticket_dir() -> String {
     with(|s| s.archive_ticket_dir.clone())
+}
+
+pub fn refresh_ticket_dirs() {
+    let (main, archive) = ticket_dir_names(&board_dir());
+    with_mut(|s| {
+        s.ticket_dir = main;
+        s.archive_ticket_dir = archive;
+    });
 }
 
 pub fn to_stderr(on: bool) {

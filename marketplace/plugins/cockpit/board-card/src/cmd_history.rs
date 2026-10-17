@@ -29,7 +29,11 @@ pub fn card_aliases(id: &str) -> Vec<String> {
 }
 
 fn folders(kind: &str) -> Vec<String> {
-    vec![folder_of_kind(kind)]
+    if kind == "card" {
+        vec!["tickets".to_string(), "cards".to_string()]
+    } else {
+        vec![folder_of_kind(kind)]
+    }
 }
 
 pub fn record_paths(id: &str, main_only: bool) -> Vec<String> {
@@ -386,6 +390,20 @@ pub fn history(args: &[String]) {
     ctx::out(&plain.stdout);
 }
 
+fn translate(path: &str) -> String {
+    let main = ctx::ticket_dir();
+    let archive = ctx::archive_ticket_dir();
+    for folder in ["cards", "tickets"] {
+        if let Some(rest) = path.strip_prefix(&format!("{}/", folder)) {
+            return format!("{}/{}", main, rest);
+        }
+        if let Some(rest) = path.strip_prefix(&format!("archive/{}/", folder)) {
+            return format!("archive/{}/{}", archive, rest);
+        }
+    }
+    path.to_string()
+}
+
 fn rev(spec: &str) -> Option<String> {
     let run = git::run(&["rev-parse", "--quiet", "--verify", &format!("{}^{{commit}}", spec)]);
     if run.ok {
@@ -717,7 +735,7 @@ fn plan_undo(id: &str, undoing: &mut Undoing) -> Plan {
             };
             check(rest) || (p.starts_with("archive/") && check(p))
         });
-    if before_file == current_relative && all_md && same_but_updated(&current, &restored) {
+    if translate(&before_file) == current_relative && all_md && same_but_updated(&current, &restored) {
         die(2, &format!("nothing to undo on {}: before {} it held what it holds now, once renamed tickets are followed", id, subject));
     }
     let owner = owner(id);
@@ -776,7 +794,19 @@ fn plan_undo(id: &str, undoing: &mut Undoing) -> Plan {
 
 fn apply_undo(id: &str, plan: Plan) {
     let board = ctx::board_dir();
-    for (target, content) in &plan.changed {
+    let mut targets: Vec<(String, Option<Vec<u8>>)> = Vec::new();
+    for (path, content) in &plan.changed {
+        let target = translate(path);
+        match targets.iter_mut().find(|(t, _)| *t == target) {
+            Some(slot) => {
+                if slot.1.is_none() {
+                    slot.1 = content.clone();
+                }
+            }
+            None => targets.push((target, content.clone())),
+        }
+    }
+    for (target, content) in &targets {
         let full = format!("{}/{}", board, target);
         match content {
             Some(content) => {

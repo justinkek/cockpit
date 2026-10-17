@@ -67,8 +67,8 @@ GIT_AUTHOR_DATE=2026-09-04T23:30:00Z stub set COC-1 blocked '' >/dev/null
 GIT_AUTHOR_DATE=2026-09-10T10:00:00Z stub set COC-1 blocked "Again" >/dev/null
 GIT_AUTHOR_DATE=2026-09-11T10:00:00Z stub set EPIC-1 blocked "Epic too" >/dev/null
 GIT_AUTHOR_DATE=2026-09-12T10:00:00Z stub set EPIC-1 blocked '' >/dev/null
-for file in "$old"/cards/COC-1.md "$old"/epics/EPIC-1.md; do perl -ni -e 'print unless /^blocked_spans: /' "$file"; done
-perl -pi -e 's/^blocked: null$/blocked: "Set by hand"/' "$old/cards/COC-3.md"
+for file in "$old"/tickets/COC-1.md "$old"/epics/EPIC-1.md; do perl -ni -e 'print unless /^blocked_spans: /' "$file"; done
+perl -pi -e 's/^blocked: null$/blocked: "Set by hand"/' "$old/tickets/COC-3.md"
 git -C "$old" add --all >/dev/null && git -C "$old" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit --quiet -m "an older board" >/dev/null
 FEAT3_DAY="$(TZ=UTC git -C "$old" log -1 --format=%ad --date=format-local:%Y-%m-%d)"
 output="$(stub migrate)"
@@ -80,7 +80,7 @@ assert_eq "a record never blocked gets none" "false" "$(field COC-2 'has("blocke
 assert_eq "a record blocked in a commit board-card did not write is dated by that commit" "[{\"from\":\"$FEAT3_DAY\"}]" "$(field COC-3 '.blocked_spans | tojson')"
 assert_eq "a second migrate changes no spell" "0" "$(stub migrate | grep --count 'blocked spans')"
 rm -rf "$old/.git"
-perl -ni -e 'print unless /^blocked_spans: /' "$old/cards/COC-3.md"
+perl -ni -e 'print unless /^blocked_spans: /' "$old/tickets/COC-3.md"
 assert_eq "a board with no history leaves a blocked record with no spell, and says so" \
   "COC-3	blocked with no history to date it, so it has no blocked span" "$(stub migrate | grep '^COC-3')"
 

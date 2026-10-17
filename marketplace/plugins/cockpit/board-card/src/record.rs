@@ -343,14 +343,14 @@ pub fn require_record(id: &str) {
 
 pub fn require_board() {
     let dir = ctx::board_dir();
-    if !Path::new(&format!("{}/cards", dir)).is_dir() {
+    if !Path::new(&format!("{}/tickets", dir)).is_dir() && !Path::new(&format!("{}/cards", dir)).is_dir() {
         die(3, &format!("no board at {} - run: board-card init", dir));
     }
 }
 
 pub fn has_ticket_folder() -> bool {
     let dir = ctx::board_dir();
-    Path::new(&format!("{}/cards", dir)).is_dir()
+    Path::new(&format!("{}/tickets", dir)).is_dir() || Path::new(&format!("{}/cards", dir)).is_dir()
 }
 
 fn capture_nested(line: &str) -> Option<(String, String)> {
