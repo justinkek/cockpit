@@ -754,41 +754,11 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.peek {
-		flex: none;
-		width: 420px;
-		border-left: 1px solid var(--line);
-		background: var(--panel);
-		overflow-y: auto;
-		padding: 0 20px 24px;
-	}
-
-	.peek-head {
-		position: sticky;
-		top: 0;
-		z-index: 6;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		height: 44px;
-		background: var(--panel);
-		border-bottom: 1px solid var(--line);
-		margin: 0 -20px 16px;
-		padding: 0 12px 0 20px;
-	}
-
-	.peek-actions {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-
 	.quiet-link {
 		color: var(--muted);
 		padding: 0 8px;
 	}
 
-	.peek-title,
 	.title-input {
 		display: block;
 		width: calc(100% + 14px);
@@ -814,11 +784,6 @@
 			border-color: var(--accent);
 			background: var(--panel);
 		}
-	}
-
-	.peek-title {
-		font-size: 1.15rem;
-		margin-bottom: 12px;
 	}
 
 	.props {
@@ -987,14 +952,6 @@
 		.lane {
 			width: calc(100vw - 48px);
 			scroll-snap-align: start;
-		}
-
-		.peek {
-			position: fixed;
-			inset: 44px 0 0;
-			width: auto;
-			z-index: 10;
-			border-left: none;
 		}
 
 		.row {
@@ -2226,13 +2183,6 @@
 	.picker-miss {
 		margin: -8px 0 16px;
 		color: var(--danger);
-	}
-
-	.peek > .notice {
-		position: sticky;
-		top: 44px;
-		z-index: 5;
-		margin: -4px 0 12px;
 	}
 
 	.stub > .notice {
@@ -4457,20 +4407,6 @@
 		margin: 0;
 		flex-wrap: wrap;
 	}
-
-	.peek-actions {
-		gap: 0;
-		min-width: 0;
-
-		& > * {
-			white-space: nowrap;
-		}
-
-		& > button,
-		& > .quiet-link {
-			padding: 0 5px;
-		}
-	}
 }
 
 @layer components {
@@ -4629,10 +4565,6 @@
 		flex: 1;
 		min-height: 0;
 		display: flex;
-
-		&.peeking .plan-main {
-			min-width: 0;
-		}
 	}
 
 	.plan-loading {
@@ -6017,13 +5949,6 @@
 			left: 16px;
 			right: 16px;
 			width: auto;
-		}
-
-		.plan-page .peek {
-			position: fixed;
-			inset: 44px 0 0;
-			width: auto;
-			z-index: 10;
 		}
 	}
 }

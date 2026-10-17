@@ -32,7 +32,6 @@ import {
 	dropCard,
 	editCard,
 	finishEpic,
-	linkCards,
 	loadComments,
 	postComment,
 	type Ranked,
@@ -45,12 +44,12 @@ import {
 	undoChange,
 } from "@/app/actions";
 import { askOverShares, useConfirm } from "@/app/confirm";
-import { Content, confirmDiscard } from "@/app/content";
-import { Fields, type Handlers, Links, type Lists, linkChange, TextField, Title, useHydrated } from "@/app/fields";
+import { confirmDiscard } from "@/app/content";
+import { TextField, useHydrated } from "@/app/fields";
 import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
-import { EstimateFacts, estimatesTitle } from "@/app/estimates";
+import { estimatesTitle } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
-import { Stages } from "@/app/stages";
+import { RecordOverlay, useOpenRecord } from "@/app/record-overlay";
 import { breakToastOf, toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { progressOf } from "@/lib/metrics";
 import {
@@ -60,13 +59,11 @@ import {
 	dayOf,
 	dayText,
 	daysOff,
-	estimatesOf,
 	lateText,
 	mondayOf,
 	openWorkOf,
 	planOf,
 	planOrder,
-	pointsOf,
 	type Refinement,
 	refinementOf,
 	type Row,
@@ -76,7 +73,7 @@ import {
 	type TrackSpeed,
 	trackSpeedsOf,
 } from "@/lib/plan";
-import { type Break, type Card, type CommentThread, fieldName, kindOf, movedTo, phaseOf } from "@/lib/shared";
+import { type Break, type Card, type CommentThread, kindOf, movedTo } from "@/lib/shared";
 
 const DAY = 86400000;
 const SCALES = { weeks: 8, months: 2.4 } as const;
@@ -476,13 +473,6 @@ function RowDrop({ id, children, className }: { id: string; children: ReactNode;
 	);
 }
 
-function cardPointsTitle(card: Card) {
-	if (card.type === "Timebox") return "A timebox carries no estimate";
-	if ((card.complexity ?? 0) > 0) return `TR complexity ${card.complexity}`;
-	if ((card.estimate ?? 0) > 0) return `TD estimate ${card.estimate}, with no TR complexity yet`;
-	return "Neither a TR complexity nor a TD estimate";
-}
-
 function blockedWhy(epic: Card | undefined, row: Row, cards: Card[]) {
 	if (row.blocked === "epic") return `its own blocked flag says "${epic?.blocked ?? ""}"`;
 	const open = openWorkOf(cards);
@@ -630,88 +620,6 @@ function TrackPick({
 				{row.pinIgnored && <option value={row.pin ?? ""}>Pinned to track {row.pin} - past its tracks</option>}
 			</select>
 		</label>
-	);
-}
-
-function PlanPanel({
-	epic,
-	cards,
-	lists,
-	handlers,
-	notice,
-	onDismiss,
-	onClose,
-	onSaved,
-}: {
-	epic: Card;
-	cards: Card[];
-	lists: Lists;
-	handlers: Handlers;
-	notice: Notice;
-	onDismiss: () => void;
-	onClose: () => void;
-	onSaved: (record: Card, undo?: Span, label?: string) => void;
-}) {
-	const panel = useRef<HTMLElement>(null);
-	useEffect(() => {
-		panel.current?.scrollTo({ top: 0 });
-	}, [epic.id]);
-	return (
-		<aside className="peek" ref={panel} aria-label={`${epic.id} details`}>
-			<header className="peek-head">
-				<span className="ident">{epic.id}</span>
-				<span className="peek-actions">
-					<Link href={`/epics?open=${epic.id}`} className="quiet-link">
-						On the Epics board
-					</Link>
-					<Link href={`/card/${epic.id}`} className="quiet-link">
-						Open
-					</Link>
-					<button type="button" className="quiet" onClick={onClose} title="Close (Esc)" aria-keyshortcuts="Escape">
-						Close
-					</button>
-				</span>
-			</header>
-			{notice && (
-				<p className="notice error" role="alert">
-					<span>{notice.text}</span>
-					<button type="button" className="quiet" onClick={onDismiss}>
-						Dismiss
-					</button>
-				</p>
-			)}
-			{epic.icon && <span className="page-icon">{epic.icon}</span>}
-			<Title
-				id={epic.id}
-				className="peek-title"
-				value={epic.name}
-				onCommit={(name) => handlers.onEdit("name", name, { name })}
-			/>
-			<Fields record={epic} lists={lists} handlers={handlers} />
-			<Links record={epic} lists={lists} handlers={handlers} />
-			<EstimateFacts estimates={estimatesOf(cards)} left />
-			<section className="timeline">
-				<h3>
-					Tickets <span className="count">{cards.length}</span>
-				</h3>
-				<p className="epic-progress">
-					<ProgressMeter progress={progressOf(cards)} wide />
-				</p>
-				<ol>
-					{cards.map((card) => (
-						<li key={card.id}>
-							<span className={`dot phase-${phaseOf(card.status)}`} aria-hidden="true" />
-							<Link href={`/?open=${card.id}`}>{card.name}</Link>
-							<span className="ident" title={cardPointsTitle(card)}>
-								{card.type === "Timebox" ? "timebox" : pointsOf(card) == null ? "unsized" : `${pointsOf(card)} pts`}
-							</span>
-						</li>
-					))}
-				</ol>
-			</section>
-			<Stages record={epic} />
-			<Content id={epic.id} revision={epic.updated} onSaved={onSaved} />
-		</aside>
 	);
 }
 
@@ -887,7 +795,6 @@ export function Plan({
 	projects,
 	sprints,
 	today: todayText,
-	lists,
 }: {
 	initial: Card[];
 	cards: Card[];
@@ -897,7 +804,6 @@ export function Plan({
 	projects: Project[];
 	sprints: Pick<Card, "start" | "end" | "speed">[];
 	today: string;
-	lists: Lists;
 }) {
 	const router = useRouter();
 	const hydrated = useHydrated();
@@ -906,7 +812,7 @@ export function Plan({
 	const [prefs, setPrefs] = useState<Prefs>({ scale: "weeks", grouped: true });
 	const [drag, setDrag] = useState<Drag | null>(null);
 	const [rowDragging, setRowDragging] = useState<string | null>(null);
-	const [openId, setOpenId] = useState<string | null>(null);
+	const [openId, openRecord] = useOpenRecord();
 	const [notice, setNotice] = useState<Notice>(null);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [confirmDialog, ask] = useConfirm();
@@ -945,18 +851,8 @@ export function Plan({
 
 	useEffect(() => {
 		setPrefs(loadPrefs());
-		const opening = new URLSearchParams(window.location.search).get("open")?.toUpperCase();
-		if (opening && kindOf(opening) === "epic") setOpenId(opening);
 		loaded.current = true;
 	}, []);
-
-	useEffect(() => {
-		if (!loaded.current) return;
-		const url = new URL(window.location.href);
-		if (openId) url.searchParams.set("open", openId);
-		else url.searchParams.delete("open");
-		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
-	}, [openId]);
 
 	const today = dayOf(todayText) ?? 0;
 	const now = useMemo(() => new Date(), [cards]);
@@ -1104,17 +1000,22 @@ export function Plan({
 
 	const visualOrder = groups.flatMap((group) => group.epics.map((epic) => ({ id: epic.id, group: group.id })));
 
-	const open = openId ? (epics.find((epic) => epic.id === openId) ?? null) : null;
+	const siblings = useMemo(() => {
+		const named = new Map(epics.map((epic) => [epic.id, epic.name]));
+		return {
+			label: "the plan",
+			records: visualOrder.map(({ id }) => ({ id, name: named.get(id) ?? id })),
+		};
+	}, [epics, groups]);
 
 	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
 			if (event.key !== "Escape" || typingIn(event.target)) return;
 			if (editing) setEditing(null);
-			else if (openId && confirmDiscard()) setOpenId(null);
 		}
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [editing, openId]);
+	}, [editing]);
 
 	function markPending(id: string, on: boolean) {
 		setPending((current) => {
@@ -1156,28 +1057,9 @@ export function Plan({
 		});
 	}
 
-	function handlersFor(epic: Card): Handlers {
-		return {
-			onMove: (column) => moveEpic(epic, column),
-			onEdit: (field, value, change) =>
-				apply(epic.id, change, () => editCard(epic.id, field, value), `Changed the ${fieldName(field)} of ${epic.id}`),
-			onLink: (parent, child, linked) =>
-				apply(
-					epic.id,
-					linkChange(epic, parent, child, linked),
-					() => linkCards(epic.id, parent, child, linked),
-					linked ? `Made ${parent} depend on ${child}` : `Took ${parent}'s dependency on ${child} off`,
-				),
-			onOpen: (id) => {
-				if (kindOf(id) === "epic") show(id);
-				else router.push(`/?open=${id}`);
-			},
-		};
-	}
-
 	function show(id: string | null) {
 		if (id !== openId && !confirmDiscard()) return;
-		setOpenId(id);
+		openRecord(id);
 	}
 
 	function moveEpic(epic: Card, column: string, checked = false) {
@@ -2106,7 +1988,7 @@ export function Plan({
 	const milestoneDrag = drag?.mode === "milestone" ? drag : null;
 
 	return (
-		<section className={`plan-page${open ? " peeking" : ""}`}>
+		<section className="plan-page">
 			<div className="plan-main">
 				<header className="plan-head">
 					<h1>Plan</h1>
@@ -2523,20 +2405,13 @@ export function Plan({
 					))}
 				</footer>
 			</div>
-			{open && (
-				<PlanPanel
-					epic={open}
-					cards={cards.filter((card) => card.epic === open.id)}
-					lists={lists}
-					handlers={handlersFor(open)}
-					notice={notice?.id === open.id ? notice : null}
-					onDismiss={() => setNotice(null)}
+			{openId && (
+				<RecordOverlay
+					id={openId}
+					siblings={siblings}
+					onOpen={(id) => show(id)}
 					onClose={() => show(null)}
-					onSaved={(saved, spanned, label) => {
-						setEpics((current) => current.map((epic) => (epic.id === saved.id ? saved : epic)));
-						setToast(undoable(saved.id, spanned, label ?? `Changed the content of ${saved.id}`));
-						router.refresh();
-					}}
+					onChanged={() => router.refresh()}
 				/>
 			)}
 			{finishing && (

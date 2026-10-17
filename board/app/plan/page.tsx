@@ -57,12 +57,6 @@ export default async function PlanPage() {
 			projects={projects.map(({ id, name, icon, priority, tracks, status }) => ({ id, name, icon, priority, tracks, status }))}
 			sprints={sprints.map(({ start, end, speed }) => ({ start, end, speed }))}
 			today={today()}
-			lists={{
-				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
-				epics: epics.map(({ id, name, project, status }) => ({ id, name, project, status })),
-				sprints: sprints.map(({ id, name, start, end }) => ({ id, name, start, end })),
-				projects: projects.map(({ id, name }) => ({ id, name })),
-			}}
 		/>
 	);
 }
