@@ -164,10 +164,7 @@ export function WorkIndicator() {
 											<span className="work-spinner" aria-hidden="true" />
 											{work.what}
 										</span>
-										<span className="work-meta">
-											{work.total ? `${work.done ?? 0} of ${work.total} · ` : ""}
-											{seconds(now - work.started)}
-										</span>
+										<span className="work-meta">{seconds(now - work.started)}</span>
 										{work.ids.length > 1 && <span className="work-ids">{idList(work.ids)}</span>}
 									</li>
 								))}

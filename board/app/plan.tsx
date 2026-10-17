@@ -1474,7 +1474,7 @@ export function Plan({
 			}
 			setUndoing(false);
 			setToast((current) => (current?.key === shownToast.key ? null : current));
-			if (failures.length > 0) setNotice({ id: "", text: `Could not undo: ${failures.join("; ")}` });
+			if (failures.length > 0) setNotice({ id: "", text: `Could not undo: ${[...new Set(failures)].join("; ")}` });
 			router.refresh();
 		});
 	}

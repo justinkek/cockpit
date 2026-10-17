@@ -8,16 +8,12 @@ export type Work = {
 	what: string;
 	ids: string[];
 	started: number;
-	done?: number;
-	total?: number;
 	ended?: number;
 	failure?: string;
 	changes: Change[];
 };
 
 export type Outcome = { failure?: string; changes?: Change[] };
-
-export type Progress = (done: number, total: number) => void;
 
 const KEPT = 5;
 
@@ -83,13 +79,6 @@ export function withBusy(pending: Set<string>, busy: Set<string>): Set<string> {
 	return new Set([...pending, ...busy]);
 }
 
-function update(key: number, change: Partial<Work>) {
-	publish(
-		snapshot.running.map((work) => (work.key === key ? { ...work, ...change } : work)),
-		snapshot.finished,
-	);
-}
-
 function end(key: number, outcome: Outcome) {
 	const work = snapshot.running.find((one) => one.key === key);
 	if (!work) return;
@@ -108,7 +97,7 @@ function end(key: number, outcome: Outcome) {
 export async function track<T>(
 	what: string,
 	ids: string[],
-	task: (progress: Progress) => Promise<T>,
+	task: () => Promise<T>,
 	outcome: (result: T) => Outcome,
 ): Promise<T> {
 	made += 1;
@@ -118,7 +107,7 @@ export async function track<T>(
 		snapshot.finished,
 	);
 	try {
-		const result = await task((done, total) => update(key, { done, total }));
+		const result = await task();
 		end(key, outcome(result));
 		return result;
 	} catch (error) {

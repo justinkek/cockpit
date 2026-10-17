@@ -116,6 +116,19 @@ export async function closeProjectEntity(id: string): Promise<string[]> {
 	return [...output.matchAll(/^(\S+)\t\S.* -> /gm)].map((match) => match[1]).filter((moved) => moved !== id);
 }
 
+export async function setFields(ids: string[], field: string, value: string): Promise<Map<string, string>> {
+	const output = await boardCard(["set", ...ids, field, value]);
+	return new Map([...output.matchAll(/^(\S+) -> (\S+)$/gm)].map((match) => [match[1], match[2]]));
+}
+
+export async function rankEntities(order: { id: string; rank: string }[]): Promise<void> {
+	await boardCard(["rank", ...order.flatMap(({ id, rank }) => [id, rank])]);
+}
+
+export async function flushNow(): Promise<void> {
+	await boardCard(["flush", "--now"]);
+}
+
 export async function setField(id: string, field: string, value: string): Promise<string> {
 	return (await setFieldHolding(id, field, value)).id;
 }
@@ -237,6 +250,15 @@ export async function readHistory(id: string): Promise<HistoryEntry[]> {
 export async function undoSince(id: string, since: string, until: string): Promise<string> {
 	const output = await boardCard(["undo", id, "--since", since, "--until", until]);
 	return output.split("\t")[0] || id;
+}
+
+export async function undoMany(ids: string[], since: string, until: string): Promise<string[]> {
+	const output = await boardCard(["undo", ...ids, "--since", since, "--until", until]);
+	const undone = output
+		.split("\n")
+		.filter(Boolean)
+		.map((line) => line.split("\t")[0]);
+	return ids.map((id, index) => undone[index] || id);
 }
 
 export async function readComments(id: string): Promise<CommentThread[]> {

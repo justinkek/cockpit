@@ -1,11 +1,9 @@
 "use client";
 
 import * as raw from "@/app/actions";
-import type { Bulk, BulkResult, Change, FieldSet, NewOptions, Ranked, Span } from "@/app/actions";
-import { busyWith, type Outcome, type Progress, stillSaving, track } from "@/app/work";
+import type { Bulk, BulkResult, Change, FieldSet, NewOptions, Ranked, Span, Undone } from "@/app/actions";
+import { busyWith, type Outcome, stillSaving, track } from "@/app/work";
 import { entityKindOf, fieldName, type Kind, kindName } from "@/lib/shared";
-
-const CHUNK = 10;
 
 type Single = { error?: string; undo?: Span; more?: Change[]; entity?: { id: string } };
 
@@ -42,31 +40,10 @@ function guarded<T extends { error?: string }>(
 	return track(what, ids, run, outcome);
 }
 
-function guardedBulk<T extends BulkResult>(
-	what: string,
-	ids: string[],
-	run: (progress: Progress) => Promise<T>,
-): Promise<T> {
+function guardedBulk<T extends BulkResult>(what: string, ids: string[], run: () => Promise<T>): Promise<T> {
 	const busy = busyWith(ids);
 	if (busy) return Promise.resolve({ entities: [], undo: [], errors: [stillSaving(busy)] } as BulkResult as T);
 	return track(what, ids, run, bulk);
-}
-
-async function inChunks<T>(
-	items: T[],
-	progress: (done: number, total: number) => void,
-	run: (chunk: T[]) => Promise<BulkResult>,
-): Promise<BulkResult> {
-	const result: BulkResult = { entities: [], undo: [], errors: [] };
-	if (items.length > CHUNK) progress(0, items.length);
-	for (let start = 0; start < items.length; start += CHUNK) {
-		const part = await run(items.slice(start, start + CHUNK));
-		result.entities.push(...part.entities);
-		result.undo.push(...part.undo);
-		result.errors.push(...part.errors);
-		if (items.length > CHUNK) progress(Math.min(start + CHUNK, items.length), items.length);
-	}
-	return result;
 }
 
 export async function dropCard(id: string, column: string, rank?: number, sets: FieldSet[] = []) {
@@ -147,9 +124,7 @@ function bulkWhat(ids: string[], change: Bulk) {
 }
 
 export async function bulkChange(ids: string[], change: Bulk) {
-	return guardedBulk(bulkWhat(ids, change), ids, (progress) =>
-		inChunks(ids, progress, (part) => raw.bulkChange(part, change)),
-	);
+	return guardedBulk(bulkWhat(ids, change), ids, () => raw.bulkChange(ids, change));
 }
 
 export async function rankPlan(order: Ranked[]) {
@@ -157,11 +132,11 @@ export async function rankPlan(order: Ranked[]) {
 	return guardedBulk(
 		ids.length === 1 ? `Moving ${ids[0]} in the plan` : `Reordering ${ids.length} epics in the plan`,
 		ids,
-		(progress) => inChunks(order, progress, (part) => raw.rankPlan(part)),
+		() => raw.rankPlan(order),
 	);
 }
 
-export type Undone = { change: Change; result: Awaited<ReturnType<typeof raw.undoChange>> };
+export type { Undone };
 
 export async function undoAll(changes: Change[], text: string): Promise<Undone[]> {
 	if (changes.length === 0) return [];
@@ -171,17 +146,9 @@ export async function undoAll(changes: Change[], text: string): Promise<Undone[]
 	return track(
 		`Undoing: ${text}`,
 		ids,
-		async (progress) => {
-			const undone: Undone[] = [];
-			if (changes.length > 1) progress(0, changes.length);
-			for (const change of changes) {
-				undone.push({ change, result: await raw.undoChange(change.id, { since: change.since, until: change.until }) });
-				if (changes.length > 1) progress(undone.length, changes.length);
-			}
-			return undone;
-		},
+		() => raw.undoChanges(changes),
 		(undone) => {
-			const failures = undone.flatMap(({ result }) => (result.error ? [result.error] : []));
+			const failures = [...new Set(undone.flatMap(({ result }) => (result.error ? [result.error] : [])))];
 			return { failure: failures.length > 0 ? failures.join("; ") : undefined };
 		},
 	);

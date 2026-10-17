@@ -11,6 +11,9 @@ import {
 	boardTracks,
 	type Card,
 	type CommentThread,
+	type EntityKind,
+	entityKindOf,
+	flushNow,
 	type HistoryEntry,
 	type Kind,
 	kindName,
@@ -29,6 +32,7 @@ import {
 	listEntities,
 	mergeBody,
 	moveEntities,
+	rankEntities,
 	readComments,
 	readHistory,
 	readInboxUpTo,
@@ -42,7 +46,9 @@ import {
 	searchContent,
 	setField,
 	setFieldHolding,
+	setFields,
 	unarchiveEntity,
+	undoMany,
 	undoSince,
 } from "@/lib/board";
 import { lookupEntity, type EntityLookup } from "@/lib/entity-view";
@@ -127,6 +133,42 @@ export async function undoChange(id: string, span: Span): Promise<Result> {
 	} catch (error) {
 		return failed(id, error);
 	}
+}
+
+export type Undone = { change: Change; result: Result };
+
+export async function undoChanges(changes: Change[]): Promise<Undone[]> {
+	const groups = new Map<string, Change[]>();
+	for (const change of changes) {
+		const key = `${change.since} ${change.until}`;
+		groups.set(key, [...(groups.get(key) ?? []), change]);
+	}
+	const undone: Undone[] = [];
+	for (const group of groups.values()) {
+		const [first] = group;
+		if (group.length === 1) {
+			undone.push({ change: first, result: await undoChange(first.id, first) });
+			continue;
+		}
+		try {
+			const current = await undoMany(
+				group.map((change) => change.id),
+				first.since,
+				first.until,
+			);
+			const after = await entitiesOf(current);
+			group.forEach((change, index) => {
+				refresh(change.id);
+				refresh(current[index]);
+				const entity = after.get(current[index]);
+				undone.push({ change, result: entity ? { entity } : {} });
+			});
+		} catch (error) {
+			const failure = await failed(first.id, error);
+			for (const change of group) undone.push({ change, result: failure });
+		}
+	}
+	return undone;
 }
 
 export async function loadHistory(id: string): Promise<Failure & { entries?: HistoryEntry[] }> {
@@ -316,14 +358,13 @@ export async function closeProject(id: string): Promise<Result & { closed?: Chan
 export type Ranked = { id: string; rank: number };
 
 export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
-	const result: BulkResult = { entities: [], undo: [], errors: [] };
-	for (const { id, rank } of order) {
-		const changed = await report(id, () => setField(id, "rank", rankText(rank)));
-		if (changed.error) result.errors.push(`${id}: ${changed.error}`);
-		if (changed.entity) result.entities.push({ from: id, entity: changed.entity });
-		if (changed.undo) result.undo.push({ id, ...changed.undo });
-	}
-	return result;
+	return inOneCall(
+		order.map(({ id }) => id),
+		async () => {
+			await rankEntities(order.map(({ id, rank }) => ({ id, rank: rankText(rank) })));
+			return new Map();
+		},
+	);
 }
 
 async function deprioritiseOpen(cards: string[], result: BulkResult): Promise<boolean> {
@@ -581,24 +622,53 @@ export type BulkResult = {
 	errors: string[];
 };
 
+async function entitiesOf(ids: string[]): Promise<Map<string, Card>> {
+	const kinds = [...new Set(ids.map((id) => entityKindOf(id)).filter((kind): kind is EntityKind => kind !== null))];
+	const lists = await Promise.all(kinds.map((kind) => listEntities(kind)));
+	return new Map(lists.flat().map((entity) => [entity.id, entity]));
+}
+
+async function inOneCall(ids: string[], write: () => Promise<Map<string, string>>): Promise<BulkResult> {
+	const result: BulkResult = { entities: [], undo: [], errors: [] };
+	if (ids.length === 0) return result;
+	try {
+		await flushNow();
+		const before = await entitiesOf(ids);
+		const renamed = await write();
+		const current = ids.map((id) => renamed.get(id) ?? id);
+		const after = await entitiesOf(current);
+		const changed: string[] = [];
+		ids.forEach((id, index) => {
+			const entity = after.get(current[index]) ?? null;
+			refresh(current[index]);
+			result.entities.push({ from: id, entity });
+			if (JSON.stringify(entity) !== JSON.stringify(before.get(id) ?? null)) changed.push(current[index]);
+		});
+		const until = changed.length > 0 ? await lastCommit(changed[0]) : null;
+		if (until) for (const id of changed) result.undo.push({ id, since: `${until}^`, until });
+	} catch (error) {
+		const failure = await failed(ids[0], error);
+		result.errors.push(failure.error ?? "the change was not saved");
+	}
+	return result;
+}
+
 export async function bulkChange(ids: string[], change: Bulk): Promise<BulkResult> {
+	if (change.op === "move")
+		return inOneCall(ids, async () => {
+			await moveEntities(ids, change.column);
+			return new Map();
+		});
+	if (change.op === "set") return inOneCall(ids, () => setFields(ids, change.field, change.value));
 	const result: BulkResult = { entities: [], undo: [], errors: [] };
 	for (const id of ids) {
 		try {
 			const since = await lastCommit(id);
-			let current = id;
-			if (change.op === "move") {
-				const entity = await readEntity(id);
-				if (entity.status !== change.column) await changeStatus(entity, change.column);
-			} else if (change.op === "set") {
-				current = await setField(id, change.field, change.value);
-			} else {
-				await archiveEntity(id);
-			}
-			refresh(current);
-			const after = since ? await lastCommit(current) : null;
-			if (since && after && after !== since) result.undo.push({ id: current, since, until: after });
-			result.entities.push({ from: id, entity: change.op === "archive" ? null : await readEntity(current) });
+			await archiveEntity(id);
+			refresh(id);
+			const after = since ? await lastCommit(id) : null;
+			if (since && after && after !== since) result.undo.push({ id, since, until: after });
+			result.entities.push({ from: id, entity: null });
 		} catch (error) {
 			const failure = await failed(id, error);
 			result.errors.push(`${id}: ${failure.error ?? "failed"}`);
