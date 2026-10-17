@@ -52,6 +52,7 @@ import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
 import { EpicDoneDialog, EpicsDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { ViewDialog, type ViewDialogAsk } from "@/app/view-dialog";
+import { type SearchOption, SearchSelect } from "@/app/search-select";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -76,7 +77,6 @@ import {
 	loadView,
 	restoredView,
 	matches,
-	NO_EPIC,
 	onlyEpic,
 	type Sort,
 	saveLastParent,
@@ -870,7 +870,32 @@ export function Board({
 		() => ({ names, epicProjects, inContent: inContent?.query === query ? inContent.ids : undefined }),
 		[names, epicProjects, inContent, query],
 	);
-	const filterEpics = view.project ? epics.filter((epic) => epic.project === view.project) : epics;
+	const projectOptions = useMemo<SearchOption[]>(
+		() => [
+			{ value: "", label: "All projects" },
+			...lists.projects.map((project) => ({
+				value: project.id,
+				id: project.id,
+				label: project.name,
+				done: project.status === "Done",
+			})),
+		],
+		[lists.projects],
+	);
+	const epicOptions = useMemo<SearchOption[]>(() => {
+		const shown = view.project ? epics.filter((epic) => epic.project === view.project) : epics;
+		const option = (epic: (typeof epics)[number], except: boolean) => ({
+			value: except ? exceptEpic(epic.id) : epic.id,
+			id: epic.id,
+			label: except ? `Not ${epic.name}` : epic.name,
+			done: epic.status === "Epic Done",
+		});
+		return [
+			{ value: "", label: "All epics" },
+			...shown.map((epic) => option(epic, false)),
+			...shown.map((epic) => option(epic, true)),
+		];
+	}, [epics, view.project]);
 
 	useEffect(() => {
 		if (query.length < 2) return;
@@ -1760,46 +1785,18 @@ export function Board({
 										))}
 									</div>
 								)}
-								<select
+								<SearchSelect
+									label="Project"
 									value={view.project}
-									onChange={(event) => {
-										const project = event.target.value;
+									options={projectOptions}
+									onChange={(project) => {
 										const epic = view.epic.replace(/^!/, "");
 										const kept = !project || !epics.some((other) => other.id === epic) || epicProjects[epic] === project;
 										update({ project, ...(kept ? {} : { epic: "" }) });
 									}}
-									aria-label="Project"
-								>
-									<option value="">All projects</option>
-									{lists.projects.map((project) => (
-										<option key={project.id} value={project.id}>
-											{project.name}
-										</option>
-									))}
-								</select>
+								/>
 								{kind === "card" && (
-									<select
-										value={view.epic}
-										onChange={(event) => update({ epic: event.target.value })}
-										aria-label="Epic"
-									>
-										<option value="">All epics</option>
-										<option value={NO_EPIC}>No epic</option>
-										<optgroup label="Only">
-											{filterEpics.map((epic) => (
-												<option key={epic.id} value={epic.id}>
-													{epic.name}
-												</option>
-											))}
-										</optgroup>
-										<optgroup label="All but">
-											{filterEpics.map((epic) => (
-												<option key={epic.id} value={exceptEpic(epic.id)}>
-													Not {epic.name}
-												</option>
-											))}
-										</optgroup>
-									</select>
+									<SearchSelect label="Epic" value={view.epic} options={epicOptions} onChange={(epic) => update({ epic })} />
 								)}
 								{labels.length > 0 && (
 									<div className="chips" role="group" aria-label="Label">
