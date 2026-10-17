@@ -1,6 +1,6 @@
 # Ticket page template
 
-Read this template when writing or updating a cockpit card's body. The body is plain markdown in the card's file, and this defines the canonical section order, formatting rules, and output structure for all ticket types.
+Read this template when writing or updating a cockpit ticket's body. The body is plain markdown in the ticket's file, and this defines the canonical section order, formatting rules, and output structure for all ticket types.
 
 ## Feature ticket
 
@@ -146,4 +146,4 @@ Push detail down here rather than into Outcome: bizdevs scan the Outcome, devs d
 
 6. **Write a section, never the whole body.** Replace one section with `"$HOME/.cockpit/scripts/board-card" section <card-id> "<heading>" [--before "<heading>" | --after "<heading>"]`, the new content on stdin. A section that does not exist yet lands before the `--before` heading or after the `--after` heading, and at the end of the body with neither flag or when the heading it names is absent. Build it from a `board-card show <card-id> --section "<heading>"` taken immediately before the write.
 
-7. **Content that vanished between two reads was deleted by a person.** A human edits the card on the board while the agent drafts, so a line on an earlier read and absent from the current one is their edit, never a failed write. Leave it out of the section you write back and say it went; never put it back.
+7. **Content that vanished between two reads was deleted by a person.** A human edits the ticket on the board while the agent drafts, so a line on an earlier read and absent from the current one is their edit, never a failed write. Leave it out of the section you write back and say it went; never put it back.

@@ -5,7 +5,7 @@ description: Write TR (technical refinement) output for a cockpit ticket - Tech 
 
 # TR
 
-Write the technical refinement output for the registered cockpit ticket. TR captures _how_ (implementation) - never _what/why_ (that's BR). `<id>` below is the registered card's id, e.g. `FEAT-123`.
+Write the technical refinement output for the registered cockpit ticket. TR captures _how_ (implementation) - never _what/why_ (that's BR). `<id>` below is the registered ticket's id, e.g. `COC-123`.
 
 Read `~/.claude-shared/templates/ticket-page.md` before writing.
 
@@ -15,7 +15,7 @@ Read `~/.claude-shared/templates/cockpit-estimating.md` before proposing Complex
 
 Read `~/.claude-shared/templates/coding-conventions.md` before drafting the code a tech step shows.
 
-Before drafting, read the card's open comments with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`.
+Before drafting, read the ticket's open comments with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`.
 
 A decision the draft cannot settle is raised on the ticket, beside the line it concerns - never in a chat nobody is reading. Follow `~/.claude-shared/templates/raise-a-decision.md`.
 
@@ -77,7 +77,7 @@ The figure stays out of the heading: a redraft that changes it writes to the sam
 
 Estimation procedure:
 
-1. Read the reference tickets with `"$HOME/.cockpit/scripts/board-card" list --kind reference --json`. Each carries its `points`, `why`, `description`, `domain`, `stack` and the `card` it was taken from. An empty list means estimate without references and say the comparison was skipped.
+1. Read the reference tickets with `"$HOME/.cockpit/scripts/board-card" list --kind reference --json`. Each carries its `points`, `why`, `description`, `domain`, `stack` and the ticket it was taken from, as `card`. An empty list means estimate without references and say the comparison was skipped.
 2. Compare each layer's scope (number of files, conceptual difficulty, blast radius) against references at each Fibonacci level - never the ticket as a whole.
 3. Sum the layer points. The per-layer breakdown is the rationale; no independent whole-ticket figure is proposed.
 4. A sum landing off the Fibonacci scale rounds up to the next value on it - 4 rounds to 5, 7 rounds to 8. Never down: rounding down hides a split.
@@ -89,7 +89,7 @@ Propose splitting the ticket before finalizing tech steps when the summed Comple
 
 ## Workflow
 
-1. **Move the card into In TR by AI** - when its status is `Ready for TR by AI`, invoke `/cockpit:ticket:x:status` targeting `In TR by AI`, so the walk's Record model step writes `models.TR`. A card in any other column stays where it is.
+1. **Move the ticket into In TR by AI** - when its status is `Ready for TR by AI`, invoke `/cockpit:ticket:x:status` targeting `In TR by AI`, so the walk's Record model step writes `models.TR`. A ticket in any other column stays where it is.
 2. **Read the ticket** - read the BR section with `"$HOME/.cockpit/scripts/board-card" show <id> --section "<heading>"`, and confirm it is present. Exit 7 is the block named under Prerequisite.
 3. **Understand the codebase** - read the files and patterns relevant to the implementation. Grep callers of functions you plan to touch. When the steps introduce a shared procedure, grep the other skills for the concept too and make every call site its own step - a procedure wired into one caller and missed on another is the defect, not the missing caller.
 4. **Draft tech steps** - write the nested toggles covering every scenario from `## Validation Steps` (features) or `## Replication/Validation Steps` (bugs).
@@ -109,11 +109,11 @@ Propose splitting the ticket before finalizing tech steps when the summed Comple
 
 8. **Set the Complexity field** - `"$HOME/.cockpit/scripts/board-card" set <id> complexity <n>`, the same Fibonacci number written to the body.
 9. **Self-check** - verify the output (see below).
-10. **Advance** - invoke `/cockpit:ticket:x:status` targeting Ready for TR. This advances the ticket out of In TR by AI so the board reflects that TR drafting is complete and the card is ready for human review.
+10. **Advance** - invoke `/cockpit:ticket:x:status` targeting Ready for TR. This advances the ticket out of In TR by AI so the board reflects that TR drafting is complete and the ticket is ready for human review.
 
 ## Self-check
 
-After writing TR content to the card, verify:
+After writing TR content to the ticket, verify:
 
 1. **Sections** - only the allowed sections for the ticket type exist as top-level `##` headings: Validation Steps (feature) or Replication/Validation Steps (bug), Tech Steps, Context (optional), Details. No ad-hoc headings. Verify `## User Story` is absent.
 2. **Section order** - `##` headings appear in canonical order: BR section → Tech Steps → Context → Details (per the ticket page template). If any section is out of order, fix it before proceeding.

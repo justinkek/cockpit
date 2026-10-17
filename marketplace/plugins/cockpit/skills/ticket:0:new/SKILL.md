@@ -1,16 +1,16 @@
 ---
 name: ticket:0:new
-description: Create a new cockpit card with body content. The single creation path for all cockpit cards - called directly for scope drift / follow-ups, or delegated to by the register skill.
+description: Create a new cockpit ticket with body content. The single creation path for all cockpit tickets - called directly for scope drift / follow-ups, or delegated to by the register skill.
 ---
 
 # raise-ticket
 
-The single creation path for cockpit cards. Every code path that needs a new card goes through this skill so body content is always included.
+The single creation path for cockpit tickets. Every code path that needs a new ticket goes through this skill so body content is always included.
 
 Two calling contexts:
 
-- **From a session** (scope drift, follow-up, bounce-back): the session stays bound to its existing ticket. This skill creates the card and reports.
-- **From the register skill** (case 3): title, type and epic are already resolved. This skill creates the card with body content and returns its id for registration.
+- **From a session** (scope drift, follow-up, bounce-back): the session stays bound to its existing ticket. This skill creates the ticket and reports.
+- **From the register skill** (case 3): title, type and epic are already resolved. This skill creates the ticket with body content and returns its id for registration.
 
 Read `~/.claude-shared/templates/ticket-page.md` before writing the body.
 
@@ -29,13 +29,13 @@ Infer a ticket title from the concern: succinct, the outcome not an instruction.
 
 ### 2. Resolve the epic
 
-Read the current session's card id from `~/.local/state/claude-ticket-sessions/<session_id>.ticket` with the Read tool, then its epic with `"$HOME/.cockpit/scripts/board-card" show <card-id> Epic`. Read that epic's status the way the register skill's epic gate does - its line in `"$HOME/.cockpit/scripts/board-card" list --kind epic`, no epic record read on its own. Default to the same epic unless its status is `Epic Done`, in which case pick from the open epics in that listing by the rule below and say on the new card which epic had closed.
+Read the current session's ticket id from `~/.local/state/claude-ticket-sessions/<session_id>.ticket` with the Read tool, then its epic with `"$HOME/.cockpit/scripts/board-card" show <card-id> Epic`. Read that epic's status the way the register skill's epic gate does - its line in `"$HOME/.cockpit/scripts/board-card" list --kind epic`, no epic record read on its own. Default to the same epic unless its status is `Epic Done`, in which case pick from the open epics in that listing by the rule below and say on the new ticket which epic had closed.
 
-If the concern clearly belongs to a different epic, pick the closest match among the open epics in that listing and post what decided it on the new card - never ask.
+If the concern clearly belongs to a different epic, pick the closest match among the open epics in that listing and post what decided it on the new ticket - never ask.
 
-With no session card to take an epic from, pick the closest match among the open epics and post what decided it on the new card - never ask. Every card has an epic, so `board-card create` refuses one without `--epic`.
+With no session ticket to take an epic from, pick the closest match among the open epics and post what decided it on the new ticket - never ask. Every ticket has an epic, so `board-card create` refuses one without `--epic`.
 
-When no open epic fits a bug, a timebox or an improvement to finished work, it goes under its project's maintenance epic for the month instead of the closest match: run `"$HOME/.cockpit/scripts/board-card" maintenance <PRJ-n>` for the project the work belongs to - the project of the session card's epic, or with no session card the closest open epic's, read with `"$HOME/.cockpit/scripts/board-card" show <EPIC-n> Project` - and use the id it prints. Feature work that fits no open epic still goes under the closest match. Post what decided it on the new card either way - never ask.
+When no open epic fits a bug, a timebox or an improvement to finished work, it goes under its project's maintenance epic for the month instead of the closest match: run `"$HOME/.cockpit/scripts/board-card" maintenance <PRJ-n>` for the project the work belongs to - the project of the session ticket's epic, or with no session ticket the closest open epic's, read with `"$HOME/.cockpit/scripts/board-card" show <EPIC-n> Project` - and use the id it prints. Feature work that fits no open epic still goes under the closest match. Post what decided it on the new ticket either way - never ask.
 
 Same-project siblings follow the epic gate's rule: pick by the kind of work (diff on the product → dev epic, reporting or process → delivery epic), never by the closer name.
 
@@ -43,7 +43,7 @@ Same-project siblings follow the epic gate's rule: pick by the kind of work (dif
 
 ### 3. Create the card with body content
 
-Every card is created with a non-empty body. Never create one without it.
+Every ticket is created with a non-empty body. Never create one without it.
 
 ```sh
 "$HOME/.cockpit/scripts/board-card" create --name "<title>" --type <Type> --status "<column>" --epic <EPIC-n> --body - <<'EOF'
@@ -51,7 +51,7 @@ Every card is created with a non-empty body. Never create one without it.
 EOF
 ```
 
-It prints the new card id.
+It prints the new ticket id, its epic's project's key and its number in that project, such as `COC-12`. It refuses a ticket whose epic's project has no key yet: name that project and stop, since giving a project its key is the person's call.
 
 - `--name`: the inferred title.
 - `--status`: depends on the calling context.
@@ -67,9 +67,9 @@ It prints the new card id.
 ```markdown
 ## Context
 
-### Handoff from [origin card name]
+### Handoff from [origin ticket name]
 
-- **Origin:** [origin card id]
+- **Origin:** [origin ticket id]
 - **Reason:** [scope drift / follow-up / bounce-back next step]
 - **What:** [description of the concern]
 - **Session context:** [relevant details from the current session that the new session needs]
@@ -91,6 +91,6 @@ Keep content concise - enough to orient a new session, not a full specification.
 
 Report:
 
-- The new card's id and title.
+- The new ticket's id and title.
 - **From a session:** that the current session remains on its original ticket (no registration change).
 - **From register:** just the id (register handles the rest).

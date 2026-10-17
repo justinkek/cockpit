@@ -11,7 +11,7 @@ Read `~/.claude-shared/templates/cockpit-dev-gates.md` before the first edit.
 
 Read `~/.claude-shared/templates/coding-conventions.md` before the first edit.
 
-Read the card's open comments before the first edit with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`. `<id>` is the registered card's id, e.g. `FEAT-123`.
+Read the ticket's open comments before the first edit with `"$HOME/.cockpit/scripts/board-card" comments <id>`, following `~/.claude-shared/templates/page-comments.md`. `<id>` is the registered ticket's id, e.g. `COC-123`.
 
 ## Prerequisite
 
@@ -21,13 +21,13 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 ## Workflow
 
-1. **Check current status.** Read it with `"$HOME/.cockpit/scripts/board-card" show <id> Status "Dependent on"`. If the status is already `In Dev` or later in the board walk, skip step 3 - run step 2, then go to step 4. There is nothing to walk, but a split parent dragged or claimed into `In Dev` is still a split parent. Never stop here: a card claimed by `/cockpit:ticket:0:copilot` arrives already at `In Dev`, and so does one a person dragged there by hand, so stopping would leave file edits locked for the whole session.
+1. **Check current status.** Read it with `"$HOME/.cockpit/scripts/board-card" show <id> Status "Dependent on"`. If the status is already `In Dev` or later in the board walk, skip step 3 - run step 2, then go to step 4. There is nothing to walk, but a split parent dragged or claimed into `In Dev` is still a split parent. Never stop here: a ticket claimed by `/cockpit:ticket:0:copilot` arrives already at `In Dev`, and so does one a person dragged there by hand, so stopping would leave file edits locked for the whole session.
 
 2. **Refuse on a split parent.** If the ticket's `Dependent on` relation is populated, it has no Tech Steps and Complexity 0 - there is nothing here to build. Name why, list the sub-tickets, and tell the user to open a new session registered on the one they want. One ticket per session, so cost attributes to the part actually being built. Stop.
 
 3. **Advance to In Dev.** Use the `cockpit:ticket:x:status` skill to walk the board from the current status to `In Dev`. This handles intermediate hops, date stamps, and skip-list filtering.
 
-4. **Unlock file edits.** When step 3 ran, read the column it left the card in first, with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. A gate in the walk can refuse a hop and leave the card short of `In Dev` - out of `Backlog`, or out of `In BR` or `In TR` with a section missing. Anything short of `In Dev` keeps file edits locked: name the column and what the walk refused, and stop. On `In Dev`, run:
+4. **Unlock file edits.** When step 3 ran, read the column it left the ticket in first, with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. A gate in the walk can refuse a hop and leave the ticket short of `In Dev` - out of `Backlog`, or out of `In BR` or `In TR` with a section missing. Anything short of `In Dev` keeps file edits locked: name the column and what the walk refused, and stop. On `In Dev`, run:
 
    ```
    "$HOME/.cockpit/scripts/ticket-status-confirm" dev
@@ -83,7 +83,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
    This ticket's own branch lists only the commits earlier sessions on the ticket made. A branch just cut off `origin/<default-branch>` lists nothing, but one cut off the local HEAD lists whatever that HEAD held beyond the remote. Anything other than this ticket's own commits is work the ticket would be built on top of, and its pull request would carry it. Name those commits and stop - pushing them first, stacking the ticket on that branch, or waiting for that branch to merge, is the user's call.
 
-6. **Read the tech steps off the ticket.** Read them with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"`, which prints the open comments anchored in them too. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the card lands In Dev, and the amendment exists only on the card. When the steps read back differ from the drafted ones, say what changed before writing any code.
+6. **Read the tech steps off the ticket.** Read them with `"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"`, which prints the open comments anchored in them too. When this session drafted them during technical refinement, that draft is not the source - a person can amend the steps up to the moment the ticket lands In Dev, and the amendment exists only on the ticket. When the steps read back differ from the drafted ones, say what changed before writing any code.
 
    Then check the branch itself holds every file the tech steps' file tree marks `!` or `-` - a file the steps edit or remove, so one that must already exist. Check `HEAD`, not a remote reference, because the branch may not have been cut from one. One command per file:
 
@@ -99,7 +99,7 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
 9. **Advance when the tech steps are built and committed.** Invoke the `cockpit:ticket:x:status` skill with target `In CR by AI`. Landing there runs the machine gates against the branch as it stands on the machine, so a finding is fixed before anything is published. Do not wait to be asked - a session that stops at `In Dev` leaves a reviewed-by-nobody branch behind.
 
-   Go through that skill, never a bare `board-card move` or `walk`: landing on the column through the skill is what fires its step 7, and that step is the only thing that runs the review. A card moved by hand or by a bare `board-card` call arrives in the column with nothing run, and the session cannot tell the difference afterwards.
+   Go through that skill, never a bare `board-card move` or `walk`: landing on the column through the skill is what fires its step 7, and that step is the only thing that runs the review. A ticket moved by hand or by a bare `board-card` call arrives in the column with nothing run, and the session cannot tell the difference afterwards.
 
    The review is `/code-review low`, which this session runs itself. Name the level every time - left off, it reuses whatever a person last typed. The billed cloud form (`/code-review ultra`) is the user's to launch and is never a next step handed back to them.
 
@@ -109,4 +109,4 @@ Then check the ticket's outcome is not already in the codebase, following `~/.cl
 
     **Clean means every finding is fixed, not that a further pass came back empty.** Publish on the fixes; never re-run the gates over them.
 
-    That skill lands the card on `Ready for CR` once the PR is up. `In CR` is the human pull.
+    That skill lands the ticket on `Ready for CR` once the PR is up. `In CR` is the human pull.

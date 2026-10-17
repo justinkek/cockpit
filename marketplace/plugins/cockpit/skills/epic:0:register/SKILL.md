@@ -83,14 +83,14 @@ The epic has not been pulled into refinement yet. Ask the person whether to star
    EOF
    ```
 
-5. Advance the epic with `"$HOME/.cockpit/scripts/board-card" walk <epic-id> "Ready for Dev"`. It moves on to `Tickets In Dev` by itself once its first feature or bug card reaches `In Dev`.
+5. Advance the epic with `"$HOME/.cockpit/scripts/board-card" walk <epic-id> "Ready for Dev"`. It moves on to `Tickets In Dev` by itself once its first feature or bug ticket reaches `In Dev`.
 
 #### Ready for Dev / Tickets In Dev
 
 1. List the epic's tickets with `"$HOME/.cockpit/scripts/board-card" list --epic <epic-id>`, one line each: id, status, session, name.
 2. For each ticket, show its name and current status.
 3. Let the user choose which ticket to work on.
-4. Invoke `/cockpit:ticket:0:register` with the chosen card's id.
+4. Invoke `/cockpit:ticket:0:register` with the chosen ticket's id.
 
 #### Other statuses
 

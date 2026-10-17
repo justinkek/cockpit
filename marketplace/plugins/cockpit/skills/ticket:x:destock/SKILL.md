@@ -13,18 +13,18 @@ Reference: the "De-stock at the end of the day" standard.
 
 ### 1. Check ticket registration
 
-Take the card id from this session's `/cockpit:ticket:0:register` step, or Read the session marker at `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
+Take the ticket id from this session's `/cockpit:ticket:0:register` step, or Read the session marker at `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
 
 If neither gives one, tell the user to register a ticket first (`/cockpit:ticket:0:register`) and stop.
 
 ### 2. Read the ticket
 
-Run `"$HOME/.cockpit/scripts/board-card" show <id> Name Status PRs` with the card id from step 1, and take:
+Run `"$HOME/.cockpit/scripts/board-card" show <id> Name Status PRs` with the ticket id from step 1, and take:
 
 - `Name` (ticket title)
 - `Status` (current column)
 - `PRs` (existing PR links, if any)
-- The card id
+- The ticket id
 
 ### 3. Check git state
 
@@ -84,7 +84,7 @@ If already at `In Dev` or beyond, skip.
 
 ### 9. Summarise problems and fixes
 
-Write a structured summary of bug fixes to the card when the session included fix commits.
+Write a structured summary of bug fixes to the ticket when the session included fix commits.
 
 1. List branch commits: `git log main..HEAD --oneline`.
 2. Filter for commits whose message starts with `fix(` (conventional commit type prefix). If none, skip this step entirely.
@@ -119,7 +119,7 @@ Report a summary:
 - What was pushed
 - PR URL (created or existing)
 - Ticket status (advanced or unchanged)
-- Whether a session summary was written to the card
+- Whether a session summary was written to the ticket
 - Final line: "You're de-stocked."
 
 If nothing needed doing (clean tree, pushed, PR exists), just confirm: "Already de-stocked - nothing to do."

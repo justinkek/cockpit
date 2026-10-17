@@ -34,6 +34,6 @@ A session holding neither a ticket nor an epic names the area the way the two ab
 
 ## Naming twice
 
-A session named before its card was known is renamed once the card is: the bracket becomes the epic, the description the ticket name. One named with the card already in hand matches what registration would have built, and registration leaves it.
+A session named before its ticket was known is renamed once the ticket is: the bracket becomes the epic, the description the ticket name. One named with the ticket already in hand matches what registration would have built, and registration leaves it.
 
 A ticket retitled during refinement takes the new title as the description, and the bracket stays as it is.

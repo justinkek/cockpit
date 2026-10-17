@@ -145,7 +145,7 @@ TD gives every ticket on the epic a high-level estimate, and the epic estimate i
 
 ```
 ## Epic Estimate
-**21 points** - the sum of the TD estimates on 6 tickets: FEAT-12 (8), FEAT-13 (5), FEAT-14 (3), FEAT-15 (2), FEAT-16 (2), FEAT-17 (1).
+**21 points** - the sum of the TD estimates on 6 tickets: COC-12 (8), COC-13 (5), COC-14 (3), COC-15 (2), COC-16 (2), COC-17 (1).
 Similar in scope to [delivered epic], which came to [its sum] points.
 ```
 

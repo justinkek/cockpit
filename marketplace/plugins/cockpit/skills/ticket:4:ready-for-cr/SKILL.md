@@ -7,7 +7,7 @@ description: Push the session's branch, open a PR for its cockpit ticket, and li
 
 Push the branch, open a PR for the registered cockpit ticket, and link it to the ticket. Invoked three ways: by the dev skill and by the status skill's **Publish** step once the machine gates leave no defect open, and by the user typing `/ready-for-cr`.
 
-The card is already at `In CR by AI` by the time this runs - finishing dev puts it there, and landing on the column runs the machine gates against the branch as it stands on the machine. This skill publishes a branch whose defects have already been fixed, and then carries the card to `Ready for CR` - the last column before the human pull.
+The ticket is already at `In CR by AI` by the time this runs - finishing dev puts it there, and landing on the column runs the machine gates against the branch as it stands on the machine. This skill publishes a branch whose defects have already been fixed, and then carries the ticket to `Ready for CR` - the last column before the human pull.
 
 Read `~/.claude-shared/templates/pull-request-to-ticket.md` before opening the pull request.
 
@@ -15,11 +15,11 @@ Read `~/.claude-shared/templates/pull-request-to-ticket.md` before opening the p
 
 ### 1. Guard: valid source status
 
-Take the card id from this session's `/cockpit:ticket:0:register` step, or Read `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
+Take the ticket id from this session's `/cockpit:ticket:0:register` step, or Read `~/.local/state/claude-ticket-sessions/<session id>.ticket` with the Read tool.
 
 Read the ticket's current `Status` with `"$HOME/.cockpit/scripts/board-card" show <id> Status`. Only proceed if the ticket is at `In Dev` or `In CR by AI`. If it is at an earlier column, block and name the current status. If it is already at `Ready for CR` or later, report that and stop.
 
-`In CR by AI` is the expected one - finishing dev advances the card and runs the gates. `In Dev` is accepted so a card that never got advanced is not stranded: walk it to `In CR by AI` with the `cockpit:ticket:x:status` skill first, which runs the gates. Carry on to step 2 unless they left a finding still open that is a defect - an unfixed divergence from the tech steps does not hold the publish (`~/.claude-shared/templates/status-machine-gates.md`). A defect still open leaves the card at `In CR by AI` and stops this skill, the same as step 6 does.
+`In CR by AI` is the expected one - finishing dev advances the ticket and runs the gates. `In Dev` is accepted so a ticket that never got advanced is not stranded: walk it to `In CR by AI` with the `cockpit:ticket:x:status` skill first, which runs the gates. Carry on to step 2 unless they left a finding still open that is a defect - an unfixed divergence from the tech steps does not hold the publish (`~/.claude-shared/templates/status-machine-gates.md`). A defect still open leaves the ticket at `In CR by AI` and stops this skill, the same as step 6 does.
 
 ### 2. Check git state
 
@@ -82,7 +82,7 @@ Follow `~/.claude-shared/templates/pull-request-to-ticket.md`.
 
 Call the `Monitor` tool with `command` set to `"$HOME/.cockpit/scripts/pr-watch-checks" "<pr-url>"`, `description` `pull request checks`, and `persistent` false - the script ends itself once every check has concluded.
 
-Arming is best-effort. A failure to arm leaves the PR up and the card where it is: report the line and carry on with step 6.
+Arming is best-effort. A failure to arm leaves the PR up and the ticket where it is: report the line and carry on with step 6.
 
 The watcher prints one line, in one of two shapes. A passed line is a report - take it into account and carry on. A failed line names the checks and the skill that reopens dev: invoke it, fix them, and the backward move records the bounce on its own. Neither is a user message, and the active thread finishes first.
 
@@ -96,9 +96,9 @@ The script prints nothing while the branch already carries its base, so a silent
 
 ### 6. Advance to Ready for CR
 
-Once the gates have run and the PR is up, walk the card on with the `cockpit:ticket:x:status` skill targeting `Ready for CR`, and stop there - `In CR` is the human pull.
+Once the gates have run and the PR is up, walk the ticket on with the `cockpit:ticket:x:status` skill targeting `Ready for CR`, and stop there - `In CR` is the human pull.
 
-Only on a PR that is actually up. A step that blocked - no push, no PR, a gate finding still open that is a defect as step 1 reads it - leaves the card at `In CR by AI`. A finding step 1 let through is already on the PR from step 4.5 and holds nothing here.
+Only on a PR that is actually up. A step that blocked - no push, no PR, a gate finding still open that is a defect as step 1 reads it - leaves the ticket at `In CR by AI`. A finding step 1 let through is already on the PR from step 4.5 and holds nothing here.
 
 ### 7. Report
 

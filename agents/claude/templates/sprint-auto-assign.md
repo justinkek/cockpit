@@ -10,9 +10,9 @@ That section is the only switch. Never add a second one to configure the same th
 
 ## Assigning
 
-1. Stop when the card's `Sprint` is already set - read it with `"$HOME/.cockpit/scripts/board-card" show <id> Sprint` - never overwrite an existing value.
+1. Stop when the ticket's `Sprint` is already set - read it with `"$HOME/.cockpit/scripts/board-card" show <id> Sprint` - never overwrite an existing value.
 2. List the sprint records with `"$HOME/.cockpit/scripts/board-card" list --kind sprint --json`, and take the one whose `start` <= today <= `end`. There are a handful of them, so no filter is needed.
-3. Exactly one record matches - set the card's sprint to its id and `Due` to its `end`:
+3. Exactly one record matches - set the ticket's sprint to its id and `Due` to its `end`:
 
    ```
    "$HOME/.cockpit/scripts/board-card" set <id> sprint SPR-<n>

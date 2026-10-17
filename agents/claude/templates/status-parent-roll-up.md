@@ -4,7 +4,7 @@ Read this when the ticket's `Dependency for` is populated - it is one part of a 
 
 1. Read the parent's `Dependent on` to get every sibling, then each one's `Status`, both with `"$HOME/.cockpit/scripts/board-card" show <id> "<property>"`.
 2. Check whether **all** of them have reached the landed column or later in the canonical order. If any is behind, stop here - the parent stays put.
-3. Only when all have, walk the parent to that column by re-entering the `cockpit:ticket:x:status` skill with the parent's card id and that column as target.
+3. Only when all have, walk the parent to that column by re-entering the `cockpit:ticket:x:status` skill with the parent's ticket id and that column as target.
 
 **Last-in, never first-in.** The parent's Validation Steps assert the whole outcome, so it has not reached a column until every part has. First-in would let the parent claim `Done` while a sibling is still open.
 

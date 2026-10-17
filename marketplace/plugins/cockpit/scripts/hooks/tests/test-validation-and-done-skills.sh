@@ -77,8 +77,8 @@ printf "\nTest group: a blocked card is told nothing untrue\n"
 for skill in "$VALIDATION" "$DONE"; do
   name="$(basename "$(dirname "$skill")")"
   assert_eq "$name does not call every column in between a person's pull" "no" "$(holds "$skill" "is a person's pull")"
-  assert_eq "$name names the column the card has to reach first" "yes" \
-    "$(line_holding "$skill" '**Any other column** blocks' | grep --quiet --fixed-strings 'the column the card has to reach first' && echo yes || echo no)"
+  assert_eq "$name names the column the ticket has to reach first" "yes" \
+    "$(line_holding "$skill" '**Any other column** blocks' | grep --quiet --fixed-strings 'the column the ticket has to reach first' && echo yes || echo no)"
 done
 
 printf "\nTest group: validation writes its evidence from this run alone\n"

@@ -1,6 +1,6 @@
 ---
 name: ticket:x:back-from-column
-description: Handle a ticket defect (bounce-back from a gate). Owns the full flow - infer structured summary from session context, increment counter, write a nested subsection to the card, post short comment, set status. Invoked by cockpit:ticket:x:status on backward moves.
+description: Handle a ticket defect (bounce-back from a gate). Owns the full flow - infer structured summary from session context, increment counter, write a nested subsection to the ticket, post short comment, set status. Invoked by cockpit:ticket:x:status on backward moves.
 ---
 
 # back-from-column
@@ -9,22 +9,22 @@ Source of truth for ticket regressions. When a ticket bounces back from a gate (
 
 1. Infer the structured summary from session context
 2. Increment the Back from counter
-3. Write a nested subsection to the card under `## Details`
-4. Post a short comment on the card
+3. Write a nested subsection to the ticket under `## Details`
+4. Post a short comment on the ticket
 5. Set the ticket status directly (no intermediate walk)
 
 ## Inputs
 
 The skill expects these values from the calling context (either `cockpit:ticket:x:status` delegation or direct invocation):
 
-- **card id** - the session's registered ticket, e.g. `FEAT-123`
+- **ticket id** - the session's registered ticket, e.g. `COC-123`
 - **source column** - the gate being bounced from (e.g. `In CR`)
 - **target column** - where the ticket is regressing to (e.g. `In Dev`). May equal the source column - see "In-place bounce" below.
 - **reason** - short summary of why (inferred from session context)
 
 ### In-place bounce
 
-A rejection raised in chat is a real bounce-back, but the card does not move: the user says the work is wrong, the agent fixes it, and the ticket stays in `In Dev` (or any BR or TR column, `In CR`, `In FR`, `Ready for Validation`) throughout. Target column equals source column in that case, and the flow still runs - the counter and the subsection are the whole point.
+A rejection raised in chat is a real bounce-back, but the ticket does not move: the user says the work is wrong, the agent fixes it, and the ticket stays in `In Dev` (or any BR or TR column, `In CR`, `In FR`, `Ready for Validation`) throughout. Target column equals source column in that case, and the flow still runs - the counter and the subsection are the whole point.
 
 Only the status write differs; see step 6.
 
@@ -51,7 +51,7 @@ Only the status write differs; see step 6.
 
 ### 1. Read current state
 
-Read the card with `"$HOME/.cockpit/scripts/board-card" show <id> --json` to get:
+Read the ticket with `"$HOME/.cockpit/scripts/board-card" show <id> --json` to get:
 
 - Current page content, `.body` (to locate or create `## Details`)
 - Ticket `Type`, `.type` (Feature, Bug or Timebox)
@@ -80,7 +80,7 @@ Do not ask the user for these fields. Infer them from the session's work. If a f
 
 It adds 1 to the counter and prints the new count, which is used in the subsection title.
 
-### 4. Write the structured subsection to the card
+### 4. Write the structured subsection to the ticket
 
 The summary is written as nested subsections under `## Details`:
 
@@ -100,7 +100,7 @@ The summary is written as nested subsections under `## Details`:
 
 **Blocked on:** [blocker or "Nothing — fix applied"]
 
-Follow-up tickets: [card id or link] (or "None")
+Follow-up tickets: [ticket id or link] (or "None")
 ```
 
 An image for **Evidence:** goes onto the board first with `"$HOME/.cockpit/scripts/board-card" attach <id> <file>`, and the path it prints is linked from the entry.
@@ -119,7 +119,7 @@ Every subsection of `## Details` - this skill's, and the ones other skills send 
 CONTENT
 ```
 
-It replaces a subsection of that heading where it stands, or adds it at the end of `## Details`, and adds `## Details` at the end of the card when the card has none. Every other subsection is left as it was.
+It replaces a subsection of that heading where it stands, or adds it at the end of `## Details`, and adds `## Details` at the end of the ticket when the ticket has none. Every other subsection is left as it was.
 
 ### 5. Post the short comment
 
@@ -133,9 +133,9 @@ The reason is the one-line summary (same as the `[problem]` field, condensed).
 
 ### 6. Set the ticket status
 
-**In-place bounce (target == source)** - skip this step entirely. Do not move the card and do not run `ticket-register-column`: the card is already in that column, so the move is a no-op.
+**In-place bounce (target == source)** - skip this step entirely. Do not move the ticket and do not run `ticket-register-column`: the ticket is already in that column, so the move is a no-op.
 
-**Otherwise** - move the card directly to the target column. Regressions do NOT walk backward through intermediate columns (that would create spurious date stamps), and `board-card walk` refuses a backward target anyway. One move:
+**Otherwise** - move the ticket directly to the target column. Regressions do NOT walk backward through intermediate columns (that would create spurious date stamps), and `board-card walk` refuses a backward target anyway. One move:
 
 ```
 "$HOME/.cockpit/scripts/board-card" move <id> "<target-column>"
