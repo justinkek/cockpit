@@ -1,5 +1,5 @@
-import { ListSkeleton } from "@/app/skeleton";
+import { BoardSkeleton } from "@/app/skeleton";
 
 export default function Loading() {
-	return <ListSkeleton />;
+	return <BoardSkeleton columns={[3, 4, 2]} />;
 }

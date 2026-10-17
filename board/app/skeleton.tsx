@@ -15,12 +15,12 @@ function Toolbar() {
 	);
 }
 
-export function BoardSkeleton() {
+export function BoardSkeleton({ columns = COLUMN_CARDS }: { columns?: number[] }) {
 	return (
 		<div className="skeleton" aria-busy="true" aria-label="Loading">
 			<Toolbar />
 			<div className="skeleton-columns">
-				{COLUMN_CARDS.map((cards, column) => (
+				{columns.map((cards, column) => (
 					<div className="skeleton-column" key={column}>
 						<Bar width="60%" />
 						{Array.from({ length: cards }, (_, card) => (

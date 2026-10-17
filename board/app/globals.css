@@ -3969,6 +3969,11 @@
 		right: 0;
 	}
 
+	.project-lanes {
+		padding: 0 0 4px;
+		align-items: flex-start;
+	}
+
 	.new-props input {
 		flex: 1 1 120px;
 		max-width: 100%;

@@ -139,11 +139,11 @@ function Rollups({
 
 type Child = Named & Pick<Stub, "status" | "type" | "complexity" | "estimate" | "dependent_on">;
 
-type Notice = { id: string; text: string } | null;
+export type Notice = { id: string; text: string } | null;
 
 const SEARCH_NOTICE = "search";
 
-function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
+export function NoticeBar({ notice, onDismiss }: { notice: Notice; onDismiss: () => void }) {
 	if (!notice) return null;
 	return (
 		<p className="notice error" role="alert">
