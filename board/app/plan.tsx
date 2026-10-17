@@ -1891,7 +1891,7 @@ export function Plan({
 					<span className="spacer" />
 					<Link
 						href="/settings#planning"
-						className="plan-settings-link"
+						className="settings-pointer"
 						title="The board's tracks and breaks are set in Settings"
 					>
 						{tracksText(boardCount)} · {breaks.length === 1 ? "1 break" : `${breaks.length} breaks`} - change in

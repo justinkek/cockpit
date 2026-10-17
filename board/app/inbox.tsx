@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { markInboxRead } from "@/app/actions";
-import { INBOX_READ, itemHref, itemKey, NOTIFY_CHANGED, type NotifyState, notifyState, setNotify } from "@/app/notify";
+import { INBOX_READ, itemHref, itemKey } from "@/app/notify";
 import { ago, type Inbox, type InboxItem } from "@/lib/shared";
 
 type Filter = "all" | InboxItem["kind"];
@@ -14,14 +14,6 @@ const FILTERS: { value: Filter; label: string }[] = [
 	{ value: "waiting", label: "Waiting on you" },
 	{ value: "blocked", label: "Blocked" },
 ];
-
-const NOTIFY_NOTE: Record<NotifyState, string> = {
-	unsupported: "This browser cannot show notifications",
-	insecure: "Notifications need the board opened on localhost or over https",
-	denied: "Notifications are blocked for this site in the browser's settings",
-	off: "Show a desktop notification when something new arrives while the board is open",
-	on: "A desktop notification shows when something new arrives while the board is open",
-};
 
 function Headline({ item }: { item: InboxItem }) {
 	const card = (
@@ -49,15 +41,7 @@ export function InboxList({ inbox }: { inbox: Inbox }) {
 	const [unreadOnly, setUnreadOnly] = useState(false);
 	const [readUpTo, setReadUpTo] = useState<string | null>(null);
 	const [error, setError] = useState("");
-	const [notify, setNotifyState] = useState<NotifyState>("off");
 	const [busy, startTransition] = useTransition();
-
-	useEffect(() => {
-		setNotifyState(notifyState());
-		const update = () => setNotifyState(notifyState());
-		window.addEventListener(NOTIFY_CHANGED, update);
-		return () => window.removeEventListener(NOTIFY_CHANGED, update);
-	}, []);
 
 	const items = useMemo(
 		() =>
@@ -89,21 +73,14 @@ export function InboxList({ inbox }: { inbox: Inbox }) {
 			<header className="inbox-head">
 				<h1>Inbox {unread > 0 && <span className="count">{unread} unread</span>}</h1>
 				<span className="inbox-actions">
-					<button
-						type="button"
-						className={`chip-toggle${notify === "on" ? " on" : ""}`}
-						title={NOTIFY_NOTE[notify]}
-						disabled={notify === "unsupported" || notify === "insecure" || notify === "denied"}
-						onClick={async () => setNotifyState(await setNotify(notify !== "on"))}
-					>
-						{notify === "on" ? "Notifications on" : "Notify me"}
-					</button>
+					<Link href="/settings#notifications" className="settings-pointer">
+						Notifications in Settings
+					</Link>
 					<button type="button" onClick={markRead} disabled={busy || unread === 0}>
 						Mark all read
 					</button>
 				</span>
 			</header>
-			{notify !== "on" && notify !== "off" && <p className="inbox-note">{NOTIFY_NOTE[notify]}.</p>}
 			{inbox.me.length > 0 && (
 				<p className="inbox-note" title="Set the list with: board-card me <name>...">
 					Yours, and never in the inbox: what {inbox.me.join(", ")} wrote or did.

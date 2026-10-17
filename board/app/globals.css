@@ -5465,7 +5465,7 @@
 		}
 	}
 
-	.plan-settings-link {
+	.settings-pointer {
 		color: var(--muted);
 		font-size: 12px;
 		white-space: nowrap;
