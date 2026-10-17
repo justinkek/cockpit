@@ -550,7 +550,18 @@ export function Fields({ entity, lists, handlers }: { entity: Card; lists: Lists
 							/>
 						</Fallback>
 						{entity.epic && (
-							<Link href={`/epics?open=${entity.epic}`} className="quiet-link" aria-label="Open the epic">
+							<Link
+								href={`/card/${entity.epic}`}
+								className="quiet-link"
+								aria-label="Open the epic"
+								onClick={(event) => {
+									const plain =
+										event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+									if (!handlers.onOpen || !plain || !entity.epic) return;
+									event.preventDefault();
+									handlers.onOpen(entity.epic);
+								}}
+							>
 								↗
 							</Link>
 						)}
