@@ -41,6 +41,7 @@
 #   board-card me [<name>... | '']
 #   board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>
 #   board-card breaks [--json] | breaks add <from> <to> [--project <PRJ-n>] [--name <text>] | breaks remove <id | index>
+#   board-card maintenance <PRJ-n> [--date <date>] | maintenance --close
 #   board-card migrate
 #
 # Exit codes:
@@ -1482,7 +1483,7 @@ command_bounce() {
 }
 
 hop() {
-  local id="$1" column="$2" kind record from stamped=false starting=false
+  local id="$1" column="$2" kind record from epic stamped=false starting=false
   kind="$(kind_of "$id")"
   record="$(read_record "$id")"
   from="$(printf '%s' "$record" | jq --raw-output '.status')"
@@ -1498,6 +1499,13 @@ hop() {
       then .dates = ((.dates // {}) + {($column): $stamp}) else . end
     | if $starting and .start == null then .start = $stamp[:10] else . end' | write_record "$id"
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
+  if [ "$kind" = card ] && { [ "$column" = Done ] || [ "$column" = Deprioritised ]; }; then
+    epic="$(printf '%s' "$record" | jq --raw-output '.epic // ""')"
+    if [ -n "$epic" ] && [ -f "$(record_file "$epic")" ] && read_record "$epic" | jq --exit-status "$maintenance_program" >/dev/null; then
+      close_maintenance_locked
+    fi
+  fi
+  return 0
 }
 
 hops() {
@@ -2295,6 +2303,86 @@ command_breaks() {
   esac
 }
 
+MONTHS=(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+
+maintenance_program='(.maintenance | type) == "string" and any(.labels[]?; . == "maintenance")'
+
+maintenance_files() {
+  grep --files-with-matches --extended-regexp '^maintenance: ' "$BOARD_DIR"/epics/*.md 2>/dev/null | sort --version-sort || true
+}
+
+epic_has_open_cards() {
+  local epic="$1" file
+  while IFS= read -r file; do
+    parse_file "$file" | jq --exit-status --arg epic "$epic" '.epic == $epic and .status != "Done" and .status != "Deprioritised"' >/dev/null && return 0
+  done < <(grep --files-with-matches --fixed-strings "\"$epic\"" "$BOARD_DIR"/cards/*.md 2>/dev/null || true)
+  return 1
+}
+
+close_maintenance_locked() {
+  local keep="${1:-}" month file epic
+  month="$(now | cut -c1-7)"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    parse_file "$file" | jq --exit-status --arg month "$month" "$maintenance_program and .status != \"Epic Done\" and .maintenance < \$month" >/dev/null || continue
+    epic="${file##*/}"
+    epic="${epic%.md}"
+    [ "$epic" != "$keep" ] || continue
+    epic_has_open_cards "$epic" || hop "$epic" "Epic Done"
+  done < <(maintenance_files)
+}
+
+maintenance_epic_of() {
+  local project="$1" month="$2" file
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    parse_file "$file" | jq --exit-status --arg project "$project" --arg month "$month" \
+      "$maintenance_program and .project == \$project and .maintenance == \$month and .status != \"Epic Done\"" >/dev/null || continue
+    file="${file##*/}"
+    printf '%s\n' "${file%.md}"
+    return 0
+  done < <(maintenance_files)
+}
+
+maintenance_locked() {
+  local project="$1" day="$2" month="${2:0:7}" id name fields
+  id="$(maintenance_epic_of "$project" "$month")"
+  if [ -z "$id" ]; then
+    name="$(read_record "$project" | jq --raw-output '.name') maintenance - ${MONTHS[$((10#${day:5:2} - 1))]} ${day:0:4}"
+    fields="$(jq --null-input --compact-output --arg project "$project" --arg month "$month" --arg start "$day" \
+      '{project: $project, labels: ["maintenance"], maintenance: $month, start: $start}')"
+    id="$(create_locked epic "$name" "" "Tickets In Dev" "" "" "$fields")"
+  fi
+  close_maintenance_locked "$id" >&2
+  printf '%s\n' "$id"
+}
+
+command_maintenance() {
+  local project="" day="" usage="usage: board-card maintenance <PRJ-n> [--date YYYY-MM-DD] | maintenance --close"
+  require_board
+  if [ "${1:-}" = --close ]; then
+    [ "$#" -eq 1 ] || die 2 "$usage"
+    with_lock close_maintenance_locked
+    return 0
+  fi
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --date) [ "$#" -ge 2 ] || die 2 "--date needs a day like 2026-10-12"; day="$2"; shift 2 ;;
+      -*) die 2 "$usage" ;;
+      *) [ -z "$project" ] || die 2 "$usage"; project="$1"; shift ;;
+    esac
+  done
+  [ -n "$project" ] || die 2 "$usage"
+  [ -n "$day" ] || day="$(now | cut -c1-10)"
+  date_json "a maintenance epic's day" "$day" >/dev/null
+  project="$(normalise_id "$project")"
+  [ "$(kind_of "$project")" = project ] || die 2 "a maintenance epic belongs to a project, and $project is not a project"
+  require_record "$project"
+  [ "$(read_record "$project" | jq --raw-output '.status // ""')" != Done ] \
+    || die 2 "$project is Done, so it takes no maintenance epic - reopen it first with: board-card set $project status 'In progress'"
+  with_lock maintenance_locked "$project" "$day"
+}
+
 inbox_read_locked() {
   printf '%s\n' "$1" > "$BOARD_DIR/inbox-seen"
 }
@@ -2545,5 +2633,6 @@ case "$action" in
   me) command_me "$@" ;;
   views) command_views "$@" ;;
   breaks) command_breaks "$@" ;;
+  maintenance) command_maintenance "$@" ;;
   *) sed -n '3,/^#   board-card migrate/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
