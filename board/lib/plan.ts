@@ -165,19 +165,15 @@ export type SprintDelivery = {
 };
 
 export function deliveredIn(
-	sprint: Pick<Card, "start" | "end">,
-	cards: (Sized & Pick<Card, "dates" | "moved">)[],
+	sprint: Pick<Card, "id" | "start" | "end">,
+	cards: (Sized & Pick<Card, "dates" | "moved" | "sprint">)[],
 ): SprintDelivery {
 	const first = dayOf(sprint.start);
 	const last = dayOf(sprint.end);
 	const delivered: SprintDelivery = { points: 0, tickets: 0, uncounted: 0, timeboxes: 0, perWeek: null };
 	if (first == null || last == null || last < first) return delivered;
 	for (const card of cards) {
-		if (splitParent(card)) continue;
-		const at = doneAt(card);
-		if (at == null) continue;
-		const day = localDay(new Date(at));
-		if (day < first || day > last) continue;
+		if (card.sprint !== sprint.id || splitParent(card) || doneAt(card) == null) continue;
 		const complexity = card.type === "Timebox" ? null : positive(card.complexity);
 		if (card.type === "Timebox") delivered.timeboxes += 1;
 		else if (complexity == null) delivered.uncounted += 1;

@@ -138,8 +138,9 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 					Speed by sprint <span className="count">{ordered.length}</span>
 				</h2>
 				<p className="report-note">
-					The TR complexity of every card done within each sprint's dates, whatever sprint the card was in, and that
-					a week - a card done without a complexity, or a timebox, is counted beside it.
+					The TR complexity of every done card whose sprint is that sprint, and that a week - a card done without a
+					complexity, or a timebox, is counted beside it. A card reaching Done takes the sprint whose dates hold that
+					day.
 				</p>
 				<ul className="report-list">
 					{ordered.map((candidate) => {

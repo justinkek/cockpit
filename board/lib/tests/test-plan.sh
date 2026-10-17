@@ -121,11 +121,11 @@ broken='p.trackSpeedsOf('"$BREAK_CARDS"', '"$BREAK_EPICS"', ["PRJ-1","PRJ-2"], [
 assert_eq "a project's break leaves its weeks out of that project's speed alone" '6,4,12' \
   "$(evaluate "[$broken.teams[\"PRJ-1\"].speed.perWeek, $broken.teams[\"PRJ-2\"].speed.perWeek, $broken.overall.speed.points].join()")"
 
-SPRINT='{start:"2026-09-28",end:"2026-10-11"}'
-assert_eq "a sprint delivered the TR complexity of the cards done within its dates, a week, counting the rest beside it" \
-  '{"points":8,"tickets":2,"uncounted":1,"timeboxes":1,"perWeek":4}' \
-  "$(evaluate 'p.deliveredIn('"$SPRINT"', [{status:"Done",complexity:5,dates:{Done:"2026-09-28T09:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-11T17:00:00Z"}},{status:"Done",complexity:8,dates:{Done:"2026-10-12T09:00:00Z"}},{status:"Done",estimate:3,dates:{Done:"2026-10-01T09:00:00Z"}},{status:"Done",type:"Timebox",dates:{Done:"2026-10-01T09:00:00Z"}},{status:"In Dev",complexity:2,dates:{Done:"2026-10-01T09:00:00Z"}}])')"
-assert_eq "a sprint with no dates has no speed" 'null' "$(evaluate 'String(p.deliveredIn({start:null,end:null}, []).perWeek)')"
+SPRINT='{id:"SPR-1",start:"2026-09-28",end:"2026-10-11"}'
+assert_eq "a sprint delivered the TR complexity of the done cards whose sprint it is, a week, counting the rest beside it" \
+  '{"points":16,"tickets":2,"uncounted":1,"timeboxes":1,"perWeek":8}' \
+  "$(evaluate 'p.deliveredIn('"$SPRINT"', [{status:"Done",sprint:"SPR-1",complexity:5,dates:{Done:"2026-09-28T09:00:00Z"}},{status:"Done",sprint:"SPR-2",complexity:3,dates:{Done:"2026-10-11T17:00:00Z"}},{status:"Done",sprint:"SPR-1",complexity:11,dates:{Done:"2026-10-12T09:00:00Z"}},{status:"Done",sprint:"SPR-1",estimate:3,dates:{Done:"2026-10-01T09:00:00Z"}},{status:"Done",sprint:"SPR-1",type:"Timebox",dates:{Done:"2026-10-01T09:00:00Z"}},{status:"In Dev",sprint:"SPR-1",complexity:2,dates:{Done:"2026-10-01T09:00:00Z"}}])')"
+assert_eq "a sprint with no dates has no speed" 'null' "$(evaluate 'String(p.deliveredIn({id:"SPR-1",start:null,end:null}, []).perWeek)')"
 
 printf "\nTest group: epics are scheduled one after another in plan order\n"
 

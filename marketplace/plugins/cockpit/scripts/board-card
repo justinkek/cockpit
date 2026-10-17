@@ -1505,17 +1505,28 @@ refuse_done_card() {
   die 2 "$id is Done, and Done is final - raise a new card for what is left instead"
 }
 
+sprint_covering() {
+  local day="$1" file
+  { for file in "$BOARD_DIR"/sprints/*.md; do [ ! -f "$file" ] || parse_file "$file"; done; } \
+    | jq --raw-output --slurp --arg day "$day" '
+      map(select((.start // "") != "" and (.end // "") != "" and .start[:10] <= $day and .end[:10] >= $day))
+      | sort_by(.id | split("-")[1] | tonumber) | first | .id // empty'
+}
+
 hop() {
-  local id="$1" column="$2" kind record from stamped=false starting=false
+  local id="$1" column="$2" kind record from stamped=false starting=false stamp sprint=""
   kind="$(kind_of "$id")"
   record="$(read_record "$id")"
   from="$(printf '%s' "$record" | jq --raw-output '.status')"
   [ "$from" = "$column" ] && return 0
   if is_stamped "$kind" "$column"; then stamped=true; fi
   if [ "$kind" = epic ] && [ "$from" = Backlog ]; then starting=true; fi
-  printf '%s' "$record" | jq --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" \
-    --argjson starting "$starting" --arg kind "$kind" '
+  stamp="$(now)"
+  [ "$kind" != card ] || [ "$column" != Done ] || sprint="$(sprint_covering "${stamp:0:10}")"
+  printf '%s' "$record" | jq --arg column "$column" --arg stamp "$stamp" --arg by "$(default_author)" --argjson stamped "$stamped" \
+    --argjson starting "$starting" --arg kind "$kind" --arg sprint "$sprint" '
     .status = $column
+    | if $sprint != "" then .sprint = $sprint else . end
     | .moved = $stamp
     | .moved_by = $by
     | if $stamped and ((.dates // {}) | has($column) | not)
@@ -2603,6 +2614,22 @@ migrate_card_projects() {
   done < <(front_matter_values project ${files[@]+"${files[@]}"} | sort --version-sort)
 }
 
+migrate_sprints() {
+  local id sprint was sprints
+  sprints="$(command_list --kind sprint --json)"
+  while IFS=$'\t' read -r id sprint was; do
+    update_record "$id" --arg sprint "$sprint" '.sprint = $sprint'
+    printf '%s\tsprint %s -> %s\n' "$id" "$was" "$sprint"
+  done < <(command_list --kind card --json | jq --raw-output --argjson sprints "$sprints" '
+    ($sprints | map(select((.start // "") != "" and (.end // "") != "")) | sort_by(.id | split("-")[1] | tonumber)) as $spans
+    | .[] | select(.status == "Done")
+    | ((.dates // {}).Done // .moved // "" | .[:10]) as $day
+    | select($day != "")
+    | ([$spans[] | select(.start[:10] <= $day and .end[:10] >= $day)] | first | .id // null) as $sprint
+    | select($sprint != null and $sprint != .sprint)
+    | [.id, $sprint, (.sprint // "none")] | @tsv')
+}
+
 migrate_homes() {
   command_list --kind card --json | jq --raw-output '.[] | select((.epic // "") == "") | "\(.id)\tneeds an epic"'
   command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
@@ -2610,7 +2637,7 @@ migrate_homes() {
 
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; close_maintenance_locked; migrate_homes)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; migrate_sprints; close_maintenance_locked; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 
