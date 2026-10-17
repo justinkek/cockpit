@@ -131,6 +131,11 @@ export async function setFieldHolding(
 	return { id: current, held };
 }
 
+export async function mergeBody(id: string, base: string, body: string): Promise<{ conflicts: number }> {
+	const output = await boardCard(["set", id, "body", body, "--base", "-"], base);
+	return { conflicts: Number(output.match(/^\S+\tmerged the body with (\d+) conflicts? /m)?.[1] ?? 0) };
+}
+
 export async function findRenamed(id: string): Promise<string | null> {
 	const match = id.toUpperCase().match(/^(?:FEAT|BUG|TIME)-(\d+)$/);
 	if (!match) return null;

@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
 	changeComment,
-	changeFenceLanguage,
-	checkTodo,
 	loadBody,
 	loadComments,
 	postComment,
@@ -26,6 +24,8 @@ type Threads = { threads?: CommentThread[]; me?: string | null; error?: string }
 type Picked = { text: string; top: number; bottom: number; left: number };
 
 const DISCARD = "Discard your changes to the content?";
+
+const CONFLICT = /^<{7} [^\n]*\n[\s\S]*?^={7}\n[\s\S]*?^>{7} /m;
 
 let unsavedDrafts = 0;
 
@@ -224,10 +224,11 @@ export function Content({
 		if (expected === undefined) return;
 		const before = body;
 		lines[line] = expected.replace(/- \[( |x)\] /, done ? "- [x] " : "- [ ] ");
-		setBody(lines.join("\n"));
+		const edited = lines.join("\n");
+		setBody(edited);
 		checking.current++;
 		startTransition(async () => {
-			const result = await checkTodo(id, line, expected, done);
+			const result = await saveBody(id, before, edited);
 			checking.current--;
 			if (result.error) {
 				setBody(before);
@@ -247,11 +248,12 @@ export function Content({
 		const expected = lines[line];
 		if (expected === undefined) return;
 		const before = body;
-		lines[line] = expected.replace(/^(\s*)```.*$/, (_, indent: string) => `${indent}\`\`\`${language}`);
-		setBody(lines.join("\n"));
+		lines[line] = expected.replace(/^(\s*)```.*$/, (_, indent: string) => `${indent}\`\`\`${language.trim()}`);
+		const edited = lines.join("\n");
+		setBody(edited);
 		checking.current++;
 		startTransition(async () => {
-			const result = await changeFenceLanguage(id, line, expected, language);
+			const result = await saveBody(id, before, edited);
 			checking.current--;
 			if (result.error) {
 				setBody(before);
@@ -313,20 +315,16 @@ export function Content({
 
 	function save(text: string) {
 		if (saving) return;
-		const expected = base;
+		const started = base;
 		setSaving(true);
 		startTransition(async () => {
-			const result = await saveBody(target ?? id, expected, text);
+			const result = await saveBody(target ?? id, started, text);
 			setSaving(false);
 			if (result.error) {
 				if (result.moved) setTarget(result.moved);
 				setError(
 					result.moved ? `${result.error} - press Save again to save your draft to ${result.moved}` : result.error,
 				);
-				if (result.body !== undefined) {
-					setBody(result.body);
-					setBase(result.body);
-				}
 				return;
 			}
 			setError("");
@@ -560,6 +558,7 @@ export function Content({
 						<input type="hidden" name="id" value={id} />
 						<input type="hidden" name="op" value="set" />
 						<input type="hidden" name="field" value="body" />
+						<input type="hidden" name="base" value={body} />
 						<textarea
 							name="value"
 							aria-label="Content"
@@ -657,6 +656,14 @@ export function Content({
 			</div>
 
 			{error && <p className="notice error">{error}</p>}
+			{editing === null && CONFLICT.test(body) && (
+				<p className="notice error conflict">
+					Two edits changed the same lines of this content at once, so both versions are kept, the one saved last
+					between the &lt;&lt;&lt;&lt;&lt;&lt;&lt; your edit and ======= lines and the one already there between =======
+					and &gt;&gt;&gt;&gt;&gt;&gt;&gt; on the board now. Edit the content to keep the one you want and take out the
+					marker lines.
+				</p>
+			)}
 			{lost && (
 				<div className="notice error lost-draft">
 					<p>The comment you were editing was deleted, so your edit could not be saved. Here is what you wrote:</p>

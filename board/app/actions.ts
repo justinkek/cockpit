@@ -26,6 +26,7 @@ import {
 	lastCommit,
 	link,
 	listRecords,
+	mergeBody,
 	moveRecords,
 	readComments,
 	readInboxUpTo,
@@ -404,50 +405,12 @@ export async function linkCards(id: string, parent: string, child: string, linke
 	});
 }
 
-const TODO = /- \[( |x)\] /;
-
-export async function checkTodo(id: string, line: number, expected: string, done: boolean): Promise<Result> {
-	return report(id, async () => {
-		const lines = (await readRecord(id)).body.split("\n");
-		if (lines[line] !== expected || !TODO.test(expected)) {
-			throw new BoardError("that to-do has changed since the page loaded - reload to see it");
-		}
-		lines[line] = expected.replace(TODO, done ? "- [x] " : "- [ ] ");
-		return setField(id, "body", lines.join("\n"));
-	});
-}
-
-const FENCE = /^(\s*)```(.*)$/;
-
-export async function changeFenceLanguage(
-	id: string,
-	line: number,
-	expected: string,
-	language: string,
-): Promise<Result> {
-	return report(id, async () => {
-		const lines = (await readRecord(id)).body.split("\n");
-		if (lines[line] !== expected || !FENCE.test(expected)) {
-			throw new BoardError("that code block has changed since the page loaded - reload to see it");
-		}
-		lines[line] = expected.replace(FENCE, (_, indent: string) => `${indent}\`\`\`${language.trim()}`);
-		return setField(id, "body", lines.join("\n"));
-	});
-}
-
-export async function saveBody(id: string, expected: string, text: string): Promise<Result & { body?: string }> {
-	let latest: string | undefined;
+export async function saveBody(id: string, base: string, text: string): Promise<Result & { conflicts?: number }> {
+	let conflicts = 0;
 	const result = await report(id, async () => {
-		const current = (await readRecord(id)).body;
-		if (current !== expected) {
-			latest = current;
-			throw new BoardError(
-				`the content of ${id} changed since you started editing - save again to replace it with your draft, or cancel to keep what is there now`,
-			);
-		}
-		return setField(id, "body", text);
+		conflicts = (await mergeBody(id, base, text)).conflicts;
 	});
-	return latest === undefined ? result : { ...result, body: latest };
+	return conflicts > 0 ? { ...result, conflicts } : result;
 }
 
 export async function loadBody(id: string): Promise<Failure & { body?: string }> {
@@ -559,7 +522,9 @@ export async function submitCard(form: FormData): Promise<void> {
 				await changeStatus(await readRecord(id), value);
 				break;
 			case "set":
-				current = await setField(id, field, value);
+				if (field === "body" && typeof form.get("base") === "string")
+					await mergeBody(id, String(form.get("base")).replace(/\r\n/g, "\n"), value);
+				else current = await setField(id, field, value);
 				break;
 			case "link": {
 				const other = await cardNamed(value);
