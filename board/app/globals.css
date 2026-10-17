@@ -6166,3 +6166,104 @@
 		max-width: 100%;
 	}
 }
+
+@layer components {
+	.column-overview {
+		flex: none;
+		display: flex;
+		align-items: stretch;
+		gap: 3px;
+		height: 48px;
+		padding: 4px 16px;
+		border-bottom: 1px solid var(--line);
+		background: var(--panel);
+		overflow-x: auto;
+		overflow-y: hidden;
+		scrollbar-width: none;
+	}
+
+	.overview-bar {
+		--bar: var(--phase-idle);
+		flex: 1 0 22px;
+		max-width: 64px;
+		height: auto;
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 2px;
+		padding: 2px 2px 0;
+		border: none;
+		border-radius: 4px;
+		background: none;
+		color: var(--faint);
+		cursor: pointer;
+
+		&:hover {
+			background: var(--lane);
+		}
+
+		&.in-view {
+			background: var(--accent-soft);
+			color: var(--ink);
+		}
+
+		&.folded .overview-fill {
+			opacity: 0.45;
+		}
+
+		&.phase-refine {
+			--bar: var(--phase-refine);
+		}
+
+		&.phase-planned {
+			--bar: var(--phase-planned);
+		}
+
+		&.phase-dev {
+			--bar: var(--phase-dev);
+		}
+
+		&.phase-review {
+			--bar: var(--phase-review);
+		}
+
+		&.phase-validate {
+			--bar: var(--phase-validate);
+		}
+
+		&.phase-done {
+			--bar: var(--phase-done);
+		}
+	}
+
+	.overview-track {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		border-bottom: 1px solid var(--line-strong);
+	}
+
+	.overview-fill {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		border-radius: 2px 2px 0 0;
+		background: var(--bar);
+		overflow: hidden;
+	}
+
+	.overview-blocked {
+		flex: none;
+		background: var(--danger);
+	}
+
+	.overview-count {
+		flex: none;
+		font-size: 9.5px;
+		line-height: 10px;
+		text-align: center;
+		font-variant-numeric: tabular-nums;
+	}
+}

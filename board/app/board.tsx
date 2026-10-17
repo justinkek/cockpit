@@ -47,6 +47,7 @@ import {
 	undoChange,
 } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, entityCommands, themeCommands } from "@/app/commands";
+import { ColumnOverview } from "@/app/column-overview";
 import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
 import { confirmDiscard } from "@/app/content";
 import { type Draft, NewEntity } from "@/app/create";
@@ -402,6 +403,7 @@ function Lane({
 	return (
 		<section
 			ref={setNodeRef}
+			data-column={column}
 			className={`lane${collapsed ? " collapsed" : ""}${isOver ? " over" : ""}`}
 		>
 			<button type="button" className="lane-head" onClick={onToggle} aria-expanded={!collapsed}>
@@ -679,6 +681,7 @@ export function Board({
 	const [inContent, setInContent] = useState<{ query: string; ids: Set<string> } | null>(null);
 	const [, startTransition] = useTransition();
 	const search = useRef<HTMLInputElement>(null);
+	const workspace = useRef<HTMLDivElement>(null);
 	const dndId = useId();
 
 	useEffect(() => setStubs(initial), [initial]);
@@ -1760,6 +1763,10 @@ export function Board({
 							)}
 						</div>
 
+						{view.layout === "board" && (
+							<ColumnOverview columns={columns} visible={visible} folded={collapsedIn(view)} workspace={workspace} />
+						)}
+
 						<NoticeBar notice={notice} onDismiss={() => setNotice(null)} />
 
 						{homeless.length > 0 && (
@@ -1783,7 +1790,7 @@ export function Board({
 							</p>
 						)}
 
-						<div className="workspace">
+						<div className="workspace" ref={workspace}>
 							<DndContext
 								id={dndId}
 								sensors={sensors}
