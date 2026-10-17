@@ -1,4 +1,6 @@
 mod board;
+mod cmd_history;
+mod cmd_migrate;
 mod cmd_misc;
 mod cmd_read;
 mod cmd_write;
@@ -134,11 +136,14 @@ fn main() {
         "archive" => cmd_write::archive(&rest),
         "unarchive" => cmd_write::unarchive(&rest),
         "duplicate" => cmd_write::duplicate(&rest),
+        "history" => cmd_history::history(&rest),
+        "undo" => cmd_history::undo(&rest),
         "flush" => cmd_misc::flush(&rest),
         "revision" => cmd_read::revision(),
         "inbox" => cmd_misc::inbox(&rest),
         "path" => cmd_read::path(&rest),
         "tracks" => cmd_misc::tracks(&rest),
+        "migrate" => cmd_migrate::migrate(&rest),
         "aliases" => cmd_read::aliases(&rest),
         "views" => cmd_misc::views(&rest),
         "breaks" => cmd_misc::breaks(&rest),
