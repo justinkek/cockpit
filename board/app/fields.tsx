@@ -598,7 +598,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 			{kind === "epic" && (
 				<>
 					<dt>Start</dt>
-					<dd title="Stamped the day it first leaves Backlog">
+					<dd title="Stamped the day it leaves Backlog, and cleared if it moves back">
 						{record.start ?? <span className="empty">When it leaves Backlog</span>}
 					</dd>
 					<dt>Target</dt>

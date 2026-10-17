@@ -1117,7 +1117,7 @@ field_json() {
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     start|end)
-      [ "$kind" != epic ] || [ "$field" != start ] || die 2 "an epic's start is stamped the day it first leaves Backlog and is never set by hand"
+      [ "$kind" != epic ] || [ "$field" != start ] || die 2 "an epic's start is stamped the day it leaves Backlog, cleared when it moves back, and never set by hand"
       [ "$kind" = sprint ] || die 2 "only a sprint has a $field date, and this is a $kind"
       date_json "a $kind's $field" "$value"
       ;;
@@ -1490,13 +1490,14 @@ hop() {
   if is_stamped "$kind" "$column"; then stamped=true; fi
   if [ "$kind" = epic ] && [ "$from" = Backlog ]; then starting=true; fi
   printf '%s' "$record" | jq --arg column "$column" --arg stamp "$(now)" --arg by "$(default_author)" --argjson stamped "$stamped" \
-    --argjson starting "$starting" '
+    --argjson starting "$starting" --arg kind "$kind" '
     .status = $column
     | .moved = $stamp
     | .moved_by = $by
     | if $stamped and ((.dates // {}) | has($column) | not)
       then .dates = ((.dates // {}) + {($column): $stamp}) else . end
-    | if $starting and .start == null then .start = $stamp[:10] else . end' | write_record "$id"
+    | if $starting and .start == null then .start = $stamp[:10] else . end
+    | if $kind == "epic" and $column == "Backlog" then del(.start) else . end' | write_record "$id"
   printf '%s\t%s -> %s\n' "$id" "$from" "$column"
   if [ "$kind" = card ] && { [ "$column" = Done ] || [ "$column" = Deprioritised ]; }; then
     epic="$(printf '%s' "$record" | jq --raw-output '.epic // ""')"

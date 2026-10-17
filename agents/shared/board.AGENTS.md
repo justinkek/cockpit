@@ -150,7 +150,7 @@ An epic takes `target` as `YYYY-MM-DD`, `confidence` (`On track`, `At risk - pla
 
 An epic's priority is its `rank`, one number that orders it within its column on the Epics board and across the plan alike, lowest first, so a drag in either place writes the same rank. A new epic is ranked below every other, and `board-card set <id> plan_rank` is refused with a pointer to `rank`.
 
-An epic starts in `Backlog`, where it waits until it is pulled into refinement, and its first move out of `Backlog` stamps its `start` with that day unless it holds one already. An epic created in a later column takes the day it is created as its `start`. The stamp is the only way an epic gets a start: `set <id> start` and `create --kind epic --start` are refused, and the app shows the start without letting it be changed.
+An epic starts in `Backlog`, where it waits until it is pulled into refinement, and a move out of `Backlog` stamps its `start` with that day unless it holds one already. A move back to `Backlog` clears its `start` in the same commit, so leaving `Backlog` again stamps it afresh, and undoing that move puts the old start back with the column. An epic created in a later column takes the day it is created as its `start`. The stamp is the only way an epic gets a start: `set <id> start` and `create --kind epic --start` are refused, and the app shows the start without letting it be changed.
 
 `board-card set <id> track <n>` pins an epic to that track of its project on the plan, a whole number above 0 read back as `Track` and cleared with `''` to let the plan place it, and a pin past the project's tracks is kept for the plan to warn about.
 

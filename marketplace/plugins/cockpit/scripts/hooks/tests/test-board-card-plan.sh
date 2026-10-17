@@ -346,5 +346,20 @@ assert_eq "it takes the earliest column it was stamped into past Backlog, else t
 assert_eq "and migrate names each start it gave" "EPIC-1	start 2026-09-03|EPIC-2	start 2026-09-02" "$(printf '%s\n' "$output" | grep start | paste -sd '|' -)"
 assert_eq "a second migrate finds nothing to do" "nothing to migrate" "$(on_started migrate)"
 
+printf "\nTest group: an epic moved back to Backlog loses its start, and leaving Backlog again stamps it afresh\n"
+
+COCKPIT_NOW=2026-10-01T10:00:00Z on_started move EPIC-3 "In FD" >/dev/null
+assert_eq "it is stamped the day it first leaves Backlog" "2026-10-01" "$(COCKPIT_BOARD_DIR="$started" field EPIC-3 .start)"
+COCKPIT_NOW=2026-10-08T10:00:00Z on_started move EPIC-3 Backlog >/dev/null
+assert_eq "moving it back to Backlog clears its start" "null false" "$(COCKPIT_BOARD_DIR="$started" field EPIC-3 '"\(.start) \(has("start"))"')"
+assert_eq "in the move's own commit" "move EPIC-3" "$(git -C "$started" log -1 --format=%s)"
+on_started undo EPIC-3 >/dev/null
+assert_eq "undoing the move puts the old start back with the column" "2026-10-01 In FD" "$(COCKPIT_BOARD_DIR="$started" field EPIC-3 '"\(.start) \(.status)"')"
+COCKPIT_NOW=2026-10-08T10:00:00Z on_started move EPIC-3 Backlog >/dev/null
+COCKPIT_NOW=2026-10-12T10:00:00Z on_started move EPIC-3 "In FD" >/dev/null
+assert_eq "leaving Backlog again stamps the day it leaves" "2026-10-12" "$(COCKPIT_BOARD_DIR="$started" field EPIC-3 .start)"
+COCKPIT_NOW=2026-10-13T10:00:00Z on_started move EPIC-3 "In TD" >/dev/null
+assert_eq "a move between later columns keeps it" "2026-10-12" "$(COCKPIT_BOARD_DIR="$started" field EPIC-3 .start)"
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]
