@@ -457,20 +457,24 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					<dt>Urgent</dt>
 					<dd>
 						<Fallback id={id} op="set" field="urgent">
-							<select
-								name="value"
-								aria-label="Urgent"
+							<label
+								className={`urgent-toggle${record.urgent ? " urgent-pick" : ""}`}
 								title="An urgent card sits in the Urgent lane at the top of the board and is picked before every other"
-								className={record.urgent ? "urgent-pick" : undefined}
-								value={record.urgent ? "true" : ""}
-								onChange={(event) => {
-									const urgent = event.target.value === "true";
-									onEdit("urgent", urgent ? "true" : "", { urgent });
-								}}
 							>
-								<option value="">Not urgent</option>
-								<option value="true">Urgent</option>
-							</select>
+								<input
+									type="checkbox"
+									name="value"
+									value="true"
+									aria-label="Urgent"
+									checked={Boolean(record.urgent)}
+									onChange={(event) => {
+										const urgent = event.target.checked;
+										onEdit("urgent", urgent ? "true" : "", { urgent });
+									}}
+								/>
+								<input type="hidden" name="value" value="" />
+								{record.urgent ? "Urgent" : "Not urgent"}
+							</label>
 						</Fallback>
 					</dd>
 					<dt>Complexity</dt>

@@ -637,9 +637,25 @@
 		border-style: dashed;
 	}
 
-	select.urgent-pick {
+	.urgent-pick {
 		color: var(--danger);
 		font-weight: 600;
+	}
+
+	.urgent-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		cursor: pointer;
+		white-space: nowrap;
+
+		& input[type="checkbox"] {
+			flex: none;
+			width: auto;
+			height: auto;
+			margin: 0;
+			padding: 0;
+		}
 	}
 
 	.type {
