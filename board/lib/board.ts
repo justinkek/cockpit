@@ -59,12 +59,9 @@ export async function readInbox(limit = 100): Promise<Inbox> {
 	return JSON.parse(await boardCard(["inbox", "--json", "--limit", String(limit)]));
 }
 
-export async function readAllViews(): Promise<SavedView[]> {
-	return JSON.parse(await boardCard(["views", "--json"]));
-}
-
 export async function readViews(kind: Kind): Promise<SavedView[]> {
-	return (await readAllViews()).filter((view) => view.kind === kind);
+	const views: SavedView[] = JSON.parse(await boardCard(["views", "--json"]));
+	return views.filter((view) => view.kind === kind);
 }
 
 export async function saveNamedView(kind: Kind, name: string, view: Record<string, unknown>): Promise<void> {

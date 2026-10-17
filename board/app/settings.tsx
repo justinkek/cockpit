@@ -1,11 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
-import { forgetSavedView } from "@/app/actions";
+import { useEffect, useState } from "react";
 import { NOTIFY_CHANGED, type NotifyState, notifyState, setNotify } from "@/app/notify";
 import { ThemePicker } from "@/app/theme";
-import type { SavedView } from "@/lib/shared";
 
 const NOTIFY_NOTE: Record<NotifyState, string> = {
 	unsupported: "This browser cannot show notifications.",
@@ -45,69 +42,7 @@ function Notifications() {
 	);
 }
 
-const BOARDS = {
-	card: { label: "Cards", href: "/" },
-	epic: { label: "Epics", href: "/epics" },
-} as const;
-
-function SavedViews({ views: initialViews }: { views: SavedView[] }) {
-	const [views, setViews] = useState(initialViews);
-	const [error, setError] = useState<string | null>(null);
-	const [busy, startTransition] = useTransition();
-	useEffect(() => setViews(initialViews), [initialViews]);
-
-	function remove(view: SavedView) {
-		setError(null);
-		startTransition(async () => {
-			const result = await forgetSavedView(view.kind, view.name);
-			if (result.error || !result.views) {
-				setError(`Could not delete the view ${view.name}: ${result.error ?? "board-card deleted nothing"}`);
-				return;
-			}
-			setViews(result.views);
-		});
-	}
-
-	const sorted = [...views].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
-	return (
-		<section className="settings-section" id="views" aria-labelledby="settings-views">
-			<h2 id="settings-views">Saved views</h2>
-			<span className="settings-note">Saved and brought back from the toolbar of the Cards and Epics boards.</span>
-			{sorted.length === 0 ? (
-				<p className="settings-note">No saved views.</p>
-			) : (
-				<ul className="settings-list" aria-label="Saved views">
-					{sorted.map((view) => (
-						<li key={`${view.kind}:${view.name}`}>
-							<span>
-								{view.name} ·{" "}
-								<Link href={BOARDS[view.kind].href} className="settings-note">
-									{BOARDS[view.kind].label}
-								</Link>
-							</span>
-							<button
-								type="button"
-								className="quiet danger"
-								disabled={busy}
-								aria-label={`Delete the view ${view.name} of the ${BOARDS[view.kind].label} board`}
-								onClick={() => remove(view)}
-							>
-								Delete
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
-			{error && (
-				<p className="notice error" role="alert">
-					{error}
-				</p>
-			)}
-		</section>
-	);
-}
-
-export function Settings({ views }: { views: SavedView[] }) {
+export function Settings() {
 	return (
 		<section className="settings">
 			<h1>Settings</h1>
@@ -122,7 +57,6 @@ export function Settings({ views }: { views: SavedView[] }) {
 				</div>
 			</section>
 			<Notifications />
-			<SavedViews views={views} />
 		</section>
 	);
 }
