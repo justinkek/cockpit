@@ -70,14 +70,14 @@ import {
 	type GroupContext,
 	groupingOf,
 	LAYOUTS,
-	loadQuickParent,
+	loadLastParent,
 	loadView,
 	restoredView,
 	matches,
 	NO_EPIC,
 	onlyEpic,
 	type Sort,
-	saveQuickParent,
+	saveLastParent,
 	saveView,
 	sorter,
 	type Swimlane,
@@ -403,95 +403,6 @@ function Card({ stub, pending, focused, selected, onOpen }: ItemProps) {
 	);
 }
 
-type Parent = { label: string; options: Named[]; value: string; onChange: (id: string) => void };
-
-function QuickAdd({
-	column,
-	open,
-	onOpenChange,
-	onCreate,
-	parent,
-}: {
-	column: string;
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	onCreate: (name: string) => Promise<boolean>;
-	parent?: Parent;
-}) {
-	const [name, setName] = useState("");
-	const [busy, setBusy] = useState(false);
-	const box = useRef<HTMLInputElement>(null);
-	useEffect(() => {
-		if (open) box.current?.focus();
-	}, [open]);
-	if (!open) {
-		return (
-			<button type="button" className="quick-add-open" onClick={() => onOpenChange(true)}>
-				+ New in {column}
-			</button>
-		);
-	}
-	return (
-		<form
-			className={`quick-add${parent ? " with-parent" : ""}`}
-			onSubmit={async (event) => {
-				event.preventDefault();
-				if (!name.trim() || busy) return;
-				setBusy(true);
-				const made = await onCreate(name.trim());
-				setBusy(false);
-				if (made) setName("");
-				box.current?.focus();
-			}}
-			onKeyDown={(event) => {
-				if (event.key === "Escape") {
-					event.stopPropagation();
-					setName("");
-					onOpenChange(false);
-				}
-			}}
-			onBlur={(event) => {
-				if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-				if (!name.trim() && !busy) onOpenChange(false);
-			}}
-		>
-			{parent && (
-				<select
-					aria-label={parent.label}
-					title={parent.label}
-					value={parent.value}
-					disabled={busy}
-					onChange={(event) => {
-						parent.onChange(event.target.value);
-						box.current?.focus();
-					}}
-				>
-					{parent.options.map((option) => (
-						<option key={option.id} value={option.id}>
-							{option.name}
-						</option>
-					))}
-				</select>
-			)}
-			<input
-				ref={box}
-				value={name}
-				aria-label={`New card name in ${column}`}
-				placeholder="Name, then Enter"
-				disabled={busy}
-				onChange={(event) => setName(event.target.value)}
-			/>
-		</form>
-	);
-}
-
-type Adding = {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	onCreate: (name: string) => Promise<boolean>;
-	parent?: Parent;
-};
-
 function Lane({
 	column,
 	dropId,
@@ -503,7 +414,7 @@ function Lane({
 	focusedId,
 	selected,
 	onOpen,
-	adding,
+	dock,
 }: {
 	column: string;
 	dropId?: string;
@@ -515,7 +426,7 @@ function Lane({
 	focusedId: string | null;
 	selected: Set<string>;
 	onOpen: (id: string, toggle: boolean) => void;
-	adding: Adding;
+	dock?: ReactNode;
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: dropId ?? column });
 	return (
@@ -543,7 +454,7 @@ function Lane({
 					))}
 				</ul>
 			)}
-			{!collapsed && <QuickAdd column={column} {...adding} />}
+			{dock}
 		</section>
 	);
 }
@@ -609,7 +520,7 @@ function ListGroup({
 	focusedId,
 	selected,
 	onOpen,
-	adding,
+	dock,
 }: {
 	column: string;
 	dropId?: string;
@@ -621,7 +532,7 @@ function ListGroup({
 	focusedId: string | null;
 	selected: Set<string>;
 	onOpen: (id: string, toggle: boolean) => void;
-	adding: Adding;
+	dock?: ReactNode;
 }) {
 	const { setNodeRef, isOver } = useDroppable({ id: dropId ?? column });
 	return (
@@ -647,7 +558,7 @@ function ListGroup({
 					))}
 				</ul>
 			)}
-			{!collapsed && <QuickAdd column={column} {...adding} />}
+			{dock}
 		</section>
 	);
 }
@@ -897,7 +808,6 @@ export function Board({
 	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [finishBusy, setFinishBusy] = useState(false);
 	const [undoing, setUndoing] = useState(false);
-	const [addingIn, setAddingIn] = useState<string | null>(null);
 	const [lastParent, setLastParent] = useState<string | null>(null);
 	const [composing, setComposing] = useState(false);
 	const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -915,7 +825,7 @@ export function Board({
 
 	useEffect(() => setSaved(views), [views]);
 
-	useEffect(() => setLastParent(loadQuickParent(kind)), [kind]);
+	useEffect(() => setLastParent(loadLastParent(kind)), [kind]);
 
 	useEffect(() => {
 		const saved = loadView(kind);
@@ -1257,31 +1167,6 @@ export function Board({
 			);
 		}
 		const general: Command[] = [
-			{
-				id: "go:new",
-				group: "Board",
-				label: `New ${kind}…`,
-				hint: "C",
-				next: () => ({
-					title: `New ${kind} in`,
-					items: columns.map((column) => ({
-						id: `new:${column}`,
-						label: column,
-						run: () => {
-							if (collapsedIn(view).includes(column)) toggleColumn(column);
-							setAddingIn(column);
-						},
-					})),
-				}),
-			},
-			{
-				id: "go:compose",
-				group: "Board",
-				label: `New ${kind} with its fields and content…`,
-				hint: "Shift+C",
-				keywords: "create add",
-				run: () => setComposing(true),
-			},
 			...LAYOUTS.filter(([layout]) => layout !== view.layout).map(([layout, label]) => ({
 				id: `go:layout:${layout}`,
 				group: "Board",
@@ -1400,23 +1285,6 @@ export function Board({
 				event.preventDefault();
 				toggleSelected(focusedId);
 				break;
-			case "c": {
-				event.preventDefault();
-				if (event.shiftKey) {
-					setComposing(true);
-					break;
-				}
-				const focused = order.find((stub) => stub.id === target);
-				const column = focused?.status ?? columns.find((c) => !collapsedIn(view).includes(c)) ?? columns[0];
-				if (!column) return;
-				if (collapsedIn(view).includes(column)) toggleColumn(column);
-				setAddingIn(column);
-				break;
-			}
-			case "C":
-				event.preventDefault();
-				setComposing(true);
-				break;
 		}
 	});
 
@@ -1425,8 +1293,6 @@ export function Board({
 		{ keys: ["h", "l"], label: "Previous or next column" },
 		{ keys: ["Enter"], label: "Open the focused card" },
 		{ keys: ["Esc"], label: "Close the card, or clear the focus" },
-		{ keys: ["c"], label: `New ${kind} in the focused column` },
-		{ keys: ["Shift", "C"], label: `New ${kind} with its fields and content` },
 		{ keys: ["Cmd/Ctrl", "K"], label: "Command menu: jump to a card or run an action" },
 		{ keys: ["x"], label: "Select the focused card, or Shift-click one" },
 		{ keys: ["s"], label: "Move the card, or the selected cards, to a column" },
@@ -1656,78 +1522,18 @@ export function Board({
 		};
 	}
 
-	function knownParent(swimlane?: Swimlane): string | null {
-		const lane = swimlane && !swimlane.urgent ? swimlane.value : null;
-		if (kind === "epic") return groupBy === "project" ? lane : null;
-		return (groupBy === "epic" ? lane : null) ?? onlyEpic(view) ?? null;
-	}
-
-	function parentOptions(swimlane?: Swimlane): Named[] {
-		if (kind === "epic") return lists.projects.filter((project) => project.status !== "Done");
-		const open = lists.epics.filter((epic) => epic.status !== "Epic Done");
-		const laneProject = groupBy === "project" && swimlane && !swimlane.urgent ? swimlane.value : null;
-		const inProject = laneProject ? open.filter((epic) => epic.project === laneProject) : [];
-		return inProject.length > 0 ? inProject : open;
-	}
-
-	function parentFor(swimlane?: Swimlane): Parent | undefined {
-		if (knownParent(swimlane)) return undefined;
-		const options = parentOptions(swimlane);
-		if (options.length === 0) return undefined;
-		const value = options.find((option) => option.id === lastParent)?.id ?? options[0].id;
-		return {
-			label: kind === "epic" ? "Project" : "Epic",
-			options,
-			value,
-			onChange: (id) => {
-				setLastParent(id);
-				saveQuickParent(kind, id);
-			},
-		};
-	}
-
-	async function create(column: string, name: string, swimlane?: Swimlane): Promise<boolean> {
-		setNotice(null);
-		const laneType = kind === "card" && groupBy === "type" && swimlane && !swimlane.urgent ? swimlane.value : null;
-		const parent = knownParent(swimlane) ?? parentFor(swimlane)?.value;
-		if (!parent) {
-			setNotice({
-				id: column,
-				text: kind === "epic" ? "Every epic has a project: add a project first." : "Every card has an epic: add an epic first.",
-			});
-			return false;
-		}
-		if (!knownParent(swimlane)) {
-			setLastParent(parent);
-			saveQuickParent(kind, parent);
-		}
-		const lane = (swimlane?.stubs ?? visible).filter((stub) => stub.status === column);
-		const last = lane.at(-1);
-		const result = await createCard(kind, name, column, {
-			...(kind === "epic"
-				? { project: parent }
-				: { type: laneType ?? (view.types.length === 1 ? view.types[0] : undefined), epic: parent }),
-			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
-			urgent: kind === "card" ? swimlane?.urgent : undefined,
-		});
-		const fresh = result.record;
-		if (!fresh) {
-			setNotice({ id: column, text: `Could not create the ${kind}: ${result.error ?? "board-card made nothing"}` });
-			return false;
-		}
-		setStubs((current) => [...current, fresh]);
-		router.refresh();
-		return true;
-	}
-
 	async function compose(draft: Draft): Promise<string | null> {
 		setNotice(null);
-		const lane = visible.filter((stub) => stub.status === draft.status);
-		const last = lane.at(-1);
+		const ranks = stubs.filter((stub) => stub.status === draft.status).map(effectiveRank);
 		const { name, status, ...options } = draft;
+		const parent = kind === "epic" ? options.project : options.epic;
+		if (parent) {
+			setLastParent(parent);
+			saveLastParent(kind, parent);
+		}
 		const result = await createCard(kind, name, status, {
 			...options,
-			rank: view.sort === "manual" && last ? effectiveRank(last) + 1 : undefined,
+			rank: kind === "card" && ranks.length > 0 ? Math.max(...ranks) + 1 : undefined,
 		});
 		const fresh = result.record;
 		if (!fresh) {
@@ -1744,6 +1550,32 @@ export function Board({
 		setToast(toastOf(`Created ${fresh.id}`));
 		router.refresh();
 		return null;
+	}
+
+	function newDock(placement: string, collapsed = false) {
+		const parents =
+			kind === "epic"
+				? lists.projects.filter((project) => project.status !== "Done")
+				: lists.epics.filter((epic) => epic.status !== "Epic Done");
+		const parent = parents.find((option) => option.id === lastParent)?.id ?? parents[0]?.id;
+		return (
+			<div className={`new-dock ${placement}`}>
+				<NewRecord
+					kind={kind}
+					lists={lists}
+					open={composing}
+					label={collapsed ? "+" : undefined}
+					defaults={{
+						status: boardColumns(kind)[0],
+						type: kind === "card" && view.types.length === 1 ? view.types[0] : undefined,
+						epic: kind === "card" ? (onlyEpic(view) ?? parent) : undefined,
+						project: kind === "epic" ? parent : undefined,
+					}}
+					onOpenChange={setComposing}
+					onCreate={compose}
+				/>
+			</div>
+		);
 	}
 
 	function duplicate(id: string) {
@@ -1794,6 +1626,8 @@ export function Board({
 	const currentView = saved.find(
 		(other) => JSON.stringify(restoredView(kind, other.view as Partial<View>)) === JSON.stringify(restoredView(kind, viewToSave() as Partial<View>)),
 	)?.name;
+	const backlog = boardColumns(kind)[0];
+	const dockColumn = columns.includes(backlog) ? backlog : view.layout === "list" ? null : columns[0];
 	const groupProps = (column: string, swimlane?: Swimlane, index = 0) => ({
 		column,
 		dropId: swimlane ? `swim:${index}:${column}` : undefined,
@@ -1805,12 +1639,12 @@ export function Board({
 		focusedId,
 		selected,
 		onOpen: clickCard,
-		adding: {
-			open: addingIn === (swimlane ? `${swimlane.key}|${column}` : column),
-			onOpenChange: (open: boolean) => setAddingIn(open ? (swimlane ? `${swimlane.key}|${column}` : column) : null),
-			onCreate: (name: string) => create(column, name, swimlane),
-			parent: parentFor(swimlane),
-		},
+		dock:
+			!swimlane && column === dockColumn
+				? view.layout === "list"
+					? newDock("list-dock")
+					: newDock("lane-dock", collapsedIn(view).includes(column))
+				: undefined,
 	});
 
 	return (
@@ -1819,18 +1653,6 @@ export function Board({
 				<MentionContext.Provider value={mentions}>
 					<div className={`board${open ? " peeking" : ""}`}>
 						<div className="toolbar">
-							<NewRecord
-								kind={kind}
-								lists={lists}
-								open={composing}
-								defaults={{
-									status: columnsOfKind[0],
-									type: kind === "card" && view.types.length === 1 ? view.types[0] : undefined,
-									epic: kind === "card" ? onlyEpic(view) : undefined,
-								}}
-								onOpenChange={setComposing}
-								onCreate={compose}
-							/>
 							{kind === "card" && (
 								<select
 									className="view-pick"
@@ -2111,6 +1933,7 @@ export function Board({
 												</section>
 											);
 										})}
+										{newDock("swim-dock")}
 									</div>
 								) : view.layout === "board" ? (
 									<div className="lanes">
@@ -2130,12 +1953,14 @@ export function Board({
 										focusedId={focusedId}
 										selected={selected}
 										onOpen={clickCard}
+										footer={newDock("table-dock")}
 									/>
 								) : (
 									<div className="list">
 										{columns.map((column) => (
 											<ListGroup key={column} {...groupProps(column)} />
 										))}
+										{!dockColumn && newDock("list-dock")}
 									</div>
 								)}
 								<DragOverlay dropAnimation={null}>

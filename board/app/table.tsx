@@ -369,6 +369,7 @@ export function Table({
 	focusedId,
 	selected,
 	onOpen,
+	footer,
 }: {
 	kind: Kind;
 	records: Card[];
@@ -380,6 +381,7 @@ export function Table({
 	focusedId: string | null;
 	selected: Set<string>;
 	onOpen: (id: string, toggle: boolean) => void;
+	footer?: ReactNode;
 }) {
 	return (
 		<div className="table-wrap">
@@ -444,6 +446,7 @@ export function Table({
 				</tbody>
 			</table>
 			{records.length === 0 && <p className="table-empty">No {kind} matches the view and the filters.</p>}
+			{footer}
 		</div>
 	);
 }

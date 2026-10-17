@@ -12,6 +12,7 @@ export function NewRecord({
 	kind,
 	lists,
 	open,
+	label,
 	defaults,
 	onOpenChange,
 	onCreate,
@@ -19,7 +20,8 @@ export function NewRecord({
 	kind: Kind;
 	lists: Lists;
 	open: boolean;
-	defaults: { status: string; type?: string; epic?: string };
+	label?: string;
+	defaults: { status: string; type?: string; epic?: string; project?: string };
 	onOpenChange: (open: boolean) => void;
 	onCreate: (draft: Draft) => Promise<string | null>;
 }) {
@@ -27,7 +29,7 @@ export function NewRecord({
 	const [status, setStatus] = useState(defaults.status);
 	const [type, setType] = useState(defaults.type ?? "Feature");
 	const [epic, setEpic] = useState(defaults.epic ?? lists.epics[0]?.id ?? "");
-	const [project, setProject] = useState(kind === "epic" ? (lists.projects[0]?.id ?? "") : "");
+	const [project, setProject] = useState(kind === "epic" ? (defaults.project ?? lists.projects[0]?.id ?? "") : "");
 	const [timebox, setTimebox] = useState("60");
 	const [icon, setIcon] = useState("");
 	const [body, setBody] = useState("");
@@ -45,9 +47,10 @@ export function NewRecord({
 				defaults.epic ??
 				(lists.epics.some((other) => other.id === current) ? current : (lists.epics[0]?.id ?? "")),
 		);
+		setProject(kind === "epic" ? (defaults.project ?? lists.projects[0]?.id ?? "") : "");
 		setError("");
 		box.current?.focus();
-	}, [open, defaults.status, defaults.type, defaults.epic]);
+	}, [open, defaults.status, defaults.type, defaults.epic, defaults.project]);
 
 	const frame = useRef<HTMLDetailsElement>(null);
 	const empty = !name.trim() && !body.trim();
@@ -128,13 +131,14 @@ export function NewRecord({
 		>
 			<summary
 				className="new-open"
-				title={`New ${kind} (Shift+C)`}
+				title={`New ${kind}`}
+				aria-label={label ? `New ${kind}` : undefined}
 				onClick={(event) => {
 					event.preventDefault();
 					onOpenChange(!open);
 				}}
 			>
-				+ New {kind}
+				{label ?? `+ New ${kind}`}
 			</summary>
 			<form
 				className="new-panel"

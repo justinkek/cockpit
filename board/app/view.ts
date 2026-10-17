@@ -134,21 +134,23 @@ export function saveView(kind: Kind, view: View) {
 	} catch {}
 }
 
-function quickParentKey(kind: Kind) {
-	return kind === "card" ? "cockpit-quick-add-epic" : "cockpit-quick-add-project";
+function lastParentKey(kind: Kind) {
+	return kind === "card" ? "cockpit-new-card-epic" : "cockpit-new-epic-project";
 }
 
-export function loadQuickParent(kind: Kind): string | null {
+export function loadLastParent(kind: Kind): string | null {
 	try {
-		return window.localStorage.getItem(quickParentKey(kind));
+		window.localStorage.removeItem("cockpit-quick-add-epic");
+		window.localStorage.removeItem("cockpit-quick-add-project");
+		return window.localStorage.getItem(lastParentKey(kind));
 	} catch {
 		return null;
 	}
 }
 
-export function saveQuickParent(kind: Kind, id: string) {
+export function saveLastParent(kind: Kind, id: string) {
 	try {
-		window.localStorage.setItem(quickParentKey(kind), id);
+		window.localStorage.setItem(lastParentKey(kind), id);
 	} catch {}
 }
 
