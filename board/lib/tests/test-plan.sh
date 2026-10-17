@@ -258,6 +258,20 @@ assert_eq "a done epic is never blocked" 'null' \
 assert_eq "a blocked epic in Backlog is not forecast to refine" '{"refineStart":null,"refineEnd":null,"refineForecast":false}' \
   "$(evaluate 'pick(p.planOf([{id:"EPIC-1",status:"Backlog",project:"PRJ-1",blocked:"Waiting"}], [], {"PRJ-1":{tracks:1,perWeek:7}}, '"$TODAY"', '"$INSTANT"')["EPIC-1"], "refineStart refineEnd refineForecast")')"
 
+printf "\nTest group: an epic is late once its target passes with work open, or once its last card was done after it\n"
+
+LATE_TEAM='{"PRJ-1":{tracks:1,perWeek:7},"PRJ-2":{tracks:0,perWeek:7}}'
+assert_eq "a blocked epic with work open is late by the days since its target" '4' \
+  "$(evaluate 'p.planOf([{id:"EPIC-1",status:"Tickets In Dev",project:"PRJ-1",target:"2026-10-10",blocked:"Waiting"}], [{epic:"EPIC-1",status:"In Dev",complexity:5}], '"$LATE_TEAM"', '"$TODAY"', '"$INSTANT"')["EPIC-1"].late')"
+assert_eq "and so is an unsized one, and one whose project has no tracks" '4,4' \
+  "$(evaluate '[["PRJ-1",{}],["PRJ-2",{complexity:5}]].map(([project, size]) => p.planOf([{id:"EPIC-1",status:"In FD",project,target:"2026-10-10"}], [{epic:"EPIC-1",status:"Backlog",...size}], '"$LATE_TEAM"', '"$TODAY"', '"$INSTANT"')["EPIC-1"].late).join()')"
+assert_eq "an epic whose cards are all done is late by the days its last card was done past its target, before it reaches Epic Done" '3,0' \
+  "$(evaluate '["2026-10-08","2026-10-12"].map((target) => p.planOf([{id:"EPIC-1",status:"Tickets In Dev",project:"PRJ-1",target}], [{epic:"EPIC-1",status:"Done",complexity:3,dates:{Done:"2026-10-05T10:00:00Z"}},{epic:"EPIC-1",status:"Done",complexity:3,dates:{Done:"2026-10-11T10:00:00Z"}}], '"$LATE_TEAM"', '"$TODAY"', '"$INSTANT"')["EPIC-1"].late).join()')"
+assert_eq "a target today is not passed yet" '0' \
+  "$(evaluate 'p.lateOf(p.dayOf("2026-10-14"), {open:1,done:0}, [], '"$TODAY"')')"
+assert_eq "an epic with no cards is never late, whatever its target" '0' \
+  "$(evaluate 'p.lateOf(p.dayOf("2026-10-01"), {open:0,done:0}, [], '"$TODAY"')')"
+
 printf "\nTest group: an epic pinned to a track waits for it\n"
 
 PINNED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","rank":1,"track":2},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2,"track":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-1","rank":4,"track":5}]'

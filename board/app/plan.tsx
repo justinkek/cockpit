@@ -1860,16 +1860,6 @@ export function Plan({
 			words.push("Blocked - no projected end until unblocked");
 		} else if (row.projected != null) {
 			ends.push(row.projected);
-			if (row.late > 0 && target != null) {
-				pieces.push(
-					<span
-						key="late"
-						className="plan-late"
-						style={{ left: x(target + 1), width: x(row.projected + 1) - x(target + 1) }}
-						title={`Projected to end ${lateText(row.late, false)}`}
-					/>,
-				);
-			}
 			pieces.push(
 				<span
 					key="projected"
@@ -1883,7 +1873,6 @@ export function Plan({
 			words.push(
 				row.remaining.open === 0 ? `All cards done ${short(row.projected)}` : `Projected ${short(row.projected)}`,
 			);
-			if (row.late > 0) words.push(lateText(row.late, false));
 		} else if (row.remaining.points > 0 && tracksOf(row.team) === 0) {
 			words.push(`Not scheduled - ${teamName(row.team)} has no tracks`);
 		} else if (row.remaining.unsized > 0) {
@@ -1891,6 +1880,24 @@ export function Plan({
 		} else if (row.remaining.open + row.remaining.done === 0) {
 			words.push("No cards to project");
 			if (target != null && target < today) words.push(`target passed ${short(target)}`);
+		}
+		if (!row.done && row.late > 0 && target != null) {
+			const why =
+				row.remaining.open === 0
+					? `its last card was done ${row.late === 1 ? "1 day" : `${row.late} days`} after its target of ${short(target)}`
+					: row.projected != null && row.projected > today
+						? `projected to end ${short(row.projected)}, past its target of ${short(target)}`
+						: `its target of ${short(target)} has passed with work still open`;
+			ends.push(target + row.late);
+			pieces.push(
+				<span
+					key="late"
+					className="plan-late"
+					style={{ left: x(target + 1), width: x(target + row.late + 1) - x(target + 1) }}
+					title={`${lateText(row.late, false)}: ${why}`}
+				/>,
+			);
+			words.push(lateText(row.late, false));
 		}
 		const empty = target == null;
 		const reach = ends.length > 0 ? x(Math.max(...ends) + 1) + 10 : x(today) + 10;

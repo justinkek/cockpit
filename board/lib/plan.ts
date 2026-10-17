@@ -427,6 +427,19 @@ export function openWorkOf<T extends Sized>(cards: T[]): T[] {
 	);
 }
 
+export function lateOf(
+	target: number | null,
+	remaining: Pick<Remaining, "open" | "done">,
+	cards: Pick<Card, "status" | "dates" | "moved">[],
+	today: number,
+): number {
+	if (target == null) return 0;
+	if (remaining.open > 0) return Math.max(0, today - target);
+	const finished = cards.map((card) => doneAt(card)).filter((at): at is number => at != null);
+	if (remaining.done === 0 || finished.length === 0) return 0;
+	return Math.max(0, localDay(new Date(Math.max(...finished))) - target);
+}
+
 export function blockedOf(epic: Pick<Card, "status"> & Partial<Pick<Card, "blocked">>, cards: Sized[]): Blocked {
 	if (epic.status === "Epic Done") return null;
 	if (epic.blocked) return "epic";
@@ -532,11 +545,14 @@ export function planOf(
 				const at = doneAt(epic);
 				row.doneDay = at == null ? null : localDay(new Date(at));
 				row.late = target != null && row.doneDay != null ? Math.max(0, row.doneDay - target) : 0;
-			} else if (row.blocked == null && row.remaining.open === 0 && row.remaining.done > 0) {
-				row.begin = today;
-				row.projected = today;
-			} else if (row.blocked == null && row.remaining.open > 0) {
-				queue.push(row);
+			} else {
+				row.late = lateOf(target, row.remaining, own, today);
+				if (row.blocked == null && row.remaining.open === 0 && row.remaining.done > 0) {
+					row.begin = today;
+					row.projected = today;
+				} else if (row.blocked == null && row.remaining.open > 0) {
+					queue.push(row);
+				}
 			}
 		}
 		if (tracks === 0) continue;
