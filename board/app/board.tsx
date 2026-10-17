@@ -40,6 +40,7 @@ import {
 	editCard,
 	findInContent,
 	finishEpic,
+	finishEpics,
 	forgetView,
 	linkCards,
 	type Span,
@@ -49,7 +50,7 @@ import {
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
-import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
+import { EpicDoneDialog, EpicsDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { ViewDialog, type ViewDialogAsk } from "@/app/view-dialog";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
@@ -802,6 +803,7 @@ export function Board({
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [finishBusy, setFinishBusy] = useState(false);
+	const [finishingMany, setFinishingMany] = useState<{ ids: string[]; open: Finishing[] } | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	const [lastParent, setLastParent] = useState<string | null>(null);
 	const [composing, setComposing] = useState(false);
@@ -1024,7 +1026,13 @@ export function Board({
 		return target && stubs.some((stub) => stub.id === target) ? [target] : [];
 	}
 
-	function runBulk(ids: string[], change: Bulk, optimistic: Partial<Stub> | null, label: string) {
+	function runBulk(
+		ids: string[],
+		change: Bulk,
+		optimistic: Partial<Stub> | null,
+		label: string,
+		request = () => bulkChange(ids, change),
+	) {
 		if (ids.length === 0) return;
 		const before = stubs.filter((stub) => ids.includes(stub.id));
 		setNotice(null);
@@ -1036,7 +1044,7 @@ export function Board({
 		);
 		for (const id of ids) markPending(id, true);
 		startTransition(async () => {
-			const result = await bulkChange(ids, change);
+			const result = await request();
 			for (const id of ids) markPending(id, false);
 			const done = new Map(result.records.map(({ from, record }) => [from, record]));
 			setStubs((current) => {
@@ -1076,7 +1084,17 @@ export function Board({
 	function bulkEdits(ids: string[]): Edits {
 		return {
 			label: ids.length === 1 ? ids[0] : `${ids.length} ${kind}s`,
-			move: (column) => runBulk(ids, { op: "move", column }, movedTo(column), `Moved {n} to ${column}`),
+			move: (column) => {
+				if (kind === "epic" && column === "Epic Done") {
+					const open = ids.flatMap((id) => {
+						const stub = stubs.find((other) => other.id === id);
+						const cards = stub && stub.status !== column ? openTickets(children[id] ?? []) : [];
+						return stub && cards.length > 0 ? [{ id, name: stub.name, open: cards }] : [];
+					});
+					if (open.length > 0) return setFinishingMany({ ids, open });
+				}
+				runBulk(ids, { op: "move", column }, movedTo(column), `Moved {n} to ${column}`);
+			},
 			edit: (field, value, change) =>
 				runBulk(ids, { op: "set", field, value }, change, `Changed the ${fieldName(field)} of {n}`),
 			archive: () => runBulk(ids, { op: "archive" }, null, "Archived {n}"),
@@ -1465,6 +1483,19 @@ export function Board({
 				);
 			router.refresh();
 		});
+	}
+
+	function finishMany(chosen: { ids: string[]; open: Finishing[] }) {
+		setFinishingMany(null);
+		const cards = chosen.open.flatMap((epic) => epic.open.map((card) => card.id));
+		const tickets = cards.length === 1 ? "1 open ticket" : `${cards.length} open tickets`;
+		runBulk(
+			chosen.ids,
+			{ op: "move", column: "Epic Done" },
+			movedTo("Epic Done"),
+			`Deprioritised ${tickets} and moved {n} to Epic Done`,
+			() => finishEpics(chosen.ids, cards),
+		);
 	}
 
 	function placement(id: string, overId: string): { column: string; rank?: number; swimlane?: Swimlane } | null {
@@ -1998,6 +2029,18 @@ export function Board({
 									move(finishing.id, "Epic Done", finishing.rank, true);
 								}}
 								onCancel={() => setFinishing(null)}
+							/>
+						)}
+						{finishingMany && (
+							<EpicsDoneDialog
+								finishing={finishingMany.open}
+								total={finishingMany.ids.length}
+								onDeprioritise={() => finishMany(finishingMany)}
+								onAnyway={() => {
+									setFinishingMany(null);
+									runBulk(finishingMany.ids, { op: "move", column: "Epic Done" }, movedTo("Epic Done"), "Moved {n} to Epic Done");
+								}}
+								onCancel={() => setFinishingMany(null)}
 							/>
 						)}
 						{viewAsk && (

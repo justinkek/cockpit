@@ -291,26 +291,37 @@ export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 	return result;
 }
 
+async function deprioritiseOpen(cards: string[], result: BulkResult): Promise<boolean> {
+	if (cards.length === 0) return true;
+	try {
+		const moved = await moveRecords(cards, "Deprioritised");
+		const until = moved.length > 0 ? await lastCommit(moved[0]) : null;
+		for (const card of moved) {
+			refresh(card);
+			if (until) result.undo.push({ id: card, since: `${until}^`, until });
+		}
+		return true;
+	} catch (error) {
+		const failure = await failed(cards[0], error);
+		result.errors.push(failure.error ?? "the open tickets could not be deprioritised");
+		return false;
+	}
+}
+
 export async function finishEpic(id: string, cards: string[]): Promise<BulkResult & { record?: Card }> {
 	const result: BulkResult = { records: [], undo: [], errors: [] };
-	if (cards.length > 0) {
-		try {
-			const moved = await moveRecords(cards, "Deprioritised");
-			const until = moved.length > 0 ? await lastCommit(moved[0]) : null;
-			for (const card of moved) {
-				refresh(card);
-				if (until) result.undo.push({ id: card, since: `${until}^`, until });
-			}
-		} catch (error) {
-			const failure = await failed(cards[0], error);
-			result.errors.push(failure.error ?? "the open tickets could not be deprioritised");
-			return result;
-		}
-	}
+	if (!(await deprioritiseOpen(cards, result))) return result;
 	const moved = await dropCard(id, "Epic Done");
 	if (moved.error) return { ...result, errors: [`${id}: ${moved.error}`] };
 	if (moved.undo) result.undo.push({ id, ...moved.undo });
 	return { ...result, record: moved.record };
+}
+
+export async function finishEpics(ids: string[], cards: string[]): Promise<BulkResult> {
+	const result: BulkResult = { records: [], undo: [], errors: [] };
+	if (!(await deprioritiseOpen(cards, result))) return result;
+	const epics = await bulkChange(ids, { op: "move", column: "Epic Done" });
+	return { records: epics.records, undo: [...result.undo, ...epics.undo], errors: epics.errors };
 }
 
 export async function setBoardTracks(count: number): Promise<{ tracks?: number; error?: string }> {
