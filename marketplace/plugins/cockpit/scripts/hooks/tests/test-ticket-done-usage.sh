@@ -34,44 +34,44 @@ reset_state() { rm -rf "$STATE_DIR"; mkdir -p "$STATE_DIR"; }
 printf "Test group: no measured usage reads as unavailable, not as zero\n"
 
 rm -rf "$STATE_DIR"
-assert_eq "with no state directory both totals are null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPT" FEAT-724)"
+assert_eq "with no state directory both totals are null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPT" HOM-724)"
 
 reset_state
-register desktop-session FEAT-724
-assert_eq "a session with no usage sidecar leaves both totals null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPT" FEAT-724)"
+register desktop-session HOM-724
+assert_eq "a session with no usage sidecar leaves both totals null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPT" HOM-724)"
 
 record desktop-session $'cost_usd=\ntokens_k_prev=\ntokens_k_cumul=\n'
-assert_eq "a sidecar holding only empty values leaves both totals null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPT" FEAT-724)"
+assert_eq "a sidecar holding only empty values leaves both totals null" '{"cost_usd": null, "tokens_k": null}' "$(bash "$SCRIPT" HOM-724)"
 
 printf "Test group: measured usage is summed per total\n"
 
 reset_state
-register plan-session FEAT-724
+register plan-session HOM-724
 record plan-session $'cost_usd=\ntokens_k_prev=40\ntokens_k_cumul=120\n'
-assert_eq "tokens measured without cost keeps cost null" '{"cost_usd": null, "tokens_k": 120}' "$(bash "$SCRIPT" FEAT-724)"
+assert_eq "tokens measured without cost keeps cost null" '{"cost_usd": null, "tokens_k": 120}' "$(bash "$SCRIPT" HOM-724)"
 
-register api-session FEAT-724
+register api-session HOM-724
 record api-session $'cost_usd=2.5\ntokens_k=30\n'
-register other-card-session FEAT-9
+register other-card-session HOM-9
 record other-card-session $'cost_usd=7\ntokens_k_cumul=500\n'
-register silent-session FEAT-724
-assert_eq "sessions on the card are summed, legacy tokens_k included, other cards and silent sessions left out" '{"cost_usd": 2.5, "tokens_k": 150}' "$(bash "$SCRIPT" FEAT-724)"
+register silent-session HOM-724
+assert_eq "sessions on the card are summed, legacy tokens_k included, other cards and silent sessions left out" '{"cost_usd": 2.5, "tokens_k": 150}' "$(bash "$SCRIPT" HOM-724)"
 
 record plan-session $'cost_usd=0\ntokens_k_cumul=0\n'
 record api-session $'cost_usd=0\ntokens_k_cumul=0\n'
-assert_eq "a measured zero stays zero" '{"cost_usd": 0, "tokens_k": 0}' "$(bash "$SCRIPT" FEAT-724)"
+assert_eq "a measured zero stays zero" '{"cost_usd": 0, "tokens_k": 0}' "$(bash "$SCRIPT" HOM-724)"
 
 reset_state
-register both-formats-session FEAT-724
+register both-formats-session HOM-724
 record both-formats-session $'cost_usd=1\ntokens_k=999\ntokens_k_prev=40\ntokens_k_cumul=120\n'
-assert_eq "a sidecar holding both token formats counts the cumulative one" '{"cost_usd": 1, "tokens_k": 120}' "$(bash "$SCRIPT" FEAT-724)"
+assert_eq "a sidecar holding both token formats counts the cumulative one" '{"cost_usd": 1, "tokens_k": 120}' "$(bash "$SCRIPT" HOM-724)"
 
 printf "Test group: a total below one is still strict JSON\n"
 
 reset_state
-register cheap-session FEAT-724
+register cheap-session HOM-724
 record cheap-session $'cost_usd=0.42\ntokens_k_prev=0\ntokens_k_cumul=0.5\n'
-cheap_usage="$(bash "$SCRIPT" FEAT-724)"
+cheap_usage="$(bash "$SCRIPT" HOM-724)"
 assert_eq "both totals keep their leading zero" '{"cost_usd": 0.42, "tokens_k": 0.5}' "$cheap_usage"
 assert_eq "the line parses as strict JSON" "0.42" "$(printf '%s' "$cheap_usage" | python3 -c 'import json, sys; print(json.load(sys.stdin)["cost_usd"])')"
 
@@ -85,7 +85,7 @@ printf "Test group: board-card usage writes null onto a card nothing measured\n"
 
 reset_state
 bash "$SCRIPTS/board-card" init >/dev/null
-bash "$SCRIPTS/board-card" create --kind project --name Home >/dev/null
+bash "$SCRIPTS/board-card" create --kind project --name Home --key HOM >/dev/null
 bash "$SCRIPTS/board-card" create --kind epic --name Home --project PRJ-1 >/dev/null
 card="$(bash "$SCRIPTS/board-card" create --epic EPIC-1 --name "A desktop session ticket")"
 register desktop-session "$card"

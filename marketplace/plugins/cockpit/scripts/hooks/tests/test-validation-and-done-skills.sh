@@ -46,7 +46,7 @@ guard_properties() {
 board() { bash "$SCRIPTS/board-card" "$@"; }
 
 board init >/dev/null
-board create --kind project --name Home >/dev/null
+board create --kind project --name Home --key HOM >/dev/null
 board create --kind epic --name Home --project PRJ-1 >/dev/null
 parent="$(board create --epic EPIC-1 --name Parent)"
 part="$(board create --epic EPIC-1 --name Part)"
@@ -120,10 +120,10 @@ assert_eq "a Timebox with no Outcome yet has nothing to read" "7" "$?"
 expected_outcome='## Expected Outcome
 
 1. A recommended library'
-printf '%s\n\n## Outcome\n\n**Success**\n\n1. ✅ A recommended library\n\n- Next Steps: FEAT-9\n\n## Context\n\nkept' "$expected_outcome" \
+printf '%s\n\n## Outcome\n\n**Success**\n\n1. ✅ A recommended library\n\n- Next Steps: HOM-9\n\n## Context\n\nkept' "$expected_outcome" \
   | board set "$timebox" body "$(cat)" >/dev/null
 assert_eq "the Outcome read is not the Expected Outcome" "## Outcome" "$(board show "$timebox" --section "Outcome" | head -n 1)"
-printf '**Success**\n\n1. ✅ A recommended library\n\t- Seen: the comparison table under Details\n\n- Next Steps: FEAT-9\n' \
+printf '**Success**\n\n1. ✅ A recommended library\n\t- Seen: the comparison table under Details\n\n- Next Steps: HOM-9\n' \
   | board section "$timebox" "Outcome" >/dev/null
 assert_eq "the Seen line lands under its Outcome item" "	- Seen: the comparison table under Details" \
   "$(board show "$timebox" --section "Outcome" | grep 'Seen:')"

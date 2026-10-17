@@ -42,7 +42,7 @@ SESSION="test-session-end-$$"
 ln -s "$BOARD_CARD" "$ROOT/board-card"
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 "$ROOT/board-card" init >/dev/null
-"$ROOT/board-card" create --kind project --name Home >/dev/null
+"$ROOT/board-card" create --kind project --name Home --key HOM >/dev/null
 "$ROOT/board-card" create --kind epic --name Home --project PRJ-1 >/dev/null
 for name in mine "mine, mid-dev" theirs unclaimed; do
   "$ROOT/board-card" create --epic EPIC-1 --name "$name" >/dev/null
@@ -83,9 +83,9 @@ STUB
 
 chmod +x "$ROOT/ticket-claim-lock" "$BIN/ps" "$BIN/pgrep"
 
-CLAUDE_SESSION_ID="$SESSION" "$ROOT/board-card" claim FEAT-1 >/dev/null
-CLAUDE_SESSION_ID="$SESSION" "$ROOT/board-card" claim FEAT-2 >/dev/null
-CLAUDE_SESSION_ID=someone-else "$ROOT/board-card" claim FEAT-3 >/dev/null
+CLAUDE_SESSION_ID="$SESSION" "$ROOT/board-card" claim HOM-1 >/dev/null
+CLAUDE_SESSION_ID="$SESSION" "$ROOT/board-card" claim HOM-2 >/dev/null
+CLAUDE_SESSION_ID=someone-else "$ROOT/board-card" claim HOM-3 >/dev/null
 : > "$TMPDIR/locks"
 
 holder_of() { "$ROOT/board-card" show "$1" "Agent: Session Id" | cut -f2; }
@@ -98,13 +98,13 @@ printf "Test group: the claims this session holds are released\n"
 
 assert_eq "exits zero" "0" "$status"
 assert_contains "releases the local locks" "release-all" "$(cat "$TMPDIR/locks")"
-assert_eq "clears the card it claimed" "" "$(holder_of FEAT-1)"
-assert_eq "clears the card it was holding mid-dev" "" "$(holder_of FEAT-2)"
+assert_eq "clears the card it claimed" "" "$(holder_of HOM-1)"
+assert_eq "clears the card it was holding mid-dev" "" "$(holder_of HOM-2)"
 
 printf "\nTest group: nothing else is touched\n"
 
-assert_eq "leaves another session's claim alone" "someone-else" "$(holder_of FEAT-3)"
-assert_eq "leaves an unclaimed card unclaimed" "" "$(holder_of FEAT-4)"
+assert_eq "leaves another session's claim alone" "someone-else" "$(holder_of HOM-3)"
+assert_eq "leaves an unclaimed card unclaimed" "" "$(holder_of HOM-4)"
 
 printf "\nTest group: no board is a quiet no-op, not a failure\n"
 

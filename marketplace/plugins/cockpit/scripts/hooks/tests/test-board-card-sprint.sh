@@ -33,7 +33,7 @@ field() { stub show "$1" --json | jq --raw-output "$2"; }
 last_commit() { git -C "$COCKPIT_BOARD_DIR" log -1 --format="$1"; }
 
 stub init >/dev/null
-stub create --kind project --name Cockpit >/dev/null
+stub create --kind project --name Cockpit --key COC >/dev/null
 stub create --kind epic --project PRJ-1 --name Board >/dev/null
 stub create --kind sprint --name "Sprint 1" --start 2026-09-28 --end 2026-10-09 >/dev/null
 stub create --kind sprint --name "Sprint 2" --start 2026-10-12 --end 2026-10-23 >/dev/null

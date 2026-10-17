@@ -36,7 +36,7 @@ STATE_DIR="$TMPDIR/state"
 mkdir -p "$STATE_DIR"
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 "$BOARD_CARD" init >/dev/null
-"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind project --name Home --key HOM >/dev/null
 "$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
 
 now="$(date -u +%s)"

@@ -128,22 +128,22 @@ moved_past() {
 }
 
 board init >/dev/null
-board create --kind project --name Home >/dev/null
+board create --kind project --name Home --key HOM >/dev/null
 board create --kind epic --name Home --project PRJ-1 >/dev/null
 printf '## Validation Steps\n\n- [ ] AaUser I see a thing\n' \
   | board create --epic EPIC-1 --name Probe --type Feature --status "In BR by AI" --body - >/dev/null
 printf '**[suggestion]** a redraft\n**[why]** a reason\n' \
-  | COCKPIT_AUTHOR="claude abcdef12" board comment FEAT-1 --anchor "I see a thing" >/dev/null
+  | COCKPIT_AUTHOR="claude abcdef12" board comment HOM-1 --anchor "I see a thing" >/dev/null
 sleep 1
-board walk FEAT-1 "In TR by AI" >/dev/null
+board walk HOM-1 "In TR by AI" >/dev/null
 
 assert_eq "each comment carries when it was posted" "true" \
-  "$(board comments FEAT-1 --json | jq '.[0].comments[0].at | type == "string"')"
-assert_eq "a card walked on out of In BR has moved past it" "true" "$(moved_past FEAT-1 "In BR")"
-assert_eq "but not past In TR, which it has not reached" "false" "$(moved_past FEAT-1 "In TR")"
+  "$(board comments HOM-1 --json | jq '.[0].comments[0].at | type == "string"')"
+assert_eq "a card walked on out of In BR has moved past it" "true" "$(moved_past HOM-1 "In BR")"
+assert_eq "but not past In TR, which it has not reached" "false" "$(moved_past HOM-1 "In TR")"
 
-board move FEAT-1 "Ready for BR by AI" >/dev/null
-assert_eq "a card dragged back before In BR has not moved past it" "false" "$(moved_past FEAT-1 "In BR")"
+board move HOM-1 "Ready for BR by AI" >/dev/null
+assert_eq "a card dragged back before In BR has not moved past it" "false" "$(moved_past HOM-1 "In BR")"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

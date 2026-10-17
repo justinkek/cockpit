@@ -41,7 +41,7 @@ assert_contains() {
 TAB="$(printf '\t')"
 
 "$BOARD_CARD" init >/dev/null
-"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind project --name Home --key HOM >/dev/null
 "$BOARD_CARD" create --kind epic --project PRJ-1 --name "an epic" >/dev/null
 CARD="$("$BOARD_CARD" create --name "A ticket fetch returns the properties skills read" --status "Ready for BR" --epic EPIC-1 --body - <<'BODY'
 ## Validation Steps
@@ -94,7 +94,7 @@ assert_eq "a lower case id reads the same card" "Status${TAB}Ready for BR" "$("$
 assert_eq "a page url is refused" "2" "$(exit_code_of "$SCRIPT" "https://app.notion.com/p/3b98f3776f4f81a6ab13cd05b1683e96")"
 assert_contains "and says what it wanted" "not a card id" "$("$SCRIPT" "https://app.notion.com/p/abc" 2>&1)"
 assert_eq "no argument at all is refused" "2" "$(exit_code_of "$SCRIPT")"
-assert_eq "a card the board does not hold exits 3" "3" "$(exit_code_of "$SCRIPT" FEAT-999 Status)"
+assert_eq "a card the board does not hold exits 3" "3" "$(exit_code_of "$SCRIPT" HOM-999 Status)"
 
 printf "\nTest group: a named section prints, and nothing outside it does\n"
 

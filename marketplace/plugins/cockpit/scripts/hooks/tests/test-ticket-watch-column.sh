@@ -41,7 +41,7 @@ SESSION="test-watch-$$"
 
 export COCKPIT_BOARD_DIR="$TMPDIR/board"
 "$BOARD_CARD" init >/dev/null
-"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind project --name Home --key HOM >/dev/null
 "$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
 PAGE_ID="$("$BOARD_CARD" create --epic EPIC-1 --name "the registered ticket")"
 SOURCE_PAGE_ID="$("$BOARD_CARD" create --epic EPIC-1 --name "a second watched card")"
@@ -388,7 +388,7 @@ out="$TMPDIR/out-unreadable"
 TICKET_WATCH_INTERVAL=0 \
 TICKET_STATE_DIR="$STATE_DIR" \
 CLAUDE_SESSION_ID="$SESSION" \
-  bash "$WATCHER" FEAT-999 > "$out" 2>&1 &
+  bash "$WATCHER" HOM-999 > "$out" 2>&1 &
 pid=$!
 waited=0
 while ! grep --quiet --fixed-strings "poll failing" "$out" && [ "$waited" -lt 100 ]; do

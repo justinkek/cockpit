@@ -56,7 +56,7 @@ for (const name of ["board", "shared"]) {
 ' "$BOARD" "$WORK"
 
 "$BOARD_CARD" init >/dev/null
-"$BOARD_CARD" create --kind project --name Home >/dev/null
+"$BOARD_CARD" create --kind project --name Home --key HOM >/dev/null
 "$BOARD_CARD" create --kind epic --name Home --project PRJ-1 >/dev/null
 "$BOARD_CARD" create --epic EPIC-1 --name "Dragged" >/dev/null
 "$BOARD_CARD" create --epic EPIC-1 --name "Dragged back" --status "In Dev" >/dev/null
@@ -72,14 +72,14 @@ stamps() { "$BOARD_CARD" show "$1" --json | jq --raw-output '.dates | keys | joi
 
 printf "Test group: a card moved in the app is stamped only where it lands, as Notion's automation did\n"
 
-change_status FEAT-1 Done
-assert_eq "Backlog to Done lands the card in Done" "Done" "$("$BOARD_CARD" show FEAT-1 --json | jq --raw-output .status)"
-assert_eq "and stamps Done alone, leaving every column it skipped empty" "Done" "$(stamps FEAT-1)"
+change_status HOM-1 Done
+assert_eq "Backlog to Done lands the card in Done" "Done" "$("$BOARD_CARD" show HOM-1 --json | jq --raw-output .status)"
+assert_eq "and stamps Done alone, leaving every column it skipped empty" "Done" "$(stamps HOM-1)"
 
-change_status FEAT-2 "Ready for TR"
-assert_eq "a move backwards stamps the column it lands in" "In Dev,Ready for TR" "$(stamps FEAT-2)"
-before="$("$BOARD_CARD" show FEAT-2 --json | jq --raw-output '.dates["In Dev"]')"
-change_status FEAT-2 "In Dev"
-assert_eq "and coming back keeps the first arrival's stamp" "$before" "$("$BOARD_CARD" show FEAT-2 --json | jq --raw-output '.dates["In Dev"]')"
+change_status HOM-2 "Ready for TR"
+assert_eq "a move backwards stamps the column it lands in" "In Dev,Ready for TR" "$(stamps HOM-2)"
+before="$("$BOARD_CARD" show HOM-2 --json | jq --raw-output '.dates["In Dev"]')"
+change_status HOM-2 "In Dev"
+assert_eq "and coming back keeps the first arrival's stamp" "$before" "$("$BOARD_CARD" show HOM-2 --json | jq --raw-output '.dates["In Dev"]')"
 
 finish

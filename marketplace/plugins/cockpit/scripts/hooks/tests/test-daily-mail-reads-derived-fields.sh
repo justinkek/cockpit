@@ -40,7 +40,7 @@ assert_eq "it reads overrunning" "yes" "$(printf '%s\n' "$fields" | grep --quiet
 assert_eq "it reads days_in_column" "yes" "$(printf '%s\n' "$fields" | grep --quiet --line-regexp days_in_column && echo yes || echo no)"
 
 stub init >/dev/null
-stub create --kind project --name Home >/dev/null
+stub create --kind project --name Home --key HOM >/dev/null
 stub create --kind epic --name Home --project PRJ-1 >/dev/null
 card="$(stub create --epic EPIC-1 --name 'Sprint card')"
 stub move "$card" "In Dev" >/dev/null

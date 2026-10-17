@@ -33,8 +33,8 @@ field() { stub show "$1" --json | jq --raw-output "$2"; }
 last_commit() { git -C "$COCKPIT_BOARD_DIR" log -1 --format="$1"; }
 
 stub init >/dev/null
-stub create --kind project --name Cockpit >/dev/null
-stub create --kind project --name Home >/dev/null
+stub create --kind project --name Cockpit --key COC >/dev/null
+stub create --kind project --name Home --key HOM >/dev/null
 stub create --kind epic --project PRJ-1 --name Board >/dev/null
 stub create --kind epic --project PRJ-1 --name Plan >/dev/null
 stub create --kind epic --project PRJ-1 --name Shipped >/dev/null
@@ -42,11 +42,11 @@ stub create --kind epic --project PRJ-2 --name Garden >/dev/null
 stub move EPIC-3 "Epic Done" >/dev/null
 stub create --epic EPIC-1 --name Open >/dev/null
 stub create --epic EPIC-1 --name Started >/dev/null
-stub move FEAT-2 "In Dev" >/dev/null
+stub move COC-2 "In Dev" >/dev/null
 stub create --epic EPIC-2 --name Finished >/dev/null
-stub move FEAT-3 Done >/dev/null
+stub move COC-3 Done >/dev/null
 stub create --epic EPIC-2 --name Dropped >/dev/null
-stub move FEAT-4 Deprioritised >/dev/null
+stub move COC-4 Deprioritised >/dev/null
 stub create --epic EPIC-4 --name Elsewhere >/dev/null
 
 printf "Test group: a project with open work is not marked Done on its own\n"
@@ -63,19 +63,19 @@ printf "\nTest group: --close closes everything open in the project and marks it
 before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
 output="$(stub set PRJ-1 status Done --close)"
 assert_eq "the project is Done" "Done" "$(field PRJ-1 .status)"
-assert_eq "its open tickets are deprioritised" "Deprioritised Deprioritised" "$(field FEAT-1 .status) $(field FEAT-2 .status)"
+assert_eq "its open tickets are deprioritised" "Deprioritised Deprioritised" "$(field COC-1 .status) $(field COC-2 .status)"
 assert_eq "its open epics move to Epic Done" "Epic Done Epic Done" "$(field EPIC-1 .status) $(field EPIC-2 .status)"
-assert_eq "a done ticket stays done" "Done" "$(field FEAT-3 .status)"
-assert_eq "and another project's work is left alone" "Backlog Backlog" "$(field EPIC-4 .status) $(field FEAT-5 .status)"
+assert_eq "a done ticket stays done" "Done" "$(field COC-3 .status)"
+assert_eq "and another project's work is left alone" "Backlog Backlog" "$(field EPIC-4 .status) $(field HOM-1 .status)"
 assert_eq "all in one commit" "1" "$(($(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD) - before))"
-assert_eq "printing each record it moved" "FEAT-1 FEAT-2 EPIC-1 EPIC-2" "$(printf '%s\n' "$output" | grep -- ' -> ' | cut -f1 | paste -sd ' ' -)"
+assert_eq "printing each record it moved" "COC-1 COC-2 EPIC-1 EPIC-2" "$(printf '%s\n' "$output" | grep -- ' -> ' | cut -f1 | paste -sd ' ' -)"
 stub undo EPIC-1 >/dev/null
 assert_eq "each closed record can be undone on its own" "Backlog Done" "$(field EPIC-1 .status) $(field PRJ-1 .status)"
 
 printf "\nTest group: a project with nothing open is marked Done as before\n"
 
 stub set PRJ-2 status "In progress" >/dev/null
-stub move FEAT-5 Done >/dev/null
+stub move HOM-1 Done >/dev/null
 stub move EPIC-4 "Epic Done" >/dev/null
 stub set PRJ-2 status Done >/dev/null
 assert_eq "with no --close" "Done" "$(field PRJ-2 .status)"
