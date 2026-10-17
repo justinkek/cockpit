@@ -19,7 +19,14 @@ const RETRY = 2000;
 const store = globalThis as typeof globalThis & { cockpitBoardWatch?: Watching };
 
 function watching(): Watching {
-	store.cockpitBoardWatch ??= { listeners: new Set(), watchers: [], last: null, timer: null, checking: false, again: false };
+	store.cockpitBoardWatch ??= {
+		listeners: new Set(),
+		watchers: [],
+		last: null,
+		timer: null,
+		checking: false,
+		again: false,
+	};
 	return store.cockpitBoardWatch;
 }
 
