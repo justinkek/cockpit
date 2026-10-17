@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { RestoreButton } from "@/app/archived";
-import { BoardError, type Card, listRecords, type RecordKind } from "@/lib/board";
+import { BoardError, type Card, listEntities, type EntityKind } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
 type Props = { searchParams: Promise<{ error?: string | string[]; restored?: string | string[] }> };
 
-const KINDS: { kind: RecordKind; title: string }[] = [
+const KINDS: { kind: EntityKind; title: string }[] = [
 	{ kind: "card", title: "Tickets" },
 	{ kind: "epic", title: "Epics" },
 	{ kind: "project", title: "Projects" },
@@ -23,21 +23,21 @@ function when(stamp: string | undefined) {
 
 export default async function ArchivePage({ searchParams }: Props) {
 	const { error, restored } = await searchParams;
-	let groups: { kind: RecordKind; title: string; records: Card[] }[];
+	let groups: { kind: EntityKind; title: string; entities: Card[] }[];
 	try {
 		groups = await Promise.all(
 			KINDS.map(async ({ kind, title }) => ({
 				kind,
 				title,
-				records: (await listRecords(kind, true)).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? "")),
+				entities: (await listEntities(kind, true)).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? "")),
 			})),
 		);
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
 		return <p className="notice error">{failure.message}</p>;
 	}
-	const shown = groups.filter((group) => group.records.length > 0);
-	const total = shown.reduce((sum, group) => sum + group.records.length, 0);
+	const shown = groups.filter((group) => group.entities.length > 0);
+	const total = shown.reduce((sum, group) => sum + group.entities.length, 0);
 
 	return (
 		<section className="report">
@@ -46,7 +46,7 @@ export default async function ArchivePage({ searchParams }: Props) {
 				<span className="count">{total}</span>
 			</header>
 			<p className="report-note">
-				Archiving takes a record off the board without losing it, and is how anything is deleted here. Bring one back
+				Archiving takes an entity off the board without losing it, and is how anything is deleted here. Bring one back
 				and it returns to the column it was in.
 			</p>
 			{typeof error === "string" && (
@@ -65,20 +65,20 @@ export default async function ArchivePage({ searchParams }: Props) {
 			{shown.map((group) => (
 				<div key={group.kind} className="report-card">
 					<h2>
-						{group.title} <span className="count">{group.records.length}</span>
+						{group.title} <span className="count">{group.entities.length}</span>
 					</h2>
-					<ul className="record-list">
-						{group.records.map((record) => (
-							<li key={record.id}>
-								<span className="ident">{record.id}</span>
-								<Link href={`/card/${record.id}`} className="report-name">
-									{record.icon && <span className="record-icon">{record.icon}</span>}
-									{record.name.trim() || "(untitled)"}
+					<ul className="entity-list">
+						{group.entities.map((entity) => (
+							<li key={entity.id}>
+								<span className="ident">{entity.id}</span>
+								<Link href={`/card/${entity.id}`} className="report-name">
+									{entity.icon && <span className="entity-icon">{entity.icon}</span>}
+									{entity.name.trim() || "(untitled)"}
 								</Link>
-								<span className="record-meta">
-									{record.status && <span>{record.status}</span>}
-									{record.updated && <span title="Archived">{when(record.updated)}</span>}
-									<RestoreButton id={record.id} back="archive" label="Bring back" />
+								<span className="entity-meta">
+									{entity.status && <span>{entity.status}</span>}
+									{entity.updated && <span title="Archived">{when(entity.updated)}</span>}
+									<RestoreButton id={entity.id} back="archive" label="Bring back" />
 								</span>
 							</li>
 						))}

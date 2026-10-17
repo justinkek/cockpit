@@ -6,17 +6,17 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { editCard } from "@/app/actions";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { Choice, Fallback, type Handlers, type Lists, TextField } from "@/app/fields";
-import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, recordKindOf } from "@/lib/shared";
+import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, entityKindOf } from "@/lib/shared";
 
 type Edit = Handlers["onEdit"];
 
-function IconField({ record, onEdit }: { record: Card; onEdit: Edit }) {
+function IconField({ entity, onEdit }: { entity: Card; onEdit: Edit }) {
 	return (
 		<>
 			<dt>Icon</dt>
 			<dd>
-				<Fallback id={record.id} op="set" field="icon">
-					<EmojiPicker value={record.icon ?? ""} onPick={(icon) => onEdit("icon", icon, { icon: icon || null })} />
+				<Fallback id={entity.id} op="set" field="icon">
+					<EmojiPicker value={entity.icon ?? ""} onPick={(icon) => onEdit("icon", icon, { icon: icon || null })} />
 				</Fallback>
 			</dd>
 		</>
@@ -24,7 +24,7 @@ function IconField({ record, onEdit }: { record: Card; onEdit: Edit }) {
 }
 
 function NumberField({
-	record,
+	entity,
 	field,
 	label,
 	placeholder,
@@ -32,7 +32,7 @@ function NumberField({
 	step,
 	onEdit,
 }: {
-	record: Card;
+	entity: Card;
 	field: "priority" | "dev_days" | "speed";
 	label: string;
 	placeholder: string;
@@ -40,12 +40,12 @@ function NumberField({
 	step?: string;
 	onEdit: Edit;
 }) {
-	const value = record[field];
+	const value = entity[field];
 	return (
 		<>
 			<dt>{label}</dt>
 			<dd>
-				<Fallback id={record.id} op="set" field={field}>
+				<Fallback id={entity.id} op="set" field={field}>
 					<TextField
 						type="number"
 						label={label}
@@ -61,8 +61,8 @@ function NumberField({
 	);
 }
 
-function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
-	const id = record.id;
+function ProjectFields({ entity, onEdit }: { entity: Card; onEdit: Edit }) {
+	const id = entity.id;
 	return (
 		<>
 			<dt>Status</dt>
@@ -71,12 +71,12 @@ function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 					<select
 						name="value"
 						aria-label="Status"
-						value={record.status ?? ""}
+						value={entity.status ?? ""}
 						onChange={(event) => onEdit("status", event.target.value, { status: event.target.value })}
 					>
-						{!PROJECT_STATUSES.some((status) => status === record.status) && (
-							<option disabled value={record.status ?? ""}>
-								{record.status || "No status"}
+						{!PROJECT_STATUSES.some((status) => status === entity.status) && (
+							<option disabled value={entity.status ?? ""}>
+								{entity.status || "No status"}
 							</option>
 						)}
 						{PROJECT_STATUSES.map((status) => (
@@ -85,20 +85,20 @@ function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 					</select>
 				</Fallback>
 			</dd>
-			<IconField record={record} onEdit={onEdit} />
+			<IconField entity={entity} onEdit={onEdit} />
 			<dt>Key</dt>
 			<dd className="stack">
 				<Fallback id={id} op="set" field="key">
 					<TextField
 						label="Key"
 						placeholder="2 to 4 letters - changing it renumbers the project's tickets"
-						value={record.key ?? ""}
+						value={entity.key ?? ""}
 						onCommit={(key) => onEdit("key", key.toUpperCase(), { key: key.toUpperCase() || null })}
 					/>
 				</Fallback>
 			</dd>
 			<NumberField
-				record={record}
+				entity={entity}
 				field="priority"
 				label="Priority"
 				placeholder="No priority - 1 comes first"
@@ -111,13 +111,13 @@ function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 						type="url"
 						label="Repo"
 						placeholder="No repository - a URL"
-						value={record.repo ?? ""}
+						value={entity.repo ?? ""}
 						onCommit={(repo) => onEdit("repo", repo, { repo: repo || null })}
 					/>
 				</Fallback>
-				{record.repo && (
-					<a href={record.repo} target="_blank" rel="noreferrer" className="pr-link">
-						{record.repo.replace(/^https?:\/\/(www\.)?/, "")}
+				{entity.repo && (
+					<a href={entity.repo} target="_blank" rel="noreferrer" className="pr-link">
+						{entity.repo.replace(/^https?:\/\/(www\.)?/, "")}
 					</a>
 				)}
 			</dd>
@@ -126,19 +126,19 @@ function ProjectFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
 }
 
 function LongField({
-	record,
+	entity,
 	field,
 	label,
 	placeholder,
 	onEdit,
 }: {
-	record: Card;
+	entity: Card;
 	field: "why" | "description";
 	label: string;
 	placeholder: string;
 	onEdit: Edit;
 }) {
-	const value = record[field] ?? "";
+	const value = entity[field] ?? "";
 	const [draft, setDraft] = useState(value);
 	const cancelled = useRef(false);
 	useEffect(() => setDraft(value), [value]);
@@ -146,7 +146,7 @@ function LongField({
 		<>
 			<dt>{label}</dt>
 			<dd>
-				<Fallback id={record.id} op="set" field={field}>
+				<Fallback id={entity.id} op="set" field={field}>
 					<textarea
 						name="value"
 						className="long-field"
@@ -182,8 +182,8 @@ function LongField({
 	);
 }
 
-function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists; onEdit: Edit }) {
-	const id = record.id;
+function ReferenceFields({ entity, lists, onEdit }: { entity: Card; lists: Lists; onEdit: Edit }) {
+	const id = entity.id;
 	return (
 		<>
 			<dt>Points</dt>
@@ -192,7 +192,7 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 					<select
 						name="value"
 						aria-label="Points"
-						value={record.points ?? ""}
+						value={entity.points ?? ""}
 						onChange={(event) => {
 							const value = event.target.value;
 							onEdit("points", value, { points: value === "" ? null : Number(value) });
@@ -213,7 +213,7 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 					<select
 						name="value"
 						aria-label="Domain"
-						value={record.domain ?? ""}
+						value={entity.domain ?? ""}
 						onChange={(event) => onEdit("domain", event.target.value, { domain: event.target.value || null })}
 					>
 						<option value="">No domain</option>
@@ -229,7 +229,7 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 					<TextField
 						label="Stack"
 						placeholder="No stack - React Native, Shell…"
-						value={record.stack ?? ""}
+						value={entity.stack ?? ""}
 						onCommit={(stack) => onEdit("stack", stack, { stack: stack || null })}
 					/>
 				</Fallback>
@@ -240,21 +240,21 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 					<Choice
 						label="Taken from"
 						none="No ticket"
-						value={record.card}
+						value={entity.card}
 						options={lists.cards.map((card) => ({ id: card.id, name: `${card.id} · ${card.name}` }))}
 						onChange={(card) => onEdit("card", card, { card: card || null })}
 					/>
 				</Fallback>
-				{record.card && (
-					<Link href={`/card/${record.card}`} className="quiet-link" aria-label="Open the ticket">
+				{entity.card && (
+					<Link href={`/card/${entity.card}`} className="quiet-link" aria-label="Open the ticket">
 						↗
 					</Link>
 				)}
 			</dd>
-			<IconField record={record} onEdit={onEdit} />
-			<LongField record={record} field="why" label="Why" placeholder="Why it is sized as it is" onEdit={onEdit} />
+			<IconField entity={entity} onEdit={onEdit} />
+			<LongField entity={entity} field="why" label="Why" placeholder="Why it is sized as it is" onEdit={onEdit} />
 			<LongField
-				record={record}
+				entity={entity}
 				field="description"
 				label="Description"
 				placeholder="What a change of this size looks like"
@@ -264,60 +264,60 @@ function ReferenceFields({ record, lists, onEdit }: { record: Card; lists: Lists
 	);
 }
 
-function DateField({ record, field, onEdit }: { record: Card; field: "start" | "end" | "date"; onEdit: Edit }) {
+function DateField({ entity, field, onEdit }: { entity: Card; field: "start" | "end" | "date"; onEdit: Edit }) {
 	const label = field === "start" ? "Start" : field === "end" ? "End" : "Date";
 	return (
-		<Fallback id={record.id} op="set" field={field}>
+		<Fallback id={entity.id} op="set" field={field}>
 			<TextField
 				type="date"
 				label={label}
 				required={field === "date"}
-				value={record[field] ?? ""}
+				value={entity[field] ?? ""}
 				onCommit={(date) => onEdit(field, date, { [field]: date || null })}
 			/>
 		</Fallback>
 	);
 }
 
-function SprintFields({ record, onEdit }: { record: Card; onEdit: Edit }) {
+function SprintFields({ entity, onEdit }: { entity: Card; onEdit: Edit }) {
 	return (
 		<>
 			<dt>Start</dt>
 			<dd>
-				<DateField record={record} field="start" onEdit={onEdit} />
+				<DateField entity={entity} field="start" onEdit={onEdit} />
 			</dd>
 			<dt>End</dt>
 			<dd>
-				<DateField record={record} field="end" onEdit={onEdit} />
+				<DateField entity={entity} field="end" onEdit={onEdit} />
 			</dd>
 			<NumberField
-				record={record}
+				entity={entity}
 				field="dev_days"
 				label="Dev days"
 				placeholder="Working days in it"
 				step="any"
 				onEdit={onEdit}
 			/>
-			<NumberField record={record} field="speed" label="Speed" placeholder="Points a day" step="any" onEdit={onEdit} />
-			<IconField record={record} onEdit={onEdit} />
+			<NumberField entity={entity} field="speed" label="Speed" placeholder="Points a day" step="any" onEdit={onEdit} />
+			<IconField entity={entity} onEdit={onEdit} />
 		</>
 	);
 }
 
 export function SprintDates({ sprint }: { sprint: Card }) {
 	const router = useRouter();
-	const [record, setRecord] = useState(sprint);
+	const [entity, setEntity] = useState(sprint);
 	const [error, setError] = useState("");
 	const [saving, startTransition] = useTransition();
-	useEffect(() => setRecord(sprint), [sprint]);
+	useEffect(() => setEntity(sprint), [sprint]);
 	const onEdit: Edit = (field, value, change) => {
-		const before = record;
-		setRecord((current) => ({ ...current, ...change }));
+		const before = entity;
+		setEntity((current) => ({ ...current, ...change }));
 		setError("");
 		startTransition(async () => {
-			const result = await editCard(record.id, field, value);
+			const result = await editCard(entity.id, field, value);
 			if (result.error) {
-				setRecord(before);
+				setEntity(before);
 				setError(result.error);
 				if (result.archived) router.refresh();
 				return;
@@ -326,16 +326,16 @@ export function SprintDates({ sprint }: { sprint: Card }) {
 		});
 	};
 	return (
-		<div className="sprint-dates" aria-label={`Dates of ${record.name}`}>
+		<div className="sprint-dates" aria-label={`Dates of ${entity.name}`}>
 			<label>
 				<span>Start</span>
-				<DateField record={record} field="start" onEdit={onEdit} />
+				<DateField entity={entity} field="start" onEdit={onEdit} />
 			</label>
 			<label>
 				<span>End</span>
-				<DateField record={record} field="end" onEdit={onEdit} />
+				<DateField entity={entity} field="end" onEdit={onEdit} />
 			</label>
-			<Link href={`/card/${record.id}`} className="quiet-link">
+			<Link href={`/card/${entity.id}`} className="quiet-link">
 				Dev days and speed
 			</Link>
 			{saving && <span className="saving">Saving…</span>}
@@ -348,23 +348,23 @@ export function SprintDates({ sprint }: { sprint: Card }) {
 	);
 }
 
-export function RecordFields({ record, lists, onEdit }: { record: Card; lists: Lists; onEdit: Edit }) {
-	const kind = recordKindOf(record.id);
+export function EntityFields({ entity, lists, onEdit }: { entity: Card; lists: Lists; onEdit: Edit }) {
+	const kind = entityKindOf(entity.id);
 	return (
 		<dl className="props">
-			{kind === "project" && <ProjectFields record={record} onEdit={onEdit} />}
-			{kind === "sprint" && <SprintFields record={record} onEdit={onEdit} />}
-			{kind === "reference" && <ReferenceFields record={record} lists={lists} onEdit={onEdit} />}
+			{kind === "project" && <ProjectFields entity={entity} onEdit={onEdit} />}
+			{kind === "sprint" && <SprintFields entity={entity} onEdit={onEdit} />}
+			{kind === "reference" && <ReferenceFields entity={entity} lists={lists} onEdit={onEdit} />}
 			{kind === "milestone" && (
 				<>
 					<dt>Date</dt>
 					<dd className="with-link">
-						<DateField record={record} field="date" onEdit={onEdit} />
+						<DateField entity={entity} field="date" onEdit={onEdit} />
 						<Link href="/plan" className="quiet-link" aria-label="Open the plan">
 							↗
 						</Link>
 					</dd>
-					<IconField record={record} onEdit={onEdit} />
+					<IconField entity={entity} onEdit={onEdit} />
 				</>
 			)}
 		</dl>

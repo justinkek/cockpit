@@ -1,5 +1,5 @@
 import { Board } from "@/app/board";
-import { BoardError, type Card, listRecords, readAliases, readViews, type SavedView } from "@/lib/board";
+import { BoardError, type Card, listEntities, readAliases, readViews, type SavedView } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -11,9 +11,9 @@ export default async function EpicsPage() {
 	let aliases: Record<string, string>;
 	try {
 		[cards, epics, projects, views, aliases] = await Promise.all([
-			listRecords("card"),
-			listRecords("epic"),
-			listRecords("project"),
+			listEntities("card"),
+			listEntities("epic"),
+			listEntities("project"),
 			readViews("epic"),
 			readAliases(),
 		]);

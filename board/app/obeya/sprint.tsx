@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { BurndownChart } from "@/app/burndown";
-import { NewOther } from "@/app/new-record";
+import { NewOther } from "@/app/new-entity";
 import { SprintPicker } from "@/app/picker";
-import { SprintDates } from "@/app/record-fields";
+import { SprintDates } from "@/app/entity-fields";
 import { type Break, type Card, phaseOf } from "@/lib/board";
 import { burndownOf, currentSprint, type Measure, sprintDays } from "@/lib/metrics";
 import { daysOff, deliveredIn } from "@/lib/plan";

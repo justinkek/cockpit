@@ -22,7 +22,7 @@ import {
 	epicPage,
 	iconCommand,
 	movePage,
-	recordCommands,
+	entityCommands,
 	themeCommands,
 } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
@@ -48,7 +48,7 @@ import {
 	withNewId,
 } from "@/app/toast";
 import { loadView, type Neighbours, neighboursIn, type View } from "@/app/view";
-import type { RecordViewData } from "@/lib/record-view";
+import type { EntityViewData } from "@/lib/entity-view";
 import {
 	type Card,
 	contentSearchFailed,
@@ -58,11 +58,11 @@ import {
 	movedTo,
 	type Named,
 	phaseOf,
-	recordKindOf,
+	entityKindOf,
 } from "@/lib/shared";
 
 type Result = {
-	record?: Card;
+	entity?: Card;
 	error?: string;
 	moved?: string;
 	archived?: boolean;
@@ -72,7 +72,7 @@ type Result = {
 };
 
 export type OverlayHost = {
-	siblings?: { label: string; records: Named[] };
+	siblings?: { label: string; entities: Named[] };
 	onOpen: (id: string, replace?: boolean) => void;
 	onClose: () => void;
 	onChanged: () => void;
@@ -80,14 +80,14 @@ export type OverlayHost = {
 };
 
 function siblingsOf(siblings: OverlayHost["siblings"], id: string): Neighbours {
-	const index = siblings?.records.findIndex((record) => record.id === id) ?? -1;
+	const index = siblings?.entities.findIndex((entity) => entity.id === id) ?? -1;
 	if (!siblings || index < 0) return null;
-	const near = (record?: Named) => (record ? { id: record.id, name: record.name } : null);
+	const near = (entity?: Named) => (entity ? { id: entity.id, name: entity.name } : null);
 	return {
-		previous: near(siblings.records[index - 1]),
-		next: near(siblings.records[index + 1]),
+		previous: near(siblings.entities[index - 1]),
+		next: near(siblings.entities[index + 1]),
 		position: index + 1,
-		total: siblings.records.length,
+		total: siblings.entities.length,
 	};
 }
 
@@ -95,18 +95,18 @@ function plainClick(event: MouseEvent) {
 	return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 
-export function RecordView({
+export function EntityView({
 	data,
 	failure,
 	overlay,
 }: {
-	data: RecordViewData;
+	data: EntityViewData;
 	failure?: string;
 	overlay?: OverlayHost;
 }) {
-	const { record: initial, lists, column, records, attachments, progresses, estimates, members } = data;
+	const { entity: initial, lists, column, entities, attachments, progresses, estimates, members } = data;
 	const router = useRouter();
-	const [record, setRecord] = useState(initial);
+	const [entity, setEntity] = useState(initial);
 	const [error, setError] = useState(failure ?? "");
 	const [saving, startTransition] = useTransition();
 	const [toast, setToast] = useState<Undoable | null>(null);
@@ -118,7 +118,7 @@ export function RecordView({
 
 	const [view, setView] = useState<View | null>(null);
 
-	useEffect(() => setRecord(initial), [initial]);
+	useEffect(() => setEntity(initial), [initial]);
 
 	useEffect(() => {
 		const handed = takeCarried(initial.id);
@@ -126,21 +126,21 @@ export function RecordView({
 	}, [initial.id]);
 
 	useEffect(() => {
-		const kindOfRecord = kindOf(initial.id);
-		if (kindOfRecord) setView(loadView(kindOfRecord));
+		const kindOfEntity = kindOf(initial.id);
+		if (kindOfEntity) setView(loadView(kindOfEntity));
 	}, [initial.id]);
 
 	const [found, setFound] = useState<{ query: string; ids: Set<string> } | null>(null);
 	const query = view?.query.trim() ?? "";
 
 	useEffect(() => {
-		const kindOfRecord = kindOf(initial.id);
-		if (query.length < 2 || !kindOfRecord) return;
+		const kindOfEntity = kindOf(initial.id);
+		if (query.length < 2 || !kindOfEntity) return;
 		let live = true;
-		findInContent(kindOfRecord, query).then((result) => {
+		findInContent(kindOfEntity, query).then((result) => {
 			if (!live) return;
 			if ("ids" in result) setFound({ query, ids: new Set(result.ids) });
-			else setError(contentSearchFailed(kindOfRecord, result.error));
+			else setError(contentSearchFailed(kindOfEntity, result.error));
 		});
 		return () => {
 			live = false;
@@ -151,14 +151,14 @@ export function RecordView({
 	const inContent = found?.query === query ? found.ids : undefined;
 	const neighbours = useMemo(() => {
 		if (overlay) return siblingsOf(overlay.siblings, initial.id);
-		const kindOfRecord = kindOf(initial.id);
+		const kindOfEntity = kindOf(initial.id);
 		const found = { names: epicNames, inContent };
-		if (view?.layout !== "table" || !kindOfRecord) return neighboursIn(column, initial.id, view, found);
+		if (view?.layout !== "table" || !kindOfEntity) return neighboursIn(column, initial.id, view, found);
 		const tableSort = view.tableSort;
-		return neighboursIn(records, initial.id, view, found, (sorted) =>
-			tableOrder(kindOfRecord, sorted, lists, tableSort, progresses),
+		return neighboursIn(entities, initial.id, view, found, (sorted) =>
+			tableOrder(kindOfEntity, sorted, lists, tableSort, progresses),
 		);
-	}, [column, records, initial.id, view, epicNames, inContent, lists, progresses, overlay?.siblings]);
+	}, [column, entities, initial.id, view, epicNames, inContent, lists, progresses, overlay?.siblings]);
 
 	useEffect(() => {
 		const url = new URL(window.location.href);
@@ -181,7 +181,7 @@ export function RecordView({
 		else go(`/card/${id}`);
 	}
 
-	function recordLink(id: string, children: ReactNode, rest: { title?: string; rel?: string } = {}) {
+	function entityLink(id: string, children: ReactNode, rest: { title?: string; rel?: string } = {}) {
 		return (
 			<Link
 				href={`/card/${id}`}
@@ -198,14 +198,14 @@ export function RecordView({
 	}
 
 	function save(change: Partial<Card>, request: () => Promise<Result>, label: string) {
-		const before = record;
-		setRecord((current) => ({ ...current, ...change }));
+		const before = entity;
+		setEntity((current) => ({ ...current, ...change }));
 		setError("");
 		setToast(null);
 		startTransition(async () => {
 			const result = await request();
 			if (result.error) {
-				setRecord(before);
+				setEntity(before);
 				setError(result.error);
 				if (overlay && result.moved) overlay.onOpen(result.moved, true);
 				else if (overlay && result.archived) overlay.onReload();
@@ -214,15 +214,15 @@ export function RecordView({
 				}
 				return;
 			}
-			if (!result.record) return;
-			setRecord(result.record);
-			const shown = undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id), result.more);
+			if (!result.entity) return;
+			setEntity(result.entity);
+			const shown = undoable(result.entity.id, result.undo, withNewId(label, before.id, result.entity.id), result.more);
 			shown?.changes.push(...(result.closed ?? []));
 			setToast(shown);
 			overlay?.onChanged();
-			if (result.record.id !== before.id) {
-				carryTo(result.record.id, shown);
-				to(result.record.id, true);
+			if (result.entity.id !== before.id) {
+				carryTo(result.entity.id, shown);
+				to(result.entity.id, true);
 			}
 		});
 	}
@@ -245,9 +245,9 @@ export function RecordView({
 				setError(`Could not undo: ${result.error}`);
 				return;
 			}
-			if (!result.record) return;
-			setRecord(result.record);
-			if (result.record.id !== change.id) to(result.record.id, true);
+			if (!result.entity) return;
+			setEntity(result.entity);
+			if (result.entity.id !== change.id) to(result.entity.id, true);
 			else if (overlay) overlay.onChanged();
 			else router.refresh();
 		});
@@ -267,13 +267,13 @@ export function RecordView({
 				shown.id,
 				shown.open.map((card) => card.id),
 			);
-			if (result.record) setRecord(result.record);
+			if (result.entity) setEntity(result.entity);
 			if (result.errors.length > 0) setError(result.errors.join("; "));
 			const count = shown.open.length === 1 ? "1 open ticket" : `${shown.open.length} open tickets`;
 			if (result.undo.length > 0)
 				setToast(
 					toastOf(
-						`Deprioritised ${count} of ${shown.id}${result.record ? " and moved it to Epic Done" : ""}`,
+						`Deprioritised ${count} of ${shown.id}${result.entity ? " and moved it to Epic Done" : ""}`,
 						result.undo,
 					),
 				);
@@ -302,27 +302,27 @@ export function RecordView({
 
 	const handlers: Handlers = {
 		onMove: async (status) => {
-			const leavingDone = kindOf(record.id) === "card" && record.status === "Done" && status !== "Done";
+			const leavingDone = kindOf(entity.id) === "card" && entity.status === "Done" && status !== "Done";
 			if (leavingDone && !(await askMoveDone(ask))) return;
-			const open = kindOf(record.id) === "epic" && status === "Epic Done" && record.status !== status;
+			const open = kindOf(entity.id) === "epic" && status === "Epic Done" && entity.status !== status;
 			const tickets = open ? openTickets(members) : [];
-			if (tickets.length > 0) return setFinishing({ id: record.id, name: record.name, open: tickets });
-			save(movedTo(status), () => dropCard(record.id, status), `Moved ${record.id} to ${status}`);
+			if (tickets.length > 0) return setFinishing({ id: entity.id, name: entity.name, open: tickets });
+			save(movedTo(status), () => dropCard(entity.id, status), `Moved ${entity.id} to ${status}`);
 		},
 		onEdit: async (field, value, change) => {
-			const joining = kindOf(record.id) === "card" && field === "epic" && value !== record.epic;
+			const joining = kindOf(entity.id) === "card" && field === "epic" && value !== entity.epic;
 			const finished = joining ? finishedEpic(lists.epics, value) : undefined;
 			if (finished && !(await askFinishedEpic(ask, finished))) return;
-			if (recordKindOf(record.id) === "project" && field === "status" && value === "Done" && record.status !== "Done") {
+			if (entityKindOf(entity.id) === "project" && field === "status" && value === "Done" && entity.status !== "Done") {
 				const open = openWork();
-				if (open.epics > 0 || open.tickets > 0) return setClosing({ id: record.id, name: record.name, ...open });
+				if (open.epics > 0 || open.tickets > 0) return setClosing({ id: entity.id, name: entity.name, ...open });
 			}
-			save(change, () => editCard(record.id, field, value), `Changed the ${fieldName(field)} of ${record.id}`);
+			save(change, () => editCard(entity.id, field, value), `Changed the ${fieldName(field)} of ${entity.id}`);
 		},
 		onLink: (parent, child, linked) =>
 			save(
-				linkChange(record, parent, child, linked),
-				() => linkCards(record.id, parent, child, linked),
+				linkChange(entity, parent, child, linked),
+				() => linkCards(entity.id, parent, child, linked),
 				linked ? `Linked ${parent} to ${child}` : `Unlinked ${parent} from ${child}`,
 			),
 		onOpen: overlay ? (id) => to(id) : undefined,
@@ -340,9 +340,9 @@ export function RecordView({
 		[lists.cards, lists.epics, lists.aliases, router, overlay],
 	);
 
-	const kind = kindOf(record.id);
+	const kind = kindOf(entity.id);
 	const edits: Edits = {
-		label: record.id,
+		label: entity.id,
 		move: handlers.onMove,
 		edit: handlers.onEdit,
 		duplicate: kind ? duplicate : undefined,
@@ -354,40 +354,40 @@ export function RecordView({
 		setError("");
 		setToast(null);
 		startTransition(async () => {
-			const result = await archiveOne(record.id);
+			const result = await archiveOne(entity.id);
 			if (result.error) {
-				setError(`Could not archive ${record.id}: ${result.error}`);
+				setError(`Could not archive ${entity.id}: ${result.error}`);
 				return;
 			}
 			if (overlay) {
 				overlay.onChanged();
 				overlay.onReload();
-			} else router.push(`/card/${record.id}`);
+			} else router.push(`/card/${entity.id}`);
 		});
 	}
 
 	async function duplicate() {
 		if (!confirmDiscard()) return;
-		const finished = kindOf(record.id) === "card" ? finishedEpic(lists.epics, record.epic) : undefined;
+		const finished = kindOf(entity.id) === "card" ? finishedEpic(lists.epics, entity.epic) : undefined;
 		if (finished && !(await askFinishedEpic(ask, finished))) return;
 		setError("");
 		startTransition(async () => {
-			const result = await duplicateCard(record.id);
-			if (!result.record) {
+			const result = await duplicateCard(entity.id);
+			if (!result.entity) {
 				setError(result.error ?? "board-card made nothing");
 				return;
 			}
-			carryTo(result.record.id, toastOf(`Duplicated ${record.id} as ${result.record.id}`));
+			carryTo(result.entity.id, toastOf(`Duplicated ${entity.id} as ${result.entity.id}`));
 			overlay?.onChanged();
-			if (overlay) overlay.onOpen(result.record.id);
-			else router.push(`/card/${result.record.id}`);
+			if (overlay) overlay.onOpen(result.entity.id);
+			else router.push(`/card/${result.entity.id}`);
 		});
 	}
 
 	async function copy(asLink: boolean) {
-		const copied = await copyText(asLink ? cardLink(record.id) : record.id);
+		const copied = await copyText(asLink ? cardLink(entity.id) : entity.id);
 		setToast(
-			toastOf(copied ? `Copied ${asLink ? `the link to ${record.id}` : record.id}` : `Could not copy ${record.id}`),
+			toastOf(copied ? `Copied ${asLink ? `the link to ${entity.id}` : entity.id}` : `Could not copy ${entity.id}`),
 		);
 	}
 
@@ -396,27 +396,27 @@ export function RecordView({
 			title: "Command menu",
 			root: true,
 			items: [
-				...recordCommands(kind, record, lists, edits),
+				...entityCommands(kind, entity, lists, edits),
 				...(kind
 					? []
 					: [
-							iconCommand(record, edits),
-							{ id: "do:archive", group: record.id, label: "Archive", keywords: "remove delete hide", run: archive },
+							iconCommand(entity, edits),
+							{ id: "do:archive", group: entity.id, label: "Archive", keywords: "remove delete hide", run: archive },
 						]),
-				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
-				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(true) },
+				{ id: "do:copy", group: entity.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
+				{ id: "do:link", group: entity.id, label: "Copy link", run: () => copy(true) },
 				...(overlay
-					? [{ id: "do:page", group: record.id, label: "Open as page", run: () => go(`/card/${record.id}`) }]
+					? [{ id: "do:page", group: entity.id, label: "Open as page", run: () => go(`/card/${entity.id}`) }]
 					: []),
 				{
 					id: "go:board",
 					group: "Board",
 					label: "Show it on the board",
-					run: () => go(homeOf(record.id)),
+					run: () => go(homeOf(entity.id)),
 				},
 				...themeCommands(),
 				...cardCommands(
-					lists.cards.filter((card) => card.id !== record.id),
+					lists.cards.filter((card) => card.id !== entity.id),
 					(id) => to(id),
 				),
 			],
@@ -449,16 +449,16 @@ export function RecordView({
 		} else if (!command && !event.altKey && !typing && kind && (event.key === "s" || event.key === "e")) {
 			if (event.key === "e" && kind !== "card") return;
 			event.preventDefault();
-			setPalette(event.key === "s" ? movePage(kind, record.status, edits) : epicPage(lists, record.epic, edits));
+			setPalette(event.key === "s" ? movePage(kind, entity.status, edits) : epicPage(lists, entity.epic, edits));
 		}
 	});
 
 	return (
 		<article className="stub">
 			{neighbours && (
-				<nav className="neighbours" aria-label={`Records in ${overlay?.siblings?.label ?? record.status}`}>
+				<nav className="neighbours" aria-label={`Entities in ${overlay?.siblings?.label ?? entity.status}`}>
 					{neighbours.previous ? (
-						recordLink(neighbours.previous.id, `‹ ${neighbours.previous.id}`, {
+						entityLink(neighbours.previous.id, `‹ ${neighbours.previous.id}`, {
 							title: `Previous: ${neighbours.previous.name} (${overlay ? "Up" : "k"})`,
 							rel: "prev",
 						})
@@ -466,10 +466,10 @@ export function RecordView({
 						<span className="empty">‹</span>
 					)}
 					<span className="neighbours-at">
-						{neighbours.position} of {neighbours.total} in {overlay?.siblings?.label ?? record.status}
+						{neighbours.position} of {neighbours.total} in {overlay?.siblings?.label ?? entity.status}
 					</span>
 					{neighbours.next ? (
-						recordLink(neighbours.next.id, `${neighbours.next.id} ›`, {
+						entityLink(neighbours.next.id, `${neighbours.next.id} ›`, {
 							title: `Next: ${neighbours.next.name} (${overlay ? "Down" : "j"})`,
 							rel: "next",
 						})
@@ -478,20 +478,20 @@ export function RecordView({
 					)}
 				</nav>
 			)}
-			{record.icon && <span className="page-icon">{record.icon}</span>}
+			{entity.icon && <span className="page-icon">{entity.icon}</span>}
 			<Title
-				id={record.id}
+				id={entity.id}
 				className="title-input"
-				value={record.name}
+				value={entity.name}
 				onCommit={(name) => handlers.onEdit("name", name, { name })}
 			/>
 			<p className="meta">
-				<span>{record.id}</span>
-				{record.type && <span>{record.type}</span>}
-				{!kind && <span>{recordKindOf(record.id)}</span>}
-				{record.status && <span>{record.status}</span>}
+				<span>{entity.id}</span>
+				{entity.type && <span>{entity.type}</span>}
+				{!kind && <span>{entityKindOf(entity.id)}</span>}
+				{entity.status && <span>{entity.status}</span>}
 				{saving && <span className="saving">Saving…</span>}
-				<span className="record-actions">
+				<span className="entity-actions">
 					<button type="button" className="quiet" onClick={() => copy(true)} title="Copy link (Cmd/Ctrl+Shift+.)">
 						Copy link
 					</button>
@@ -527,20 +527,20 @@ export function RecordView({
 				</p>
 			)}
 
-			<Fields record={record} lists={lists} handlers={handlers} />
-			<Links record={record} lists={lists} handlers={handlers} />
+			<Fields entity={entity} lists={lists} handlers={handlers} />
+			<Links entity={entity} lists={lists} handlers={handlers} />
 
 			{members.length > 0 && (
 				<section className="timeline members">
 					<h3>
-						{recordKindOf(record.id) === "project" ? "Epics and tickets" : "Tickets"}{" "}
+						{entityKindOf(entity.id) === "project" ? "Epics and tickets" : "Tickets"}{" "}
 						<span className="count">{members.length}</span>
 					</h3>
 					<ol>
 						{members.map((member) => (
 							<li key={member.id}>
 								<span className={`dot phase-${phaseOf(member.status)}`} aria-hidden="true" />
-								{recordLink(member.id, member.name)}
+								{entityLink(member.id, member.name)}
 								<span className="ident">{member.id}</span>
 							</li>
 						))}
@@ -552,28 +552,28 @@ export function RecordView({
 				{kind && (
 					<>
 						<dt>Claimed by</dt>
-						<dd>{record.session ?? <span className="empty">nobody</span>}</dd>
+						<dd>{entity.session ?? <span className="empty">nobody</span>}</dd>
 						<dt>Cost</dt>
 						<dd>
-							{record.cost_usd != null ? `$${record.cost_usd}` : <span className="empty">-</span>}
-							{record.tokens_k != null && ` · ${record.tokens_k}k tokens`}
+							{entity.cost_usd != null ? `$${entity.cost_usd}` : <span className="empty">-</span>}
+							{entity.tokens_k != null && ` · ${entity.tokens_k}k tokens`}
 						</dd>
 					</>
 				)}
-				{progresses[record.id] && (
+				{progresses[entity.id] && (
 					<>
 						<dt>Progress</dt>
 						<dd>
-							<ProgressMeter progress={progresses[record.id]} wide />
+							<ProgressMeter progress={progresses[entity.id]} wide />
 						</dd>
 					</>
 				)}
-				{!kind && record.created && (
+				{!kind && entity.created && (
 					<>
 						<dt>Created</dt>
 						<dd>
-							<time dateTime={record.created} suppressHydrationWarning>
-								{stampText(record.created)}
+							<time dateTime={entity.created} suppressHydrationWarning>
+								{stampText(entity.created)}
 							</time>
 						</dd>
 					</>
@@ -583,7 +583,7 @@ export function RecordView({
 						<dt>Attachments</dt>
 						<dd className="attachments">
 							{attachments.map((name) => (
-								<a key={name} href={attachmentHref(record.id, name)} target="_blank" rel="noreferrer">
+								<a key={name} href={attachmentHref(entity.id, name)} target="_blank" rel="noreferrer">
 									{name}
 								</a>
 							))}
@@ -592,13 +592,13 @@ export function RecordView({
 				)}
 			</dl>
 			{estimates && <EstimateFacts estimates={estimates} />}
-			{kind && <Stages record={record} />}
+			{kind && <Stages entity={entity} />}
 
 			<MentionContext.Provider value={mentions}>
 				<Content
-					id={record.id}
-					body={record.body}
-					onRecord={setRecord}
+					id={entity.id}
+					body={entity.body}
+					onEntity={setEntity}
 					onSaved={(saved, span, label) => {
 						const shown = undoable(saved.id, span, label ?? `Changed the content of ${saved.id}`);
 						setToast(shown);
@@ -611,10 +611,10 @@ export function RecordView({
 				/>
 			</MentionContext.Provider>
 			<ActivitySection
-				id={record.id}
-				revision={record.updated}
+				id={entity.id}
+				revision={entity.updated}
 				onRestored={(restored, span, label) => {
-					setRecord(restored);
+					setEntity(restored);
 					const shown = undoable(restored.id, span, label);
 					setToast(shown);
 					if (restored.id !== initial.id) {

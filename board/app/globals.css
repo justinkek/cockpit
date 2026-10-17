@@ -2794,7 +2794,7 @@
 		color: var(--muted);
 	}
 
-	.record-icon {
+	.entity-icon {
 		margin-right: 5px;
 	}
 
@@ -2813,7 +2813,7 @@
 }
 
 @layer components {
-	.new-record {
+	.new-entity {
 		position: relative;
 		flex: none;
 
@@ -2922,7 +2922,7 @@
 		bottom: 0;
 		z-index: 6;
 
-		& .new-record {
+		& .new-entity {
 			display: block;
 		}
 
@@ -3253,7 +3253,7 @@
 		padding-bottom: 24px;
 	}
 
-	.records {
+	.entities {
 		--table-head: 34px;
 		border-collapse: separate;
 		border-spacing: 0;
@@ -3400,11 +3400,11 @@
 	}
 
 	.cell-blocked,
-	.records .due-overdue {
+	.entities .due-overdue {
 		color: var(--danger);
 	}
 
-	.records .due-soon {
+	.entities .due-soon {
 		color: var(--phase-dev);
 	}
 
@@ -3414,7 +3414,7 @@
 	}
 
 	@media (width < 760px) {
-		.records .cell-name {
+		.entities .cell-name {
 			max-width: 200px;
 		}
 	}
@@ -4230,7 +4230,7 @@
 		max-width: 100%;
 	}
 
-	.record-list {
+	.entity-list {
 		list-style: none;
 		margin: 0 -14px -14px;
 		padding: 0;
@@ -4246,7 +4246,7 @@
 		}
 	}
 
-	.record-meta {
+	.entity-meta {
 		display: flex;
 		align-items: center;
 		gap: 8px;
@@ -4279,7 +4279,7 @@
 	}
 
 	@media (width < 760px) {
-		.record-list li {
+		.entity-list li {
 			grid-template-columns: minmax(0, 1fr);
 			gap: 2px;
 			padding: 6px 14px;
@@ -4289,7 +4289,7 @@
 			}
 		}
 
-		.record-meta {
+		.entity-meta {
 			white-space: normal;
 			flex-wrap: wrap;
 		}
@@ -4374,7 +4374,7 @@
 }
 
 @layer components {
-	.record-actions {
+	.entity-actions {
 		display: inline-flex;
 		gap: 2px;
 		margin-left: auto;
@@ -4385,7 +4385,7 @@
 		}
 	}
 
-	.stub > .meta .record-actions + .palette-open {
+	.stub > .meta .entity-actions + .palette-open {
 		margin-left: 0;
 	}
 
@@ -6103,12 +6103,12 @@
 		max-width: none;
 	}
 
-	.record-overlay {
+	.entity-overlay {
 		padding: 4vh 16px 16px;
 		overscroll-behavior: contain;
 	}
 
-	.record-dialog {
+	.entity-dialog {
 		width: min(900px, 100%);
 		max-height: 92vh;
 		display: flex;
@@ -6132,7 +6132,7 @@
 		}
 	}
 
-	.record-dialog-head {
+	.entity-dialog-head {
 		flex: none;
 		gap: 4px;
 
@@ -6141,16 +6141,16 @@
 		}
 	}
 
-	.record-loading {
+	.entity-loading {
 		padding: 24px;
 	}
 
 	@media (width < 760px) {
-		.record-overlay {
+		.entity-overlay {
 			padding: 8px;
 		}
 
-		.record-dialog {
+		.entity-dialog {
 			max-height: calc(100dvh - 16px);
 
 			& > .stub {

@@ -7,7 +7,7 @@ import {
 	CARD_COLUMNS,
 	type Card,
 	doneWithin,
-	listRecords,
+	listEntities,
 	overrunTitle,
 	phaseOf,
 	readBreaks,
@@ -48,9 +48,9 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 	let breaks: Break[];
 	try {
 		[cards, epics, sprints, breaks] = await Promise.all([
-			listRecords("card"),
-			listRecords("epic"),
-			listRecords("sprint"),
+			listEntities("card"),
+			listEntities("epic"),
+			listEntities("sprint"),
 			readBreaks(),
 		]);
 	} catch (error) {
@@ -184,7 +184,7 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 							{epicsInFlight.map(({ epic, progress }) => (
 								<li key={epic.id}>
 									<Link href={`/epics?open=${epic.id}`} className="report-name">
-										{epic.icon && <span className="record-icon">{epic.icon}</span>}
+										{epic.icon && <span className="entity-icon">{epic.icon}</span>}
 										{epic.name}
 									</Link>
 									<span className="report-status">{epic.status}</span>

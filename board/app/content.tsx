@@ -142,14 +142,14 @@ export function Content({
 	id,
 	body: given,
 	revision,
-	onRecord,
+	onEntity,
 	onSaved,
 }: {
 	id: string;
 	body?: string;
 	revision?: string;
-	onRecord?: (record: Card) => void;
-	onSaved?: (record: Card, undo?: Span, label?: string) => void;
+	onEntity?: (entity: Card) => void;
+	onSaved?: (entity: Card, undo?: Span, label?: string) => void;
 }) {
 	const [body, setBody] = useState(given ?? "");
 	const [threads, setThreads] = useState<CommentThread[]>([]);
@@ -236,9 +236,9 @@ export function Content({
 				return;
 			}
 			setError("");
-			if (result.record) {
-				if (checking.current === 0) setBody(result.record.body);
-				onRecord?.(result.record);
+			if (result.entity) {
+				if (checking.current === 0) setBody(result.entity.body);
+				onEntity?.(result.entity);
 			}
 		});
 	}
@@ -261,10 +261,10 @@ export function Content({
 				return;
 			}
 			setError("");
-			if (result.record) {
-				if (checking.current === 0) setBody(result.record.body);
-				onRecord?.(result.record);
-				onSaved?.(result.record, result.undo, `Changed a code block of ${result.record.id} to ${nameOf(language)}`);
+			if (result.entity) {
+				if (checking.current === 0) setBody(result.entity.body);
+				onEntity?.(result.entity);
+				onSaved?.(result.entity, result.undo, `Changed a code block of ${result.entity.id} to ${nameOf(language)}`);
 			}
 		});
 	}
@@ -330,10 +330,10 @@ export function Content({
 			setError("");
 			setEditing(null);
 			setTarget(null);
-			if (result.record) {
-				setBody(result.record.body);
-				onRecord?.(result.record);
-				onSaved?.(result.record, result.undo);
+			if (result.entity) {
+				setBody(result.entity.body);
+				onEntity?.(result.entity);
+				onSaved?.(result.entity, result.undo);
 			}
 		});
 	}

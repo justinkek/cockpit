@@ -46,12 +46,12 @@ import {
 	storeView,
 	undoChange,
 } from "@/app/actions";
-import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
+import { cardCommands, type Edits, epicPage, movePage, entityCommands, themeCommands } from "@/app/commands";
 import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
 import { confirmDiscard } from "@/app/content";
-import { type Draft, NewRecord } from "@/app/create";
+import { type Draft, NewEntity } from "@/app/create";
 import { EpicDoneDialog, EpicsDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
-import { RecordOverlay, useOpenRecord } from "@/app/record-overlay";
+import { EntityOverlay, useOpenEntity } from "@/app/entity-overlay";
 import { ViewDialog, type ViewDialogAsk } from "@/app/view-dialog";
 import { ChoiceSelect, type SearchOption } from "@/app/search-select";
 import { type Handlers, type Lists, linkChange } from "@/app/fields";
@@ -301,7 +301,7 @@ function CardBody({ stub }: { stub: Stub }) {
 				{stub.session && <span className="claimed" title={`Claimed by ${stub.session}`} />}
 			</span>
 			<span className="name">
-				{stub.icon && <span className="record-icon">{stub.icon}</span>}
+				{stub.icon && <span className="entity-icon">{stub.icon}</span>}
 				{stub.name}
 			</span>
 			<span className="meta">
@@ -454,7 +454,7 @@ function ListRow({ stub, pending, focused, selected, onOpen }: ItemProps) {
 				<span className="ident">{stub.id}</span>
 				<StatusDot status={stub.status} />
 				<span className="name">
-					{stub.icon && <span className="record-icon">{stub.icon}</span>}
+					{stub.icon && <span className="entity-icon">{stub.icon}</span>}
 					{stub.name}
 				</span>
 				<span className="row-meta">
@@ -657,7 +657,7 @@ export function Board({
 	const [dragging, setDragging] = useState<Stub | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const [notice, setNotice] = useState<Notice>(null);
-	const [openId, openRecord] = useOpenRecord();
+	const [openId, openEntity] = useOpenEntity();
 	const shownId = useRef(openId);
 	shownId.current = openId;
 	const [filtersOpen, setFiltersOpen] = useState(false);
@@ -797,19 +797,19 @@ export function Board({
 	);
 	const tableContext = useMemo(() => contextOf(kind, lists, progresses), [kind, lists, progresses]);
 	const tableSort = parseTableSort(view.tableSort);
-	const tableRecords = useMemo(
+	const tableEntities = useMemo(
 		() => (view.layout === "table" ? visible.filter((stub) => columns.includes(stub.status)) : []),
 		[view.layout, visible, columns],
 	);
-	const fields = useMemo(() => tableColumns(kind, tableRecords), [kind, tableRecords]);
+	const fields = useMemo(() => tableColumns(kind, tableEntities), [kind, tableEntities]);
 	const rows = useMemo(
-		() => sortTable(tableRecords, fields, tableContext, parseTableSort(view.tableSort)),
-		[tableRecords, fields, tableContext, view.tableSort],
+		() => sortTable(tableEntities, fields, tableContext, parseTableSort(view.tableSort)),
+		[tableEntities, fields, tableContext, view.tableSort],
 	);
 	const headerSort = view.layout === "table" ? fields.find((column) => column.key === tableSort?.key) : undefined;
 	const groupBy = groupingOf(kind, view.groupBy);
 	const groupContext = useMemo<GroupContext>(() => {
-		const named = (records: Named[]) => Object.fromEntries(records.map((record) => [record.id, record.name]));
+		const named = (entities: Named[]) => Object.fromEntries(entities.map((entity) => [entity.id, entity.name]));
 		const sprints = [...lists.sprints].sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
 		return {
 			names: { epic: named(lists.epics), project: named(lists.projects), sprint: named(lists.sprints) },
@@ -842,8 +842,8 @@ export function Board({
 	const siblings = useMemo(() => {
 		const opened = stubs.find((stub) => stub.id === openId);
 		if (!opened) return undefined;
-		if (view.layout === "table") return { label: "the table", records: order };
-		return { label: opened.status, records: order.filter((stub) => stub.status === opened.status) };
+		if (view.layout === "table") return { label: "the table", entities: order };
+		return { label: opened.status, entities: order.filter((stub) => stub.status === opened.status) };
 	}, [stubs, openId, order, view.layout]);
 
 	useEffect(() => {
@@ -854,12 +854,12 @@ export function Board({
 
 	function show(id: string | null) {
 		if (id !== shownId.current && !confirmDiscard()) return false;
-		openRecord(id);
+		openEntity(id);
 		return true;
 	}
 
 	function retarget(from: string, to: string | null) {
-		if (shownId.current === from && to !== from) openRecord(to);
+		if (shownId.current === from && to !== from) openEntity(to);
 	}
 
 	function go(href: string) {
@@ -921,32 +921,32 @@ export function Board({
 		startTransition(async () => {
 			const result = await request();
 			for (const id of ids) markPending(id, false);
-			const done = new Map(result.records.map(({ from, record }) => [from, record]));
+			const done = new Map(result.entities.map(({ from, entity }) => [from, entity]));
 			setStubs((current) => {
 				const kept = current.filter((stub) => !ids.includes(stub.id));
 				const back = before.flatMap((stub) => {
 					if (!done.has(stub.id)) return [stub];
-					const record = done.get(stub.id);
-					return record ? [record] : [];
+					const entity = done.get(stub.id);
+					return entity ? [entity] : [];
 				});
 				return [...kept, ...back];
 			});
-			const renamed = new Map(result.records.flatMap(({ from, record }) => (record ? [[from, record.id]] : [])));
-			for (const [from, record] of done) retarget(from, record?.id ?? null);
+			const renamed = new Map(result.entities.flatMap(({ from, entity }) => (entity ? [[from, entity.id]] : [])));
+			for (const [from, entity] of done) retarget(from, entity?.id ?? null);
 			setSelected(
 				(current) =>
 					new Set([...current].map((id) => renamed.get(id) ?? id).filter((id) => !done.has(id) || done.get(id))),
 			);
 			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
-			const count = result.records.length;
+			const count = result.entities.length;
 			if (count > 0)
 				setToast(
 					toastOf(
 						count === 1
 							? withNewId(
-									label.replace("{n}", result.records[0].from),
-									result.records[0].from,
-									result.records[0].record?.id ?? result.records[0].from,
+									label.replace("{n}", result.entities[0].from),
+									result.entities[0].from,
+									result.entities[0].entity?.id ?? result.entities[0].from,
 								)
 							: label.replace("{n}", `${count} ${kindName(kind)}s`),
 						result.undo,
@@ -1027,9 +1027,9 @@ export function Board({
 
 	function rootPage(): Page {
 		const ids = targets();
-		const record = ids.length === 1 ? (stubs.find((stub) => stub.id === ids[0]) ?? null) : null;
+		const entity = ids.length === 1 ? (stubs.find((stub) => stub.id === ids[0]) ?? null) : null;
 		const edits = editsFor(ids);
-		const actions: Command[] = [...recordCommands(edits ? kind : null, record, lists, edits)];
+		const actions: Command[] = [...entityCommands(edits ? kind : null, entity, lists, edits)];
 		if (chosen.length > 0) {
 			actions.push({
 				id: "do:unselect",
@@ -1038,20 +1038,20 @@ export function Board({
 				hint: "Esc",
 				run: () => setSelected(new Set()),
 			});
-		} else if (record) {
+		} else if (entity) {
 			actions.push({
 				id: "do:select",
-				group: record.id,
+				group: entity.id,
 				label: "Select it, to change several tickets at once",
 				hint: "X",
-				run: () => toggleSelected(record.id),
+				run: () => toggleSelected(entity.id),
 			});
 		}
-		if (record && chosen.length === 0) {
+		if (entity && chosen.length === 0) {
 			actions.push(
-				{ id: "do:copy", group: record.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(record.id, false) },
-				{ id: "do:link", group: record.id, label: "Copy link", run: () => copy(record.id, true) },
-				{ id: "do:page", group: record.id, label: "Open its page", run: () => go(`/card/${record.id}`) },
+				{ id: "do:copy", group: entity.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(entity.id, false) },
+				{ id: "do:link", group: entity.id, label: "Copy link", run: () => copy(entity.id, true) },
+				{ id: "do:page", group: entity.id, label: "Open its page", run: () => go(`/card/${entity.id}`) },
 			);
 		}
 		const general: Command[] = [
@@ -1156,10 +1156,10 @@ export function Board({
 			case "e": {
 				const ids = targets();
 				const edits = editsFor(ids);
-				const record = ids.length === 1 ? stubs.find((stub) => stub.id === ids[0]) : undefined;
+				const entity = ids.length === 1 ? stubs.find((stub) => stub.id === ids[0]) : undefined;
 				if (!edits || (event.key === "e" && kind !== "card")) return;
 				event.preventDefault();
-				setPalette(event.key === "s" ? movePage(kind, record?.status, edits) : epicPage(lists, record?.epic, edits));
+				setPalette(event.key === "s" ? movePage(kind, entity?.status, edits) : epicPage(lists, entity?.epic, edits));
 				break;
 			}
 			case "x":
@@ -1253,7 +1253,7 @@ export function Board({
 		id: string,
 		optimistic: Partial<Stub>,
 		request: () => Promise<{
-			record?: Stub;
+			entity?: Stub;
 			error?: string;
 			moved?: string;
 			archived?: boolean;
@@ -1279,7 +1279,7 @@ export function Board({
 				if (moved || result.archived) router.refresh();
 				return;
 			}
-			const fresh = result.record;
+			const fresh = result.entity;
 			if (fresh) {
 				setStubs((current) => current.map((s) => (s.id === id ? fresh : s)));
 				if (fresh.id !== id) retarget(id, fresh.id);
@@ -1300,7 +1300,7 @@ export function Board({
 					failures.push(result.error);
 					continue;
 				}
-				const fresh = result.record;
+				const fresh = result.entity;
 				if (fresh) {
 					setStubs((current) =>
 						current.some((s) => s.id === change.id)
@@ -1355,7 +1355,7 @@ export function Board({
 			);
 			setFinishBusy(false);
 			setFinishing(null);
-			const fresh = result.record;
+			const fresh = result.entity;
 			if (fresh) setStubs((current) => current.map((s) => (s.id === chosen.id ? fresh : s)));
 			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
 			if (result.undo.length > 0)
@@ -1437,7 +1437,7 @@ export function Board({
 			...options,
 			rank: kind === "card" && ranks.length > 0 ? Math.max(...ranks) + 1 : undefined,
 		});
-		const fresh = result.record;
+		const fresh = result.entity;
 		if (!fresh) {
 			if (!result.moved) return `Could not create the ${kindName(kind)}: ${result.error ?? "board-card made nothing"}`;
 			setComposing(false);
@@ -1462,7 +1462,7 @@ export function Board({
 		const parent = parents.find((option) => option.id === lastParent)?.id ?? parents[0]?.id;
 		return (
 			<div className={`new-dock ${placement}`}>
-				<NewRecord
+				<NewEntity
 					kind={kind}
 					lists={lists}
 					open={composing}
@@ -1487,7 +1487,7 @@ export function Board({
 		setNotice(null);
 		startTransition(async () => {
 			const result = await duplicateCard(id);
-			const fresh = result.record;
+			const fresh = result.entity;
 			if (!fresh) {
 				setNotice({ id: result.moved ?? id, text: `${id}: ${result.error ?? "board-card made nothing"}` });
 				return;
@@ -1830,7 +1830,7 @@ export function Board({
 								) : view.layout === "table" ? (
 									<Table
 										kind={kind}
-										records={rows}
+										entities={rows}
 										columns={fields}
 										context={tableContext}
 										sort={tableSort}
@@ -1859,7 +1859,7 @@ export function Board({
 							</DndContext>
 						</div>
 						{openId && (
-							<RecordOverlay
+							<EntityOverlay
 								id={openId}
 								siblings={siblings}
 								onOpen={(id) => {

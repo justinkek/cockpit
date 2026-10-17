@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import {
 	addBreak,
 	addComment,
-	archiveRecord,
+	archiveEntity,
 	BoardError,
 	type Break,
 	boardTracks,
@@ -15,25 +15,25 @@ import {
 	type Kind,
 	kindName,
 	changeStatus,
-	closeProjectRecord,
+	closeProjectEntity,
 	commentAuthor,
 	commitsOf,
-	createRecord,
+	createEntity,
 	deleteComment,
 	deleteNamedView,
 	editComment,
-	duplicateRecord,
+	duplicateEntity,
 	findRenamed,
 	lastCommit,
 	link,
-	listRecords,
+	listEntities,
 	mergeBody,
-	moveRecords,
+	moveEntities,
 	readComments,
 	readHistory,
 	readInboxUpTo,
 	readBreaks,
-	readRecord,
+	readEntity,
 	readViews,
 	removeBreak,
 	type SavedView,
@@ -42,15 +42,15 @@ import {
 	searchContent,
 	setField,
 	setFieldHolding,
-	unarchiveRecord,
+	unarchiveEntity,
 	undoSince,
 } from "@/lib/board";
-import { lookupRecord, type RecordLookup } from "@/lib/record-view";
+import { lookupEntity, type EntityLookup } from "@/lib/entity-view";
 
 type Failure = { error?: string; moved?: string; archived?: boolean };
 export type Span = { since: string; until: string };
 export type Change = { id: string } & Span;
-type Result = Failure & { record?: Card; undo?: Span; more?: Change[] };
+type Result = Failure & { entity?: Card; undo?: Span; more?: Change[] };
 type Threads = Failure & { threads?: CommentThread[]; me?: string | null };
 export type NewOptions = {
 	type?: string;
@@ -110,7 +110,7 @@ async function report(id: string, change: () => Promise<string | void>): Promise
 		refresh(current);
 		const after = since ? await lastCommit(current) : null;
 		return {
-			record: await readRecord(current),
+			entity: await readEntity(current),
 			undo: since && after && after !== since ? { since, until: after } : undefined,
 		};
 	} catch (error) {
@@ -123,7 +123,7 @@ export async function undoChange(id: string, span: Span): Promise<Result> {
 		const current = await undoSince(id, span.since, span.until);
 		refresh(id);
 		refresh(current);
-		return { record: await readRecord(current) };
+		return { entity: await readEntity(current) };
 	} catch (error) {
 		return failed(id, error);
 	}
@@ -146,7 +146,7 @@ export async function restoreVersion(id: string, commit: string): Promise<Result
 		refresh(current);
 		const after = await lastCommit(current);
 		return {
-			record: await readRecord(current),
+			entity: await readEntity(current),
 			undo: after && after !== since ? { since, until: after } : undefined,
 		};
 	} catch (error) {
@@ -179,8 +179,8 @@ export async function dropCard(id: string, column: string, rank?: number, sets: 
 			held.push(...change.held);
 			current = change.id;
 		}
-		const record = await readRecord(current);
-		if (record.status !== column) await changeStatus(record, column);
+		const entity = await readEntity(current);
+		if (entity.status !== column) await changeStatus(entity, column);
 		if (rank !== undefined) await setField(current, "rank", rankText(rank));
 		return current;
 	});
@@ -192,7 +192,7 @@ export async function createCard(kind: Kind, name: string, status: string, optio
 	if (!typed) return { error: `a new ${kindName(kind)} needs a name` };
 	let id = "";
 	try {
-		id = await createRecord(kind, typed, status, {
+		id = await createEntity(kind, typed, status, {
 			...options,
 			fields: {
 				...(kind === "card" && options.timeboxMins ? { timebox_mins: options.timeboxMins } : {}),
@@ -202,7 +202,7 @@ export async function createCard(kind: Kind, name: string, status: string, optio
 		if (options.rank !== undefined) await setField(id, "rank", rankText(options.rank));
 		if (kind === "card" && options.urgent) await setField(id, "urgent", "true");
 		refresh(id);
-		return { record: await readRecord(id) };
+		return { entity: await readEntity(id) };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return { error: id ? `${id} was created, but ${error.message}` : error.message, moved: id || undefined };
@@ -211,10 +211,10 @@ export async function createCard(kind: Kind, name: string, status: string, optio
 
 export async function duplicateCard(id: string): Promise<Result> {
 	try {
-		const source = await readRecord(id);
-		const copy = await duplicateRecord(id, source.status);
+		const source = await readEntity(id);
+		const copy = await duplicateEntity(id, source.status);
 		refresh(copy);
-		return { record: await readRecord(copy) };
+		return { entity: await readEntity(copy) };
 	} catch (error) {
 		return failed(id, error);
 	}
@@ -222,7 +222,7 @@ export async function duplicateCard(id: string): Promise<Result> {
 
 export async function archiveOne(id: string): Promise<Failure> {
 	try {
-		await archiveRecord(id);
+		await archiveEntity(id);
 		refresh(id);
 		return {};
 	} catch (error) {
@@ -235,7 +235,7 @@ export async function submitUnarchive(form: FormData): Promise<void> {
 	const back = text(form, "back") === "archive" ? "/archive" : `/card/${encodeURIComponent(id)}`;
 	let failure = "";
 	try {
-		await unarchiveRecord(id);
+		await unarchiveEntity(id);
 		refresh(id);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
@@ -255,7 +255,7 @@ export async function submitNew(form: FormData): Promise<void> {
 		icon: text(form, "icon") || undefined,
 		body: typeof form.get("body") === "string" ? String(form.get("body")).replace(/\r\n/g, "\n") : undefined,
 	});
-	const made = result.record?.id ?? result.moved;
+	const made = result.entity?.id ?? result.moved;
 	if (made)
 		redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
 	redirect(
@@ -267,7 +267,7 @@ const CREATED_WITH = ["icon", "start", "end", "dev_days", "speed", "priority", "
 
 const SET_AFTER = ["points", "domain", "stack", "why", "description", "card"];
 
-export async function submitRecord(_previous: string | null, form: FormData): Promise<string | null> {
+export async function submitEntity(_previous: string | null, form: FormData): Promise<string | null> {
 	const kind = text(form, "kind");
 	if (!(kind === "project" || kind === "sprint" || kind === "reference")) redirect("/");
 	const name = text(form, "name").replace(/\s*[\r\n]+\s*/g, " ");
@@ -279,7 +279,7 @@ export async function submitRecord(_previous: string | null, form: FormData): Pr
 	let id = "";
 	let failure = "";
 	try {
-		id = await createRecord(kind, name, text(form, "status"), { fields });
+		id = await createEntity(kind, name, text(form, "status"), { fields });
 		for (const field of SET_AFTER) {
 			const value = text(form, field);
 			if (value) await setField(id, field, value);
@@ -308,7 +308,7 @@ export async function editCard(id: string, field: string, value: string): Promis
 export async function closeProject(id: string): Promise<Result & { closed?: Change[] }> {
 	const moved: string[] = [];
 	const result = await report(id, async () => {
-		moved.push(...(await closeProjectRecord(id)));
+		moved.push(...(await closeProjectEntity(id)));
 	});
 	return { ...result, closed: await heldChanges(moved, result.undo?.until) };
 }
@@ -316,11 +316,11 @@ export async function closeProject(id: string): Promise<Result & { closed?: Chan
 export type Ranked = { id: string; rank: number };
 
 export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
-	const result: BulkResult = { records: [], undo: [], errors: [] };
+	const result: BulkResult = { entities: [], undo: [], errors: [] };
 	for (const { id, rank } of order) {
 		const changed = await report(id, () => setField(id, "rank", rankText(rank)));
 		if (changed.error) result.errors.push(`${id}: ${changed.error}`);
-		if (changed.record) result.records.push({ from: id, record: changed.record });
+		if (changed.entity) result.entities.push({ from: id, entity: changed.entity });
 		if (changed.undo) result.undo.push({ id, ...changed.undo });
 	}
 	return result;
@@ -329,7 +329,7 @@ export async function rankPlan(order: Ranked[]): Promise<BulkResult> {
 async function deprioritiseOpen(cards: string[], result: BulkResult): Promise<boolean> {
 	if (cards.length === 0) return true;
 	try {
-		const moved = await moveRecords(cards, "Deprioritised");
+		const moved = await moveEntities(cards, "Deprioritised");
 		const until = moved.length > 0 ? await lastCommit(moved[0]) : null;
 		for (const card of moved) {
 			refresh(card);
@@ -343,20 +343,20 @@ async function deprioritiseOpen(cards: string[], result: BulkResult): Promise<bo
 	}
 }
 
-export async function finishEpic(id: string, cards: string[]): Promise<BulkResult & { record?: Card }> {
-	const result: BulkResult = { records: [], undo: [], errors: [] };
+export async function finishEpic(id: string, cards: string[]): Promise<BulkResult & { entity?: Card }> {
+	const result: BulkResult = { entities: [], undo: [], errors: [] };
 	if (!(await deprioritiseOpen(cards, result))) return result;
 	const moved = await dropCard(id, "Epic Done");
 	if (moved.error) return { ...result, errors: [`${id}: ${moved.error}`] };
 	if (moved.undo) result.undo.push({ id, ...moved.undo });
-	return { ...result, record: moved.record };
+	return { ...result, entity: moved.entity };
 }
 
 export async function finishEpics(ids: string[], cards: string[]): Promise<BulkResult> {
-	const result: BulkResult = { records: [], undo: [], errors: [] };
+	const result: BulkResult = { entities: [], undo: [], errors: [] };
 	if (!(await deprioritiseOpen(cards, result))) return result;
 	const epics = await bulkChange(ids, { op: "move", column: "Epic Done" });
-	return { records: epics.records, undo: [...result.undo, ...epics.undo], errors: epics.errors };
+	return { entities: epics.entities, undo: [...result.undo, ...epics.undo], errors: epics.errors };
 }
 
 export async function setBoardTracks(count: number): Promise<{ tracks?: number; error?: string }> {
@@ -401,9 +401,9 @@ export async function createMilestone(name: string, date: string): Promise<Resul
 	const typed = name.replace(/\s*[\r\n]+\s*/g, " ").trim();
 	if (!typed) return { error: "a milestone needs a name" };
 	try {
-		const id = await createRecord("milestone", typed, "", { fields: { date } });
+		const id = await createEntity("milestone", typed, "", { fields: { date } });
 		refresh(id);
-		return { record: await readRecord(id) };
+		return { entity: await readEntity(id) };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return { error: error.message };
@@ -413,7 +413,7 @@ export async function createMilestone(name: string, date: string): Promise<Resul
 export async function removeMilestone(id: string): Promise<Failure & { undo?: Span }> {
 	try {
 		const since = await lastCommit(id);
-		await archiveRecord(id);
+		await archiveEntity(id);
 		refresh(id);
 		const until = await lastCommit(id);
 		return { undo: since && until && until !== since ? { since, until } : undefined };
@@ -440,7 +440,7 @@ export async function saveBody(id: string, base: string, text: string): Promise<
 
 export async function loadBody(id: string): Promise<Failure & { body?: string }> {
 	try {
-		return { body: (await readRecord(id)).body };
+		return { body: (await readEntity(id)).body };
 	} catch (error) {
 		return failed(id, error);
 	}
@@ -524,7 +524,7 @@ function text(form: FormData, name: string) {
 async function cardNamed(typed: string): Promise<string> {
 	const id = typed.match(/^([A-Za-z]+-\d+)\b/)?.[1]?.toUpperCase();
 	if (id) return id;
-	const named = (await listRecords("card")).find((card) => card.name.toLowerCase() === typed.toLowerCase());
+	const named = (await listEntities("card")).find((card) => card.name.toLowerCase() === typed.toLowerCase());
 	if (!named) throw new BoardError(`no ticket called '${typed}'`);
 	return named.id;
 }
@@ -544,7 +544,7 @@ export async function submitCard(form: FormData): Promise<void> {
 					: text(form, "value");
 		switch (text(form, "op")) {
 			case "move":
-				await changeStatus(await readRecord(id), value);
+				await changeStatus(await readEntity(id), value);
 				break;
 			case "set":
 				if (field === "body" && typeof form.get("base") === "string")
@@ -576,29 +576,29 @@ export async function submitCard(form: FormData): Promise<void> {
 export type Bulk = { op: "move"; column: string } | { op: "set"; field: string; value: string } | { op: "archive" };
 
 export type BulkResult = {
-	records: { from: string; record: Card | null }[];
+	entities: { from: string; entity: Card | null }[];
 	undo: ({ id: string } & Span)[];
 	errors: string[];
 };
 
 export async function bulkChange(ids: string[], change: Bulk): Promise<BulkResult> {
-	const result: BulkResult = { records: [], undo: [], errors: [] };
+	const result: BulkResult = { entities: [], undo: [], errors: [] };
 	for (const id of ids) {
 		try {
 			const since = await lastCommit(id);
 			let current = id;
 			if (change.op === "move") {
-				const record = await readRecord(id);
-				if (record.status !== change.column) await changeStatus(record, change.column);
+				const entity = await readEntity(id);
+				if (entity.status !== change.column) await changeStatus(entity, change.column);
 			} else if (change.op === "set") {
 				current = await setField(id, change.field, change.value);
 			} else {
-				await archiveRecord(id);
+				await archiveEntity(id);
 			}
 			refresh(current);
 			const after = since ? await lastCommit(current) : null;
 			if (since && after && after !== since) result.undo.push({ id: current, since, until: after });
-			result.records.push({ from: id, record: change.op === "archive" ? null : await readRecord(current) });
+			result.entities.push({ from: id, entity: change.op === "archive" ? null : await readEntity(current) });
 		} catch (error) {
 			const failure = await failed(id, error);
 			result.errors.push(`${id}: ${failure.error ?? "failed"}`);
@@ -607,6 +607,6 @@ export async function bulkChange(ids: string[], change: Bulk): Promise<BulkResul
 	return result;
 }
 
-export async function loadRecordView(id: string): Promise<RecordLookup> {
-	return lookupRecord(id);
+export async function loadEntityView(id: string): Promise<EntityLookup> {
+	return lookupEntity(id);
 }

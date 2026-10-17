@@ -7,12 +7,12 @@ export const MentionContext = createContext<Mentions>({});
 
 const CARD_NUMBER = /^(?:FEAT|BUG|TIME)-(\d+)$/;
 
-export function mentionNames(records: { id: string; name: string }[], aliases: Record<string, string> = {}) {
-	const byId = new Map(records.map((record) => [record.id, record.name]));
+export function mentionNames(entities: { id: string; name: string }[], aliases: Record<string, string> = {}) {
+	const byId = new Map(entities.map((entity) => [entity.id, entity.name]));
 	const byNumber = new Map(
-		records.flatMap((record) => {
-			const number = record.id.match(CARD_NUMBER)?.[1];
-			return number ? [[number, record.name] as const] : [];
+		entities.flatMap((entity) => {
+			const number = entity.id.match(CARD_NUMBER)?.[1];
+			return number ? [[number, entity.name] as const] : [];
 		}),
 	);
 	return (id: string) =>

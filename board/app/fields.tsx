@@ -5,8 +5,8 @@ import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState, us
 import { submitCard } from "@/app/actions";
 import { CardPicker } from "@/app/card-picker";
 import { EmojiPicker } from "@/app/emoji-picker";
-import { RecordFields } from "@/app/record-fields";
-import { recordOptions, SearchSelect } from "@/app/search-select";
+import { EntityFields } from "@/app/entity-fields";
+import { entityOptions, SearchSelect } from "@/app/search-select";
 import { CONFIDENCES } from "@/lib/plan";
 import {
 	boardColumns,
@@ -40,11 +40,11 @@ export type Handlers = {
 	onOpen?: (id: string) => void;
 };
 
-export function linkChange(record: Card, parent: string, child: string, linked: boolean): Partial<Card> {
+export function linkChange(entity: Card, parent: string, child: string, linked: boolean): Partial<Card> {
 	const toggle = (ids: string[] | undefined, id: string) =>
 		linked ? [...new Set([...(ids ?? []), id])] : (ids ?? []).filter((other) => other !== id);
-	if (parent === record.id) return { dependent_on: toggle(record.dependent_on, child) };
-	if (child === record.id) return { dependency_for: toggle(record.dependency_for, parent) };
+	if (parent === entity.id) return { dependent_on: toggle(entity.dependent_on, child) };
+	if (child === entity.id) return { dependency_for: toggle(entity.dependency_for, parent) };
 	return {};
 }
 
@@ -382,25 +382,25 @@ function pullRequests(prs: string) {
 	return prs.match(/https?:\/\/[^\s,]+/g) ?? [];
 }
 
-export function Fields({ record, lists, handlers }: { record: Card; lists: Lists; handlers: Handlers }) {
+export function Fields({ entity, lists, handlers }: { entity: Card; lists: Lists; handlers: Handlers }) {
 	const { onMove, onEdit } = handlers;
-	const kind = kindOf(record.id);
-	if (!kind) return <RecordFields record={record} lists={lists} onEdit={onEdit} />;
+	const kind = kindOf(entity.id);
+	if (!kind) return <EntityFields entity={entity} lists={lists} onEdit={onEdit} />;
 	const columns = kind ? boardColumns(kind) : [];
 	const sprintOptions = lists.sprints.map((sprint) => ({
 		id: sprint.id,
 		name: sprint.start ? `${sprint.name} (${sprint.start} to ${sprint.end ?? "?"})` : sprint.name,
 	}));
-	const urls = pullRequests(record.prs ?? "");
-	const epicProject = record.epic ? lists.epics.find((epic) => epic.id === record.epic)?.project : null;
+	const urls = pullRequests(entity.prs ?? "");
+	const epicProject = entity.epic ? lists.epics.find((epic) => epic.id === entity.epic)?.project : null;
 	const inherited = epicProject
 		? (lists.projects.find((project) => project.id === epicProject)?.name ?? epicProject)
 		: null;
-	const back = bounces(record);
-	const days = record.days_in_column ?? 0;
-	const overrunning = showsOverrun(record);
-	const due = dueState(record);
-	const id = record.id;
+	const back = bounces(entity);
+	const days = entity.days_in_column ?? 0;
+	const overrunning = showsOverrun(entity);
+	const due = dueState(entity);
+	const id = entity.id;
 
 	return (
 		<dl className="props">
@@ -411,17 +411,17 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 						<select
 							name="value"
 							aria-label="Status"
-							value={record.status}
+							value={entity.status}
 							onChange={(event) => onMove(event.target.value)}
 						>
-							{!columns.includes(record.status) && <option disabled>{record.status}</option>}
+							{!columns.includes(entity.status) && <option disabled>{entity.status}</option>}
 							{columns.map((column) => (
 								<option key={column}>{column}</option>
 							))}
 						</select>
 					</Fallback>
 				) : (
-					record.status
+					entity.status
 				)}
 			</dd>
 			{kind && (
@@ -429,7 +429,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					<dt>Icon</dt>
 					<dd>
 						<Fallback id={id} op="set" field="icon">
-							<EmojiPicker value={record.icon ?? ""} onPick={(icon) => onEdit("icon", icon, { icon: icon || null })} />
+							<EmojiPicker value={entity.icon ?? ""} onPick={(icon) => onEdit("icon", icon, { icon: icon || null })} />
 						</Fallback>
 					</dd>
 				</>
@@ -442,7 +442,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<select
 								name="value"
 								aria-label="Type"
-								value={record.type}
+								value={entity.type}
 								onChange={(event) => {
 									const type = event.target.value as Card["type"];
 									onEdit("type", event.target.value, { type });
@@ -458,7 +458,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					<dd>
 						<Fallback id={id} op="set" field="urgent">
 							<label
-								className={`urgent-toggle${record.urgent ? " urgent-pick" : ""}`}
+								className={`urgent-toggle${entity.urgent ? " urgent-pick" : ""}`}
 								title="An urgent ticket sits in the Urgent lane at the top of the board and is picked before every other"
 							>
 								<input
@@ -466,14 +466,14 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 									name="value"
 									value="true"
 									aria-label="Urgent"
-									checked={Boolean(record.urgent)}
+									checked={Boolean(entity.urgent)}
 									onChange={(event) => {
 										const urgent = event.target.checked;
 										onEdit("urgent", urgent ? "true" : "", { urgent });
 									}}
 								/>
 								<input type="hidden" name="value" value="" />
-								{record.urgent ? "Urgent" : "Not urgent"}
+								{entity.urgent ? "Urgent" : "Not urgent"}
 							</label>
 						</Fallback>
 					</dd>
@@ -483,7 +483,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<select
 								name="value"
 								aria-label="Complexity"
-								value={record.complexity ?? ""}
+								value={entity.complexity ?? ""}
 								onChange={(event) => {
 									const value = event.target.value;
 									onEdit("complexity", value, { complexity: value === "" ? null : Number(value) });
@@ -498,7 +498,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</select>
 						</Fallback>
 					</dd>
-					{record.type !== "Timebox" && (
+					{entity.type !== "Timebox" && (
 						<>
 							<dt>Estimate</dt>
 							<dd>
@@ -507,7 +507,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 										name="value"
 										aria-label="Estimate"
 										title="The high-level estimate TD gives, which the plan counts until TR sets a complexity"
-										value={record.estimate ?? ""}
+										value={entity.estimate ?? ""}
 										onChange={(event) => {
 											const value = event.target.value;
 											onEdit("estimate", value, { estimate: value === "" ? null : Number(value) });
@@ -530,8 +530,8 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								type="number"
 								label="Timebox (mins)"
-								placeholder={record.type === "Timebox" ? "No budget" : "No timebox"}
-								value={record.timebox_mins == null ? "" : String(record.timebox_mins)}
+								placeholder={entity.type === "Timebox" ? "No budget" : "No timebox"}
+								value={entity.timebox_mins == null ? "" : String(entity.timebox_mins)}
 								onCommit={(value) =>
 									onEdit("timebox_mins", value, { timebox_mins: value === "" ? null : Number(value) })
 								}
@@ -544,13 +544,13 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<SearchSelect
 								label="Epic"
 								name="value"
-								value={record.epic ?? ""}
-								options={recordOptions(lists.epics, "Epic Done")}
+								value={entity.epic ?? ""}
+								options={entityOptions(lists.epics, "Epic Done")}
 								onChange={(epic) => onEdit("epic", epic, { epic: epic || null })}
 							/>
 						</Fallback>
-						{record.epic && (
-							<Link href={`/epics?open=${record.epic}`} className="quiet-link" aria-label="Open the epic">
+						{entity.epic && (
+							<Link href={`/epics?open=${entity.epic}`} className="quiet-link" aria-label="Open the epic">
 								↗
 							</Link>
 						)}
@@ -561,7 +561,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<Choice
 								label="Sprint"
 								none="No sprint"
-								value={record.sprint}
+								value={entity.sprint}
 								options={sprintOptions}
 								onChange={(sprint) => onEdit("sprint", sprint, { sprint: sprint || null })}
 							/>
@@ -582,8 +582,8 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 								<SearchSelect
 									label="Project"
 									name="value"
-									value={record.project ?? ""}
-									options={recordOptions(lists.projects, "Done")}
+									value={entity.project ?? ""}
+									options={entityOptions(lists.projects, "Done")}
 									onChange={(project) => onEdit("project", project, { project: project || null })}
 								/>
 							</Fallback>
@@ -599,7 +599,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								label="Labels"
 								placeholder="No labels, or a list split by commas"
-								value={(record.labels ?? []).join(", ")}
+								value={(entity.labels ?? []).join(", ")}
 								onCommit={(labels) => onEdit("labels", labels, { labels: labelsOf(labels) })}
 							/>
 						</Fallback>
@@ -610,7 +610,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 				<>
 					<dt>Start</dt>
 					<dd title="Stamped the day it leaves Backlog, and cleared if it moves back">
-						{record.start ?? <span className="empty">When it leaves Backlog</span>}
+						{entity.start ?? <span className="empty">When it leaves Backlog</span>}
 					</dd>
 					<dt>Target</dt>
 					<dd className="with-link">
@@ -618,7 +618,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								type="date"
 								label="Target"
-								value={record.target ?? ""}
+								value={entity.target ?? ""}
 								onCommit={(target) => onEdit("target", target, { target: target || null })}
 							/>
 						</Fallback>
@@ -632,7 +632,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<select
 								name="value"
 								aria-label="Confidence"
-								value={record.confidence ?? ""}
+								value={entity.confidence ?? ""}
 								onChange={(event) =>
 									onEdit("confidence", event.target.value, { confidence: event.target.value || null })
 								}
@@ -650,7 +650,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								label="Learning"
 								placeholder="Nothing learnt yet"
-								value={record.learning ?? ""}
+								value={entity.learning ?? ""}
 								onCommit={(learning) => onEdit("learning", learning, { learning: learning || null })}
 							/>
 						</Fallback>
@@ -665,7 +665,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								type="date"
 								label="Due"
-								value={record.due?.slice(0, 10) ?? ""}
+								value={entity.due?.slice(0, 10) ?? ""}
 								onCommit={(due) => onEdit("due", due, { due: due || null })}
 							/>
 						</Fallback>
@@ -690,7 +690,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								label="Blocked"
 								placeholder="Not blocked"
-								value={record.blocked ?? ""}
+								value={entity.blocked ?? ""}
 								onCommit={(blocked) => onEdit("blocked", blocked, { blocked: blocked || null })}
 							/>
 						</Fallback>
@@ -701,7 +701,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							<TextField
 								label="PRs"
 								placeholder="No pull requests"
-								value={record.prs ?? ""}
+								value={entity.prs ?? ""}
 								onCommit={(prs) => onEdit("prs", prs, { prs: prs || null })}
 							/>
 						</Fallback>
@@ -721,7 +721,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 									</span>
 								)}
 								{overrunning && (
-									<span className="pill overrun" title={overrunTitle(record)}>
+									<span className="pill overrun" title={overrunTitle(entity)}>
 										Overrunning
 									</span>
 								)}
@@ -752,10 +752,10 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 								<Fallback id={id} op="set" field={`models.${stage}`}>
 									<TextField
 										label={`${stage} model`}
-										placeholder="Not recorded"
-										value={record.models?.[stage] ?? ""}
+										placeholder="Not  ENTITYED"
+										value={entity.models?.[stage] ?? ""}
 										onCommit={(model) => {
-											const models = { ...record.models, [stage]: model };
+											const models = { ...entity.models, [stage]: model };
 											if (!model) delete models[stage];
 											onEdit(`models.${stage}`, model, { models });
 										}}
@@ -770,16 +770,16 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 	);
 }
 
-export function Links({ record, lists, handlers }: { record: Card; lists: Lists; handlers: Handlers }) {
-	const kind = kindOf(record.id);
+export function Links({ entity, lists, handlers }: { entity: Card; lists: Lists; handlers: Handlers }) {
+	const kind = kindOf(entity.id);
 	if (kind !== "card" && kind !== "epic") return null;
 	const { onLink, onOpen } = handlers;
 	const pool: Picked[] =
 		kind === "epic" ? lists.epics.map(({ id, name, status }) => ({ id, name, status: status ?? "" })) : lists.cards;
 	const names = Object.fromEntries(pool.map((card) => [card.id, card.name]));
-	const children = record.dependent_on ?? [];
-	const parents = record.dependency_for ?? [];
-	const linkable = pool.filter((card) => card.id !== record.id);
+	const children = entity.dependent_on ?? [];
+	const parents = entity.dependency_for ?? [];
+	const linkable = pool.filter((card) => card.id !== entity.id);
 	const words =
 		kind === "epic"
 			? {
@@ -793,35 +793,35 @@ export function Links({ record, lists, handlers }: { record: Card; lists: Lists;
 		<section className="links">
 			<h3>{words.children}</h3>
 			<Linked
-				owner={record.id}
+				owner={entity.id}
 				ids={children}
-				pair={(child) => ({ parent: record.id, child })}
+				pair={(child) => ({ parent: entity.id, child })}
 				names={names}
 				onOpen={onOpen}
-				onUnlink={(child) => onLink(record.id, child, false)}
+				onUnlink={(child) => onLink(entity.id, child, false)}
 			/>
 			<Picker
-				id={record.id}
+				id={entity.id}
 				side="child"
 				label={words.child}
 				cards={linkable.filter((card) => !children.includes(card.id))}
-				onPick={(child) => onLink(record.id, child, true)}
+				onPick={(child) => onLink(entity.id, child, true)}
 			/>
 			<h3>{words.parents}</h3>
 			<Linked
-				owner={record.id}
+				owner={entity.id}
 				ids={parents}
-				pair={(parent) => ({ parent, child: record.id })}
+				pair={(parent) => ({ parent, child: entity.id })}
 				names={names}
 				onOpen={onOpen}
-				onUnlink={(parent) => onLink(parent, record.id, false)}
+				onUnlink={(parent) => onLink(parent, entity.id, false)}
 			/>
 			<Picker
-				id={record.id}
+				id={entity.id}
 				side="parent"
 				label={words.parent}
 				cards={linkable.filter((card) => !parents.includes(card.id))}
-				onPick={(parent) => onLink(parent, record.id, true)}
+				onPick={(parent) => onLink(parent, entity.id, true)}
 			/>
 		</section>
 	);

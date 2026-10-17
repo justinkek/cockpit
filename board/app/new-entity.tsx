@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, startTransition, useActionState, useEffect, useRef, useState } from "react";
-import { submitRecord } from "@/app/actions";
+import { submitEntity } from "@/app/actions";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { DOMAINS, FIBONACCI, PROJECT_STATUSES } from "@/lib/shared";
 
@@ -79,7 +79,7 @@ function props(kind: Other): ReactNode {
 export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label?: string }) {
 	const [open, setOpen] = useState(false);
 	const [icon, setIcon] = useState("");
-	const [failure, create, pending] = useActionState(submitRecord, null);
+	const [failure, create, pending] = useActionState(submitEntity, null);
 	const frame = useRef<HTMLDetailsElement>(null);
 	const name = useRef<HTMLInputElement>(null);
 
@@ -97,7 +97,7 @@ export function NewOther({ kind, label = `+ New ${kind}` }: { kind: Other; label
 	return (
 		<details
 			ref={frame}
-			className="new-record"
+			className="new-entity"
 			open={open}
 			onToggle={(event) => {
 				const opened = event.currentTarget.open;

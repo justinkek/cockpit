@@ -20,8 +20,8 @@ import { closeProject, editCard, undoChange } from "@/app/actions";
 import { type Notice, NoticeBar } from "@/app/board";
 import { confirmDiscard } from "@/app/content";
 import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
-import { NewOther } from "@/app/new-record";
-import { RecordOverlay, useOpenRecord } from "@/app/record-overlay";
+import { NewOther } from "@/app/new-entity";
+import { EntityOverlay, useOpenEntity } from "@/app/entity-overlay";
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
 
 export type ProjectEntry = {
@@ -97,7 +97,7 @@ function ProjectBody({ project }: { project: ProjectEntry }) {
 				{project.priority != null && <span className="pill">P{project.priority}</span>}
 			</span>
 			<span className="name">
-				{project.icon && <span className="record-icon">{project.icon}</span>}
+				{project.icon && <span className="entity-icon">{project.icon}</span>}
 				{project.name.trim() || "(untitled)"}
 			</span>
 			<span className="meta">
@@ -192,7 +192,7 @@ function ProjectList({ projects, onOpen }: { projects: ProjectEntry[]; onOpen: (
 				<Dot status={group.status} />
 				{group.status || "No status"} <span className="count">{group.projects.length}</span>
 			</h2>
-			<ul className="record-list">
+			<ul className="entity-list">
 				{group.projects.map((project) => (
 					<li key={project.id}>
 						<span className="ident">{project.id}</span>
@@ -205,10 +205,10 @@ function ProjectList({ projects, onOpen }: { projects: ProjectEntry[]; onOpen: (
 								onOpen(project.id);
 							}}
 						>
-							{project.icon && <span className="record-icon">{project.icon}</span>}
+							{project.icon && <span className="entity-icon">{project.icon}</span>}
 							{project.name.trim() || "(untitled)"}
 						</Link>
-						<span className="record-meta">
+						<span className="entity-meta">
 							{project.priority != null && <span className="pill">P{project.priority}</span>}
 							<span title={`${project.open} open, ${project.done} done`}>
 								{plural(project.epics, "epic")} · {project.open} open · {project.done} done
@@ -233,7 +233,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 	const [undoing, setUndoing] = useState(false);
 	const [closing, setClosing] = useState<Closing | null>(null);
 	const [query, setQuery] = useState("");
-	const [openId, openRecord] = useOpenRecord();
+	const [openId, openEntity] = useOpenEntity();
 	const [, startTransition] = useTransition();
 	const dndId = useId();
 
@@ -262,13 +262,13 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 		if (!opened) return undefined;
 		return {
 			label: opened.status,
-			records: shown.filter((project) => project.status === opened.status).sort(byPriority),
+			entities: shown.filter((project) => project.status === opened.status).sort(byPriority),
 		};
 	}, [projects, shown, openId]);
 
 	function show(id: string | null) {
 		if (id !== openId && !confirmDiscard()) return;
-		openRecord(id);
+		openEntity(id);
 	}
 
 	const columns = useMemo(
@@ -345,7 +345,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 					failures.push(result.error);
 					continue;
 				}
-				const fresh = result.record;
+				const fresh = result.entity;
 				if (fresh)
 					setProjects((current) =>
 						current.map((project) => (project.id === change.id ? { ...project, status: fresh.status } : project)),
@@ -447,7 +447,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 			)}
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 			{openId && (
-				<RecordOverlay
+				<EntityOverlay
 					id={openId}
 					siblings={siblings}
 					onOpen={(id) => show(id)}

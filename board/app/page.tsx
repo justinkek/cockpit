@@ -1,5 +1,5 @@
 import { Board } from "@/app/board";
-import { BoardError, type Card, listRecords, manualRank, readAliases, readViews, type SavedView } from "@/lib/board";
+import { BoardError, type Card, listEntities, manualRank, readAliases, readViews, type SavedView } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,10 @@ export default async function CardsPage() {
 	let aliases: Record<string, string>;
 	try {
 		[cards, epics, sprints, projects, views, aliases] = await Promise.all([
-			listRecords("card"),
-			listRecords("epic"),
-			listRecords("sprint"),
-			listRecords("project"),
+			listEntities("card"),
+			listEntities("epic"),
+			listEntities("sprint"),
+			listEntities("project"),
 			readViews("card"),
 			readAliases(),
 		]);

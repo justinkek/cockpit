@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadRecordView } from "@/app/actions";
-import { ArchivedRecord } from "@/app/archived";
+import { loadEntityView } from "@/app/actions";
+import { ArchivedEntity } from "@/app/archived";
 import { confirmDiscard } from "@/app/content";
 import { useKeys } from "@/app/keys";
 import { onBoardChange } from "@/app/live";
-import { type OverlayHost, RecordView } from "@/app/record-view";
+import { type OverlayHost, EntityView } from "@/app/entity-view";
 import { typingIn } from "@/app/toast";
-import type { RecordLookup } from "@/lib/record-view";
+import type { EntityLookup } from "@/lib/entity-view";
 
 const PUSHED = "cockpitOpened";
 
@@ -24,7 +24,7 @@ function urlWith(id: string | null) {
 	return url;
 }
 
-export function useOpenRecord() {
+export function useOpenEntity() {
 	const [openId, setOpenId] = useState<string | null>(null);
 	const shown = useRef(openId);
 	shown.current = openId;
@@ -51,7 +51,7 @@ export function useOpenRecord() {
 	return [openId, open] as const;
 }
 
-export function RecordOverlay({
+export function EntityOverlay({
 	id,
 	siblings,
 	onOpen,
@@ -64,7 +64,7 @@ export function RecordOverlay({
 	onClose: () => void;
 	onChanged: () => void;
 }) {
-	const [found, setFound] = useState<{ id: string; lookup: RecordLookup } | null>(null);
+	const [found, setFound] = useState<{ id: string; lookup: EntityLookup } | null>(null);
 	const [error, setError] = useState("");
 	const [reloads, setReloads] = useState(0);
 	const dialog = useRef<HTMLDivElement>(null);
@@ -73,7 +73,7 @@ export function RecordOverlay({
 
 	useEffect(() => {
 		let live = true;
-		loadRecordView(id)
+		loadEntityView(id)
 			.then((lookup) => {
 				if (!live) return;
 				setError("");
@@ -109,20 +109,20 @@ export function RecordOverlay({
 
 	return (
 		<div
-			className="overlay record-overlay"
+			className="overlay entity-overlay"
 			role="presentation"
 			onMouseDown={(event) => event.target === event.currentTarget && onClose()}
 		>
 			<div
 				ref={dialog}
-				className={`dialog record-dialog${found && found.id !== id ? " busy" : ""}`}
+				className={`dialog entity-dialog${found && found.id !== id ? " busy" : ""}`}
 				role="dialog"
 				aria-modal="true"
 				aria-label={`${id} details`}
 				aria-busy={!found || found.id !== id}
 				tabIndex={-1}
 			>
-				<header className="dialog-head record-dialog-head">
+				<header className="dialog-head entity-dialog-head">
 					<span className="ident">{id}</span>
 					<span className="spacer" />
 					<Link
@@ -144,9 +144,9 @@ export function RecordOverlay({
 					</p>
 				)}
 				{!lookup ? (
-					!error && <p className="empty record-loading">Loading {id}…</p>
+					!error && <p className="empty entity-loading">Loading {id}…</p>
 				) : "view" in lookup ? (
-					<RecordView
+					<EntityView
 						data={lookup.view}
 						overlay={{
 							siblings,
@@ -157,9 +157,9 @@ export function RecordOverlay({
 						}}
 					/>
 				) : "archived" in lookup ? (
-					<ArchivedRecord record={lookup.archived} />
+					<ArchivedEntity entity={lookup.archived} />
 				) : (
-					<p className="empty record-loading">{id} is not on the board.</p>
+					<p className="empty entity-loading">{id} is not on the board.</p>
 				)}
 			</div>
 		</div>

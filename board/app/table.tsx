@@ -34,8 +34,8 @@ type Column = {
 	kinds?: Kind[];
 	numeric?: boolean;
 	wide?: boolean;
-	value: (record: Card, context: Context) => Value;
-	cell?: (record: Card, context: Context) => ReactNode;
+	value: (entity: Card, context: Context) => Value;
+	cell?: (entity: Card, context: Context) => ReactNode;
 };
 
 export function LabelPills({ labels }: { labels?: string[] | null }) {
@@ -51,8 +51,8 @@ export function LabelPills({ labels }: { labels?: string[] | null }) {
 	);
 }
 
-function projectOf(record: Card, context: Context) {
-	const id = record.project ?? (record.epic ? context.epicProjects[record.epic] : null);
+function projectOf(entity: Card, context: Context) {
+	const id = entity.project ?? (entity.epic ? context.epicProjects[entity.epic] : null);
 	return id ? (context.projects[id] ?? id) : null;
 }
 
@@ -74,24 +74,24 @@ function Stamp({ stamp }: { stamp: string | null | undefined }) {
 	);
 }
 
-function reworkOf(record: Card) {
-	return bounces(record).reduce((sum, [, count]) => sum + count, 0);
+function reworkOf(entity: Card) {
+	return bounces(entity).reduce((sum, [, count]) => sum + count, 0);
 }
 
 const COLUMNS: Column[] = [
-	{ key: "id", label: "ID", value: (record) => Number(record.id.split("-").at(-1)) },
-	{ key: "name", label: "Name", value: (record) => record.name },
+	{ key: "id", label: "ID", value: (entity) => Number(entity.id.split("-").at(-1)) },
+	{ key: "name", label: "Name", value: (entity) => entity.name },
 	{
 		key: "status",
 		label: "Status",
-		value: (record, context) => {
-			const index = context.columns.indexOf(record.status);
+		value: (entity, context) => {
+			const index = context.columns.indexOf(entity.status);
 			return index < 0 ? context.columns.length : index;
 		},
-		cell: (record) => (
+		cell: (entity) => (
 			<span className="cell-status">
-				<span className={`dot phase-${phaseOf(record.status)}`} aria-hidden="true" />
-				{record.status}
+				<span className={`dot phase-${phaseOf(entity.status)}`} aria-hidden="true" />
+				{entity.status}
 			</span>
 		),
 	},
@@ -99,42 +99,42 @@ const COLUMNS: Column[] = [
 		key: "type",
 		label: "Type",
 		kinds: ["card"],
-		value: (record) => record.type ?? null,
-		cell: (record) => record.type && <span className={`type type-${record.type.toLowerCase()}`}>{record.type}</span>,
+		value: (entity) => entity.type ?? null,
+		cell: (entity) => entity.type && <span className={`type type-${entity.type.toLowerCase()}`}>{entity.type}</span>,
 	},
 	{
 		key: "epic",
 		label: "Epic",
 		kinds: ["card"],
 		wide: true,
-		value: (record, context) => (record.epic ? (context.epics[record.epic] ?? record.epic) : null),
+		value: (entity, context) => (entity.epic ? (context.epics[entity.epic] ?? entity.epic) : null),
 	},
 	{ key: "project", label: "Project", value: projectOf },
 	{
 		key: "urgent",
 		label: "Urgent",
 		kinds: ["card"],
-		value: (record) => (record.urgent ? 1 : null),
-		cell: (record) => record.urgent && <span className="pill urgent">Urgent</span>,
+		value: (entity) => (entity.urgent ? 1 : null),
+		cell: (entity) => entity.urgent && <span className="pill urgent">Urgent</span>,
 	},
 	{
 		key: "labels",
 		label: "Labels",
 		wide: true,
-		value: (record) => (record.labels ?? []).join(", ") || null,
-		cell: (record) => <LabelPills labels={record.labels} />,
+		value: (entity) => (entity.labels ?? []).join(", ") || null,
+		cell: (entity) => <LabelPills labels={entity.labels} />,
 	},
 	{
 		key: "progress",
 		label: "Progress",
 		kinds: ["epic"],
 		numeric: true,
-		value: (record, context) => {
-			const progress = context.progress[record.id];
+		value: (entity, context) => {
+			const progress = context.progress[entity.id];
 			return progress && progress.total > 0 ? progressShare(progress) : null;
 		},
-		cell: (record, context) => {
-			const progress = context.progress[record.id];
+		cell: (entity, context) => {
+			const progress = context.progress[entity.id];
 			return progress && <ProgressMeter progress={progress} />;
 		},
 	},
@@ -142,17 +142,17 @@ const COLUMNS: Column[] = [
 		key: "sprint",
 		label: "Sprint",
 		kinds: ["card"],
-		value: (record, context) => (record.sprint ? (context.sprints[record.sprint] ?? record.sprint) : null),
+		value: (entity, context) => (entity.sprint ? (context.sprints[entity.sprint] ?? entity.sprint) : null),
 	},
 	{
 		key: "complexity",
 		label: "Points",
 		kinds: ["card"],
 		numeric: true,
-		value: (record) => record.complexity ?? null,
-		cell: (record) =>
-			record.complexity != null && (
-				<span className={record.complexity > SPLIT_ABOVE ? "split" : undefined}>{record.complexity}</span>
+		value: (entity) => entity.complexity ?? null,
+		cell: (entity) =>
+			entity.complexity != null && (
+				<span className={entity.complexity > SPLIT_ABOVE ? "split" : undefined}>{entity.complexity}</span>
 			),
 	},
 	{
@@ -160,67 +160,67 @@ const COLUMNS: Column[] = [
 		label: "Timebox",
 		kinds: ["card"],
 		numeric: true,
-		value: (record) => record.timebox_mins ?? null,
-		cell: (record) => record.timebox_mins != null && `${record.timebox_mins}m`,
+		value: (entity) => entity.timebox_mins ?? null,
+		cell: (entity) => entity.timebox_mins != null && `${entity.timebox_mins}m`,
 	},
 	{
 		key: "blocked",
 		label: "Blocked",
 		kinds: ["card"],
 		wide: true,
-		value: (record) => record.blocked ?? null,
-		cell: (record) => record.blocked && <span className="cell-blocked">{record.blocked}</span>,
+		value: (entity) => entity.blocked ?? null,
+		cell: (entity) => entity.blocked && <span className="cell-blocked">{entity.blocked}</span>,
 	},
 	{
 		key: "dependent_on",
 		label: "Waits on",
 		kinds: ["card"],
-		value: (record) => (record.dependent_on ?? []).join(", ") || null,
+		value: (entity) => (entity.dependent_on ?? []).join(", ") || null,
 	},
-	{ key: "session", label: "Claimed by", value: (record) => record.session ?? null },
+	{ key: "session", label: "Claimed by", value: (entity) => entity.session ?? null },
 	{
 		key: "due",
 		label: "Due",
 		kinds: ["card"],
-		value: (record) => record.due ?? null,
-		cell: (record) => {
-			const due = dueState(record);
+		value: (entity) => entity.due ?? null,
+		cell: (entity) => {
+			const due = dueState(entity);
 			return (
 				due && (
 					<span className={`due-${due.tone}`} title={due.title}>
-						{shortDate(record.due)}
+						{shortDate(entity.due)}
 						{due.held && " · target"}
 					</span>
 				)
 			);
 		},
 	},
-	{ key: "prs", label: "PRs", kinds: ["card"], wide: true, value: (record) => record.prs ?? null },
+	{ key: "prs", label: "PRs", kinds: ["card"], wide: true, value: (entity) => entity.prs ?? null },
 	{
 		key: "cost",
 		label: "Cost",
 		kinds: ["card"],
 		numeric: true,
-		value: (record) => record.cost_usd ?? null,
-		cell: (record) => record.cost_usd != null && `$${record.cost_usd.toFixed(2)}`,
+		value: (entity) => entity.cost_usd ?? null,
+		cell: (entity) => entity.cost_usd != null && `$${entity.cost_usd.toFixed(2)}`,
 	},
 	{
 		key: "tokens",
 		label: "Tokens",
 		kinds: ["card"],
 		numeric: true,
-		value: (record) => record.tokens_k ?? null,
-		cell: (record) => record.tokens_k != null && `${record.tokens_k}k`,
+		value: (entity) => entity.tokens_k ?? null,
+		cell: (entity) => entity.tokens_k != null && `${entity.tokens_k}k`,
 	},
-	{ key: "comments", label: "Threads", numeric: true, value: (record) => record.comments || null },
+	{ key: "comments", label: "Threads", numeric: true, value: (entity) => entity.comments || null },
 	{
 		key: "rework",
 		label: "Back from",
 		kinds: ["card"],
 		numeric: true,
-		value: (record) => reworkOf(record) || null,
-		cell: (record) =>
-			bounces(record)
+		value: (entity) => reworkOf(entity) || null,
+		cell: (entity) =>
+			bounces(entity)
 				.map(([gate, count]) => `${gate} ${count}`)
 				.join(", "),
 	},
@@ -228,21 +228,21 @@ const COLUMNS: Column[] = [
 		key: `model:${stage}`,
 		label: `${stage} model`,
 		kinds: ["card"],
-		value: (record) => record.models?.[stage] ?? null,
+		value: (entity) => entity.models?.[stage] ?? null,
 	})),
 	{
 		key: "days",
 		label: "Days in column",
 		numeric: true,
-		value: (record) => record.days_in_column ?? null,
+		value: (entity) => entity.days_in_column ?? null,
 	},
 	{
 		key: "lead",
 		label: "Lead time",
 		numeric: true,
-		value: (record) => flowOf(record).lead,
-		cell: (record) => {
-			const lead = flowOf(record).lead;
+		value: (entity) => flowOf(entity).lead,
+		cell: (entity) => {
+			const lead = flowOf(entity).lead;
 			return lead != null && span(lead);
 		},
 	},
@@ -250,23 +250,23 @@ const COLUMNS: Column[] = [
 		key: "cycle",
 		label: "Cycle time",
 		numeric: true,
-		value: (record) => flowOf(record).cycle,
-		cell: (record) => {
-			const cycle = flowOf(record).cycle;
+		value: (entity) => flowOf(entity).cycle,
+		cell: (entity) => {
+			const cycle = flowOf(entity).cycle;
 			return cycle != null && <span suppressHydrationWarning>{span(cycle)}</span>;
 		},
 	},
 	{
 		key: "created",
 		label: "Created",
-		value: (record) => record.created,
-		cell: (record) => <Stamp stamp={record.created} />,
+		value: (entity) => entity.created,
+		cell: (entity) => <Stamp stamp={entity.created} />,
 	},
 	{
 		key: "moved",
 		label: "Last moved",
-		value: (record) => lastMoved(record),
-		cell: (record) => <Stamp stamp={lastMoved(record)} />,
+		value: (entity) => lastMoved(entity),
+		cell: (entity) => <Stamp stamp={lastMoved(entity)} />,
 	},
 ];
 
@@ -274,13 +274,13 @@ function dateColumn(column: string): Column {
 	return {
 		key: `date:${column}`,
 		label: column,
-		value: (record) => record.dates?.[column] ?? null,
-		cell: (record) => <Stamp stamp={record.dates?.[column]} />,
+		value: (entity) => entity.dates?.[column] ?? null,
+		cell: (entity) => <Stamp stamp={entity.dates?.[column]} />,
 	};
 }
 
-export function tableColumns(kind: Kind, records: Card[]) {
-	const dated = new Set(records.flatMap((record) => Object.keys(record.dates ?? {})));
+export function tableColumns(kind: Kind, entities: Card[]) {
+	const dated = new Set(entities.flatMap((entity) => Object.keys(entity.dates ?? {})));
 	const ordered = boardColumns(kind).filter((column) => dated.has(column));
 	const extra = [...dated].filter((column) => !ordered.includes(column)).sort();
 	return [
@@ -318,27 +318,27 @@ function compare(a: Value, b: Value) {
 	return String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
-export function sortTable(records: Card[], columns: Column[], context: Context, sort: TableSort) {
+export function sortTable(entities: Card[], columns: Column[], context: Context, sort: TableSort) {
 	const column = sort && columns.find((candidate) => candidate.key === sort.key);
-	if (!sort || !column) return records;
-	const keyed = records.map((record) => ({ record, value: column.value(record, context) }));
+	if (!sort || !column) return entities;
+	const keyed = entities.map((entity) => ({ entity, value: column.value(entity, context) }));
 	keyed.sort((a, b) => {
 		if (a.value == null || a.value === "") return b.value == null || b.value === "" ? 0 : 1;
 		if (b.value == null || b.value === "") return -1;
 		const order = compare(a.value, b.value);
 		return sort.descending ? -order : order;
 	});
-	return keyed.map(({ record }) => record);
+	return keyed.map(({ entity }) => entity);
 }
 
 export function tableOrder(
 	kind: Kind,
-	records: Card[],
+	entities: Card[],
 	lists: Lists,
 	text: string,
 	progress: Record<string, Progress> = {},
 ) {
-	return sortTable(records, tableColumns(kind, records), contextOf(kind, lists, progress), parseTableSort(text));
+	return sortTable(entities, tableColumns(kind, entities), contextOf(kind, lists, progress), parseTableSort(text));
 }
 
 function Header({ column, sort, onSort }: { column: Column; sort: TableSort; onSort: (key: string) => void }) {
@@ -361,7 +361,7 @@ function Header({ column, sort, onSort }: { column: Column; sort: TableSort; onS
 
 export function Table({
 	kind,
-	records,
+	entities,
 	columns,
 	context,
 	sort,
@@ -373,7 +373,7 @@ export function Table({
 	footer,
 }: {
 	kind: Kind;
-	records: Card[];
+	entities: Card[];
 	columns: Column[];
 	context: Context;
 	sort: TableSort;
@@ -386,7 +386,7 @@ export function Table({
 }) {
 	return (
 		<div className="table-wrap">
-			<table className="records">
+			<table className="entities">
 				<thead>
 					<tr>
 						{columns.map((column) => (
@@ -395,41 +395,41 @@ export function Table({
 					</tr>
 				</thead>
 				<tbody>
-					{records.map((record) => (
+					{entities.map((entity) => (
 						<tr
-							key={record.id}
+							key={entity.id}
 							className={
 								[
-									pending.has(record.id) && "pending",
-									focusedId === record.id && "focused",
-									selected.has(record.id) && "selected",
+									pending.has(entity.id) && "pending",
+									focusedId === entity.id && "focused",
+									selected.has(entity.id) && "selected",
 								]
 									.filter(Boolean)
 									.join(" ") || undefined
 							}
 							onClick={(event) => {
 								if ((event.target as HTMLElement).closest("button")) return;
-								onOpen(record.id, event.shiftKey || event.metaKey || event.ctrlKey);
+								onOpen(entity.id, event.shiftKey || event.metaKey || event.ctrlKey);
 							}}
 						>
 							<th scope="row">
 								<button
 									type="button"
 									className="ident"
-									data-card={record.id}
-									aria-pressed={selected.has(record.id) || undefined}
-									onClick={(event) => onOpen(record.id, event.shiftKey || event.metaKey || event.ctrlKey)}
+									data-card={entity.id}
+									aria-pressed={selected.has(entity.id) || undefined}
+									onClick={(event) => onOpen(entity.id, event.shiftKey || event.metaKey || event.ctrlKey)}
 								>
-									{record.id}
+									{entity.id}
 								</button>
 							</th>
-							<td className="cell-name" title={record.name}>
-								{record.icon && <span className="record-icon">{record.icon}</span>}
-								{record.name}
+							<td className="cell-name" title={entity.name}>
+								{entity.icon && <span className="entity-icon">{entity.icon}</span>}
+								{entity.name}
 							</td>
 							{columns.slice(2).map((column) => {
-								const shown = column.cell ? column.cell(record, context) : column.value(record, context);
-								const text = column.value(record, context);
+								const shown = column.cell ? column.cell(entity, context) : column.value(entity, context);
+								const text = column.value(entity, context);
 								return (
 									<td
 										key={column.key}
@@ -446,7 +446,7 @@ export function Table({
 					))}
 				</tbody>
 			</table>
-			{records.length === 0 && <p className="table-empty">No {kindName(kind)} matches the view and the filters.</p>}
+			{entities.length === 0 && <p className="table-empty">No {kindName(kind)} matches the view and the filters.</p>}
 			{footer}
 		</div>
 	);

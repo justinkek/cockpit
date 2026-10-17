@@ -63,8 +63,8 @@ for (const name of ["board", "shared"]) {
 
 change_status() {
   node --input-type=module -e '
-import { changeStatus, readRecord } from "'"$WORK"'/board.mjs";
-await changeStatus(await readRecord(process.argv[1]), process.argv[2]);
+import { changeStatus, readEntity } from "'"$WORK"'/board.mjs";
+await changeStatus(await readEntity(process.argv[1]), process.argv[2]);
 ' "$1" "$2"
 }
 

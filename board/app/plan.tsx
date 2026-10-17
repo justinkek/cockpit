@@ -49,7 +49,7 @@ import { TextField, useHydrated } from "@/app/fields";
 import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { estimatesTitle } from "@/app/estimates";
 import { ProgressMeter } from "@/app/progress";
-import { RecordOverlay, useOpenRecord } from "@/app/record-overlay";
+import { EntityOverlay, useOpenEntity } from "@/app/entity-overlay";
 import { breakToastOf, toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { progressOf } from "@/lib/metrics";
 import {
@@ -103,7 +103,7 @@ type Drag = {
 };
 type Notice = { id: string; text: string } | null;
 type Editing = { id: string | null; name: string; date: string } | null;
-type Outcome = { record?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span; more?: Change[] };
+type Outcome = { entity?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span; more?: Change[] };
 
 function loadPrefs(): Prefs {
 	try {
@@ -812,7 +812,7 @@ export function Plan({
 	const [prefs, setPrefs] = useState<Prefs>({ scale: "weeks", grouped: true });
 	const [drag, setDrag] = useState<Drag | null>(null);
 	const [rowDragging, setRowDragging] = useState<string | null>(null);
-	const [openId, openRecord] = useOpenRecord();
+	const [openId, openEntity] = useOpenEntity();
 	const [notice, setNotice] = useState<Notice>(null);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [confirmDialog, ask] = useConfirm();
@@ -1004,7 +1004,7 @@ export function Plan({
 		const named = new Map(epics.map((epic) => [epic.id, epic.name]));
 		return {
 			label: "the plan",
-			records: visualOrder.map(({ id }) => ({ id, name: named.get(id) ?? id })),
+			entities: visualOrder.map(({ id }) => ({ id, name: named.get(id) ?? id })),
 		};
 	}, [epics, groups]);
 
@@ -1048,7 +1048,7 @@ export function Plan({
 				if (result.archived || result.moved) router.refresh();
 				return;
 			}
-			const fresh = result.record;
+			const fresh = result.entity;
 			if (fresh) {
 				setEpics((current) => current.map((epic) => (epic.id === id ? fresh : epic)));
 				setToast(undoable(fresh.id, result.undo, label, result.more));
@@ -1059,7 +1059,7 @@ export function Plan({
 
 	function show(id: string | null) {
 		if (id !== openId && !confirmDiscard()) return;
-		openRecord(id);
+		openEntity(id);
 	}
 
 	function moveEpic(epic: Card, column: string, checked = false) {
@@ -1082,7 +1082,7 @@ export function Plan({
 				chosen.open.map((card) => card.id),
 			);
 			setFinishing(null);
-			const fresh = result.record;
+			const fresh = result.entity;
 			if (fresh) setEpics((current) => current.map((epic) => (epic.id === chosen.id ? fresh : epic)));
 			if (result.errors.length > 0) setNotice({ id: "", text: result.errors.join("; ") });
 			if (result.undo.length > 0)
@@ -1333,7 +1333,7 @@ export function Plan({
 		startTransition(async () => {
 			const result = await rankPlan(ranks);
 			for (const rank of ranks) markPending(rank.id, false);
-			const fresh = new Map(result.records.flatMap(({ from, record }) => (record ? [[from, record]] : [])));
+			const fresh = new Map(result.entities.flatMap(({ from, entity }) => (entity ? [[from, entity]] : [])));
 			setEpics((current) =>
 				current.map(
 					(epic) =>
@@ -1381,7 +1381,7 @@ export function Plan({
 				setNotice({ id: "", text: `${id}: ${result.error}` });
 				return;
 			}
-			const fresh = result.record;
+			const fresh = result.entity;
 			if (fresh) {
 				setMilestones((current) => current.map((one) => (one.id === id ? fresh : one)));
 				setToast(undoable(id, result.undo, label));
@@ -1396,11 +1396,11 @@ export function Plan({
 		if (!id) {
 			startTransition(async () => {
 				const result = await createMilestone(name, date);
-				if (result.error || !result.record) {
+				if (result.error || !result.entity) {
 					setNotice({ id: "", text: `Could not add the milestone: ${result.error ?? "board-card made nothing"}` });
 					return;
 				}
-				const fresh = result.record;
+				const fresh = result.entity;
 				setMilestones((current) => [...current, fresh]);
 				setEditing(null);
 				setToast(toastOf(`Added ${fresh.name} on ${short(dayOf(date) ?? today)}`));
@@ -1455,7 +1455,7 @@ export function Plan({
 					failures.push(result.error);
 					continue;
 				}
-				const fresh = result.record;
+				const fresh = result.entity;
 				if (!fresh) continue;
 				if (kindOf(fresh.id) === "epic")
 					setEpics((current) => current.map((epic) => (epic.id === change.id ? fresh : epic)));
@@ -1863,7 +1863,7 @@ export function Plan({
 							onClick={() => show(epic.id)}
 							title={`${epic.id} · ${epic.status}`}
 						>
-							{epic.icon && <span className="record-icon">{epic.icon}</span>}
+							{epic.icon && <span className="entity-icon">{epic.icon}</span>}
 							{epic.name}
 						</button>
 						<span className="plan-meta">
@@ -2316,7 +2316,7 @@ export function Plan({
 										{prefs.grouped && (
 											<div className="plan-group-head">
 												<span className="plan-left">
-													{group.icon && <span className="record-icon">{group.icon}</span>}
+													{group.icon && <span className="entity-icon">{group.icon}</span>}
 													{group.name}
 													<span className="count">{group.epics.length}</span>
 													{group.team && (
@@ -2406,7 +2406,7 @@ export function Plan({
 				</footer>
 			</div>
 			{openId && (
-				<RecordOverlay
+				<EntityOverlay
 					id={openId}
 					siblings={siblings}
 					onOpen={(id) => show(id)}

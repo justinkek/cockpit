@@ -50,7 +50,7 @@ function choicePage(title: string, items: Command[]): Page {
 	return { title, items };
 }
 
-export function iconCommand(record: Card | null, edits: Edits): Command {
+export function iconCommand(entity: Card | null, edits: Edits): Command {
 	return {
 		id: "do:icon",
 		group: edits.label,
@@ -63,16 +63,16 @@ export function iconCommand(record: Card | null, edits: Edits): Command {
 					id: `icon:${entry.emoji}`,
 					label: `${entry.emoji}  ${entry.words.split(" ")[0]}`,
 					keywords: entry.words,
-					hint: entry.emoji === record?.icon ? "Current" : undefined,
+					hint: entry.emoji === entity?.icon ? "Current" : undefined,
 					run: () => edits.edit("icon", entry.emoji, { icon: entry.emoji }),
 				})),
 			]),
 	};
 }
 
-export function recordCommands(
+export function entityCommands(
 	kind: "card" | "epic" | null,
-	record: Card | null,
+	entity: Card | null,
 	lists: Lists,
 	edits: Edits | null,
 ): Command[] {
@@ -85,12 +85,12 @@ export function recordCommands(
 			label: "Move to…",
 			hint: "S",
 			keywords: "status column",
-			next: () => movePage(kind, record?.status, edits),
+			next: () => movePage(kind, entity?.status, edits),
 		},
 	];
 	if (kind === "card") {
 		commands.push(
-			{ id: "do:epic", group, label: "Set epic…", hint: "E", next: () => epicPage(lists, record?.epic, edits) },
+			{ id: "do:epic", group, label: "Set epic…", hint: "E", next: () => epicPage(lists, entity?.epic, edits) },
 			{
 				id: "do:type",
 				group,
@@ -101,7 +101,7 @@ export function recordCommands(
 						TYPES.map((type) => ({
 							id: `type:${type}`,
 							label: type,
-							hint: type === record?.type ? "Current" : undefined,
+							hint: type === entity?.type ? "Current" : undefined,
 							run: () => edits.edit("type", type, { type }),
 						})),
 					),
@@ -116,7 +116,7 @@ export function recordCommands(
 						...lists.sprints.map((sprint) => ({
 							id: `sprint:${sprint.id}`,
 							label: sprint.name,
-							hint: sprint.id === record?.sprint ? "Current" : (sprint.start ?? undefined),
+							hint: sprint.id === entity?.sprint ? "Current" : (sprint.start ?? undefined),
 							run: () => edits.edit("sprint", sprint.id, { sprint: sprint.id }),
 						})),
 					]),
@@ -132,7 +132,7 @@ export function recordCommands(
 						...FIBONACCI.map((points) => ({
 							id: `points:${points}`,
 							label: String(points),
-							hint: points === record?.complexity ? "Current" : undefined,
+							hint: points === entity?.complexity ? "Current" : undefined,
 							run: () => edits.edit("complexity", String(points), { complexity: points }),
 						})),
 					]),
@@ -154,7 +154,7 @@ export function recordCommands(
 							label: timeboxText(minutes),
 							keywords: `${minutes} minutes`,
 							hint:
-								minutes === record?.timebox_mins
+								minutes === entity?.timebox_mins
 									? "Current"
 									: timeboxText(minutes).endsWith("min")
 										? undefined
@@ -165,7 +165,7 @@ export function recordCommands(
 			},
 		);
 	}
-	commands.push(iconCommand(record, edits));
+	commands.push(iconCommand(entity, edits));
 	if (edits.duplicate) {
 		commands.push({ id: "do:duplicate", group, label: "Duplicate", keywords: "copy clone", run: edits.duplicate });
 	}

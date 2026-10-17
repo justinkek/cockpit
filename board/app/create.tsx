@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { type NewOptions, submitNew } from "@/app/actions";
 import { EmojiPicker } from "@/app/emoji-picker";
-import { recordOptions, SearchSelect } from "@/app/search-select";
+import { entityOptions, SearchSelect } from "@/app/search-select";
 import type { Lists } from "@/app/fields";
 import { boardColumns, type Kind, kindName, TYPES } from "@/lib/shared";
 
 export type Draft = { name: string; status: string } & NewOptions;
 
-export function NewRecord({
+export function NewEntity({
 	kind,
 	lists,
 	open,
@@ -124,7 +124,7 @@ export function NewRecord({
 	return (
 		<details
 			ref={frame}
-			className="new-record"
+			className="new-entity"
 			open={open}
 			onToggle={(event) => {
 				const opened = event.currentTarget.open;
@@ -207,7 +207,7 @@ export function NewRecord({
 						<SearchSelect
 							label="Epic"
 							value={epic}
-							options={recordOptions(lists.epics, "Epic Done")}
+							options={entityOptions(lists.epics, "Epic Done")}
 							onChange={(value) => changed(setEpic)({ target: { value } })}
 						/>
 					)}
@@ -219,7 +219,7 @@ export function NewRecord({
 						<SearchSelect
 							label="Project"
 							value={project}
-							options={recordOptions(lists.projects, "Done")}
+							options={entityOptions(lists.projects, "Done")}
 							onChange={(value) => changed(setProject)({ target: { value } })}
 						/>
 					)}

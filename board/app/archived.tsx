@@ -12,14 +12,14 @@ export function RestoreButton({ id, back, label = "Bring it back" }: { id: strin
 	);
 }
 
-export function ArchivedRecord({ record, failure }: { record: Card; failure?: string }) {
+export function ArchivedEntity({ entity, failure }: { entity: Card; failure?: string }) {
 	return (
 		<article className="stub">
-			{record.icon && <span className="page-icon">{record.icon}</span>}
-			<h1 className="archived-title">{record.name}</h1>
+			{entity.icon && <span className="page-icon">{entity.icon}</span>}
+			<h1 className="archived-title">{entity.name}</h1>
 			<p className="meta">
-				<span>{record.id}</span>
-				{record.status && <span>{record.status}</span>}
+				<span>{entity.id}</span>
+				{entity.status && <span>{entity.status}</span>}
 			</p>
 			{failure && (
 				<p className="notice error" role="alert">
@@ -28,10 +28,10 @@ export function ArchivedRecord({ record, failure }: { record: Card; failure?: st
 			)}
 			<p className="notice archived-notice">
 				<span>
-					{record.id} is archived, so it is off the board and nothing can change it. Bring it back to work on it again,
+					{entity.id} is archived, so it is off the board and nothing can change it. Bring it back to work on it again,
 					or see everything archived on the <Link href="/archive">Archive</Link> page.
 				</span>
-				<RestoreButton id={record.id} />
+				<RestoreButton id={entity.id} />
 			</p>
 		</article>
 	);

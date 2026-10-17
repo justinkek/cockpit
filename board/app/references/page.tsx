@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { NewOther } from "@/app/new-record";
-import { BoardError, type Card, DOMAINS, listRecords } from "@/lib/board";
+import { NewOther } from "@/app/new-entity";
+import { BoardError, type Card, DOMAINS, listEntities } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export default async function ReferencesPage({ searchParams }: Props) {
 	const { error } = await searchParams;
 	let references: Card[];
 	try {
-		references = await listRecords("reference");
+		references = await listEntities("reference");
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
 		return <p className="notice error">{failure.message}</p>;
@@ -53,15 +53,15 @@ export default async function ReferencesPage({ searchParams }: Props) {
 					<h2>
 						{group.domain || "No domain"} <span className="count">{group.references.length}</span>
 					</h2>
-					<ul className="record-list">
+					<ul className="entity-list">
 						{group.references.map((reference) => (
 							<li key={reference.id}>
 								<span className="ident">{reference.id}</span>
 								<Link href={`/card/${reference.id}`} className="report-name" title={reference.description ?? undefined}>
-									{reference.icon && <span className="record-icon">{reference.icon}</span>}
+									{reference.icon && <span className="entity-icon">{reference.icon}</span>}
 									{reference.name}
 								</Link>
-								<span className="record-meta">
+								<span className="entity-meta">
 									{reference.stack && <span>{reference.stack}</span>}
 									{reference.card && <span className="ident">{reference.card}</span>}
 									<span className="pill reference-points" title="Points">

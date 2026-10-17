@@ -7,8 +7,8 @@ export type SearchOption = { value: string; label: string; id?: string; done?: b
 
 const SHOWN = 60;
 
-export function recordOptions(records: { id: string; name: string; status?: string }[], doneStatus: string): SearchOption[] {
-	return records.map((record) => ({ value: record.id, id: record.id, label: record.name, done: record.status === doneStatus }));
+export function entityOptions(entities: { id: string; name: string; status?: string }[], doneStatus: string): SearchOption[] {
+	return entities.map((entity) => ({ value: entity.id, id: entity.id, label: entity.name, done: entity.status === doneStatus }));
 }
 
 export function optionsMatching(options: SearchOption[], query: string): SearchOption[] {

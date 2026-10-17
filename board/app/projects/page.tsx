@@ -1,5 +1,5 @@
 import { type ProjectEntry, Projects } from "@/app/projects";
-import { BoardError, type Card, listRecords, phaseOf } from "@/lib/board";
+import { BoardError, type Card, listEntities, phaseOf } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export default async function ProjectsPage({ searchParams }: Props) {
 	let epics: Card[];
 	let cards: Card[];
 	try {
-		[projects, epics, cards] = await Promise.all([listRecords("project"), listRecords("epic"), listRecords("card")]);
+		[projects, epics, cards] = await Promise.all([listEntities("project"), listEntities("epic"), listEntities("card")]);
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
 		return <p className="notice error">{failure.message}</p>;

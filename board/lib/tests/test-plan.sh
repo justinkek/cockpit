@@ -50,7 +50,7 @@ for (const name of ["shared", "metrics", "plan"]) {
 evaluate() {
   TZ=UTC node --input-type=module -e '
 import * as plan from "'"$WORK"'/plan.mjs";
-const pick = (record, keys) => Object.fromEntries(keys.split(" ").map((key) => [key, record[key]]));
+const pick = (entity, keys) => Object.fromEntries(keys.split(" ").map((key) => [key, entity[key]]));
 const result = new Function("p", "pick", `return (${process.argv[1]});`)(plan, pick);
 process.stdout.write(typeof result === "string" ? result : JSON.stringify(result));
 ' "$1"

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Break, Card, CommentThread, HistoryEntry, Inbox, Kind, RecordKind, SavedView } from "./shared";
+import type { Break, Card, CommentThread, HistoryEntry, Inbox, Kind, EntityKind, SavedView } from "./shared";
 
 export * from "./shared";
 
@@ -32,14 +32,14 @@ async function boardCard(args: string[], input?: string): Promise<string> {
 	}
 }
 
-export async function listRecords(kind: RecordKind, archived = false): Promise<Card[]> {
+export async function listEntities(kind: EntityKind, archived = false): Promise<Card[]> {
 	const args = ["list", "--kind", kind, "--json"];
 	if (archived) args.push("--archived");
-	const records: Card[] = JSON.parse(await boardCard(args));
-	return records.map((record) => ({ ...record, body: "" }));
+	const entities: Card[] = JSON.parse(await boardCard(args));
+	return entities.map((entity) => ({ ...entity, body: "" }));
 }
 
-export async function readRecord(id: string): Promise<Card> {
+export async function readEntity(id: string): Promise<Card> {
 	return JSON.parse(await boardCard(["show", id, "--json"]));
 }
 
@@ -102,16 +102,16 @@ export async function boardTracks(value?: string): Promise<number> {
 	return Number((await boardCard(args)).trim()) || 0;
 }
 
-export async function changeStatus(record: Card, column: string): Promise<void> {
-	await boardCard(["move", record.id, column]);
+export async function changeStatus(entity: Card, column: string): Promise<void> {
+	await boardCard(["move", entity.id, column]);
 }
 
-export async function moveRecords(ids: string[], column: string): Promise<string[]> {
+export async function moveEntities(ids: string[], column: string): Promise<string[]> {
 	const output = await boardCard(["move", ...ids, column]);
 	return [...output.matchAll(/^(\S+)\t/gm)].map((match) => match[1]);
 }
 
-export async function closeProjectRecord(id: string): Promise<string[]> {
+export async function closeProjectEntity(id: string): Promise<string[]> {
 	const output = await boardCard(["set", id, "status", "Done", "--close"]);
 	return [...output.matchAll(/^(\S+)\t\S.* -> /gm)].map((match) => match[1]).filter((moved) => moved !== id);
 }
@@ -163,8 +163,8 @@ export type CreateOptions = {
 	fields?: Record<string, string>;
 };
 
-export async function createRecord(
-	kind: RecordKind,
+export async function createEntity(
+	kind: EntityKind,
 	name: string,
 	status: string,
 	options: CreateOptions = {},
@@ -181,17 +181,17 @@ export async function createRecord(
 	return (await boardCard(args, options.body)).trim().split("\n").at(-1) ?? "";
 }
 
-export async function duplicateRecord(id: string, status?: string): Promise<string> {
+export async function duplicateEntity(id: string, status?: string): Promise<string> {
 	const args = ["duplicate", id];
 	if (status) args.push("--status", status);
 	return (await boardCard(args)).trim().split("\n").at(-1) ?? "";
 }
 
-export async function archiveRecord(id: string): Promise<void> {
+export async function archiveEntity(id: string): Promise<void> {
 	await boardCard(["archive", id]);
 }
 
-export async function unarchiveRecord(id: string): Promise<void> {
+export async function unarchiveEntity(id: string): Promise<void> {
 	await boardCard(["unarchive", id]);
 }
 

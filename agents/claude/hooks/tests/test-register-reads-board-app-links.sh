@@ -32,7 +32,7 @@ printf "Test group: the links register reads are the ones the app serves\n"
 assert_eq "the app listens on 4646" "yes" "$(has '--port 4646' "$APP/package.json")"
 assert_eq "the app serves a card page at /card/<id>" "yes" "$([ -f "$APP/app/card/[id]/page.tsx" ] && echo yes || echo no)"
 assert_eq "the board opens a card at /?open=<id>" "yes" "$(has 'return `/?open=${id}`' "$APP/lib/shared.ts")"
-assert_eq "the board reads the record to open from ?open=" "yes" "$(has '.get("open")' "$APP/app/record-overlay.tsx")"
+assert_eq "the board reads the entity to open from ?open=" "yes" "$(has '.get("open")' "$APP/app/entity-overlay.tsx")"
 assert_eq "the epics board opens an epic at /epics?open=<id>" "yes" "$(has '/epics?open=${' "$APP/app/markdown.tsx")"
 
 printf "\nTest group: register takes a board app link as the id it names\n"

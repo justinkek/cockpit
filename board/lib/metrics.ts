@@ -36,18 +36,18 @@ type Dated = Pick<Card, "dates" | "status" | "moved" | "created">;
 
 type Entry = { column: string; at: string | null; time: number | null };
 
-export function stagesOf(record: Dated, now = Date.now()): Stage[] {
-	const entries: Entry[] = Object.entries(record.dates ?? {})
+export function stagesOf(entity: Dated, now = Date.now()): Stage[] {
+	const entries: Entry[] = Object.entries(entity.dates ?? {})
 		.map(([column, at]) => ({ column, at, time: timeOf(at) }))
 		.filter((entry): entry is { column: string; at: string; time: number } => entry.time != null)
 		.sort((a, b) => a.time - b.time || walkIndex(a.column) - walkIndex(b.column));
 	const last = entries.at(-1);
-	const moved = timeOf(record.moved);
-	if (record.status && last?.column !== record.status && (last || moved != null)) {
+	const moved = timeOf(entity.moved);
+	if (entity.status && last?.column !== entity.status && (last || moved != null)) {
 		const known = moved != null && (last?.time == null || moved >= last.time);
-		entries.push({ column: record.status, at: known ? (record.moved ?? null) : null, time: known ? moved : null });
+		entries.push({ column: entity.status, at: known ? (entity.moved ?? null) : null, time: known ? moved : null });
 	}
-	const finished = phaseOf(record.status) === "done";
+	const finished = phaseOf(entity.status) === "done";
 	return entries.map((entry, index) => {
 		const next = entries[index + 1];
 		if (next) {
@@ -67,18 +67,18 @@ export function stagesOf(record: Dated, now = Date.now()): Stage[] {
 const DONE_COLUMNS = ["Done", "Epic Done"];
 const START_COLUMNS = ["In Dev", "Tickets In Dev"];
 
-export function doneAt(record: Pick<Card, "dates" | "status" | "moved">): number | null {
-	if (!DONE_COLUMNS.includes(record.status)) return null;
-	const stamps = [timeOf(record.dates?.[record.status]), timeOf(record.moved)].filter((time) => time != null);
+export function doneAt(entity: Pick<Card, "dates" | "status" | "moved">): number | null {
+	if (!DONE_COLUMNS.includes(entity.status)) return null;
+	const stamps = [timeOf(entity.dates?.[entity.status]), timeOf(entity.moved)].filter((time) => time != null);
 	return stamps.length > 0 ? Math.max(...stamps) : null;
 }
 
 export type Flow = { lead: number | null; cycle: number | null; age: number | null };
 
-export function flowOf(record: Dated, now = Date.now()): Flow {
-	const created = timeOf(record.created);
-	const done = doneAt(record);
-	const started = START_COLUMNS.map((column) => timeOf(record.dates?.[column])).find((time) => time != null) ?? null;
+export function flowOf(entity: Dated, now = Date.now()): Flow {
+	const created = timeOf(entity.created);
+	const done = doneAt(entity);
+	const started = START_COLUMNS.map((column) => timeOf(entity.dates?.[column])).find((time) => time != null) ?? null;
 	const end = done ?? now;
 	return {
 		lead: done != null && created != null ? Math.max(0, done - created) : null,

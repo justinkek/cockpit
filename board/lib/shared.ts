@@ -46,7 +46,7 @@ export const EPIC_COLUMNS = [
 
 export type Kind = "card" | "epic";
 
-export type RecordKind = Kind | "project" | "sprint" | "reference" | "milestone";
+export type EntityKind = Kind | "project" | "sprint" | "reference" | "milestone";
 
 export const PROJECT_STATUSES = ["Not started", "In progress", "Done"] as const;
 
@@ -186,18 +186,18 @@ export const TYPES = ["Feature", "Bug", "Timebox"] as const;
 export function kindOf(id: string): Kind | null {
 	if (id.startsWith("EPIC-")) return "epic";
 	const prefix = id.match(/^([A-Z]{2,4})-\d+$/)?.[1];
-	if (prefix && !(prefix in RECORD_KINDS)) return "card";
+	if (prefix && !(prefix in ENTITY_KINDS)) return "card";
 	return null;
 }
 
-const RECORD_KINDS: Record<string, RecordKind> = { PRJ: "project", SPR: "sprint", REF: "reference", MS: "milestone" };
+const ENTITY_KINDS: Record<string, EntityKind> = { PRJ: "project", SPR: "sprint", REF: "reference", MS: "milestone" };
 
-export function recordKindOf(id: string): RecordKind | null {
-	return kindOf(id) ?? RECORD_KINDS[id.split("-")[0]] ?? null;
+export function entityKindOf(id: string): EntityKind | null {
+	return kindOf(id) ?? ENTITY_KINDS[id.split("-")[0]] ?? null;
 }
 
 export function homeOf(id: string): string {
-	const kind = recordKindOf(id);
+	const kind = entityKindOf(id);
 	if (kind === "epic") return `/epics?open=${id}`;
 	if (kind === "project") return `/projects?open=${id}`;
 	if (kind === "sprint") return `/obeya?sprint=${id}#sprint`;
@@ -206,7 +206,7 @@ export function homeOf(id: string): string {
 	return `/?open=${id}`;
 }
 
-export function kindName(kind: RecordKind) {
+export function kindName(kind: EntityKind) {
 	return kind === "card" ? "ticket" : kind;
 }
 
@@ -248,18 +248,18 @@ function localDay(date: Date) {
 	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
 }
 
-export function dueState(record: Pick<Card, "due" | "status" | "due_from">, now = new Date()): DueState | null {
-	const state = dueOf(record, now);
-	if (!state || !record.due_from) return state;
-	return { ...state, title: `${state.title} - held to the target of ${record.due_from}`, held: record.due_from };
+export function dueState(entity: Pick<Card, "due" | "status" | "due_from">, now = new Date()): DueState | null {
+	const state = dueOf(entity, now);
+	if (!state || !entity.due_from) return state;
+	return { ...state, title: `${state.title} - held to the target of ${entity.due_from}`, held: entity.due_from };
 }
 
-function dueOf(record: Pick<Card, "due" | "status">, now: Date): DueState | null {
-	const day = record.due?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+function dueOf(entity: Pick<Card, "due" | "status">, now: Date): DueState | null {
+	const day = entity.due?.match(/^(\d{4})-(\d{2})-(\d{2})/);
 	if (!day) return null;
 	const due = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]));
 	const days = localDay(due) - localDay(now);
-	const finished = phaseOf(record.status) === "done" || record.status === "Deprioritised";
+	const finished = phaseOf(entity.status) === "done" || entity.status === "Deprioritised";
 	const date = due.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 	const title = `Due ${due.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
 	const held = null;
@@ -274,24 +274,24 @@ function dueOf(record: Pick<Card, "due" | "status">, now: Date): DueState | null
 
 export const SPLIT_ABOVE = 5;
 
-export function bounces(record: Pick<Card, "back_from">) {
-	return Object.entries(record.back_from ?? {}).filter(([, count]) => count > 0);
+export function bounces(entity: Pick<Card, "back_from">) {
+	return Object.entries(entity.back_from ?? {}).filter(([, count]) => count > 0);
 }
 
 const OVERRUN_PHASES = ["dev", "review", "validate"];
 
-export function showsOverrun(record: Pick<Card, "overrunning" | "status">) {
-	return Boolean(record.overrunning) && OVERRUN_PHASES.includes(phaseOf(record.status));
+export function showsOverrun(entity: Pick<Card, "overrunning" | "status">) {
+	return Boolean(entity.overrunning) && OVERRUN_PHASES.includes(phaseOf(entity.status));
 }
 
-export function overrunTitle(record: Pick<Card, "type" | "timebox_mins" | "complexity">) {
-	return record.type === "Timebox" && record.timebox_mins
-		? `Its dev time has run past its ${record.timebox_mins}-minute timebox`
-		: `Its dev time has run past ${record.complexity ?? 0} points of working time`;
+export function overrunTitle(entity: Pick<Card, "type" | "timebox_mins" | "complexity">) {
+	return entity.type === "Timebox" && entity.timebox_mins
+		? `Its dev time has run past its ${entity.timebox_mins}-minute timebox`
+		: `Its dev time has run past ${entity.complexity ?? 0} points of working time`;
 }
 
-export function manualRank(record: Pick<Card, "id" | "rank">) {
-	return record.rank ?? -Number(record.id.split("-").at(-1));
+export function manualRank(entity: Pick<Card, "id" | "rank">) {
+	return entity.rank ?? -Number(entity.id.split("-").at(-1));
 }
 
 export function ago(stamp: string, now = Date.now()) {
@@ -309,8 +309,8 @@ export function ago(stamp: string, now = Date.now()) {
 
 const DAY = 86400000;
 
-export function doneWithin(record: Pick<Card, "dates" | "moved">, days: number, now = Date.now()) {
-	const stamps = [record.dates?.Done, record.moved].map((stamp) => new Date(stamp ?? "").getTime());
+export function doneWithin(entity: Pick<Card, "dates" | "moved">, days: number, now = Date.now()) {
+	const stamps = [entity.dates?.Done, entity.moved].map((stamp) => new Date(stamp ?? "").getTime());
 	const at = Math.max(...stamps.filter((stamp) => !Number.isNaN(stamp)));
 	return Number.isFinite(at) && now - at <= days * DAY;
 }

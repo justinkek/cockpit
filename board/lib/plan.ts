@@ -307,8 +307,8 @@ type Planned = Pick<
 
 export type Team = { tracks: number; perWeek: number };
 
-export function teamOf(record: Pick<Card, "project">, known: Record<string, unknown>): string | null {
-	return record.project && record.project in known ? record.project : null;
+export function teamOf(entity: Pick<Card, "project">, known: Record<string, unknown>): string | null {
+	return entity.project && entity.project in known ? entity.project : null;
 }
 
 type Worked = Sized & Pick<Card, "epic" | "dates" | "moved">;
@@ -489,16 +489,16 @@ export type BlockedSpan = { from: number; to: number; open: boolean };
 
 type Spelled = Partial<Pick<Card, "type" | "status" | "moved" | "dates" | "blocked_spans">>;
 
-function closedOn(record: Spelled): number | null {
-	if (record.status === "Deprioritised") return dayOf(record.moved);
-	if (record.status !== "Done" && record.status !== "Epic Done") return null;
-	const at = doneAt({ status: record.status, dates: record.dates, moved: record.moved });
+function closedOn(entity: Spelled): number | null {
+	if (entity.status === "Deprioritised") return dayOf(entity.moved);
+	if (entity.status !== "Done" && entity.status !== "Epic Done") return null;
+	const at = doneAt({ status: entity.status, dates: entity.dates, moved: entity.moved });
 	return at == null ? null : localDay(new Date(at));
 }
 
 export function blockedSpansOf(epic: Spelled, cards: Spelled[], today: number): BlockedSpan[] {
 	const spans = [epic, ...cards.filter((card) => card.type !== "Timebox")]
-		.flatMap((record) => (record.blocked_spans ?? []).map((span) => ({ span, closed: closedOn(record) })))
+		.flatMap((entity) => (entity.blocked_spans ?? []).map((span) => ({ span, closed: closedOn(entity) })))
 		.flatMap(({ span, closed }) => {
 			const from = dayOf(span.from);
 			const open = span.to == null && closed == null;

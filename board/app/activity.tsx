@@ -133,7 +133,7 @@ function Entry({
 					{stampText(entry.at)}
 				</time>
 				<span className="activity-who">{whoOf(entry)}</span>
-				{entry.session && <span className="activity-session" title="The session the record named">{entry.session}</span>}
+				{entry.session && <span className="activity-session" title="The session the entity named">{entry.session}</span>}
 				<span className="ident" title={entry.subject}>
 					{entry.commit}
 				</span>
@@ -145,7 +145,7 @@ function Entry({
 						className="quiet"
 						disabled={busy}
 						onClick={onRestore}
-						title="Write the record back as it stood after this change, with an undo"
+						title="Write the entity back as it stood after this change, with an undo"
 					>
 						Restore to this version
 					</button>
@@ -185,7 +185,7 @@ export function Activity({
 }: {
 	id: string;
 	revision?: string | null;
-	onRestored: (record: Card, undo: Span | undefined, label: string) => void;
+	onRestored: (entity: Card, undo: Span | undefined, label: string) => void;
 }) {
 	const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
 	const [error, setError] = useState("");
@@ -210,11 +210,11 @@ export function Activity({
 		setError("");
 		startTransition(async () => {
 			const result = await restoreVersion(id, entry.commit);
-			if (result.error || !result.record) {
+			if (result.error || !result.entity) {
 				setError(`Could not restore ${id}: ${result.error ?? "board-card wrote nothing"}`);
 				return;
 			}
-			onRestored(result.record, result.undo, `Restored ${id} to ${entry.commit}`);
+			onRestored(result.entity, result.undo, `Restored ${id} to ${entry.commit}`);
 		});
 	}
 
@@ -251,7 +251,7 @@ export function ActivitySection({
 }: {
 	id: string;
 	revision?: string | null;
-	onRestored: (record: Card, undo: Span | undefined, label: string) => void;
+	onRestored: (entity: Card, undo: Span | undefined, label: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
 	const section = useRef<HTMLDetailsElement>(null);

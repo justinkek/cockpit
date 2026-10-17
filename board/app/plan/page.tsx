@@ -1,5 +1,5 @@
 import { Plan } from "@/app/plan";
-import { BoardError, type Break, boardTracks, type Card, listRecords, readBreaks } from "@/lib/board";
+import { BoardError, type Break, boardTracks, type Card, listEntities, readBreaks } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +18,11 @@ export default async function PlanPage() {
 	let breaks: Break[];
 	try {
 		[cards, epics, projects, sprints, milestones, tracks, breaks] = await Promise.all([
-			listRecords("card"),
-			listRecords("epic"),
-			listRecords("project"),
-			listRecords("sprint"),
-			listRecords("milestone"),
+			listEntities("card"),
+			listEntities("epic"),
+			listEntities("project"),
+			listEntities("sprint"),
+			listEntities("milestone"),
 			boardTracks(),
 			readBreaks(),
 		]);

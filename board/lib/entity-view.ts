@@ -8,44 +8,44 @@ import {
 	isArchived,
 	kindOf,
 	listAttachments,
-	listRecords,
+	listEntities,
 	phaseOf,
 	readAliases,
-	readRecord,
-	recordKindOf,
+	readEntity,
+	entityKindOf,
 	resolveId,
 } from "@/lib/board";
 
-export type RecordViewData = {
-	record: Card;
+export type EntityViewData = {
+	entity: Card;
 	lists: Lists;
 	column: Card[];
-	records: Card[];
+	entities: Card[];
 	attachments: string[];
 	progresses: Record<string, Progress>;
 	estimates?: Estimates;
 	members: Picked[];
 };
 
-export type RecordLookup = { view: RecordViewData } | { archived: Card } | { renamed: string } | { missing: string };
+export type EntityLookup = { view: EntityViewData } | { archived: Card } | { renamed: string } | { missing: string };
 
-export async function lookupRecord(id: string): Promise<RecordLookup> {
-	let record: Card;
+export async function lookupEntity(id: string): Promise<EntityLookup> {
+	let entity: Card;
 	try {
-		record = await readRecord(id);
+		entity = await readEntity(id);
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
-		const kind = recordKindOf(id.toUpperCase());
+		const kind = entityKindOf(id.toUpperCase());
 		if (kind && (await isArchived(id))) {
 			const current = await resolveId(id);
-			const archived = (await listRecords(kind, true)).find((other) => other.id === current);
+			const archived = (await listEntities(kind, true)).find((other) => other.id === current);
 			if (archived) return { archived };
 		}
 		const renamed = await findRenamed(id);
 		if (renamed) return { renamed };
 		return { missing: id.toUpperCase() };
 	}
-	if (record.id !== id.toUpperCase()) return { renamed: record.id };
+	if (entity.id !== id.toUpperCase()) return { renamed: entity.id };
 
 	let cards: Card[] = [];
 	let epics: Card[] = [];
@@ -55,46 +55,46 @@ export async function lookupRecord(id: string): Promise<RecordLookup> {
 	let aliases: Record<string, string> = {};
 	try {
 		[cards, epics, sprints, projects, aliases] = await Promise.all([
-			listRecords("card"),
-			listRecords("epic"),
-			listRecords("sprint"),
-			listRecords("project"),
+			listEntities("card"),
+			listEntities("epic"),
+			listEntities("sprint"),
+			listEntities("project"),
 			readAliases(),
 		]);
-		attachments = await listAttachments(record.id);
+		attachments = await listAttachments(entity.id);
 	} catch (failure) {
 		if (!(failure instanceof BoardError)) throw failure;
 	}
 
-	const records = kindOf(record.id) === "epic" ? epics : cards;
-	const column = records.filter((other) => other.status === record.status);
+	const entities = kindOf(entity.id) === "epic" ? epics : cards;
+	const column = entities.filter((other) => other.status === entity.status);
 	const progresses = Object.fromEntries(
 		epics.map((epic) => [epic.id, progressOf(cards.filter((card) => card.epic === epic.id))]),
 	);
 
-	const kind = recordKindOf(record.id);
-	const epicsInProject = new Set(epics.filter((epic) => epic.project === record.id).map((epic) => epic.id));
+	const kind = entityKindOf(entity.id);
+	const epicsInProject = new Set(epics.filter((epic) => epic.project === entity.id).map((epic) => epic.id));
 	const members =
 		kind === "project"
 			? [
 					...epics.filter((epic) => epicsInProject.has(epic.id)),
 					...cards.filter(
-						(card) => card.project === record.id || (!card.project && card.epic && epicsInProject.has(card.epic)),
+						(card) => card.project === entity.id || (!card.project && card.epic && epicsInProject.has(card.epic)),
 					),
 				]
 			: kind === "sprint"
-				? cards.filter((card) => card.sprint === record.id)
+				? cards.filter((card) => card.sprint === entity.id)
 				: kind === "epic"
-					? cards.filter((card) => card.epic === record.id)
+					? cards.filter((card) => card.epic === entity.id)
 					: [];
 
 	return {
 		view: {
-			record,
+			entity,
 			column,
-			records,
+			entities,
 			progresses,
-			estimates: kind === "epic" ? estimatesOf(cards.filter((card) => card.epic === record.id)) : undefined,
+			estimates: kind === "epic" ? estimatesOf(cards.filter((card) => card.epic === entity.id)) : undefined,
 			attachments: attachments.map((file) => file.slice(file.lastIndexOf("/") + 1)),
 			members: members
 				.map(({ id, name, status }) => ({ id, name, status }))
