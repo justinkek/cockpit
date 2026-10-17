@@ -87,7 +87,7 @@ export function openDays(first: number, last: number, off: Off[]): number {
 	);
 }
 
-type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on">;
+type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on"> & Partial<Pick<Card, "blocked">>;
 
 function splitParent(card: Pick<Sized, "dependent_on">) {
 	return (card.dependent_on?.length ?? 0) > 0;
@@ -270,7 +270,8 @@ export function estimatesOf(cards: Sized[]): Estimates {
 type Planned = Pick<
 	Card,
 	"id" | "status" | "start" | "target" | "rank" | "confidence" | "dates" | "moved" | "project" | "track"
->;
+> &
+	Partial<Pick<Card, "blocked">>;
 
 export type Team = { tracks: number; perWeek: number };
 
@@ -414,6 +415,25 @@ export function refinementOf(epics: Pick<Card, "start" | "dates">[]): Refinement
 
 export type Phase = "backlog" | "refinement" | "delivery" | "done";
 
+export type Blocked = "epic" | "cards" | null;
+
+export function openWorkOf<T extends Sized>(cards: T[]): T[] {
+	return cards.filter(
+		(card) =>
+			card.type !== "Timebox" &&
+			!splitParent(card) &&
+			card.status !== "Done" &&
+			card.status !== "Deprioritised",
+	);
+}
+
+export function blockedOf(epic: Pick<Card, "status"> & Partial<Pick<Card, "blocked">>, cards: Sized[]): Blocked {
+	if (epic.status === "Epic Done") return null;
+	if (epic.blocked) return "epic";
+	const open = openWorkOf(cards);
+	return open.length > 0 && open.every((card) => card.blocked) ? "cards" : null;
+}
+
 export type Row = {
 	id: string;
 	phase: Phase;
@@ -438,6 +458,7 @@ export type Row = {
 	pin: number | null;
 	pinIgnored: boolean;
 	pausedUntil: number | null;
+	blocked: Blocked;
 };
 
 export function planOf(
@@ -504,22 +525,23 @@ export function planOf(
 				pin,
 				pinIgnored: pin != null && pin > tracks,
 				pausedUntil: null,
+				blocked: blockedOf(epic, own),
 			};
 			rows[epic.id] = row;
 			if (row.done) {
 				const at = doneAt(epic);
 				row.doneDay = at == null ? null : localDay(new Date(at));
 				row.late = target != null && row.doneDay != null ? Math.max(0, row.doneDay - target) : 0;
-			} else if (row.remaining.open === 0 && row.remaining.done > 0) {
+			} else if (row.blocked == null && row.remaining.open === 0 && row.remaining.done > 0) {
 				row.begin = today;
 				row.projected = today;
-			} else if (row.remaining.open > 0) {
+			} else if (row.blocked == null && row.remaining.open > 0) {
 				queue.push(row);
 			}
 		}
 		if (tracks === 0) continue;
 		for (const row of Object.values(rows)) {
-			if (row.team !== team || (row.phase !== "refinement" && row.phase !== "backlog")) continue;
+			if (row.team !== team || row.blocked != null || (row.phase !== "refinement" && row.phase !== "backlog")) continue;
 			row.refineStart ??= openFrom(today, off);
 			row.refineEnd = Math.max(today, afterOpen(row.refineStart, refinement.days, off));
 			row.refineForecast = true;

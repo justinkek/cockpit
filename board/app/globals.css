@@ -4988,6 +4988,11 @@
 		color: var(--plan-warn);
 	}
 
+	.plan-points.blocked {
+		color: var(--plan-late);
+		font-weight: 600;
+	}
+
 	.pill.estimates {
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
@@ -5257,7 +5262,8 @@
 		pointer-events: none;
 		z-index: 3;
 
-		&.late {
+		&.late,
+		&.blocked {
 			color: var(--plan-late);
 			font-weight: 600;
 		}
@@ -5265,6 +5271,27 @@
 		&.done {
 			color: var(--plan-good);
 		}
+	}
+
+	.plan-blocked {
+		position: absolute;
+		top: 18px;
+		display: inline-grid;
+		place-items: center;
+		width: 14px;
+		height: 14px;
+		color: var(--plan-late);
+		z-index: 3;
+
+		& .plan-icon {
+			width: 14px;
+			height: 14px;
+		}
+	}
+
+	.legend-blocked {
+		display: inline-grid;
+		color: var(--plan-late);
 	}
 
 	.late-swatch {
@@ -5666,7 +5693,7 @@
 		.plan-corner-status,
 		.plan-status-text,
 		.plan-meta .progress,
-		.plan-meta .plan-points:not(.unsized, .fallback) {
+		.plan-meta .plan-points:not(.unsized, .fallback, .blocked) {
 			display: none;
 		}
 

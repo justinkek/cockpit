@@ -59,6 +59,7 @@ import {
 	estimatesOf,
 	lateText,
 	mondayOf,
+	openWorkOf,
 	planOf,
 	planOrder,
 	pointsOf,
@@ -148,7 +149,17 @@ function moved(drag: Drag): { start: number | null; target: number | null } {
 	return { start: drag.start, target: Math.max(from + drag.delta, drag.start ?? Number.NEGATIVE_INFINITY) };
 }
 
-type IconName = "none" | "good" | "plan" | "risk" | "done" | "projected" | "milestone" | "target" | "late";
+type IconName =
+	| "none"
+	| "good"
+	| "plan"
+	| "risk"
+	| "done"
+	| "projected"
+	| "milestone"
+	| "target"
+	| "late"
+	| "blocked";
 
 function Icon({ name }: { name: IconName }) {
 	const shapes: Record<IconName, ReactNode> = {
@@ -175,6 +186,12 @@ function Icon({ name }: { name: IconName }) {
 		milestone: <path d="M6 0.5 L11.5 6 L6 11.5 L0.5 6 Z" fill="currentColor" />,
 		target: <path d="M2.5 11V1 M2.5 1.5h7l-2 2.5 2 2.5h-7" fill="none" stroke="currentColor" strokeWidth="1.5" />,
 		late: <rect x="0.5" y="3" width="11" height="6" rx="1" className="late-swatch" />,
+		blocked: (
+			<>
+				<circle cx="6" cy="6" r="5.2" fill="currentColor" />
+				<path d="M3.2 6h5.6" stroke="var(--panel)" strokeWidth="1.8" strokeLinecap="round" />
+			</>
+		),
 	};
 	return (
 		<svg className={`plan-icon icon-${name}`} viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -461,6 +478,12 @@ function cardPointsTitle(card: Card) {
 	if ((card.complexity ?? 0) > 0) return `TR complexity ${card.complexity}`;
 	if ((card.estimate ?? 0) > 0) return `TD estimate ${card.estimate}, with no TR complexity yet`;
 	return "Neither a TR complexity nor a TD estimate";
+}
+
+function blockedWhy(epic: Card | undefined, row: Row, cards: Card[]) {
+	if (row.blocked === "epic") return `its own blocked flag says "${epic?.blocked ?? ""}"`;
+	const open = openWorkOf(cards);
+	return `every open feature or bug card on it is blocked: ${open.map((card) => `${card.id}, "${card.blocked}"`).join("; ")}`;
 }
 
 function runTitle(row: Row) {
@@ -1631,6 +1654,16 @@ export function Plan({
 				text: `${nameOf(row.id)} is in progress but pauses until ${short(row.pausedUntil)}: ${teamName(row.team)} runs ${tracksText(tracksOf(row.team))}, taken by ${ahead.length > 0 ? ahead.join(" and ") : "epics"} higher in its priority. Nothing on the board changes.`,
 			});
 		}
+		if (row.blocked != null) {
+			notes.push({
+				key: `blocked-${row.id}`,
+				text: `${nameOf(row.id)} is blocked, as ${blockedWhy(
+					epics.find((epic) => epic.id === row.id),
+					row,
+					cardsOf[row.id] ?? [],
+				)}. It gives up its track to the next epic in ${teamName(row.team)}'s priority and has no projected end until it is unblocked.`,
+			});
+		}
 		if (row.pinIgnored && !row.done) {
 			notes.push({
 				key: `pin-${row.id}`,
@@ -1719,6 +1752,19 @@ export function Plan({
 					title={`Paused from today until ${short(row.pausedUntil)}, when a track of ${teamName(row.team)} frees`}
 				/>,
 			);
+		}
+		if (row.blocked != null) {
+			pieces.push(
+				<span
+					key="blocked"
+					className="plan-blocked"
+					style={{ left: x(today) + ppd / 2 - 7 }}
+					title={`Blocked, as ${blockedWhy(epic, row, cardsOf[epic.id] ?? [])} - it takes no track and has no projected end until it is unblocked`}
+				>
+					<Icon name="blocked" />
+				</span>,
+			);
+			ends.push(today);
 		}
 		if (row.begin != null && row.projected != null && row.remaining.points > 0) {
 			const left = x(row.begin);
@@ -1824,6 +1870,8 @@ export function Plan({
 			}
 			words.push(row.doneDay != null ? `Done ${short(row.doneDay)}` : "Done");
 			if (row.late > 0) words.push(lateText(row.late, true));
+		} else if (row.blocked != null) {
+			words.push("Blocked - no projected end until unblocked");
 		} else if (row.projected != null) {
 			ends.push(row.projected);
 			if (row.late > 0 && target != null) {
@@ -1874,7 +1922,7 @@ export function Plan({
 				{pieces}
 				{words.length > 0 && (
 					<span
-						className={`plan-label${row.late > 0 ? " late" : ""}${row.done ? " done" : ""}`}
+						className={`plan-label${row.late > 0 ? " late" : ""}${row.done ? " done" : ""}${row.blocked != null ? " blocked" : ""}`}
 						style={{ left: Math.min(reach, Math.max(0, width - 200)) }}
 					>
 						{row.late > 0 && <Icon name="late" />}
@@ -1918,6 +1966,15 @@ export function Plan({
 						</button>
 						<span className="plan-meta">
 							<StatusChip epic={epic} row={row} onPick={(value) => pickStatus(epic, value)} />
+							{row?.blocked != null && (
+								<span
+									className="plan-points blocked"
+									title={`Blocked, as ${blockedWhy(epic, row, cardsOf[epic.id] ?? [])}`}
+								>
+									<Icon name="blocked" />
+									Blocked
+								</span>
+							)}
 							{row && !row.done && tracksOf(row.team) > 0 && (
 								<TrackPick
 									epic={epic}
@@ -2394,6 +2451,12 @@ export function Plan({
 					</span>
 					<span>
 						<span className="legend-paused" /> Paused until a track frees
+					</span>
+					<span>
+						<span className="legend-blocked">
+							<Icon name="blocked" />
+						</span>{" "}
+						Blocked, no track and no projected end
 					</span>
 					<span>
 						<Icon name="projected" /> Projected end

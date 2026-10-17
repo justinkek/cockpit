@@ -236,6 +236,28 @@ assert_eq "refinement takes no track, so the epic in delivery runs from today be
 assert_eq "a project with no tracks forecasts no refinement either" 'null' \
   "$(evaluate 'String(p.planOf([{id:"EPIC-1",status:"Backlog",project:"PRJ-1"}], [], {"PRJ-1":{tracks:0,perWeek:7}}, '"$TODAY"', '"$REFINE"')["EPIC-1"].refineStart)')"
 
+printf "\nTest group: a blocked epic gives up its track to the next epic in priority\n"
+
+BLOCKED='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","rank":1,"start":"2026-09-20","blocked":"Waiting on the vendor","dates":{"Tickets In Dev":"2026-10-02T10:00:00Z"}},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2},{"id":"EPIC-3","status":"Tickets In Dev","project":"PRJ-1","rank":3}]'
+BLOCKED_CARDS='[{"epic":"EPIC-1","status":"In Dev","complexity":5},{"epic":"EPIC-2","status":"Backlog","complexity":5},{"epic":"EPIC-3","status":"In Dev","complexity":5,"blocked":"Needs a key"},{"epic":"EPIC-3","status":"Backlog","complexity":3,"blocked":"Needs a key too"},{"epic":"EPIC-3","status":"Done","complexity":2},{"epic":"EPIC-3","status":"In Dev","type":"Timebox"}]'
+blocked="p.planOf($BLOCKED, $BLOCKED_CARDS, {\"PRJ-1\":{\"tracks\":1,\"perWeek\":7}}, $TODAY, $INSTANT)"
+assert_eq "an epic is blocked by its own flag, or once every open feature or bug card on it is" 'epic,null,cards' \
+  "$(evaluate "[1,2,3].map((n) => String($blocked[\"EPIC-\" + n].blocked)).join()")"
+assert_eq "a blocked epic takes no track and has no projected end, and is not drawn paused" '{"track":null,"begin":null,"projected":null,"pausedUntil":null}' \
+  "$(evaluate "pick($blocked[\"EPIC-1\"], \"track begin projected pausedUntil\")")"
+assert_eq "so the next epic in priority takes the track from today" '1@20740' \
+  "$(evaluate "$blocked[\"EPIC-2\"].track + \"@\" + $blocked[\"EPIC-2\"].begin")"
+assert_eq "the delivery a blocked epic already did is still drawn from the day it was refined" '{"phase":"delivery","refineEnd":20728,"refineForecast":false}' \
+  "$(evaluate "pick($blocked[\"EPIC-1\"], \"phase refineEnd refineForecast\")")"
+assert_eq "one open card left unblocked keeps the epic unblocked" 'null' \
+  "$(evaluate 'String(p.blockedOf({status:"Tickets In Dev"}, [{status:"In Dev",blocked:"Needs a key"},{status:"Backlog"}]))')"
+assert_eq "an epic with no open feature or bug card is never blocked by its cards" 'null,null' \
+  "$(evaluate '[[], [{status:"In Dev",type:"Timebox",blocked:"Waiting"}]].map((cards) => String(p.blockedOf({status:"In FD"}, cards))).join()')"
+assert_eq "a done epic is never blocked" 'null' \
+  "$(evaluate 'String(p.blockedOf({status:"Epic Done",blocked:"Waiting"}, []))')"
+assert_eq "a blocked epic in Backlog is not forecast to refine" '{"refineStart":null,"refineEnd":null,"refineForecast":false}' \
+  "$(evaluate 'pick(p.planOf([{id:"EPIC-1",status:"Backlog",project:"PRJ-1",blocked:"Waiting"}], [], {"PRJ-1":{tracks:1,perWeek:7}}, '"$TODAY"', '"$INSTANT"')["EPIC-1"], "refineStart refineEnd refineForecast")')"
+
 printf "\nTest group: an epic pinned to a track waits for it\n"
 
 PINNED='[{"id":"EPIC-1","status":"In FD","project":"PRJ-1","rank":1,"track":2},{"id":"EPIC-2","status":"In FD","project":"PRJ-1","rank":2,"track":2},{"id":"EPIC-3","status":"In FD","project":"PRJ-1","rank":3},{"id":"EPIC-4","status":"In FD","project":"PRJ-1","rank":4,"track":5}]'
