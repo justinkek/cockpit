@@ -10,7 +10,7 @@
 #   board-card list [--kind card|epic|project|sprint|reference|milestone] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
 #   board-card search <text> [--kind card|epic|project|sprint|reference|milestone]
 #   board-card statuses [--kind card|epic]
-#   board-card set <id> <field> <value>
+#   board-card set <id> <field> <value> [--close]
 #   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
 #   board-card bounce <id> <gate>
 #   board-card move <id>... <column>
@@ -64,6 +64,7 @@ CLAIM_LOCK="${TICKET_CLAIM_LOCK:-$here/ticket-claim-lock}"
 DONE_USAGE="${TICKET_DONE_USAGE:-$here/ticket-done-usage}"
 COMMIT_DELAY="${COCKPIT_COMMIT_DELAY:-3}"
 flush_now=false
+closing_project=false
 flush_keys=""
 
 CARD_COLUMNS=(
@@ -1310,6 +1311,7 @@ set_locked() {
       esac
       [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || check_share "$id" "$value"
       [ "$(kind_of "$id")/$field" != project/status ] || check_reopen "$id" "$value"
+      [ "$(kind_of "$id")/$field" != project/status ] || [ "$value" != Done ] || close_project "$id"
       update_record "$id" --arg field "$field" --argjson value "$json" "$unnest_reference_program | .[\$field] = \$value"
       [ "$field" != target ] || hold_epic_cards "$id"
       ;;
@@ -1380,10 +1382,38 @@ set_locked() {
   esac
 }
 
+open_epics_of_project() {
+  command_list --kind epic --json | jq --raw-output --arg project "$1" '.[] | select(.project == $project and .status != "Epic Done") | .id'
+}
+
+open_cards_of_project() {
+  command_list --kind card --json | jq --raw-output --arg project "$1" '.[] | select(.project == $project and .status != "Done" and .status != "Deprioritised") | .id'
+}
+
+close_project() {
+  local project="$1" epics cards epic_count card_count id
+  [ "$(read_record "$project" | jq --raw-output '.status // ""')" != Done ] || return 0
+  epics="$(open_epics_of_project "$project")"
+  cards="$(open_cards_of_project "$project")"
+  [ -n "$epics$cards" ] || return 0
+  epic_count="$(printf '%s' "$epics" | grep --count . || true)"
+  card_count="$(printf '%s' "$cards" | grep --count . || true)"
+  if [ "$closing_project" != true ]; then
+    die 2 "$project still has $epic_count open $( [ "$epic_count" -eq 1 ] && echo epic || echo epics) and $card_count open $( [ "$card_count" -eq 1 ] && echo ticket || echo tickets) - deprioritise its tickets, move its epics to Epic Done and mark it Done in one go with: board-card set $project status Done --close"
+  fi
+  for id in $cards; do hop "$id" Deprioritised; done
+  for id in $epics; do hop "$id" "Epic Done"; done
+}
+
 command_set() {
   local id field="${2:-}" property renamed
   id="$(normalise_id "${1:-}")"
-  [ "$#" -ge 3 ] || die 2 "usage: board-card set <id> <field> <value>"
+  [ "$#" -ge 3 ] || die 2 "usage: board-card set <id> <field> <value> [--close]"
+  if [ "$#" -ge 4 ]; then
+    [ "$#" -eq 4 ] && [ "$4" = --close ] && [ "$(kind_of "$id")/$field/$3" = project/status/Done ] \
+      || die 2 "only marking a project Done takes --close: board-card set <PRJ-n> status Done --close"
+    closing_project=true
+  fi
   require_record "$id"
   with_lock set_locked "$id" "$field" "$3"
   if [ "$field" = type ] && [ ! -f "$(record_file "$id")" ]; then

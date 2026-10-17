@@ -110,6 +110,11 @@ export async function moveRecords(ids: string[], column: string): Promise<string
 	return [...output.matchAll(/^(\S+)\t/gm)].map((match) => match[1]);
 }
 
+export async function closeProjectRecord(id: string): Promise<string[]> {
+	const output = await boardCard(["set", id, "status", "Done", "--close"]);
+	return [...output.matchAll(/^(\S+)\t\S.* -> /gm)].map((match) => match[1]).filter((moved) => moved !== id);
+}
+
 export async function setField(id: string, field: string, value: string): Promise<string> {
 	return (await setFieldHolding(id, field, value)).id;
 }

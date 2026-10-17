@@ -158,3 +158,71 @@ export function EpicsDoneDialog({
 		</div>
 	);
 }
+
+export type Closing = { id: string; name: string; epics: number; tickets: number };
+
+export function projectRefusal(error: string | undefined): { epics: number; tickets: number } | null {
+	const match = error?.match(/still has (\d+) open epics? and (\d+) open tickets?/);
+	return match ? { epics: Number(match[1]), tickets: Number(match[2]) } : null;
+}
+
+export function ProjectDoneDialog({
+	closing,
+	busy,
+	onClose,
+	onCancel,
+}: {
+	closing: Closing;
+	busy: boolean;
+	onClose: () => void;
+	onCancel: () => void;
+}) {
+	const panel = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		panel.current?.focus();
+	}, []);
+	const epics = closing.epics === 1 ? "1 open epic" : `${closing.epics} open epics`;
+	const tickets = closing.tickets === 1 ? "1 open ticket" : `${closing.tickets} open tickets`;
+	return (
+		<div
+			className="overlay"
+			role="presentation"
+			onMouseDown={(event) => event.target === event.currentTarget && onCancel()}
+		>
+			<div
+				className="dialog epic-done"
+				role="alertdialog"
+				aria-modal="true"
+				aria-label={`Mark ${closing.id} Done`}
+				tabIndex={-1}
+				ref={panel}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") {
+						event.preventDefault();
+						event.stopPropagation();
+						onCancel();
+					}
+				}}
+			>
+				<header className="dialog-head">
+					<h2>
+						{closing.id} still has {epics} and {tickets}
+					</h2>
+				</header>
+				<p>
+					{closing.name} can be marked Done only once nothing in it is open. Closing it deprioritises every ticket that
+					is neither done nor deprioritised and moves every epic not in Epic Done there, in one change.
+				</p>
+				<footer className="epic-done-actions">
+					<button type="button" className="quiet" disabled={busy} onClick={onCancel}>
+						Cancel
+					</button>
+					<span className="spacer" />
+					<button type="button" disabled={busy} onClick={onClose}>
+						Deprioritise and close everything
+					</button>
+				</footer>
+			</div>
+		</div>
+	);
+}

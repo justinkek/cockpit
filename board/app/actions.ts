@@ -13,6 +13,7 @@ import {
 	type CommentThread,
 	type Kind,
 	changeStatus,
+	closeProjectRecord,
 	commentAuthor,
 	commitsOf,
 	createRecord,
@@ -276,6 +277,14 @@ export async function editCard(id: string, field: string, value: string): Promis
 		return change.id;
 	});
 	return { ...result, more: await heldChanges(held, result.undo?.until) };
+}
+
+export async function closeProject(id: string): Promise<Result> {
+	const moved: string[] = [];
+	const result = await report(id, async () => {
+		moved.push(...(await closeProjectRecord(id)));
+	});
+	return { ...result, more: await heldChanges(moved, result.undo?.until) };
 }
 
 export type Ranked = { id: string; rank: number };

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
 	archiveOne,
+	closeProject,
 	dropCard,
 	duplicateCard,
 	editCard,
@@ -23,6 +24,7 @@ import {
 	themeCommands,
 } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
+import { type Closing, ProjectDoneDialog, projectRefusal } from "@/app/epic-done";
 import { EstimateFacts } from "@/app/estimates";
 import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
@@ -86,6 +88,7 @@ export function Ticket({
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
+	const [closing, setClosing] = useState<Closing | null>(null);
 
 	const [view, setView] = useState<View | null>(null);
 
@@ -154,6 +157,11 @@ export function Ticket({
 			const result = await request();
 			if (result.error) {
 				setRecord(before);
+				const refused = projectRefusal(result.error);
+				if (refused) {
+					setClosing({ id: before.id, name: before.name, ...refused });
+					return;
+				}
 				setError(result.error);
 				if (result.moved || result.archived) {
 					router.replace(`/card/${result.moved ?? before.id}?error=${encodeURIComponent(result.error)}`);
@@ -175,9 +183,15 @@ export function Ticket({
 		setUndoing(true);
 		setError("");
 		startTransition(async () => {
-			const [change] = shown.changes;
+			const [change, ...rest] = shown.changes;
 			const result = await undoChange(change.id, { since: change.since, until: change.until });
+			const failures = [];
+			for (const other of rest) {
+				const undone = await undoChange(other.id, { since: other.since, until: other.until });
+				if (undone.error) failures.push(undone.error);
+			}
 			setUndoing(false);
+			if (failures.length > 0) setError(`Could not undo: ${failures.join("; ")}`);
 			setToast((current) => (current?.key === shown.key ? null : current));
 			if (result.error) {
 				setError(`Could not undo: ${result.error}`);
@@ -188,6 +202,11 @@ export function Ticket({
 			if (result.record.id !== change.id) router.replace(`/card/${result.record.id}`);
 			else router.refresh();
 		});
+	}
+
+	function close(shown: Closing) {
+		setClosing(null);
+		save({ status: "Done" }, () => closeProject(shown.id), `Closed ${shown.id} and everything open in it`);
 	}
 
 	const handlers: Handlers = {
@@ -463,6 +482,14 @@ export function Ticket({
 					}}
 				/>
 			</MentionContext.Provider>
+			{closing && (
+				<ProjectDoneDialog
+					closing={closing}
+					busy={saving}
+					onClose={() => close(closing)}
+					onCancel={() => setClosing(null)}
+				/>
+			)}
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 			{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 		</article>

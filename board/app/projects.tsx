@@ -16,8 +16,9 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
-import { editCard, undoChange } from "@/app/actions";
+import { closeProject, editCard, undoChange } from "@/app/actions";
 import { type Notice, NoticeBar } from "@/app/board";
+import { type Closing, ProjectDoneDialog, projectRefusal } from "@/app/epic-done";
 import { NewOther } from "@/app/new-record";
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
 
@@ -211,6 +212,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 	const [notice, setNotice] = useState<Notice>(null);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
+	const [closing, setClosing] = useState<Closing | null>(null);
 	const [, startTransition] = useTransition();
 	const dndId = useId();
 
@@ -251,6 +253,10 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 		if (!before || before.status === status) return;
 		setNotice(null);
 		setToast(null);
+		if (status === "Done" && (before.openEpics > 0 || before.open > 0)) {
+			setClosing({ id, name: before.name, epics: before.openEpics, tickets: before.open });
+			return;
+		}
 		setProjects((current) => current.map((project) => (project.id === id ? { ...project, status } : project)));
 		markPending(id, true);
 		startTransition(async () => {
@@ -258,10 +264,35 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 			markPending(id, false);
 			if (result.error) {
 				setProjects((current) => current.map((project) => (project.id === id ? before : project)));
-				setNotice({ id, text: `${id}: ${result.error}` });
+				const refused = projectRefusal(result.error);
+				if (refused) setClosing({ id, name: before.name, ...refused });
+				else setNotice({ id, text: `${id}: ${result.error}` });
 				return;
 			}
 			setToast(undoable(id, result.undo, `Moved ${id} to ${status}`));
+			router.refresh();
+		});
+	}
+
+	function close(shown: Closing) {
+		const before = projects.find((project) => project.id === shown.id);
+		if (!before) return;
+		setProjects((current) =>
+			current.map((project) =>
+				project.id === shown.id ? { ...project, status: "Done", openEpics: 0, open: 0 } : project,
+			),
+		);
+		markPending(shown.id, true);
+		startTransition(async () => {
+			const result = await closeProject(shown.id);
+			markPending(shown.id, false);
+			setClosing(null);
+			if (result.error) {
+				setProjects((current) => current.map((project) => (project.id === shown.id ? before : project)));
+				setNotice({ id: shown.id, text: `${shown.id}: ${result.error}` });
+				return;
+			}
+			setToast(undoable(shown.id, result.undo, `Closed ${shown.id} and everything open in it`, result.more));
 			router.refresh();
 		});
 	}
@@ -355,6 +386,14 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 						)}
 					</DragOverlay>
 				</DndContext>
+			)}
+			{closing && (
+				<ProjectDoneDialog
+					closing={closing}
+					busy={pending.has(closing.id)}
+					onClose={() => close(closing)}
+					onCancel={() => setClosing(null)}
+				/>
 			)}
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 		</section>
