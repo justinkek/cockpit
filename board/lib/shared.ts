@@ -79,6 +79,7 @@ export type Card = {
 	urgent?: boolean;
 	labels?: string[];
 	blocked?: string | null;
+	blocked_spans?: { from: string; to?: string }[];
 	dependent_on?: string[];
 	dependency_for?: string[];
 	complexity?: number | null;

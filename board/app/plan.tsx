@@ -52,6 +52,7 @@ import { Stages } from "@/app/stages";
 import { toastOf, typingIn, type Undoable, UndoToast, undoable } from "@/app/toast";
 import { progressOf } from "@/lib/metrics";
 import {
+	blockedSpansOf,
 	CONFIDENCES,
 	dayOf,
 	dayText,
@@ -1691,6 +1692,20 @@ export function Plan({
 					title={breakTitle(one)}
 				/>
 			));
+		for (const span of blockedSpansOf(epic, cardsOf[epic.id] ?? [], today)) {
+			pieces.push(
+				<span
+					key={`blocked-${span.from}`}
+					className="plan-blocked-span"
+					style={{ left: x(span.from), width: x(span.to + 1) - x(span.from) }}
+					title={
+						span.open
+							? `Blocked since ${short(span.from)}, and still blocked today`
+							: `Blocked from ${short(span.from)} to ${short(span.to)}`
+					}
+				/>,
+			);
+		}
 		const scheduled = `${row.blocked != null ? `${blockedForecast(row)}, ` : ""}on track ${row.track} at ${figure(row.perWeek)} points a week${fallbackOf(row.team) ? `, a fallback: ${teamName(row.team)} has no done history, so it takes the board's overall average rather than a speed of its own` : ""}: ${runTitle(row)}`;
 		if (row.refineStart != null && row.refineEnd != null) {
 			const refinedTo = Math.min(row.refineEnd, today);

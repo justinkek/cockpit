@@ -1336,9 +1336,15 @@ set_locked() {
       ;;
     blocked)
       update_record "$id" --argjson value "$(nullable "$value")" --arg at "$(now)" --arg by "$(default_author)" '
-        if $value == null then .blocked = null | del(.blocked_at) | del(.blocked_by)
-        elif .blocked == $value then .
-        else .blocked = $value | .blocked_at = $at | .blocked_by = $by end'
+        ($at[:10]) as $day
+        | (.blocked_spans // []) as $spans
+        | (($spans | length) > 0 and ($spans[-1] | has("to") | not)) as $open
+        | if $value == null then
+            (if .blocked != null and $open then .blocked_spans = ($spans[:-1] + [$spans[-1] + {to: $day}]) else . end)
+            | .blocked = null | del(.blocked_at) | del(.blocked_by)
+          elif .blocked == $value then .
+          else (if .blocked == null and ($open | not) then .blocked_spans = ($spans + [{from: $day}]) else . end)
+            | .blocked = $value | .blocked_at = $at | .blocked_by = $by end'
       ;;
     urgent)
       [ "$(kind_of "$id")" = card ] || die 2 "only a card is flagged urgent, and $id is not a card"
@@ -2660,6 +2666,34 @@ migrate_sprints() {
     | [.id, $sprint, (.sprint // "none")] | @tsv')
 }
 
+blocked_history() {
+  TZ=UTC board_git log --reverse --format='@%ad' --date=format-local:%Y-%m-%d --unified=0 --patch -- "$1" \
+    | awk '/^@[0-9]/ { day = substr($0, 2) } /^\+blocked: / { print day "\t" substr($0, 11) }'
+}
+
+migrate_blocked_spans() {
+  local path id spans day value
+  while IFS= read -r path; do
+    [ -n "$path" ] && [ -f "$BOARD_DIR/$path" ] || continue
+    id="${path##*/}"
+    id="${id%.md}"
+    [ "$(read_record "$id" | jq 'has("blocked_spans")')" = false ] || continue
+    spans='[]'
+    while IFS=$'\t' read -r day value; do
+      spans="$(printf '%s' "$spans" | jq --compact-output --arg day "$day" --argjson value "$value" '
+        ((length > 0) and (.[-1] | has("to") | not)) as $open
+        | if $value == null and $open then .[:-1] + [.[-1] + {to: $day}]
+          elif $value != null and ($open | not) then . + [{from: $day}]
+          else . end')"
+    done < <(blocked_history "$path")
+    [ "$spans" != '[]' ] || continue
+    update_record "$id" --argjson spans "$spans" '.blocked_spans = $spans'
+    printf '%s\tblocked spans %s\n' "$id" "$(printf '%s' "$spans" | jq --raw-output 'map("\(.from) to \(.to // "now")") | join(", ")')"
+  done < <([ ! -d "$BOARD_DIR/.git" ] || board_git log --format= --name-only -G '^blocked: "' -- cards epics | sort --unique --version-sort)
+  command_list --kind card --json | jq --raw-output '.[] | select(.blocked != null and (has("blocked_spans") | not)) | "\(.id)\tblocked with no history to date it, so it has no blocked span"'
+  command_list --kind epic --json | jq --raw-output '.[] | select(.blocked != null and (has("blocked_spans") | not)) | "\(.id)\tblocked with no history to date it, so it has no blocked span"'
+}
+
 migrate_homes() {
   command_list --kind card --json | jq --raw-output '.[] | select((.epic // "") == "") | "\(.id)\tneeds an epic"'
   command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
@@ -2667,7 +2701,7 @@ migrate_homes() {
 
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; migrate_sprints; close_maintenance_locked; migrate_homes)"
+  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; migrate_sprints; migrate_blocked_spans; close_maintenance_locked; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 

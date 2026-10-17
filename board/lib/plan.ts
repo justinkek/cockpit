@@ -447,6 +447,32 @@ export function blockedOf(epic: Pick<Card, "status"> & Partial<Pick<Card, "block
 	return open.length > 0 && open.every((card) => card.blocked) ? "cards" : null;
 }
 
+export type BlockedSpan = { from: number; to: number; open: boolean };
+
+export function blockedSpansOf(
+	epic: Pick<Card, "blocked_spans">,
+	cards: (Pick<Card, "type"> & Partial<Pick<Card, "blocked_spans">>)[],
+	today: number,
+): BlockedSpan[] {
+	const spans = [epic, ...cards.filter((card) => card.type !== "Timebox")]
+		.flatMap((record) => record.blocked_spans ?? [])
+		.flatMap((span) => {
+			const from = dayOf(span.from);
+			const to = span.to == null ? today : dayOf(span.to);
+			return from == null || to == null ? [] : [{ from, to: Math.max(from, to), open: span.to == null }];
+		})
+		.sort((a, b) => a.from - b.from);
+	const merged: BlockedSpan[] = [];
+	for (const span of spans) {
+		const last = merged[merged.length - 1];
+		if (last && span.from <= last.to + 1) {
+			last.open = span.to > last.to ? span.open : last.open || (span.to === last.to && span.open);
+			last.to = Math.max(last.to, span.to);
+		} else merged.push({ ...span });
+	}
+	return merged;
+}
+
 export type Row = {
 	id: string;
 	phase: Phase;

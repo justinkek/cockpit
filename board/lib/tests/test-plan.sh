@@ -265,6 +265,13 @@ assert_eq "a done epic is never blocked" 'null' \
 assert_eq "a blocked epic in Backlog is still forecast to refine from today, as refinement takes no track" '{"refineStart":20740,"refineEnd":20740,"refineForecast":true}' \
   "$(evaluate 'pick(p.planOf([{id:"EPIC-1",status:"Backlog",project:"PRJ-1",blocked:"Waiting"}], [], {"PRJ-1":{tracks:1,perWeek:7}}, '"$TODAY"', '"$INSTANT"')["EPIC-1"], "refineStart refineEnd refineForecast")')"
 
+SPANS_EPIC='{blocked_spans:[{from:"2026-10-01",to:"2026-10-03"},{from:"2026-10-12"}]}'
+SPANS_CARDS='[{type:"Feature",blocked_spans:[{from:"2026-10-03",to:"2026-10-05"}]},{type:"Timebox",blocked_spans:[{from:"2026-09-01",to:"2026-09-02"}]},{type:"Bug",blocked_spans:[{from:"2026-10-07",to:"2026-10-08"}]}]'
+assert_eq "an epic's blocked spells are its own and its feature and bug cards', merged where they meet, an open one running to today" \
+  '2026-10-01..2026-10-05 2026-10-07..2026-10-08 2026-10-12..2026-10-14 open' \
+  "$(evaluate 'p.blockedSpansOf('"$SPANS_EPIC"', '"$SPANS_CARDS"', '"$TODAY"').map((span) => p.dayText(span.from) + ".." + p.dayText(span.to) + (span.open ? " open" : "")).join(" ")')"
+assert_eq "an epic never blocked has none" '0' "$(evaluate 'String(p.blockedSpansOf({}, [], '"$TODAY"').length)')"
+
 printf "\nTest group: an epic is late once its target passes with work open, or once its last card was done after it\n"
 
 LATE_TEAM='{"PRJ-1":{tracks:1,perWeek:7},"PRJ-2":{tracks:0,perWeek:7}}'
