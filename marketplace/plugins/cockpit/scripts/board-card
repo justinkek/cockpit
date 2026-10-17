@@ -1,16 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-here="$(cd "$(dirname "$0")" && pwd)"
+absolute_directory() {
+  local directory="."
+  case "$1" in */*) directory="${1%/*}" ;; esac
+  case "$directory" in /*) ;; *) directory="$PWD/$directory" ;; esac
+  printf -v REPLY '%s' "$directory"
+}
+
+absolute_directory "$0"
+here="$REPLY"
 source="$0"
 while [ -L "$source" ]; do
   target="$(readlink "$source")"
   case "$target" in
     /*) source="$target" ;;
-    *) source="$(dirname "$source")/$target" ;;
+    *) absolute_directory "$source"; source="$REPLY/$target" ;;
   esac
 done
-crate="$(cd "$(dirname "$source")/../board-card" && pwd -P)"
+absolute_directory "$source"
+crate="$REPLY/../board-card"
 binary="$crate/target/release/board-card"
 
 stale=false
