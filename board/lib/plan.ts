@@ -186,16 +186,25 @@ export type SprintDelivery = {
 	tickets: number;
 	uncounted: number;
 	timeboxes: number;
+	workingDays: number | null;
 	perWeek: number | null;
 };
 
 export function deliveredIn(
 	sprint: Pick<Card, "id" | "start" | "end">,
 	cards: (Sized & Pick<Card, "dates" | "moved" | "sprint">)[],
+	off: Off[] = [],
 ): SprintDelivery {
 	const first = dayOf(sprint.start);
 	const last = dayOf(sprint.end);
-	const delivered: SprintDelivery = { points: 0, tickets: 0, uncounted: 0, timeboxes: 0, perWeek: null };
+	const delivered: SprintDelivery = {
+		points: 0,
+		tickets: 0,
+		uncounted: 0,
+		timeboxes: 0,
+		workingDays: null,
+		perWeek: null,
+	};
 	if (first == null || last == null || last < first) return delivered;
 	for (const card of cards) {
 		if (card.sprint !== sprint.id || splitParent(card) || doneAt(card) == null) continue;
@@ -207,7 +216,9 @@ export function deliveredIn(
 			delivered.tickets += 1;
 		}
 	}
-	delivered.perWeek = Math.round((delivered.points / ((last - first + 1) / 7)) * 10) / 10;
+	const days = openDays(first, last, off);
+	delivered.workingDays = days;
+	if (days > 0) delivered.perWeek = Math.round((delivered.points / days) * WORKING_DAYS_A_WEEK * 10) / 10;
 	return delivered;
 }
 

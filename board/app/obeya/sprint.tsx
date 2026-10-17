@@ -3,9 +3,9 @@ import { BurndownChart } from "@/app/burndown";
 import { NewOther } from "@/app/new-record";
 import { SprintPicker } from "@/app/picker";
 import { SprintDates } from "@/app/record-fields";
-import { type Card, phaseOf } from "@/lib/board";
+import { type Break, type Card, phaseOf } from "@/lib/board";
 import { burndownOf, currentSprint, type Measure, sprintDays } from "@/lib/metrics";
-import { deliveredIn } from "@/lib/plan";
+import { daysOff, deliveredIn } from "@/lib/plan";
 
 export type SprintParams = {
 	sprint?: string | string[];
@@ -29,7 +29,17 @@ function sprintHref(id: string, measure: Measure) {
 	return `/obeya?sprint=${encodeURIComponent(id)}&measure=${measure}#sprint`;
 }
 
-export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprints: Card[]; params: SprintParams }) {
+export function SprintSection({
+	cards,
+	sprints,
+	breaks,
+	params,
+}: {
+	cards: Card[];
+	sprints: Card[];
+	breaks: Break[];
+	params: SprintParams;
+}) {
 	const failure =
 		typeof params.error === "string" ? (
 			<p className="notice error" role="alert">
@@ -51,6 +61,7 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 		);
 	}
 
+	const off = daysOff(breaks);
 	const ordered = [...sprints].sort((a, b) => (b.start ?? "").localeCompare(a.start ?? ""));
 	const wanted = typeof params.sprint === "string" ? params.sprint : null;
 	const sprint = ordered.find((candidate) => candidate.id === wanted) ?? currentSprint(ordered) ?? ordered[0];
@@ -138,13 +149,13 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 					Speed by sprint <span className="count">{ordered.length}</span>
 				</h2>
 				<p className="report-note">
-					The TR complexity of every done ticket whose sprint is that sprint, and that a week - a ticket done without a
-					complexity, or a timebox, is counted beside it. A ticket reaching Done takes the sprint whose dates hold that
-					day.
+					The TR complexity of every done ticket whose sprint is that sprint, over the sprint's working days - weekdays
+					outside a break - and shown as a week of five. A ticket done without a complexity, or a timebox, is counted
+					beside it. A ticket reaching Done takes the sprint whose dates hold that day.
 				</p>
 				<ul className="report-list">
 					{ordered.map((candidate) => {
-						const delivered = deliveredIn(candidate, cards);
+						const delivered = deliveredIn(candidate, cards, off);
 						const beside = [
 							delivered.uncounted > 0 ? `${delivered.uncounted} without complexity` : "",
 							delivered.timeboxes > 0
@@ -158,9 +169,11 @@ export function SprintSection({ cards, sprints, params }: { cards: Card[]; sprin
 									{sprintLabel(candidate)}
 								</Link>
 								<span className="report-status">
-									{delivered.perWeek == null
+									{delivered.workingDays == null
 										? "no dates"
-										: `${delivered.points} pts from ${delivered.tickets} ${delivered.tickets === 1 ? "ticket" : "tickets"}${beside.length > 0 ? ` + ${beside.join(" + ")}` : ""}`}
+										: delivered.workingDays === 0
+											? "no working days"
+											: `${delivered.points} pts from ${delivered.tickets} ${delivered.tickets === 1 ? "ticket" : "tickets"}${beside.length > 0 ? ` + ${beside.join(" + ")}` : ""} over ${delivered.workingDays} working ${delivered.workingDays === 1 ? "day" : "days"}`}
 								</span>
 								<span className="points">{delivered.perWeek == null ? "" : `${delivered.perWeek}/wk`}</span>
 							</li>

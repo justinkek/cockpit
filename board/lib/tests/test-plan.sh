@@ -130,9 +130,13 @@ assert_eq "a break leaves its days out of every project's speed, so a project wi
 
 SPRINT='{id:"SPR-1",start:"2026-09-28",end:"2026-10-11"}'
 assert_eq "a sprint delivered the TR complexity of the done cards whose sprint it is, a week, counting the rest beside it" \
-  '{"points":16,"tickets":2,"uncounted":1,"timeboxes":1,"perWeek":8}' \
+  '{"points":16,"tickets":2,"uncounted":1,"timeboxes":1,"workingDays":10,"perWeek":8}' \
   "$(evaluate 'p.deliveredIn('"$SPRINT"', [{status:"Done",sprint:"SPR-1",complexity:5,dates:{Done:"2026-09-28T09:00:00Z"}},{status:"Done",sprint:"SPR-2",complexity:3,dates:{Done:"2026-10-11T17:00:00Z"}},{status:"Done",sprint:"SPR-1",complexity:11,dates:{Done:"2026-10-12T09:00:00Z"}},{status:"Done",sprint:"SPR-1",estimate:3,dates:{Done:"2026-10-01T09:00:00Z"}},{status:"Done",sprint:"SPR-1",type:"Timebox",dates:{Done:"2026-10-01T09:00:00Z"}},{status:"In Dev",sprint:"SPR-1",complexity:2,dates:{Done:"2026-10-01T09:00:00Z"}}])')"
 assert_eq "a sprint with no dates has no speed" 'null' "$(evaluate 'String(p.deliveredIn({id:"SPR-1",start:null,end:null}, []).perWeek)')"
+assert_eq "a sprint's speed is its points over its working days, a weekend and a break left out, as a week of five" '{"workingDays":5,"perWeek":16}' \
+  "$(evaluate 'pick(p.deliveredIn('"$SPRINT"', [{status:"Done",sprint:"SPR-1",complexity:16,dates:{Done:"2026-09-28T09:00:00Z"}}], p.daysOff([{from:"2026-10-05",to:"2026-10-09"}])), "workingDays perWeek")')"
+assert_eq "a sprint that falls on no working day has no speed" '{"workingDays":0,"perWeek":null}' \
+  "$(evaluate 'pick(p.deliveredIn({id:"SPR-1",start:"2026-10-10",end:"2026-10-11"}, []), "workingDays perWeek")')"
 
 printf "\nTest group: epics are scheduled one after another in plan order\n"
 

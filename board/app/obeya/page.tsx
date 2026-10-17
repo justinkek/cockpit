@@ -3,12 +3,14 @@ import { SprintSection, type SprintParams } from "@/app/obeya/sprint";
 import { ProgressMeter } from "@/app/progress";
 import {
 	BoardError,
+	type Break,
 	CARD_COLUMNS,
 	type Card,
 	doneWithin,
 	listRecords,
 	overrunTitle,
 	phaseOf,
+	readBreaks,
 	showsOverrun,
 } from "@/lib/board";
 import { flowOf, median, progressOf, span, throughputOf } from "@/lib/metrics";
@@ -43,8 +45,14 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 	let cards: Card[];
 	let epics: Card[];
 	let sprints: Card[];
+	let breaks: Break[];
 	try {
-		[cards, epics, sprints] = await Promise.all([listRecords("card"), listRecords("epic"), listRecords("sprint")]);
+		[cards, epics, sprints, breaks] = await Promise.all([
+			listRecords("card"),
+			listRecords("epic"),
+			listRecords("sprint"),
+			readBreaks(),
+		]);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return <p className="notice error">{error.message}</p>;
@@ -223,7 +231,7 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 				</div>
 			</div>
 
-			<SprintSection cards={cards} sprints={sprints} params={params} />
+			<SprintSection cards={cards} sprints={sprints} breaks={breaks} params={params} />
 		</section>
 	);
 }
