@@ -1090,5 +1090,26 @@ early="$(stub create --epic "$breaking" --name "Early start")"
 stub move "$early" "In Dev" >/dev/null
 assert_eq "an epic still in ticket breakdown is left where it is" "In Ticket Breakdown" "$(field "$breaking" .status)"
 
+printf "\nTest group: a card is neither moved to nor copied under an epic in Epic Done\n"
+
+done_epic="$(stub create --kind epic --name "Finished again" --project PRJ-1)"
+stub move "$done_epic" "Epic Done" >/dev/null
+on_open="$(stub create --name "On an open epic" --epic EPIC-1)"
+message="$(stub set "$on_open" epic "$done_epic" 2>&1 >/dev/null)"
+assert_eq "a card is not moved to an epic in Epic Done, and the refusal names the epic" \
+  "2|EPIC-1|[board-card] $done_epic is in Epic Done, so it takes no card - move $on_open to an open epic, one of: board-card list --kind epic" \
+  "$(stub set "$on_open" epic "$done_epic" >/dev/null 2>&1; echo "$?")|$(field "$on_open" .epic)|$message"
+stub move "$done_epic" Backlog >/dev/null
+stub set "$on_open" epic "$done_epic" >/dev/null
+stub move "$done_epic" "Epic Done" >/dev/null
+assert_eq "a card already under an epic in Epic Done can be given that same epic again" "0" \
+  "$(stub set "$on_open" epic "$done_epic" >/dev/null 2>&1; echo "$?")"
+copies="$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
+message="$(stub duplicate "$on_open" 2>&1 >/dev/null)"
+assert_eq "a card whose epic is in Epic Done is not duplicated, and the refusal names the epic, writing nothing" \
+  "2|[board-card] $on_open's epic $done_epic is in Epic Done, so it takes no new card - give $on_open an open epic first with: board-card set $on_open epic <EPIC-n>|$copies" \
+  "$(stub duplicate "$on_open" >/dev/null 2>&1; echo "$?")|$message|$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
+stub archive "$on_open" >/dev/null
+
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

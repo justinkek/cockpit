@@ -1330,6 +1330,10 @@ set_locked() {
         reference="$(normalise_id "$value")"
         require_record "$reference"
         [ "$(kind_of "$reference")" = "$field" ] || die 2 "$reference is not a $field"
+        if [ "$field/$(kind_of "$id")" = epic/card ] && [ "$reference" != "$(read_record "$id" | jq --raw-output '.epic // ""')" ] \
+          && [ "$(read_record "$reference" | jq --raw-output '.status // ""')" = "Epic Done" ]; then
+          die 2 "$reference is in Epic Done, so it takes no card - move $id to an open epic, one of: board-card list --kind epic"
+        fi
       fi
       update_record "$id" --arg field "$field" --argjson value "$(nullable "$reference")" '.[$field] = $value'
       if [ "$field" = epic ] && [ "$(kind_of "$id")" = card ]; then hold_card "$id"; fi
@@ -2029,6 +2033,8 @@ require_home() {
   home="$(read_record "$id" | jq --raw-output --arg field "$field" '.[$field] // ""')"
   [ -n "$home" ] || die 2 "$id has no $field, and a copy needs one - give $id one first with: board-card set $id $field <id>"
   [ -f "$(record_file "$home")" ] || die 2 "$id's $field $home is not on the board, and a copy needs one - give $id another first with: board-card set $id $field <id>"
+  [ "$field" != epic ] || [ "$(read_record "$home" | jq --raw-output '.status // ""')" != "Epic Done" ] \
+    || die 2 "$id's epic $home is in Epic Done, so it takes no new card - give $id an open epic first with: board-card set $id epic <EPIC-n>"
 }
 
 duplicate_locked() {
