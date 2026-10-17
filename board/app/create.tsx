@@ -26,8 +26,8 @@ export function NewRecord({
 	const [name, setName] = useState("");
 	const [status, setStatus] = useState(defaults.status);
 	const [type, setType] = useState(defaults.type ?? "Feature");
-	const [epic, setEpic] = useState(defaults.epic ?? "");
-	const [project, setProject] = useState("");
+	const [epic, setEpic] = useState(defaults.epic ?? lists.epics[0]?.id ?? "");
+	const [project, setProject] = useState(kind === "epic" ? (lists.projects[0]?.id ?? "") : "");
 	const [timebox, setTimebox] = useState("60");
 	const [icon, setIcon] = useState("");
 	const [body, setBody] = useState("");
@@ -40,7 +40,11 @@ export function NewRecord({
 		if (!open) return;
 		setStatus(defaults.status);
 		setType(defaults.type ?? "Feature");
-		setEpic(defaults.epic ?? "");
+		setEpic(
+			(current) =>
+				defaults.epic ??
+				(lists.epics.some((other) => other.id === current) ? current : (lists.epics[0]?.id ?? "")),
+		);
 		setError("");
 		box.current?.focus();
 	}, [open, defaults.status, defaults.type, defaults.epic]);
@@ -195,9 +199,6 @@ export function NewRecord({
 					)}
 					{kind === "card" && (
 						<select name="epic" aria-label="Epic" value={epic} onChange={changed(setEpic)}>
-							<option value="" disabled>
-								Choose an epic
-							</option>
 							{lists.epics.map((option) => (
 								<option key={option.id} value={option.id}>
 									{option.name}
@@ -206,9 +207,7 @@ export function NewRecord({
 						</select>
 					)}
 					<select name="project" aria-label="Project" value={project} onChange={changed(setProject)}>
-						<option value="" disabled={kind === "epic"}>
-							{inherited ? `${inherited} (from the epic)` : kind === "epic" ? "Choose a project" : "No project"}
-						</option>
+						{kind === "card" && <option value="">{inherited ? `${inherited} (from the epic)` : "No project"}</option>}
 						{lists.projects.map((option) => (
 							<option key={option.id} value={option.id}>
 								{option.name}

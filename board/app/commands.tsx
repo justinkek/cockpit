@@ -35,7 +35,6 @@ export function epicPage(lists: Lists, current: string | null | undefined, edits
 	return {
 		title: `Set the epic of ${edits.label}`,
 		items: [
-			{ id: "epic:none", label: "No epic", run: () => edits.edit("epic", "", { epic: null }) },
 			...lists.epics.map((epic) => ({
 				id: `epic:${epic.id}`,
 				label: epic.name,

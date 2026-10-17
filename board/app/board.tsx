@@ -801,7 +801,6 @@ function BulkBar({
 						<option value="-" disabled>
 							Epic…
 						</option>
-						<option value="">No epic</option>
 						{lists.epics.map((epic) => (
 							<option key={epic.id} value={epic.id}>
 								{epic.name}
