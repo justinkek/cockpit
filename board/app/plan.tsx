@@ -1633,7 +1633,7 @@ export function Plan({
 	const planEnd = Math.max(...open_rows.map((row) => row.projected ?? Number.NEGATIVE_INFINITY));
 	const rateTitle =
 		rate.source === "measured"
-			? `The TR complexity of the tickets finished on the last ${rate.days} working days, Monday to Friday outside a break, divided by those days and shown as a week of five - a working day that finished nothing still counts, a ticket finished at a weekend or in a break is left out, and a ticket done without a complexity, or a timebox, is counted beside it and not in it`
+			? `The TR complexity of the tickets finished on the last ${rate.days} working days, Monday to Friday outside a break - the working days since the board's first finished ticket, at most ${AVERAGE_SPEED_DAYS} - divided by those days and shown as a week of five - a working day that finished nothing still counts, a ticket finished at a weekend or in a break is left out, and a ticket done without a complexity, or a timebox, is counted beside it and not in it`
 			: rate.source === "sprint"
 				? `No ticket with a TR complexity was finished on the last ${AVERAGE_SPEED_DAYS} working days, so this is the current sprint's speed a day times five`
 				: `No ticket with a TR complexity was finished on the last ${AVERAGE_SPEED_DAYS} working days and no sprint has a speed, so this is the default`;

@@ -80,7 +80,7 @@ assert_eq "an epic's estimates total every ticket but a deprioritised one, a spl
 assert_eq "an epic with no tickets has no totals, which read as none rather than zero" '0,0' \
   "$(evaluate '(() => { const e = p.estimatesOf([]); return [e.total.estimated, e.total.sized].join(); })()')"
 
-printf "\nTest group: the average speed is the TR complexity finished a working day over the last 30 working days, or the sprint's speed, or a default\n"
+printf "\nTest group: the average speed is the TR complexity finished a working day over the last 30 working days, or since the first card was finished when that is fewer, or the sprint's speed, or a default\n"
 
 DONE='[{"status":"Done","complexity":5,"dates":{"Done":"2026-10-12T10:00:00Z"}},{"status":"Done","complexity":3,"dates":{"Done":"2026-09-10T10:00:00Z"}},{"status":"Done","dates":{"Done":"2026-08-01T10:00:00Z"}},{"status":"In Dev","complexity":8,"dates":{"Done":"2026-10-13T10:00:00Z"}}]'
 assert_eq "the average speed divides the points finished on the last 30 working days by those days, shown as a week of five, and a card finished before them is left out" \
@@ -89,7 +89,13 @@ assert_eq "the average speed divides the points finished on the last 30 working 
 assert_eq "the window runs back from today over weekdays alone" '30,2026-10-14,2026-09-03' \
   "$(evaluate '((days) => [days.length, p.dayText(days[0]), p.dayText(days.at(-1))].join())(p.averageSpeedOf('"$DONE"', [], '"$NOW"').workingDays)')"
 assert_eq "a working day that finished nothing still counts" '{"perWeek":1.3333333333333333,"days":30}' \
-  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-09-30T12:00:00Z"}}], [], '"$NOW"'), "perWeek days")')"
+  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-09-30T12:00:00Z"}},{status:"Done",dates:{Done:"2026-08-03T12:00:00Z"}}], [], '"$NOW"'), "perWeek days")')"
+assert_eq "a board whose first card was finished fewer than 30 working days ago divides by the working days since, that day and today among them" '{"perWeek":3.6363636363636367,"days":11}|2026-09-30' \
+  "$(evaluate '((speed) => JSON.stringify(pick(speed, "perWeek days")) + "|" + p.dayText(speed.workingDays.at(-1)))(p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-09-30T12:00:00Z"}}], [], '"$NOW"'))')"
+assert_eq "the first card finished counts its day even when it was done without a complexity" '{"days":13}' \
+  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:8,dates:{Done:"2026-10-07T12:00:00Z"}},{status:"Done",estimate:3,dates:{Done:"2026-09-28T12:00:00Z"}}], [], '"$NOW"'), "days")')"
+assert_eq "a board that finished its first card today divides by that one day" '{"perWeek":25,"days":1}' \
+  "$(evaluate 'pick(p.averageSpeedOf([{status:"Done",complexity:5,dates:{Done:"2026-10-14T09:00:00Z"}}], [], '"$NOW"'), "perWeek days")')"
 assert_eq "a card finished at a weekend is left out" '3' \
   "$(evaluate 'p.averageSpeedOf([{status:"Done",complexity:5,dates:{Done:"2026-10-10T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-12T12:00:00Z"}}], [], '"$NOW"').points')"
 assert_eq "a done card counts only its TR complexity, and one without it or a timebox is counted apart, whatever its estimate" '{"points":5,"tickets":1,"uncounted":2,"timeboxes":1}' \
@@ -108,13 +114,16 @@ assert_eq "breaks become day spans, overlapping ones merged" '[[20730,20740],[20
   "$(evaluate 'p.daysOff([{from:"2026-10-04",to:"2026-10-10"},{from:"2026-10-08",to:"2026-10-14"},{from:"2026-11-03",to:"2026-11-03"}])')"
 assert_eq "a working day is a weekday outside a break" 'true,false,false,false' \
   "$(evaluate '[20740, 20743, 20744, 20741].map((day) => p.isWorkingDay(day, [[20741,20741]])).join()')"
-BROKEN='[{status:"Done",complexity:5,dates:{Done:"2026-10-12T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-07T12:00:00Z"}},{status:"Done",complexity:4,dates:{Done:"2026-09-30T12:00:00Z"}}]'
+FIRST_BROKEN='[{status:"Done",complexity:5,dates:{Done:"2026-10-12T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-07T12:00:00Z"}},{status:"Done",complexity:4,dates:{Done:"2026-09-30T12:00:00Z"}}]'
+assert_eq "the working days since the first card was finished leave a break out" '{"perWeek":7.5,"points":9,"days":6}|2026-09-30' \
+  "$(evaluate '((speed) => JSON.stringify(pick(speed, "perWeek points days")) + "|" + p.dayText(speed.workingDays.at(-1)))(p.averageSpeedOf('"$FIRST_BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-09"}])))')"
+BROKEN='[{status:"Done",complexity:5,dates:{Done:"2026-10-12T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-07T12:00:00Z"}},{status:"Done",complexity:4,dates:{Done:"2026-09-30T12:00:00Z"}},{status:"Done",dates:{Done:"2026-08-03T12:00:00Z"}}]'
 assert_eq "a card finished in a break is left out, and the window reaches back past the break for its 30 working days" '{"perWeek":1.5,"points":9,"days":30}|2026-08-27' \
   "$(evaluate '((speed) => JSON.stringify(pick(speed, "perWeek points days")) + "|" + p.dayText(speed.workingDays.at(-1)))(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-09"}])))')"
 assert_eq "a card finished on a working day beside a break still counts" '{"perWeek":2,"points":12}' \
   "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-06"}])), "perWeek points")')"
 BREAK_EPICS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1"},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-2"}]'
-BREAK_CARDS='[{"epic":"EPIC-1","status":"Done","complexity":6,"dates":{"Done":"2026-10-12T12:00:00Z"}},{"epic":"EPIC-1","status":"Done","complexity":2,"dates":{"Done":"2026-10-07T12:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":4,"dates":{"Done":"2026-10-07T12:00:00Z"}}]'
+BREAK_CARDS='[{"epic":"EPIC-1","status":"Done","dates":{"Done":"2026-08-03T12:00:00Z"}},{"epic":"EPIC-1","status":"Done","complexity":6,"dates":{"Done":"2026-10-12T12:00:00Z"}},{"epic":"EPIC-1","status":"Done","complexity":2,"dates":{"Done":"2026-10-07T12:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":4,"dates":{"Done":"2026-10-07T12:00:00Z"}}]'
 broken='p.trackSpeedsOf('"$BREAK_CARDS"', '"$BREAK_EPICS"', ["PRJ-1","PRJ-2"], [], '"$NOW"', [{from:"2026-10-05",to:"2026-10-09"}])'
 assert_eq "a break leaves its days out of every project's speed, so a project with nothing else finished takes the board's" '1,1,6' \
   "$(evaluate "[$broken.teams[\"PRJ-1\"].speed.perWeek, $broken.teams[\"PRJ-2\"].speed.perWeek, $broken.overall.speed.points].join()")"
@@ -303,12 +312,14 @@ assert_eq "an epic the plan places leaves alone a track a pinned epic waits for"
 printf "\nTest group: each project's speed a track comes from its own finished cards\n"
 
 SPEED_EPICS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1","dates":{"Tickets In Dev":"2026-08-01T10:00:00Z"}},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-1","dates":{"Tickets In Dev":"2026-08-01T10:00:00Z"}},{"id":"EPIC-3","status":"In FD","project":"PRJ-2"}]'
-SPEED_CARDS='[{"epic":"EPIC-1","status":"Done","complexity":12,"dates":{"Done":"2026-10-09T10:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":1,"dates":{"Done":"2026-09-10T10:00:00Z"}},{"status":"Done","complexity":6,"dates":{"Done":"2026-10-12T10:00:00Z"}}]'
+SPEED_CARDS='[{"epic":"EPIC-1","status":"Done","dates":{"Done":"2026-08-03T10:00:00Z"}},{"epic":"EPIC-1","status":"Done","complexity":12,"dates":{"Done":"2026-10-09T10:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":1,"dates":{"Done":"2026-09-10T10:00:00Z"}},{"status":"Done","complexity":6,"dates":{"Done":"2026-10-12T10:00:00Z"}}]'
 speeds="p.trackSpeedsOf($SPEED_CARDS, $SPEED_EPICS, [\"PRJ-1\",\"PRJ-2\"], [], $NOW)"
 assert_eq "a project's average speed is split across the epics it had in progress on average" '{"perWeek":1.0833333333333335,"source":"measured","inProgress":2}' \
   "$(evaluate "pick($speeds.teams[\"PRJ-1\"], \"perWeek source inProgress\")")"
 assert_eq "a project with no history takes the overall speed a track, and says so" '{"perWeek":1.5833333333333333,"source":"overall","inProgress":2}' \
   "$(evaluate "pick($speeds.teams[\"PRJ-2\"], \"perWeek source inProgress\")")"
+assert_eq "a project's speed divides by the working days since its own first finished card, while the board's runs from the board's" '6,30' \
+  "$(evaluate '((speeds) => [speeds.teams["PRJ-2"].speed.days, speeds.overall.speed.days].join())(p.trackSpeedsOf([{epic:"EPIC-1",status:"Done",complexity:2,dates:{Done:"2026-08-03T10:00:00Z"}},{epic:"EPIC-3",status:"Done",complexity:3,dates:{Done:"2026-10-07T10:00:00Z"}}], '"$SPEED_EPICS"', ["PRJ-1","PRJ-2"], [], '"$NOW"'))')"
 assert_eq "a card with no epic and no project counts toward the overall speed alone" 'undefined,19' \
   "$(evaluate "[String($speeds.teams[\"\"]), $speeds.overall.speed.points].join()")"
 assert_eq "an epic counts as in progress from its first card in dev until it is done" '0.5' \

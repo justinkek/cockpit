@@ -124,7 +124,10 @@ export function averageSpeedOf(
 	off: Off[] = [],
 ): AverageSpeed {
 	const end = now.getTime();
-	const workingDays = workingDaysTo(Math.floor(end / DAY), off);
+	const today = Math.floor(end / DAY);
+	const finished = cards.map(doneAt).filter((at): at is number => at != null && at <= end);
+	const first = finished.length > 0 ? Math.floor(Math.min(...finished) / DAY) : today;
+	const workingDays = workingDaysTo(today, off, Math.min(AVERAGE_SPEED_DAYS, openDays(first, today, off)));
 	const window = new Set(workingDays);
 	let points = 0;
 	let tickets = 0;
