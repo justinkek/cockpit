@@ -4,7 +4,7 @@ set -euo pipefail
 exit_usage=2
 
 usage() {
-  echo "usage: ticket-read <card-id> [--section <heading>] [property...]" >&2
+  echo "usage: ticket-read <ticket-id> [--section <heading>] [property...]" >&2
   exit "$exit_usage"
 }
 
@@ -14,7 +14,7 @@ card="$1"
 shift
 
 if ! printf '%s' "$card" | grep --quiet --extended-regexp '^[A-Za-z][A-Za-z0-9]*-[0-9]+$'; then
-  echo "[ticket-read] '$card' is not a card id like FEAT-123" >&2
+  echo "[ticket-read] '$card' is not a ticket id like COC-123" >&2
   exit "$exit_usage"
 fi
 

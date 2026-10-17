@@ -71,7 +71,7 @@ column_of_card() {
 }
 
 if [ "$(column_of_card)" = "Done" ]; then
-  deny "Done gate: the card this session is bound to is Done, so its work is finished — new work needs its own ticket and its own session. Assistant: do not edit files here and do not invoke /cockpit:ticket:3:dev to reopen the card; tell the user the card is Done and that the next change starts in a new session with its own ticket."
+  deny "Done gate: the ticket this session is bound to is Done, so its work is finished — new work needs its own ticket and its own session. Assistant: do not edit files here and do not invoke /cockpit:ticket:3:dev to reopen the ticket; tell the user the ticket is Done and that the next change starts in a new session with its own ticket."
 fi
 
 if [ -z "$file_path" ]; then

@@ -1131,7 +1131,7 @@ stub move "$finished" "In Dev" >/dev/null
 stub move "$finished" Done >/dev/null
 stub move "$finished" "In Dev" >/dev/null 2>&1
 assert_eq "a move out of Done is refused" "2 Done" "$? $(field "$finished" .status)"
-assert_eq "saying Done is final and to raise a new card" "[board-card] $finished is Done, and Done is final - raise a new card for what is left instead" "$(stub move "$finished" Backlog 2>&1 >/dev/null)"
+assert_eq "saying Done is final and to raise a new card" "[board-card] $finished is Done, and Done is final - raise a new ticket for what is left instead" "$(stub move "$finished" Backlog 2>&1 >/dev/null)"
 stub move "$finished" Deprioritised >/dev/null 2>&1
 assert_eq "and so is a move to Deprioritised" "2 Done" "$? $(field "$finished" .status)"
 other="$(stub create --name "Still open" --epic "$home")"
@@ -1176,7 +1176,7 @@ stub move "$done_epic" "Epic Done" >/dev/null
 on_open="$(stub create --name "On an open epic" --epic EPIC-1)"
 message="$(stub set "$on_open" epic "$done_epic" 2>&1 >/dev/null)"
 assert_eq "a card is not moved to an epic in Epic Done, and the refusal names the epic" \
-  "2|EPIC-1|[board-card] $done_epic is in Epic Done, so it takes no card - move $on_open to an open epic, one of: board-card list --kind epic" \
+  "2|EPIC-1|[board-card] $done_epic is in Epic Done, so it takes no ticket - move $on_open to an open epic, one of: board-card list --kind epic" \
   "$(stub set "$on_open" epic "$done_epic" >/dev/null 2>&1; echo "$?")|$(field "$on_open" .epic)|$message"
 stub move "$done_epic" Backlog >/dev/null
 stub set "$on_open" epic "$done_epic" >/dev/null
@@ -1186,7 +1186,7 @@ assert_eq "a card already under an epic in Epic Done can be given that same epic
 copies="$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
 message="$(stub duplicate "$on_open" 2>&1 >/dev/null)"
 assert_eq "a card whose epic is in Epic Done is not duplicated, and the refusal names the epic, writing nothing" \
-  "2|[board-card] $on_open's epic $done_epic is in Epic Done, so it takes no new card - give $on_open an open epic first with: board-card set $on_open epic <EPIC-n>|$copies" \
+  "2|[board-card] $on_open's epic $done_epic is in Epic Done, so it takes no new ticket - give $on_open an open epic first with: board-card set $on_open epic <EPIC-n>|$copies" \
   "$(stub duplicate "$on_open" >/dev/null 2>&1; echo "$?")|$message|$(stub list --epic "$done_epic" | wc -l | tr -d ' ')"
 stub archive "$on_open" >/dev/null
 

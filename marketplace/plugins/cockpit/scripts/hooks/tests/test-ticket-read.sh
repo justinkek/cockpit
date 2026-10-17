@@ -92,7 +92,7 @@ printf "\nTest group: a reference is a card id or it is refused\n"
 
 assert_eq "a lower case id reads the same card" "Status${TAB}Ready for BR" "$("$SCRIPT" "$(printf '%s' "$CARD" | tr '[:upper:]' '[:lower:]')" Status)"
 assert_eq "a page url is refused" "2" "$(exit_code_of "$SCRIPT" "https://app.notion.com/p/3b98f3776f4f81a6ab13cd05b1683e96")"
-assert_contains "and says what it wanted" "not a card id" "$("$SCRIPT" "https://app.notion.com/p/abc" 2>&1)"
+assert_contains "and says what it wanted" "not a ticket id" "$("$SCRIPT" "https://app.notion.com/p/abc" 2>&1)"
 assert_eq "no argument at all is refused" "2" "$(exit_code_of "$SCRIPT")"
 assert_eq "a card the board does not hold exits 3" "3" "$(exit_code_of "$SCRIPT" HOM-999 Status)"
 

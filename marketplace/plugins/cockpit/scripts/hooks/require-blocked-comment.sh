@@ -36,5 +36,5 @@ fi
 
 [ -n "$reason" ] || exit 0
 
-echo "[blocked-comment] You just set Blocked on ${card}. You MUST now comment the reason on that card: \$HOME/.cockpit/scripts/board-card comment ${card} with the text on stdin, in the format: 🤖 🚧 **Blocked** - <reason>. The robot marker is what tells a reader an agent wrote it. State the specific reason this ticket is blocked. Do not skip this step. Follow ~/.claude-shared/templates/blocked-flag.md."
+echo "[blocked-comment] You just set Blocked on ${card}. You MUST now comment the reason on that ticket: \$HOME/.cockpit/scripts/board-card comment ${card} with the text on stdin, in the format: 🤖 🚧 **Blocked** - <reason>. The robot marker is what tells a reader an agent wrote it. State the specific reason this ticket is blocked. Do not skip this step. Follow ~/.claude-shared/templates/blocked-flag.md."
 exit 0

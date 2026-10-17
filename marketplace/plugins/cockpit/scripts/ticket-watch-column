@@ -2,7 +2,7 @@
 #
 # ticket-watch-column — emit an event when a watched card changes column.
 #
-#   usage: ticket-watch-column <card-id>...
+#   usage: ticket-watch-column <ticket-id>...
 #
 # Polls each card's Status and prints one line every time it lands somewhere new.
 # The flow is one-directional without it: an agent already working a ticket
@@ -14,7 +14,7 @@ set -euo pipefail
 source "${CLAUDE_SHARED_DIR:-$HOME/.claude-shared}/ticket-state-lib.sh"
 
 if [ "$#" -eq 0 ]; then
-  echo "usage: ticket-watch-column <card-id>..." >&2
+  echo "usage: ticket-watch-column <ticket-id>..." >&2
   exit 1
 fi
 page_ids=( "$@" )

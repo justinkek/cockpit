@@ -3,7 +3,7 @@ set -euo pipefail
 
 card_id="${1:-}"
 if [ -z "$card_id" ]; then
-  echo "usage: ticket-done-usage <card-id>" >&2
+  echo "usage: ticket-done-usage <ticket-id>" >&2
   exit 1
 fi
 

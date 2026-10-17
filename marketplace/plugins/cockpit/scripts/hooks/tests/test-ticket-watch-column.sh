@@ -403,7 +403,7 @@ assert_eq "and announces no move" "0" "$(count_events "$(cat "$out")")"
 
 output="$(bash "$WATCHER" 2>&1)"
 assert_eq "no card named is refused" "1" "$?"
-assert_contains "and says how to call it" "usage: ticket-watch-column <card-id>" "$output"
+assert_contains "and says how to call it" "usage: ticket-watch-column <ticket-id>" "$output"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

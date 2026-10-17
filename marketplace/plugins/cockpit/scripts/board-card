@@ -124,7 +124,7 @@ prefix_of_kind() {
     sprint) printf '%s\n' SPR ;;
     reference) printf '%s\n' REF ;;
     milestone) printf '%s\n' MS ;;
-    *) die 2 "kind is card, epic, project, sprint, reference or milestone, not '$1'" ;;
+    *) die 2 "kind is ticket, epic, project, sprint, reference or milestone, not '$1'" ;;
   esac
 }
 
@@ -150,6 +150,8 @@ directory_of_kind() {
     milestone) printf '%s\n' "$BOARD_DIR/milestones" ;;
   esac
 }
+
+kind_name() { if [ "$1" = card ]; then printf 'ticket\n'; else printf '%s\n' "$1"; fi; }
 
 walk_columns() {
   case "$1" in
@@ -805,7 +807,7 @@ command_create() {
   fi
   require_column "$kind" "$status"
   case "$kind" in
-    card) [ -n "$epic" ] || die 2 "every card has an epic - pass --epic <EPIC-n>, one of: board-card list --kind epic" ;;
+    card) [ -n "$epic" ] || die 2 "every ticket has an epic - pass --epic <EPIC-n>, one of: board-card list --kind epic" ;;
     epic) [ -n "$project" ] || die 2 "every epic has a project - pass --project <PRJ-n>, one of: board-card list --kind project" ;;
   esac
   if [ -n "$epic" ]; then
@@ -813,11 +815,11 @@ command_create() {
     require_record "$epic"
     [ "$(kind_of "$epic")" = epic ] || die 2 "$epic is not an epic"
     [ "$(read_record "$epic" | jq --raw-output '.status // ""')" != "Epic Done" ] \
-      || die 2 "$epic is in Epic Done, so it takes no new card - pass an open epic, one of: board-card list --kind epic"
+      || die 2 "$epic is in Epic Done, so it takes no new ticket - pass an open epic, one of: board-card list --kind epic"
   fi
   if [ -n "$project" ]; then
-    [ "$kind" != card ] || die 2 "a card's project is its epic's - pass --epic <EPIC-n> with an epic of that project instead of --project"
-    [ "$kind" = epic ] || die 2 "only an epic belongs to a project, and this is a $kind"
+    [ "$kind" != card ] || die 2 "a ticket's project is its epic's - pass --epic <EPIC-n> with an epic of that project instead of --project"
+    [ "$kind" = epic ] || die 2 "only an epic belongs to a project, and this is a $(kind_name "$kind")"
     project="$(normalise_id "$project")"
     require_record "$project"
     [ "$(kind_of "$project")" = project ] || die 2 "$project is not a project"
@@ -1020,7 +1022,7 @@ command_search() {
 command_statuses() {
   local kind=card
   [ "${1:-}" = "--kind" ] && kind="${2:-}"
-  has_board "$kind" || die 2 "only cards and epics have columns"
+  has_board "$kind" || die 2 "only tickets and epics have columns"
   walk_columns "$kind"
   parked_columns "$kind"
 }
@@ -1032,7 +1034,7 @@ is_fibonacci() {
 
 check_estimate() {
   local id="$1" value="$2"
-  [ "$(kind_of "$id")" = card ] || die 2 "only a card has an estimate - an epic's is the sum of its cards', and $id is not a card"
+  [ "$(kind_of "$id")" = card ] || die 2 "only a ticket has an estimate - an epic's is the sum of its tickets', and $id is not a ticket"
   is_fibonacci "$value" && [ "$value" != 0 ] || die 2 "an estimate is a Fibonacci number above 0 ($FIBONACCI), not '$value' - clear it with '' instead"
   [ "$(read_record "$id" | jq --raw-output '.type // ""')" != Timebox ] || die 2 "$id is a timebox, and a timebox carries no estimate"
 }
@@ -1196,37 +1198,37 @@ field_json() {
       nullable "$value"
       ;;
     timebox_mins)
-      [ "$kind" = card ] || die 2 "only a card has a timebox, and this is a $kind"
+      [ "$kind" = card ] || die 2 "only a ticket has a timebox, and this is a $(kind_name "$kind")"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a timebox is a whole number of minutes, not '$value'"
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     start|end)
       [ "$kind" != epic ] || [ "$field" != start ] || die 2 "an epic's start is stamped the day it leaves Backlog, cleared when it moves back, and never set by hand"
-      [ "$kind" = sprint ] || die 2 "only a sprint has a $field date, and this is a $kind"
+      [ "$kind" = sprint ] || die 2 "only a sprint has a $field date, and this is a $(kind_name "$kind")"
       date_json "a $kind's $field" "$value"
       ;;
     target)
-      [ "$kind" = epic ] || die 2 "only an epic has a target date, and this is a $kind"
+      [ "$kind" = epic ] || die 2 "only an epic has a target date, and this is a $(kind_name "$kind")"
       date_json "an epic's target" "$value"
       ;;
     date)
-      [ "$kind" = milestone ] || die 2 "only a milestone has a date, and this is a $kind"
+      [ "$kind" = milestone ] || die 2 "only a milestone has a date, and this is a $(kind_name "$kind")"
       [ -n "$value" ] || die 2 "a milestone keeps its date - archive it to take it off the plan"
       date_json "a milestone's date" "$value"
       ;;
     confidence)
-      [ "$kind" = epic ] || die 2 "only an epic has a confidence, and this is a $kind"
+      [ "$kind" = epic ] || die 2 "only an epic has a confidence, and this is a $(kind_name "$kind")"
       if [ -n "$value" ] && ! printf '%s\n' "${CONFIDENCES[@]}" | grep --quiet --line-regexp --fixed-strings -- "$value"; then
         die 2 "an epic's confidence is On track, At risk - plan in place or At risk - no plan, not '$value'"
       fi
       nullable "$value"
       ;;
     learning)
-      [ "$kind" = epic ] || die 2 "only an epic has a learning, and this is a $kind"
+      [ "$kind" = epic ] || die 2 "only an epic has a learning, and this is a $(kind_name "$kind")"
       nullable "$value"
       ;;
     dev_days|speed)
-      [ "$kind" = sprint ] || die 2 "only a sprint has $field, and this is a $kind"
+      [ "$kind" = sprint ] || die 2 "only a sprint has $field, and this is a $(kind_name "$kind")"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+(\.[0-9]+)?$' || die 2 "a sprint's $field is a number, not '$value'"
       if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
@@ -1244,50 +1246,50 @@ field_json() {
       nullable "$value"
       ;;
     priority)
-      [ "$kind" = project ] || die 2 "only a project has a priority, and this is a $kind"
+      [ "$kind" = project ] || die 2 "only a project has a priority, and this is a $(kind_name "$kind")"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[0-9]+$' || die 2 "a project's priority is a whole number, not '$value'"
       if [ -z "$value" ]; then echo null; else jq --null-input --arg value "$value" '$value | tonumber'; fi
       ;;
     tracks)
-      [ "$kind" = project ] || die 2 "only a project has a share of the tracks - the board's own count is set with: board-card tracks <n> - and this is a $kind"
+      [ "$kind" = project ] || die 2 "only a project has a share of the tracks - the board's own count is set with: board-card tracks <n> - and this is a $(kind_name "$kind")"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a project's share of the tracks is a whole number above 0, not '$value' - clear it with '' to give it none"
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     track)
-      [ "$kind" = epic ] || die 2 "only an epic is pinned to a track, and this is a $kind"
+      [ "$kind" = epic ] || die 2 "only an epic is pinned to a track, and this is a $(kind_name "$kind")"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^[1-9][0-9]*$' || die 2 "a track is a whole number above 0, not '$value' - clear it with '' to let the plan place the epic"
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     repo)
-      [ "$kind" = project ] || die 2 "only a project has a repo, and this is a $kind"
+      [ "$kind" = project ] || die 2 "only a project has a repo, and this is a $(kind_name "$kind")"
       [ -z "$value" ] || printf '%s' "$value" | grep --quiet --extended-regexp '^https?://[^[:space:]]+$' || die 2 "a project's repo is a URL, not '$value'"
       nullable "$value"
       ;;
     points)
-      [ "$kind" = reference ] || die 2 "only a reference ticket has points, and this is a $kind"
+      [ "$kind" = reference ] || die 2 "only a reference ticket has points, and this is a $(kind_name "$kind")"
       [ -z "$value" ] || is_fibonacci "$value" || die 2 "points are a Fibonacci number ($FIBONACCI), not '$value'"
       if [ -z "$value" ]; then echo null; else printf '%s\n' "$value"; fi
       ;;
     why|description|stack)
-      [ "$kind" = reference ] || die 2 "only a reference ticket has $field, and this is a $kind"
+      [ "$kind" = reference ] || die 2 "only a reference ticket has $field, and this is a $(kind_name "$kind")"
       nullable "$value"
       ;;
     domain)
-      [ "$kind" = reference ] || die 2 "only a reference ticket has a domain, and this is a $kind"
+      [ "$kind" = reference ] || die 2 "only a reference ticket has a domain, and this is a $(kind_name "$kind")"
       case "$value" in ""|Tech|Bizdev) ;; *) die 2 "a domain is Tech or Bizdev, not '$value'" ;; esac
       nullable "$value"
       ;;
     card)
-      [ "$kind" = reference ] || die 2 "only a reference ticket names the card it was taken from, and this is a $kind"
+      [ "$kind" = reference ] || die 2 "only a reference ticket names the ticket it was taken from, and this is a $(kind_name "$kind")"
       if [ -n "$value" ]; then
         value="$(normalise_id "$value")" || exit "$?"
-        [ "$(kind_of "$value")" = card ] || die 2 "$value is not a card"
+        [ "$(kind_of "$value")" = card ] || die 2 "$value is not a ticket"
         require_record "$value"
       fi
       nullable "$value"
       ;;
     key)
-      [ "$kind" = project ] || die 2 "only a project has a key, and this is a $kind"
+      [ "$kind" = project ] || die 2 "only a project has a key, and this is a $(kind_name "$kind")"
       value="$(printf '%s' "$value" | tr '[:lower:]' '[:upper:]')"
       check_key "$value" "${4:-}"
       nullable "$value"
@@ -1440,7 +1442,7 @@ set_locked() {
       ;;
     estimate)
       if [ -z "$value" ]; then
-        [ "$(kind_of "$id")" = card ] || die 2 "only a card has an estimate, and $id is not a card"
+        [ "$(kind_of "$id")" = card ] || die 2 "only a ticket has an estimate, and $id is not a ticket"
         update_record "$id" '.estimate = null'
       else
         check_estimate "$id" "$value"
@@ -1448,7 +1450,7 @@ set_locked() {
       fi
       ;;
     type)
-      [ "$(kind_of "$id")" = card ] || die 2 "only a card has a type, and $id is not a card"
+      [ "$(kind_of "$id")" = card ] || die 2 "only a ticket has a type, and $id is not a ticket"
       case "$value" in Feature|Bug|Timebox) ;; *) die 2 "type is Feature, Bug or Timebox, not '$value'" ;; esac
       update_record "$id" --arg value "$value" '.type = $value
         | if $value == "Timebox" then .estimate = null | if .timebox_mins == null then .timebox_mins = 60 else . end else . end'
@@ -1481,8 +1483,8 @@ set_locked() {
     epic|project|sprint)
       reference=""
       case "$(kind_of "$id")/$field/$value" in
-        card/project/*) die 2 "a card's project is its epic's - move $id to an epic of another project with: board-card set $id epic <EPIC-n>" ;;
-        card/epic/) die 2 "every card has an epic - move $id to another with: board-card set $id epic <EPIC-n>" ;;
+        card/project/*) die 2 "a ticket's project is its epic's - move $id to an epic of another project with: board-card set $id epic <EPIC-n>" ;;
+        card/epic/) die 2 "every ticket has an epic - move $id to another with: board-card set $id epic <EPIC-n>" ;;
         epic/project/) die 2 "every epic has a project - move $id to another with: board-card set $id project <PRJ-n>" ;;
       esac
       if [ -n "$value" ]; then
@@ -1491,7 +1493,7 @@ set_locked() {
         [ "$(kind_of "$reference")" = "$field" ] || die 2 "$reference is not a $field"
         if [ "$field/$(kind_of "$id")" = epic/card ] && [ "$reference" != "$(read_record "$id" | jq --raw-output '.epic // ""')" ] \
           && [ "$(read_record "$reference" | jq --raw-output '.status // ""')" = "Epic Done" ]; then
-          die 2 "$reference is in Epic Done, so it takes no card - move $id to an open epic, one of: board-card list --kind epic"
+          die 2 "$reference is in Epic Done, so it takes no ticket - move $id to an open epic, one of: board-card list --kind epic"
         fi
       fi
       local key="" was
@@ -1531,7 +1533,7 @@ set_locked() {
             | .blocked = $value | .blocked_at = $at | .blocked_by = $by end'
       ;;
     urgent)
-      [ "$(kind_of "$id")" = card ] || die 2 "only a card is flagged urgent, and $id is not a card"
+      [ "$(kind_of "$id")" = card ] || die 2 "only a ticket is flagged urgent, and $id is not a ticket"
       case "$value" in
         true) update_record "$id" '.urgent = true' ;;
         "") update_record "$id" 'del(.urgent)' ;;
@@ -1539,7 +1541,7 @@ set_locked() {
       esac
       ;;
     labels)
-      has_board "$(kind_of "$id")" || die 2 "only a card or an epic carries labels, and $id is a $(kind_of "$id")"
+      has_board "$(kind_of "$id")" || die 2 "only a ticket or an epic carries labels, and $id is a $(kind_name "$(kind_of "$id")")"
       [ "$value" = "${value//$'\n'/}" ] || die 2 "labels are separated by commas, never by a new line"
       update_record "$id" --arg value "$value" '
         [$value | split(",")[] | gsub("^\\s+|\\s+$"; "") | select(. != "")] as $labels
@@ -1569,7 +1571,7 @@ set_locked() {
       ;;
     plan_rank) die 2 "an epic's place in the plan is its rank, the same one the Epics board orders it by - run: board-card set $id rank <n>" ;;
     back_from.*) die 2 "a bounce counter moves through: board-card bounce" ;;
-    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, urgent, labels, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, card, session, body, rank, models.<stage>" ;;
+    *) die 2 "no settable field '$field' - one of: name, icon, type, epic, project, sprint, due, urgent, labels, blocked, prs, complexity, estimate, timebox_mins, start, end, target, date, confidence, learning, track, dev_days, speed, priority, repo, tracks, status of a project, points, why, description, domain, stack, ticket, session, body, rank, models.<stage>" ;;
   esac
 }
 
@@ -1761,7 +1763,7 @@ refuse_done_card() {
   [ "$(kind_of "$id")" = card ] || return 0
   [ "$target" != Done ] || return 0
   [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || return 0
-  die 2 "$id is Done, and Done is final - raise a new card for what is left instead"
+  die 2 "$id is Done, and Done is final - raise a new ticket for what is left instead"
 }
 
 sprint_covering() {
@@ -1901,8 +1903,8 @@ command_link() {
   local action="$1" parent child
   parent="$(normalise_id "${2:-}")"
   child="$(normalise_id "${3:-}")"
-  [ "$parent" != "$child" ] || die 2 "a card cannot depend on itself"
-  [ "$(kind_of "$parent")" = card ] && [ "$(kind_of "$child")" = card ] || die 2 "only cards depend on cards"
+  [ "$parent" != "$child" ] || die 2 "a ticket cannot depend on itself"
+  [ "$(kind_of "$parent")" = card ] && [ "$(kind_of "$child")" = card ] || die 2 "only tickets depend on tickets"
   require_record "$parent"
   require_record "$child"
   with_lock link_locked "$parent" "$child" "$action"
@@ -2206,7 +2208,7 @@ require_home() {
   [ -n "$home" ] || die 2 "$id has no $field, and a copy needs one - give $id one first with: board-card set $id $field <id>"
   [ -f "$(record_file "$home")" ] || die 2 "$id's $field $home is not on the board, and a copy needs one - give $id another first with: board-card set $id $field <id>"
   [ "$field" != epic ] || [ "$(read_record "$home" | jq --raw-output '.status // ""')" != "Epic Done" ] \
-    || die 2 "$id's epic $home is in Epic Done, so it takes no new card - give $id an open epic first with: board-card set $id epic <EPIC-n>"
+    || die 2 "$id's epic $home is in Epic Done, so it takes no new ticket - give $id an open epic first with: board-card set $id epic <EPIC-n>"
 }
 
 duplicate_locked() {
@@ -2238,7 +2240,7 @@ command_duplicate() {
     esac
   done
   kind="$(kind_of "$id")"
-  has_board "$kind" || die 2 "only a card or an epic is duplicated, and $id is a $kind"
+  has_board "$kind" || die 2 "only a ticket or an epic is duplicated, and $id is a $(kind_name "$kind")"
   require_record "$id"
   require_home "$id"
   [ -n "$name" ] || name="Copy of $(read_record "$id" | jq --raw-output '.name')"
@@ -2410,7 +2412,7 @@ undo_locked() {
   if [ "$before_file" = "${current_file#"$BOARD_DIR/"}" ] \
     && ! printf '%s\n' "${changed[@]}" | grep --quiet --invert-match --extended-regexp '^(archive/)?[a-z]+/[A-Z]+-[0-9]+\.md$' \
     && { printf '%s' "$current"; printf '%s' "$restored"; } | jq --slurp --exit-status '(.[0] | del(.updated)) == (.[1] | del(.updated))' >/dev/null; then
-    die 2 "nothing to undo on $id: before $subject it held what it holds now, once renamed cards are followed"
+    die 2 "nothing to undo on $id: before $subject it held what it holds now, once renamed tickets are followed"
   fi
   current_refs="$(printf '%s' "$current" | jq --compact-output '{epic, project, sprint, card, dependent_on, dependency_for, session}')"
   restored_refs="$(printf '%s' "$restored" | jq --compact-output '{epic, project, sprint, card, dependent_on, dependency_for, session}')"
@@ -2533,7 +2535,7 @@ command_views() {
   esac
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --kind) [ "$#" -ge 2 ] || die 2 "--kind needs card or epic"; kind="$2"; shift 2 ;;
+      --kind) [ "$#" -ge 2 ] || die 2 "--kind needs ticket or epic"; kind="$2"; shift 2 ;;
       --)
         shift
         [ "$#" -le 1 ] || die 2 "a view takes one name after --, not $#"
@@ -2550,7 +2552,7 @@ command_views() {
   done
   [ -n "$name" ] || die 2 "a view needs a name"
   [ "$name" = "${name//$'\n'/}" ] || die 2 "a view's name is one line, not '$name'"
-  case "$kind" in card | epic) ;; *) die 2 "a view belongs to the card board or the epics board, not '$kind'" ;; esac
+  case "$kind" in card | epic) ;; *) die 2 "a view belongs to the ticket board or the epics board, not '$kind'" ;; esac
   if [ "$verb" = delete ]; then
     views_json | jq --exit-status --arg name "$name" --arg kind "$kind" 'any(.[]; .name == $name and .kind == $kind)' >/dev/null \
       || die 3 "no $kind view is called '$name'"

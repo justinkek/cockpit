@@ -112,7 +112,7 @@ printf 'In Dev\n' > "$column_file"
 assert_edit_allowed "an edit while the card is In Dev" Edit
 
 printf 'Done\n' > "$column_file"
-assert_edit_denied "an edit once the card is Done" Edit "card this session is bound to is Done"
+assert_edit_denied "an edit once the card is Done" Edit "ticket this session is bound to is Done"
 assert_edit_denied "a write once the card is Done" Write "new work needs its own ticket and its own session"
 
 verdict "\\\"\$HOME/.cockpit/scripts/ticket-status-confirm\\\" dev" > /dev/null

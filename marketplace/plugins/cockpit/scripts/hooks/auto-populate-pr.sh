@@ -30,5 +30,5 @@ printf '%s' "$cmd" | grep -q 'gh pr create' || exit 0
 
 card="$(tr -d '[:space:]' < "$marker")"
 
-echo "[auto-populate-pr] A PR was just created. Record it on the cockpit card ${card}: run \`gh pr view --json url -q .url\` for the PR URL, read the current list with \`\$HOME/.cockpit/scripts/board-card show ${card} PRs\`, append the URL on a new line (keep existing entries, skip it if already listed), and write the result with \`\$HOME/.cockpit/scripts/board-card set ${card} prs \"<urls>\"\`."
+echo "[auto-populate-pr] A PR was just created. Record it on the cockpit ticket ${card}: run \`gh pr view --json url -q .url\` for the PR URL, read the current list with \`\$HOME/.cockpit/scripts/board-card show ${card} PRs\`, append the URL on a new line (keep existing entries, skip it if already listed), and write the result with \`\$HOME/.cockpit/scripts/board-card set ${card} prs \"<urls>\"\`."
 exit 0

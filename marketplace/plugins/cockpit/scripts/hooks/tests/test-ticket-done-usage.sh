@@ -79,7 +79,7 @@ printf "Test group: the argument is a card id\n"
 
 usage_error="$(bash "$SCRIPT" 2>&1 >/dev/null)"
 assert_eq "no argument exits 1" "1" "$(bash "$SCRIPT" >/dev/null 2>&1; echo $?)"
-assert_eq "the usage line names a card id" "usage: ticket-done-usage <card-id>" "$usage_error"
+assert_eq "the usage line names a card id" "usage: ticket-done-usage <ticket-id>" "$usage_error"
 
 printf "Test group: board-card usage writes null onto a card nothing measured\n"
 
