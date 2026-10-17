@@ -267,23 +267,21 @@ stub set "$finished" tracks "" >/dev/null
 stub set "$finished" status "Not started" >/dev/null
 assert_eq "a done project with no share reopens whatever the count" "Not started" "$(field "$finished" .status)"
 
-printf "\nTest group: a break is a span of days off, board-wide or for one project, kept at the board's root\n"
+printf "\nTest group: a break is a span of days off for the whole board, kept at the board's root\n"
 
 assert_eq "a board with no breaks lists none" "" "$(stub breaks)"
 assert_eq "and gives an empty list as JSON" "[]" "$(stub breaks --json | jq --compact-output .)"
 assert_eq "a break added gets an id" "b1" "$(stub breaks add 2026-12-21 2027-01-02 --name 'Christmas')"
 assert_eq "and is committed under its verb" "breaks" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s)"
-assert_eq "and leaves nothing uncommitted" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain)"
-assert_eq "a break for one project names it" "b2" "$(stub breaks add 2026-11-02 2026-11-06 --project prj-1)"
-assert_eq "the list runs in the order the breaks start, board-wide ones read as the board's" \
-  "b2	2026-11-02	2026-11-06	PRJ-1	|b1	2026-12-21	2027-01-02	board	Christmas" "$(stub breaks | paste -sd '|' -)"
-assert_eq "the file at the root is JSON" "b2,b1" "$(jq --raw-output 'map(.id) | join(",")' "$COCKPIT_BOARD_DIR/breaks")"
+assert_eq "a break with no name has none" "b2" "$(stub breaks add 2026-11-02 2026-11-06)"
+assert_eq "the list runs in the order the breaks start" \
+  "b2	2026-11-02	2026-11-06	|b1	2026-12-21	2027-01-02	Christmas" "$(stub breaks | paste -sd '|' -)"
+assert_eq "the file at the root is JSON, naming no project" "b2,b1|false" "$(jq --raw-output '(map(.id) | join(",")) + "|" + (any(.[]; has("project")) | tostring)' "$COCKPIT_BOARD_DIR/breaks")"
+assert_eq "a break for one project is refused, as a break is the whole board's" "2" "$(refused breaks add 2026-11-02 2026-11-06 --project PRJ-1)"
 assert_eq "a break that ends before it starts is refused" "2" "$(refused breaks add 2026-11-10 2026-11-09)"
 assert_eq "a one-day break is kept" "b3" "$(stub breaks add 2026-11-10 2026-11-10)"
 assert_eq "a date that is not one is refused" "2" "$(refused breaks add 2026-02-30 2026-03-02)"
 assert_eq "a date in another shape is refused" "2" "$(refused breaks add 1/11/2026 2026-11-02)"
-assert_eq "a project the board does not have is refused" "3" "$(refused breaks add 2026-11-02 2026-11-06 --project PRJ-99)"
-assert_eq "a break for a record that is not a project is refused" "2" "$(refused breaks add 2026-11-02 2026-11-06 --project EPIC-1)"
 assert_eq "an option breaks does not take is refused" "2" "$(refused breaks add 2026-11-02 2026-11-06 --track 1)"
 assert_eq "a refused break writes nothing" "3" "$(stub breaks --json | jq length)"
 assert_eq "a break is removed by its place in the list" "b2" "$(stub breaks remove 1)"
@@ -324,6 +322,21 @@ perl -pi -e 's/^epic: .*/epic: null/' "$shared/cards/FEAT-1.md"
 perl -pi -e 's/^project: .*/project: null/' "$shared/epics/EPIC-1.md"
 assert_eq "migrate names a card with no epic and an epic with no project, which only a person can give them" \
   "FEAT-1	needs an epic|EPIC-1	needs a project" "$(on_shared migrate | paste -sd '|' -)"
+
+printf "\nTest group: migrate drops a break kept for one project, as a break is the whole board's\n"
+
+projected="$TMPDIR/projected"
+mkdir -p "$projected"
+COCKPIT_BOARD_DIR="$projected" stub init >/dev/null
+COCKPIT_BOARD_DIR="$projected" stub create --kind project --name Home >/dev/null
+printf '%s\n' '[{"id":"b1","from":"2026-11-02","to":"2026-11-06","project":"PRJ-1","name":null},{"id":"b2","from":"2026-12-21","to":"2027-01-02","project":null,"name":"Christmas"}]' > "$projected/breaks"
+git -C "$projected" add --all >/dev/null && git -C "$projected" -c user.name=t -c user.email=t@t commit --quiet --message seed
+assert_eq "migrate names the project break it drops" "b1	break 2026-11-02 to 2026-11-06 for PRJ-1 removed, as a break is the whole board's|breaks	no break names a project" \
+  "$(COCKPIT_BOARD_DIR="$projected" stub migrate | grep --extended-regexp '^(b[0-9]|breaks)' | paste -sd '|' -)"
+assert_eq "and keeps the board's own, with no project field" '[{"id":"b2","from":"2026-12-21","to":"2027-01-02","name":"Christmas"}]' "$(jq --compact-output . "$projected/breaks")"
+assert_eq "and commits it" "" "$(git -C "$projected" status --porcelain)"
+assert_eq "a break file with only project breaks goes altogether" "false" \
+  "$(printf '%s\n' '[{"id":"b1","from":"2026-11-02","to":"2026-11-06","project":"PRJ-1","name":null}]' > "$projected/breaks"; COCKPIT_BOARD_DIR="$projected" stub migrate >/dev/null; [ -f "$projected/breaks" ] && echo true || echo false)"
 
 printf "\nTest group: migrate gives an epic past Backlog with no start the day it first left Backlog\n"
 

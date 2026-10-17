@@ -775,11 +775,10 @@ function MilestoneEditor({
 	);
 }
 
-type BreakDraft = { from: string; to: string; project: string; name: string };
+type BreakDraft = { from: string; to: string; name: string };
 
 function BreaksEditor({
 	breaks,
-	projects,
 	busy,
 	error,
 	onAdd,
@@ -787,16 +786,14 @@ function BreaksEditor({
 	onClose,
 }: {
 	breaks: Break[];
-	projects: Project[];
 	busy: boolean;
 	error: string | null;
 	onAdd: (draft: BreakDraft) => void;
 	onRemove: (id: string) => void;
 	onClose: () => void;
 }) {
-	const [draft, setDraft] = useState<BreakDraft>({ from: "", to: "", project: "", name: "" });
-	useEffect(() => setDraft({ from: "", to: "", project: "", name: "" }), [breaks]);
-	const nameOf = (id: string | null) => (id ? (projects.find((one) => one.id === id)?.name ?? id) : "Whole board");
+	const [draft, setDraft] = useState<BreakDraft>({ from: "", to: "", name: "" });
+	useEffect(() => setDraft({ from: "", to: "", name: "" }), [breaks]);
 	return (
 		<form
 			className="plan-popover plan-milestone-form plan-breaks-form"
@@ -820,8 +817,7 @@ function BreaksEditor({
 					{breaks.map((one) => (
 						<li key={one.id}>
 							<span>
-								{one.name || "Break"} · {short(dayOf(one.from) ?? 0)} to {short(dayOf(one.to) ?? 0)} ·{" "}
-								{nameOf(one.project)}
+								{one.name || "Break"} · {short(dayOf(one.from) ?? 0)} to {short(dayOf(one.to) ?? 0)}
 							</span>
 							<button
 								type="button"
@@ -838,7 +834,7 @@ function BreaksEditor({
 			)}
 			<input
 				aria-label="Break name"
-				placeholder="Leave, a holiday, a project put down…"
+				placeholder="Leave, a holiday…"
 				value={draft.name}
 				onChange={(event) => setDraft({ ...draft, name: event.target.value })}
 			/>
@@ -859,18 +855,6 @@ function BreaksEditor({
 					onChange={(event) => setDraft({ ...draft, to: event.target.value })}
 				/>
 			</span>
-			<select
-				aria-label="Whom the break is for"
-				value={draft.project}
-				onChange={(event) => setDraft({ ...draft, project: event.target.value })}
-			>
-				<option value="">Whole board</option>
-				{projects.map((project) => (
-					<option key={project.id} value={project.id}>
-						{project.name}
-					</option>
-				))}
-			</select>
 			{error && (
 				<span className="notice error" role="alert">
 					{error}
@@ -1027,7 +1011,7 @@ export function Plan({
 		return from != null && to != null && to >= from ? [{ ...one, first: from, last: to }] : [];
 	});
 	const breakTitle = (one: (typeof spans)[number]) =>
-		`${one.name || "Break"} · ${long(one.first)} to ${long(one.last)} · ${one.project ? teamName(one.project) : "the whole board"} - nothing is refined or delivered on these days`;
+		`${one.name || "Break"} · ${long(one.first)} to ${long(one.last)} - nothing is refined or delivered on these days`;
 
 	const span = useMemo(
 		() =>
@@ -1296,7 +1280,7 @@ export function Plan({
 	function addBreakFrom(draft: BreakDraft) {
 		setBreakError(null);
 		startTransition(async () => {
-			const result = await saveBreak(draft.from, draft.to, draft.project, draft.name);
+			const result = await saveBreak(draft.from, draft.to, draft.name);
 			if (result.error || !result.breaks) {
 				setBreakError(`Could not add the break: ${result.error ?? "board-card added nothing"}`);
 				return;
@@ -1682,16 +1666,14 @@ export function Plan({
 		const start = row.start;
 		const target = row.target;
 		const ends: number[] = [];
-		const pieces: ReactNode[] = spans
-			.filter((one) => one.project == null || one.project === row.team)
-			.map((one) => (
-				<span
-					key={`break-${one.id}`}
-					className={`plan-break${one.project ? " project" : " board"}`}
-					style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
-					title={breakTitle(one)}
-				/>
-			));
+		const pieces: ReactNode[] = spans.map((one) => (
+			<span
+				key={`break-${one.id}`}
+				className="plan-break"
+				style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
+				title={breakTitle(one)}
+			/>
+		));
 		for (const span of blockedSpansOf(epic, cardsOf[epic.id] ?? [], today)) {
 			pieces.push(
 				<span
@@ -2258,7 +2240,6 @@ export function Plan({
 				{breaksOpen && (
 					<BreaksEditor
 						breaks={breaks}
-						projects={projects}
 						busy={saving}
 						error={breakError}
 						onAdd={addBreakFrom}
@@ -2353,16 +2334,14 @@ export function Plan({
 											);
 										})}
 									</div>
-									{spans
-										.filter((one) => one.project == null)
-										.map((one) => (
-											<span
-												key={one.id}
-												className="plan-break-scale"
-												style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
-												title={breakTitle(one)}
-											/>
-										))}
+									{spans.map((one) => (
+										<span
+											key={one.id}
+											className="plan-break-scale"
+											style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
+											title={breakTitle(one)}
+										/>
+									))}
 									<span className="plan-today-label" style={{ left: x(today) + ppd / 2 }}>
 										Today
 									</span>
@@ -2387,15 +2366,13 @@ export function Plan({
 											<span key={milestone.id} className="plan-milestone-line" style={{ left: x(at) + ppd / 2 }} />
 										);
 									})}
-									{spans
-										.filter((one) => one.project == null)
-										.map((one) => (
-											<span
-												key={one.id}
-												className="plan-break-line"
-												style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
-											/>
-										))}
+									{spans.map((one) => (
+										<span
+											key={one.id}
+											className="plan-break-line"
+											style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
+										/>
+									))}
 									<span className="plan-today" style={{ left: x(today) + ppd / 2 }} />
 								</div>
 								{epics.length === 0 && (

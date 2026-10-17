@@ -73,12 +73,12 @@ export async function deleteNamedView(kind: Kind, name: string): Promise<void> {
 }
 
 export async function readBreaks(): Promise<Break[]> {
-	return JSON.parse(await boardCard(["breaks", "--json"]));
+	const breaks: (Break & { project?: string | null })[] = JSON.parse(await boardCard(["breaks", "--json"]));
+	return breaks.filter((one) => one.project == null).map(({ id, from, to, name }) => ({ id, from, to, name }));
 }
 
-export async function addBreak(from: string, to: string, project: string, name: string): Promise<string> {
+export async function addBreak(from: string, to: string, name: string): Promise<string> {
 	const args = ["breaks", "add", from, to];
-	if (project) args.push("--project", project);
 	if (name) args.push("--name", name);
 	return (await boardCard(args)).trim();
 }

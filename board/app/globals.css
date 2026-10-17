@@ -4746,7 +4746,6 @@
 	}
 
 	.plan-break-line,
-	.plan-break.project,
 	.legend-break {
 		background: repeating-linear-gradient(
 			-45deg,
@@ -5670,10 +5669,6 @@
 	.plan-breaks-days {
 		display: flex;
 		gap: 6px;
-	}
-
-	.plan-breaks-form select {
-		width: 100%;
 	}
 
 	.plan-empty {

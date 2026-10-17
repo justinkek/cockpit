@@ -31,9 +31,8 @@ export function mondayOf(day: number): number {
 
 export type Off = [number, number];
 
-export function daysOff(breaks: Pick<Break, "from" | "to" | "project">[], team: string | null): Off[] {
+export function daysOff(breaks: Pick<Break, "from" | "to">[]): Off[] {
 	const spans = breaks
-		.filter((one) => one.project == null || one.project === team)
 		.flatMap((one): Off[] => {
 			const from = dayOf(one.from);
 			const to = dayOf(one.to);
@@ -350,23 +349,18 @@ export function trackSpeedsOf(
 	projects: string[],
 	sprints: Pick<Card, "start" | "end" | "speed">[],
 	now = new Date(),
-	breaks: Pick<Break, "from" | "to" | "project">[] = [],
+	breaks: Pick<Break, "from" | "to">[] = [],
 ): { overall: TrackSpeed; teams: Record<string, TrackSpeed> } {
 	const known = Object.fromEntries(projects.map((id) => [id, true]));
-	const overall = trackSpeedOf(
-		averageSpeedOf(cards, sprints, now, daysOff(breaks, null)),
-		epics,
-		cards,
-		now,
-		"overall",
-	);
+	const off = daysOff(breaks);
+	const overall = trackSpeedOf(averageSpeedOf(cards, sprints, now, off), epics, cards, now, "overall");
 	const teamOfEpic = Object.fromEntries(epics.map((epic) => [epic.id, teamOf(epic, known)]));
 	const teamOfCard = (card: Worked & Pick<Card, "project">) =>
 		card.epic && card.epic in teamOfEpic ? teamOfEpic[card.epic] : teamOf(card, known);
 	const teams: Record<string, TrackSpeed> = {};
 	for (const team of projects) {
 		const own = cards.filter((card) => teamOfCard(card) === team);
-		const speed = averageSpeedOf(own, [], now, daysOff(breaks, team));
+		const speed = averageSpeedOf(own, [], now, off);
 		teams[team] =
 			speed.source === "measured"
 				? trackSpeedOf(
@@ -512,8 +506,9 @@ export function planOf(
 	teams: Record<string, Team> | number,
 	today: number,
 	refinement: Refinement = { days: DEFAULT_REFINEMENT_DAYS, source: "default", epics: 0 },
-	breaks: Pick<Break, "from" | "to" | "project">[] = [],
+	breaks: Pick<Break, "from" | "to">[] = [],
 ): Record<string, Row> {
+	const off = daysOff(breaks);
 	const rows: Record<string, Row> = {};
 	const byEpic: Record<string, Worked[]> = {};
 	for (const card of cards) if (card.epic) (byEpic[card.epic] ??= []).push(card);
@@ -525,7 +520,6 @@ export function planOf(
 	}
 	for (const [team, members] of Object.entries(grouped)) {
 		const { tracks: count, perWeek } = known[team];
-		const off = daysOff(breaks, team === "" ? null : team);
 		const tracks = Math.max(0, Math.floor(count));
 		const perDay = Math.max(perWeek, 0.01) / 7;
 		const free: number[] = Array.from({ length: tracks }, () => today);

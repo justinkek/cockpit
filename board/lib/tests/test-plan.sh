@@ -106,19 +106,17 @@ assert_eq "with no sprint speed either, the average speed is the default" '{"per
 
 printf "\nTest group: a break leaves its weeks out of the average speed\n"
 
-assert_eq "breaks become day spans, the board's and the project's own, overlapping ones merged" '[[20730,20740],[20760,20760]]' \
-  "$(evaluate 'p.daysOff([{from:"2026-10-04",to:"2026-10-10",project:null},{from:"2026-10-08",to:"2026-10-14",project:"PRJ-1"},{from:"2026-11-03",to:"2026-11-03",project:null},{from:"2026-10-20",to:"2026-10-30",project:"PRJ-2"}], "PRJ-1")')"
-assert_eq "a project's break is never the board's" '[[20730,20736]]' \
-  "$(evaluate 'p.daysOff([{from:"2026-10-04",to:"2026-10-10",project:null},{from:"2026-10-20",to:"2026-10-30",project:"PRJ-2"}], null)')"
+assert_eq "breaks become day spans, overlapping ones merged" '[[20730,20740],[20760,20760]]' \
+  "$(evaluate 'p.daysOff([{from:"2026-10-04",to:"2026-10-10"},{from:"2026-10-08",to:"2026-10-14"},{from:"2026-11-03",to:"2026-11-03"}])')"
 BROKEN='[{status:"Done",complexity:5,dates:{Done:"2026-10-12T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-07T12:00:00Z"}},{status:"Done",complexity:4,dates:{Done:"2026-09-30T12:00:00Z"}}]'
 assert_eq "a week whose working days all fall in a break never counts, though something was finished in it" '{"perWeek":4.5,"points":9,"weeks":2}' \
-  "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-09",project:null}], null)), "perWeek points weeks")')"
+  "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-09"}])), "perWeek points weeks")')"
 assert_eq "a break over part of a week leaves the week counted" '{"perWeek":4,"points":12,"weeks":3}' \
-  "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-07",project:null}], null)), "perWeek points weeks")')"
+  "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-07"}])), "perWeek points weeks")')"
 BREAK_EPICS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1"},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-2"}]'
 BREAK_CARDS='[{"epic":"EPIC-1","status":"Done","complexity":6,"dates":{"Done":"2026-10-12T12:00:00Z"}},{"epic":"EPIC-1","status":"Done","complexity":2,"dates":{"Done":"2026-10-07T12:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":4,"dates":{"Done":"2026-10-07T12:00:00Z"}}]'
-broken='p.trackSpeedsOf('"$BREAK_CARDS"', '"$BREAK_EPICS"', ["PRJ-1","PRJ-2"], [], '"$NOW"', [{from:"2026-10-05",to:"2026-10-09",project:"PRJ-1"}])'
-assert_eq "a project's break leaves its weeks out of that project's speed alone" '6,4,12' \
+broken='p.trackSpeedsOf('"$BREAK_CARDS"', '"$BREAK_EPICS"', ["PRJ-1","PRJ-2"], [], '"$NOW"', [{from:"2026-10-05",to:"2026-10-09"}])'
+assert_eq "a break leaves its weeks out of every project's speed, so one with nothing else takes the board's" '6,6,6' \
   "$(evaluate "[$broken.teams[\"PRJ-1\"].speed.perWeek, $broken.teams[\"PRJ-2\"].speed.perWeek, $broken.overall.speed.points].join()")"
 
 SPRINT='{id:"SPR-1",start:"2026-09-28",end:"2026-10-11"}'
@@ -326,19 +324,17 @@ assert_eq "the first open day, the end of a run of open days and the open days i
 assert_eq "with no break an epic runs its days straight through" '{"begin":20740,"projected":20746}' \
   "$(evaluate 'pick(p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"')["EPIC-1"], "begin projected")')"
 assert_eq "a board-wide break in its way stretches it by the break's days" '{"begin":20740,"projected":20749}' \
-  "$(evaluate 'pick(p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-16",to:"2026-10-18",project:null}])["EPIC-1"], "begin projected")')"
+  "$(evaluate 'pick(p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-16",to:"2026-10-18"}])["EPIC-1"], "begin projected")')"
 assert_eq "an epic due to start during a break begins the day after it" '{"begin":20742,"projected":20748}' \
-  "$(evaluate 'pick(p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-10",to:"2026-10-15",project:null}])["EPIC-1"], "begin projected")')"
+  "$(evaluate 'pick(p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-10",to:"2026-10-15"}])["EPIC-1"], "begin projected")')"
 assert_eq "an epic held up by a break is not paused, as no higher epic took its track" 'null' \
-  "$(evaluate 'p.planOf([{id:"EPIC-1",status:"Tickets In Dev",project:"PRJ-1"}], [{epic:"EPIC-1",status:"In Dev",complexity:7}], '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-10",to:"2026-10-15",project:null}])["EPIC-1"].pausedUntil')"
-assert_eq "a project's break stretches its own epics and no other project's" '20749,20746' \
-  "$(evaluate '(() => { const rows = p.planOf([...'"$ONE"', {id:"EPIC-2",status:"In FD",project:"PRJ-2",rank:2}], [...'"$ONE_CARDS"', {epic:"EPIC-2",status:"Backlog",complexity:7}], '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-16",to:"2026-10-18",project:"PRJ-1"}]); return [rows["EPIC-1"].projected, rows["EPIC-2"].projected].join(); })()')"
+  "$(evaluate 'p.planOf([{id:"EPIC-1",status:"Tickets In Dev",project:"PRJ-1"}], [{epic:"EPIC-1",status:"In Dev",complexity:7}], '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', [{from:"2026-10-10",to:"2026-10-15"}])["EPIC-1"].pausedUntil')"
 assert_eq "the speed a target needs counts only the days a break leaves open" '3.5,4.9' \
-  "$(evaluate '[[], [{from:"2026-10-16",to:"2026-10-19",project:null}]].map((breaks) => p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', breaks)["EPIC-1"].needed).join()')"
+  "$(evaluate '[[], [{from:"2026-10-16",to:"2026-10-19"}]].map((breaks) => p.planOf('"$ONE"', '"$ONE_CARDS"', '"$ONE_TEAM"', '"$TODAY"', '"$INSTANT"', breaks)["EPIC-1"].needed).join()')"
 assert_eq "refinement still to come waits out a break too" '20747:20757' \
-  "$(evaluate '(() => { const row = p.planOf([{id:"EPIC-1",status:"Backlog",project:"PRJ-1"}], [], '"$ONE_TEAM"', '"$TODAY"', {days:10,source:"measured",epics:1}, [{from:"2026-10-14",to:"2026-10-20",project:null}])["EPIC-1"]; return row.refineStart + ":" + row.refineEnd; })()')"
+  "$(evaluate '(() => { const row = p.planOf([{id:"EPIC-1",status:"Backlog",project:"PRJ-1"}], [], '"$ONE_TEAM"', '"$TODAY"', {days:10,source:"measured",epics:1}, [{from:"2026-10-14",to:"2026-10-20"}])["EPIC-1"]; return row.refineStart + ":" + row.refineEnd; })()')"
 assert_eq "and refinement under way ends the break's days later" '20748' \
-  "$(evaluate 'p.planOf([{id:"EPIC-1",status:"In FD",project:"PRJ-1",start:"2026-10-09"}], [], '"$ONE_TEAM"', '"$TODAY"', {days:10,source:"measured",epics:1}, [{from:"2026-10-15",to:"2026-10-17",project:null}])["EPIC-1"].refineEnd')"
+  "$(evaluate 'p.planOf([{id:"EPIC-1",status:"In FD",project:"PRJ-1",start:"2026-10-09"}], [], '"$ONE_TEAM"', '"$TODAY"', {days:10,source:"measured",epics:1}, [{from:"2026-10-15",to:"2026-10-17"}])["EPIC-1"].refineEnd')"
 
 printf "\nTest group: the timeline spans what it shows, within its limits\n"
 
