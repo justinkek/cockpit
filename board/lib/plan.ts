@@ -1,5 +1,5 @@
 import { currentSprint, DAY, doneAt, timeOf } from "./metrics";
-import type { Card } from "./shared";
+import type { Break, Card } from "./shared";
 
 export const CONFIDENCES = ["On track", "At risk - plan in place", "At risk - no plan"] as const;
 
@@ -27,6 +27,34 @@ export function dayText(day: number): string {
 
 export function mondayOf(day: number): number {
 	return day - ((new Date(day * DAY).getUTCDay() + 6) % 7);
+}
+
+export type Off = [number, number];
+
+export function daysOff(breaks: Pick<Break, "from" | "to" | "project">[], team: string | null): Off[] {
+	const spans = breaks
+		.filter((one) => one.project == null || one.project === team)
+		.flatMap((one): Off[] => {
+			const from = dayOf(one.from);
+			const to = dayOf(one.to);
+			return from != null && to != null && to >= from ? [[from, to]] : [];
+		})
+		.sort((a, b) => a[0] - b[0]);
+	const merged: Off[] = [];
+	for (const [from, to] of spans) {
+		const last = merged.at(-1);
+		if (last && from <= last[1] + 1) last[1] = Math.max(last[1], to);
+		else merged.push([from, to]);
+	}
+	return merged;
+}
+
+export function isOff(day: number, off: Off[]): boolean {
+	return off.some(([from, to]) => day >= from && day <= to);
+}
+
+function weekOff(monday: number, off: Off[]): boolean {
+	return [0, 1, 2, 3, 4].every((weekday) => isOff(monday + weekday, off));
 }
 
 type Sized = Pick<Card, "status" | "complexity" | "estimate" | "type" | "dependent_on">;
@@ -61,6 +89,7 @@ export function averageSpeedOf(
 	cards: Delivered[],
 	sprints: Pick<Card, "start" | "end" | "speed">[],
 	now = new Date(),
+	off: Off[] = [],
 ): AverageSpeed {
 	const end = now.getTime();
 	const finished = new Map<number, Delivered[]>();
@@ -71,7 +100,10 @@ export function averageSpeedOf(
 		const monday = mondayOf(localDay(new Date(at)));
 		finished.set(monday, [...(finished.get(monday) ?? []), card]);
 	}
-	const mondays = [...finished.keys()].sort((a, b) => b - a).slice(0, AVERAGE_SPEED_WEEKS);
+	const mondays = [...finished.keys()]
+		.filter((monday) => !weekOff(monday, off))
+		.sort((a, b) => b - a)
+		.slice(0, AVERAGE_SPEED_WEEKS);
 	let points = 0;
 	let tickets = 0;
 	let uncounted = 0;
@@ -291,16 +323,23 @@ export function trackSpeedsOf(
 	projects: string[],
 	sprints: Pick<Card, "start" | "end" | "speed">[],
 	now = new Date(),
+	breaks: Pick<Break, "from" | "to" | "project">[] = [],
 ): { overall: TrackSpeed; teams: Record<string, TrackSpeed> } {
 	const known = Object.fromEntries(projects.map((id) => [id, true]));
-	const overall = trackSpeedOf(averageSpeedOf(cards, sprints, now), epics, cards, now, "overall");
+	const overall = trackSpeedOf(
+		averageSpeedOf(cards, sprints, now, daysOff(breaks, null)),
+		epics,
+		cards,
+		now,
+		"overall",
+	);
 	const teamOfEpic = Object.fromEntries(epics.map((epic) => [epic.id, teamOf(epic, known)]));
 	const teamOfCard = (card: Worked & Pick<Card, "project">) =>
 		card.epic && card.epic in teamOfEpic ? teamOfEpic[card.epic] : teamOf(card, known);
 	const teams: Record<string, TrackSpeed> = {};
 	for (const team of projects) {
 		const own = cards.filter((card) => teamOfCard(card) === team);
-		const speed = averageSpeedOf(own, [], now);
+		const speed = averageSpeedOf(own, [], now, daysOff(breaks, team));
 		teams[team] =
 			speed.source === "measured"
 				? trackSpeedOf(

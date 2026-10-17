@@ -163,6 +163,8 @@ export type Named = { id: string; name: string };
 
 export type SavedView = { name: string; kind: Kind; view: Record<string, unknown> };
 
+export type Break = { id: string; from: string; to: string; project: string | null; name: string | null };
+
 export type Sprint = Named & { start?: string | null; end?: string | null };
 
 export const TYPES = ["Feature", "Bug", "Timebox"] as const;

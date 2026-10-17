@@ -104,6 +104,23 @@ assert_eq "with nothing done, the current sprint's speed a day makes the average
 assert_eq "with no sprint speed either, the average speed is the default" '{"perWeek":10,"source":"default","points":0,"weeks":0,"tickets":0,"uncounted":0,"timeboxes":0,"mondays":[]}' \
   "$(evaluate 'p.averageSpeedOf([], [{start:"2026-10-12",end:"2026-10-23",speed:0}], '"$NOW"')')"
 
+printf "\nTest group: a break leaves its weeks out of the average speed\n"
+
+assert_eq "breaks become day spans, the board's and the project's own, overlapping ones merged" '[[20730,20740],[20760,20760]]' \
+  "$(evaluate 'p.daysOff([{from:"2026-10-04",to:"2026-10-10",project:null},{from:"2026-10-08",to:"2026-10-14",project:"PRJ-1"},{from:"2026-11-03",to:"2026-11-03",project:null},{from:"2026-10-20",to:"2026-10-30",project:"PRJ-2"}], "PRJ-1")')"
+assert_eq "a project's break is never the board's" '[[20730,20736]]' \
+  "$(evaluate 'p.daysOff([{from:"2026-10-04",to:"2026-10-10",project:null},{from:"2026-10-20",to:"2026-10-30",project:"PRJ-2"}], null)')"
+BROKEN='[{status:"Done",complexity:5,dates:{Done:"2026-10-12T12:00:00Z"}},{status:"Done",complexity:3,dates:{Done:"2026-10-07T12:00:00Z"}},{status:"Done",complexity:4,dates:{Done:"2026-09-30T12:00:00Z"}}]'
+assert_eq "a week whose working days all fall in a break never counts, though something was finished in it" '{"perWeek":4.5,"points":9,"weeks":2}' \
+  "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-09",project:null}], null)), "perWeek points weeks")')"
+assert_eq "a break over part of a week leaves the week counted" '{"perWeek":4,"points":12,"weeks":3}' \
+  "$(evaluate 'pick(p.averageSpeedOf('"$BROKEN"', [], '"$NOW"', p.daysOff([{from:"2026-10-05",to:"2026-10-07",project:null}], null)), "perWeek points weeks")')"
+BREAK_EPICS='[{"id":"EPIC-1","status":"Tickets In Dev","project":"PRJ-1"},{"id":"EPIC-2","status":"Tickets In Dev","project":"PRJ-2"}]'
+BREAK_CARDS='[{"epic":"EPIC-1","status":"Done","complexity":6,"dates":{"Done":"2026-10-12T12:00:00Z"}},{"epic":"EPIC-1","status":"Done","complexity":2,"dates":{"Done":"2026-10-07T12:00:00Z"}},{"epic":"EPIC-2","status":"Done","complexity":4,"dates":{"Done":"2026-10-07T12:00:00Z"}}]'
+broken='p.trackSpeedsOf('"$BREAK_CARDS"', '"$BREAK_EPICS"', ["PRJ-1","PRJ-2"], [], '"$NOW"', [{from:"2026-10-05",to:"2026-10-09",project:"PRJ-1"}])'
+assert_eq "a project's break leaves its weeks out of that project's speed alone" '6,4,12' \
+  "$(evaluate "[$broken.teams[\"PRJ-1\"].speed.perWeek, $broken.teams[\"PRJ-2\"].speed.perWeek, $broken.overall.speed.points].join()")"
+
 SPRINT='{start:"2026-09-28",end:"2026-10-11"}'
 assert_eq "a sprint delivered the TR complexity of the cards done within its dates, a week, counting the rest beside it" \
   '{"points":8,"tickets":2,"uncounted":1,"timeboxes":1,"perWeek":4}' \
