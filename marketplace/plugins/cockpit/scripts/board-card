@@ -1294,7 +1294,8 @@ set_locked() {
         sprint/end) check_sprint_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
         epic/target) check_epic_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
-      [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || check_share "$id" "$value"
+      [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || check_share "$id" "$value"
+      [ "$(kind_of "$id")/$field" != project/status ] || check_reopen "$id" "$value"
       update_record "$id" --arg field "$field" --argjson value "$json" "$unnest_reference_program | .[\$field] = \$value"
       [ "$field" != target ] || hold_epic_cards "$id"
       ;;
@@ -2370,6 +2371,7 @@ shares() {
     id="${file##*/}"
     id="${id%.md}"
     [ "$id" != "$leave" ] || continue
+    [ "$(front_matter_values status "$file" | cut -f2)" != '"Done"' ] || continue
     value="$(front_matter_values tracks "$file" | cut -f2 | grep --extended-regexp '^[0-9]+$' || true)"
     [ -z "$value" ] || printf '%s\t%s\n' "$id" "$value"
   done
@@ -2387,6 +2389,17 @@ check_share() {
   [ -n "$board" ] || return 0
   total=$(($(shares_total "$id") + value))
   [ "$total" -le "$board" ] || die 2 "a share of $value for $id takes the projects' shares to $total, over the board's $board tracks - lower another project's share first, or raise the board's count with: board-card tracks <n>"
+}
+
+check_reopen() {
+  local id="$1" value="$2" share total board
+  [ "$value" != Done ] || return 0
+  [ "$(read_record "$id" | jq --raw-output '.status // ""')" = Done ] || return 0
+  share="$(read_record "$id" | jq --raw-output '.tracks // ""')"
+  board="$(board_tracks)"
+  [ -n "$share" ] && [ -n "$board" ] || return 0
+  total=$(($(shares_total "$id") + share))
+  [ "$total" -le "$board" ] || die 2 "reopening $id brings back its share of $share, taking the projects' shares to $total, $((total - board)) over the board's $board tracks - lower another project's share first, or raise the board's count with: board-card tracks <n>"
 }
 
 tracks_locked() {

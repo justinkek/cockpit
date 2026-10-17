@@ -244,6 +244,29 @@ stub set "$tracked" body "tracks: 9" >/dev/null
 assert_eq "a line in a project's content that reads like a share is never counted as one" "3" "$(stub tracks)"
 assert_eq "the epics with no project have no count of their own any more" "2" "$(refused no-project-tracks 2)"
 
+printf "\nTest group: a finished project's share stops counting, and comes back when it reopens\n"
+
+finished="$(stub create --kind project --name Finished)"
+stub set "$finished" tracks 2 >/dev/null
+stub tracks 5 >/dev/null
+stub set "$finished" status Done >/dev/null
+assert_eq "a done project keeps its share on the record" "2" "$(field "$finished" .tracks)"
+assert_eq "but leaves it out of the shares the count is checked against" "3" "$(stub tracks "" >/dev/null; stub tracks)"
+stub tracks 3 >/dev/null
+assert_eq "so the count can drop to the open projects' shares alone" "3" "$(stub tracks)"
+assert_eq "a done project's share can change without counting either" "Tracks	4" "$(stub set "$finished" tracks 4)"
+assert_eq "reopening a project whose share would take the total over the count is refused" "2" "$(refused set "$finished" status "In progress")"
+assert_eq "naming the overshoot" "[board-card] reopening $finished brings back its share of 4, taking the projects' shares to 7, 4 over the board's 3 tracks - lower another project's share first, or raise the board's count with: board-card tracks <n>" "$(stub set "$finished" status "In progress" 2>&1 >/dev/null)"
+assert_eq "and leaves it done" "Done" "$(field "$finished" .status)"
+stub tracks 7 >/dev/null
+stub set "$finished" status "In progress" >/dev/null
+assert_eq "a reopened project whose share fits counts it again" "In progress" "$(field "$finished" .status)"
+assert_eq "towards the count" "2" "$(refused tracks 6)"
+stub set "$finished" status Done >/dev/null
+stub set "$finished" tracks "" >/dev/null
+stub set "$finished" status "Not started" >/dev/null
+assert_eq "a done project with no share reopens whatever the count" "Not started" "$(field "$finished" .status)"
+
 printf "\nTest group: a break is a span of days off, board-wide or for one project, kept at the board's root\n"
 
 assert_eq "a board with no breaks lists none" "" "$(stub breaks)"
