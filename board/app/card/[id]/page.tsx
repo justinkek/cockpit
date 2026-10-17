@@ -93,9 +93,9 @@ export default async function CardPage({ params, searchParams }: Props) {
 			attachments={attachments.map((file) => file.slice(file.lastIndexOf("/") + 1))}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
-				epics: epics.map(({ id, name, project }) => ({ id, name, project })),
+				epics: epics.map(({ id, name, project, status }) => ({ id, name, project, status })),
 				sprints: sprints.map(({ id, name, start, end }) => ({ id, name, start, end })),
-				projects: projects.map(({ id, name }) => ({ id, name })),
+				projects: projects.map(({ id, name, status }) => ({ id, name, status })),
 			}}
 		/>
 	);

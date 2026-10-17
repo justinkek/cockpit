@@ -6,6 +6,10 @@ export type SearchOption = { value: string; label: string; id?: string; done?: b
 
 const SHOWN = 60;
 
+export function recordOptions(records: { id: string; name: string; status?: string }[], doneStatus: string): SearchOption[] {
+	return records.map((record) => ({ value: record.id, id: record.id, label: record.name, done: record.status === doneStatus }));
+}
+
 export function optionsMatching(options: SearchOption[], query: string): SearchOption[] {
 	const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 	if (words.length === 0) return options.filter((option) => !option.done);
@@ -22,11 +26,13 @@ export function optionsMatching(options: SearchOption[], query: string): SearchO
 
 export function SearchSelect({
 	label,
+	name,
 	value,
 	options,
 	onChange,
 }: {
 	label: string;
+	name?: string;
 	value: string;
 	options: SearchOption[];
 	onChange: (value: string) => void;
@@ -73,6 +79,7 @@ export function SearchSelect({
 
 	return (
 		<div className="search-select" ref={frame}>
+			{name && <input type="hidden" name={name} value={value} />}
 			<button
 				ref={button}
 				type="button"

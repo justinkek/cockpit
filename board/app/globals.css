@@ -2021,6 +2021,23 @@
 		}
 	}
 
+	.props .search-select,
+	.new-props .search-select {
+		flex: 1 1 140px;
+		max-width: 100%;
+	}
+
+	.props .search-select-open,
+	.new-props .search-select-open {
+		width: 100%;
+		max-width: none;
+	}
+
+	.search-select-open .search-select-label {
+		flex: 1;
+		text-align: left;
+	}
+
 	.search-select-done {
 		flex: none;
 		font-size: 11px;

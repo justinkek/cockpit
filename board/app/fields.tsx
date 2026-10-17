@@ -6,6 +6,7 @@ import { submitCard } from "@/app/actions";
 import { CardPicker } from "@/app/card-picker";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { RecordFields } from "@/app/record-fields";
+import { recordOptions, SearchSelect } from "@/app/search-select";
 import { CONFIDENCES } from "@/lib/plan";
 import {
 	boardColumns,
@@ -541,11 +542,11 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 					<dt>Epic</dt>
 					<dd className="with-link">
 						<Fallback id={id} op="set" field="epic">
-							<Choice
+							<SearchSelect
 								label="Epic"
-								required
-								value={record.epic}
-								options={lists.epics}
+								name="value"
+								value={record.epic ?? ""}
+								options={recordOptions(lists.epics, "Epic Done")}
 								onChange={(epic) => onEdit("epic", epic, { epic: epic || null })}
 							/>
 						</Fallback>
@@ -579,12 +580,11 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 							</span>
 						) : (
 							<Fallback id={id} op="set" field="project">
-								<Choice
+								<SearchSelect
 									label="Project"
-									none="No project"
-									required
-									value={record.project}
-									options={lists.projects}
+									name="value"
+									value={record.project ?? ""}
+									options={recordOptions(lists.projects, "Done")}
 									onChange={(project) => onEdit("project", project, { project: project || null })}
 								/>
 							</Fallback>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type NewOptions, submitNew } from "@/app/actions";
 import { EmojiPicker } from "@/app/emoji-picker";
+import { recordOptions, SearchSelect } from "@/app/search-select";
 import type { Lists } from "@/app/fields";
 import { boardColumns, type Kind, TYPES } from "@/lib/shared";
 
@@ -202,26 +203,24 @@ export function NewRecord({
 						</label>
 					)}
 					{kind === "card" && (
-						<select name="epic" aria-label="Epic" value={epic} onChange={changed(setEpic)}>
-							{lists.epics.map((option) => (
-								<option key={option.id} value={option.id}>
-									{option.name}
-								</option>
-							))}
-						</select>
+						<SearchSelect
+							label="Epic"
+							value={epic}
+							options={recordOptions(lists.epics, "Epic Done")}
+							onChange={(value) => changed(setEpic)({ target: { value } })}
+						/>
 					)}
 					{kind === "card" ? (
 						<span className="new-project" aria-label="Project" title="A card's project is its epic's">
 							{inherited ?? "No project"}
 						</span>
 					) : (
-						<select name="project" aria-label="Project" value={project} onChange={changed(setProject)}>
-							{lists.projects.map((option) => (
-								<option key={option.id} value={option.id}>
-									{option.name}
-								</option>
-							))}
-						</select>
+						<SearchSelect
+							label="Project"
+							value={project}
+							options={recordOptions(lists.projects, "Done")}
+							onChange={(value) => changed(setProject)({ target: { value } })}
+						/>
 					)}
 				</div>
 				<textarea
