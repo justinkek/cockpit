@@ -400,6 +400,41 @@ assert_eq "and the old ids follow it back" "AI-2 AI-2" "$(keyed_field COC-2 .id)
 keyed create --kind epic --project PRJ-2 --name "After the change" >/dev/null
 assert_eq "a new ticket under the changed key takes its next number" "ML-3" "$(keyed create --epic EPIC-4 --name Six)"
 
+printf "\nTest group: migrate gives every project a key and renumbers the old ids\n"
+
+old="$TMPDIR/old-board"
+mkdir -p "$old"
+COCKPIT_BOARD_DIR="$old" stub init >/dev/null
+mkdir -p "$old/projects" "$old/epics" "$old/cards" "$old/archive/cards"
+printf -- '---\nid: "PRJ-1"\nname: "Cockpit"\nstatus: "In progress"\ncreated: "2026-01-01T00:00:00Z"\n---\n' > "$old/projects/PRJ-1.md"
+printf -- '---\nid: "PRJ-2"\nname: "Dev Environment"\nstatus: "In progress"\ncreated: "2026-01-01T00:00:00Z"\n---\n' > "$old/projects/PRJ-2.md"
+printf -- '---\nid: "PRJ-3"\nname: "Personal"\nstatus: "In progress"\ncreated: "2026-01-01T00:00:00Z"\n---\n' > "$old/projects/PRJ-3.md"
+for epic in 1:PRJ-1 2:PRJ-2 3:PRJ-3; do
+  printf -- '---\nid: "EPIC-%s"\nname: "Epic %s"\nstatus: "Backlog"\nproject: "%s"\ncreated: "2026-01-01T00:00:00Z"\nrank: %s\n---\n' "${epic%%:*}" "${epic%%:*}" "${epic#*:}" "${epic%%:*}" > "$old/epics/EPIC-${epic%%:*}.md"
+done
+ticket() { printf -- '---\nid: "%s"\nname: "%s"\ntype: "Feature"\nstatus: "Backlog"\nepic: %s\ndependent_on: %s\ndependency_for: []\ncreated: "%s"\n---\n' "$2" "$2" "$3" "$4" "$5" > "$old/$1/$2.md"; }
+ticket cards FEAT-1 '"EPIC-1"' '["BUG-3"]' 2026-02-03T00:00:00Z
+ticket cards FEAT-2 '"EPIC-2"' '[]' 2026-02-01T00:00:00Z
+ticket cards BUG-3 '"EPIC-1"' '[]' 2026-02-02T00:00:00Z
+ticket archive/cards TIME-4 '"EPIC-1"' '[]' 2026-02-04T00:00:00Z
+ticket archive/cards FEAT-5 'null' '[]' 2026-02-05T00:00:00Z
+COCKPIT_BOARD_DIR="$old" stub flush --now >/dev/null
+git -C "$old" add --all >/dev/null && git -C "$old" -c user.name=t -c user.email=t@t commit --quiet --message seed
+output="$(COCKPIT_BOARD_DIR="$old" stub migrate --key PRJ-1=COC)"
+assert_eq "it gives each project the key it is given, or one made from its name" "PRJ-1	key COC|PRJ-2	key DE|PRJ-3	key PER" "$(printf '%s\n' "$output" | grep key | paste -sd '|' -)"
+assert_eq "and renumbers each project's tickets from 1 in the order they were made, the archive included" "BUG-3 -> COC-1|FEAT-1 -> COC-2|TIME-4 -> COC-3|FEAT-2 -> DE-1" \
+  "$(printf '%s\n' "$output" | grep -- ' -> ' | grep -v Backlog | paste -sd '|' -)"
+assert_eq "naming a ticket with no project, which keeps its id" "FEAT-5" "$(printf '%s\n' "$output" | grep 'keeps its id' | cut -f1)"
+assert_eq "links follow the new ids" '["COC-1"]' "$(COCKPIT_BOARD_DIR="$old" field COC-2 '.dependent_on | tojson')"
+assert_eq "every old prefix of an old number reads the ticket that holds it now" "COC-2 COC-2 COC-3" \
+  "$(COCKPIT_BOARD_DIR="$old" field BUG-1 .id) $(COCKPIT_BOARD_DIR="$old" field TIME-1 .id) $(COCKPIT_BOARD_DIR="$old" stub path FEAT-4 | sed 's#.*/##; s#\.md##')"
+assert_eq "it is one commit" "1" "$(git -C "$old" rev-list --count HEAD~1..HEAD)"
+head_before="$(git -C "$old" rev-parse HEAD)"
+assert_eq "a second run changes nothing" "FEAT-5	keeps its id, as it has no project to be numbered by - give it an epic and run migrate again $head_before" \
+  "$(COCKPIT_BOARD_DIR="$old" stub migrate --key PRJ-1=COC | grep -v 'needs an epic') $(git -C "$old" rev-parse HEAD)"
+COCKPIT_BOARD_DIR="$old" stub migrate --key PRJ-1=CKP >/dev/null 2>&1
+assert_eq "a key given for a project that holds another is refused" "2" "$?"
+
 printf "\nTest group: a record carries one emoji as its icon\n"
 
 assert_eq "an icon reads back under its property name" "Icon	🧭" "$(stub set HOM-1 icon "🧭")"

@@ -42,7 +42,7 @@
 #   board-card breaks [--json] | breaks add <from> <to> [--name <text>] [--id <bn>] | breaks remove <id | index>
 #   board-card maintenance <PRJ-n> [--date <date>] | maintenance --close
 #   board-card aliases [--json]
-#   board-card migrate
+#   board-card migrate [--key <PRJ-n>=<KEY>]...
 #
 # Exit codes:
 #   0  done
@@ -3002,15 +3002,93 @@ migrate_homes() {
   command_list --kind epic --json | jq --raw-output '.[] | select((.project // "") == "") | "\(.id)\tneeds a project"'
 }
 
+key_candidates() {
+  printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z' ' ' | awk '{
+    initials = ""; joined = ""
+    for (i = 1; i <= NF; i++) { initials = initials substr($i, 1, 1); joined = joined $i }
+    if (NF > 1 && length(initials) >= 2) print substr(initials, 1, 4)
+    if (length(joined) >= 3) print substr(joined, 1, 3)
+    if (length(joined) >= 4) print substr(joined, 1, 4)
+    if (length(joined) >= 2) print substr(joined, 1, 2)
+  }'
+}
+
+migrate_keys() {
+  local file project given key candidate pair
+  while IFS= read -r file; do
+    project="${file##*/}"
+    project="${project%.md}"
+    [ -z "$(parse_file "$file" | jq --raw-output '.key // empty')" ] || continue
+    key=""
+    for pair in ${migrate_given[@]+"${migrate_given[@]}"}; do
+      [ "${pair%%=*}" != "$project" ] || key="${pair#*=}"
+    done
+    if [ -z "$key" ]; then
+      while IFS= read -r candidate; do
+        case "$RESERVED_KEYS" in *" $candidate "*) continue ;; esac
+        [ -z "$(key_holder "$candidate")" ] || continue
+        for pair in ${migrate_given[@]+"${migrate_given[@]}"}; do [ "${pair#*=}" != "$candidate" ] || continue 2; done
+        key="$candidate"
+        break
+      done < <(key_candidates "$(parse_file "$file" | jq --raw-output '.name // ""')")
+      [ -n "$key" ] || die 2 "no key could be made from $project's name - give it one with: board-card migrate --key $project=<KEY>"
+    fi
+    check_key "$key" "$project"
+    parse_file "$file" | jq --arg key "$key" '.key = $key' | write_record "$project" "" "$file"
+    printf '%s\tkey %s\n' "$project" "$key"
+  done < <(project_files | sort --version-sort)
+}
+
+migrate_numbers() {
+  local projects rows id project key=""
+  rows="$(ticket_rows)"
+  projects="$(epic_projects_json)"
+  while IFS=$'\t' read -r id project; do
+    if [ -z "$project" ]; then
+      printf '%s\tkeeps its id, as it has no project to be numbered by - give it an epic and run migrate again\n' "$id"
+      continue
+    fi
+    key="$(key_of_project "$project")"
+    renumber_tickets "$key" "$id"
+  done < <(printf '%s\n' "${rows:-[]}" | jq --raw-output --argjson projects "$projects" '
+    map(select(.id | test("^(FEAT|BUG|TIME)-[0-9]+$")) | . + {project: ($projects[.epic // ""] // "")})
+    | sort_by(.project, .created, (.id | split("-")[1] | tonumber))
+    | .[] | [.id, .project] | @tsv')
+}
+
 migrate_locked() {
   local changes
-  changes="$(migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; migrate_sprints; migrate_blocked_spans; migrate_breaks; close_maintenance_locked; migrate_homes)"
+  changes="$(migrate_keys; migrate_numbers; migrate_ranks; migrate_tracks; migrate_starts; migrate_me; migrate_card_projects; migrate_sprints; migrate_blocked_spans; migrate_breaks; close_maintenance_locked; migrate_homes)"
   if [ -n "$changes" ]; then printf '%s\n' "$changes"; else printf 'nothing to migrate\n'; fi
 }
 
+migrate_given=()
+
 command_migrate() {
-  [ "$#" -eq 0 ] || die 2 "migrate takes no arguments"
+  local pair project key holder current
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --key)
+        pair="${2:-}"
+        printf '%s' "$pair" | grep --quiet --extended-regexp '^[A-Za-z]+-[0-9]+=[A-Za-z]+$' || die 2 "--key takes a project and its key, like PRJ-4=COC, not '$pair'"
+        project="$(normalise_id "${pair%%=*}")"
+        key="$(printf '%s' "${pair#*=}" | tr '[:lower:]' '[:upper:]')"
+        [ "$(kind_of "$project")" = project ] || die 2 "$project is not a project"
+        [ -f "$(record_file "$project")" ] || [ -f "$(archive_file "$project")" ] || die 3 "no record $project"
+        check_key "$key" "$project"
+        for holder in ${migrate_given[@]+"${migrate_given[@]}"}; do
+          [ "${holder#*=}" != "$key" ] || [ "${holder%%=*}" = "$project" ] || die 2 "${holder%%=*} and $project are both given the key $key"
+        done
+        current="$(key_of_project "$project")"
+        [ -z "$current" ] || [ "$current" = "$key" ] || die 2 "$project already has the key $current - change it with: board-card set $project key $key"
+        migrate_given+=("$project=$key")
+        shift 2
+        ;;
+      *) die 2 "usage: board-card migrate [--key <PRJ-n>=<KEY>]..." ;;
+    esac
+  done
   require_board
+  flush_now=true
   with_lock migrate_locked
 }
 
