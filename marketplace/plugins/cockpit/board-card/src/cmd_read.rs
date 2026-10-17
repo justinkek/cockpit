@@ -121,21 +121,21 @@ pub fn show(args: &[String]) {
     }
 }
 
-fn file_lines_nonempty(text: &str) -> bool {
-    !util::lines(text).is_empty()
-}
-
 pub fn records_in(directory: &str) -> Vec<Value> {
     let files = md_files(directory);
-    let mut records = Vec::new();
-    for file in &files {
-        let Some(text) = util::read_text(file) else { continue };
-        if !file_lines_nonempty(&text) {
-            continue;
+    let parsed: Vec<Option<Result<Value, ()>>> = util::par_map(&files, |file| {
+        let text = util::read_text(file)?;
+        if text.is_empty() {
+            return None;
         }
-        match parse_text(&text) {
-            Ok(record) => records.push(record),
-            Err(_) => {
+        Some(parse_text(&text))
+    });
+    let mut records = Vec::new();
+    for (file, result) in files.iter().zip(parsed) {
+        match result {
+            None => {}
+            Some(Ok(record)) => records.push(record),
+            Some(Err(_)) => {
                 parse_file(file);
                 die(8, &format!("a record in {} does not parse", directory));
             }

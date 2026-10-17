@@ -396,14 +396,32 @@ fn capture_top(line: &str) -> Option<(String, Option<String>)> {
 }
 
 pub fn parse_text(text: &str) -> Result<Value, ()> {
-    let lines = util::lines(text);
-    let marks: Vec<usize> = lines.iter().enumerate().filter(|(_, l)| l.as_str() == "---").map(|(i, _)| i).collect();
+    let mut lines: Vec<(usize, &str)> = Vec::new();
+    let mut offset = 0;
+    for piece in text.split('\n') {
+        lines.push((offset, piece));
+        offset += piece.len() + 1;
+    }
+    if text.is_empty() || text.ends_with('\n') {
+        lines.pop();
+    }
+    let mut marks: Vec<usize> = Vec::new();
+    for (index, (_, line)) in lines.iter().enumerate() {
+        if *line == "---" {
+            marks.push(index);
+            if marks.len() == 2 {
+                break;
+            }
+        }
+    }
     let first = marks.first().map(|m| m + 1).unwrap_or(1);
     let front_end = marks.get(1).copied().unwrap_or(lines.len()).min(lines.len());
-    let front: &[String] = if first < front_end { &lines[first..front_end] } else { &[] };
+    let front: Vec<&str> = if first < front_end { lines[first..front_end].iter().map(|(_, l)| *l).collect() } else { Vec::new() };
     let body_start = marks.get(1).map(|m| m + 1).unwrap_or(1).min(lines.len());
-    let body_lines = &lines[body_start..];
-    let body = body_lines.join("\n");
+    let body = match lines.get(body_start) {
+        Some((start, _)) => &text[*start..],
+        None => "",
+    };
     let body = body.trim_start_matches('\n').trim_end_matches('\n').to_string();
     let mut state: Option<(Map, Option<String>)> = Some((Map::new(), None));
     for line in front {
@@ -579,22 +597,26 @@ pub fn md_files(directory: &str) -> Vec<String> {
 
 pub fn front_matter_values(key: &str, files: &[String]) -> Vec<(String, String)> {
     let prefix = format!("{}: ", key);
-    let mut found = Vec::new();
-    for file in files {
-        let Ok(bytes) = fs::read(file) else { continue };
+    let per_file = util::par_map(files, |file| {
+        let mut found = Vec::new();
+        let Ok(bytes) = fs::read(file) else { return found };
         let text = String::from_utf8_lossy(&bytes);
         let mut fences = 0;
-        for line in util::lines(&text) {
+        for line in text.split('\n') {
             if line == "---" {
                 fences += 1;
+                if fences > 1 {
+                    break;
+                }
                 continue;
             }
             if fences == 1 && line.starts_with(&prefix) {
                 found.push((file.clone(), line[prefix.len()..].to_string()));
             }
         }
-    }
-    found
+        found
+    });
+    per_file.into_iter().flatten().collect()
 }
 
 pub fn id_of_file(path: &str) -> String {

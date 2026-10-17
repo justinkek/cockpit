@@ -430,6 +430,11 @@ pub fn number_text(num: &Num) -> String {
 
 pub fn escape_into(out: &mut String, text: &str) {
     out.push('"');
+    if !text.bytes().any(|b| b < 0x20 || b == b'"' || b == b'\\' || b == 0x7f) {
+        out.push_str(text);
+        out.push('"');
+        return;
+    }
     for c in text.chars() {
         match c {
             '"' => out.push_str("\\\""),

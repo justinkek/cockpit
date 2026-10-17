@@ -36,6 +36,19 @@ pub fn glob(directory: &str, keep: impl Fn(&str) -> bool) -> Vec<String> {
     names.into_iter().map(|name| format!("{}/{}", directory, name)).collect()
 }
 
+pub fn par_map<T: Send>(items: &[String], work: impl Fn(&String) -> T + Sync) -> Vec<T> {
+    if items.len() < 64 {
+        return items.iter().map(&work).collect();
+    }
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(1, 8);
+    let chunk = items.len().div_ceil(threads).max(32);
+    let work = &work;
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = items.chunks(chunk).map(|part| scope.spawn(move || part.iter().map(work).collect::<Vec<T>>())).collect();
+        handles.into_iter().flat_map(|h| h.join().unwrap_or_default()).collect()
+    })
+}
+
 pub fn read_text(path: &str) -> Option<String> {
     fs::read(path).ok().map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
