@@ -1883,27 +1883,52 @@ command_walk() {
 }
 
 link_locked() {
-  local parent="$1" child="$2" action="$3"
+  local parent="$1" child="$2" action="$3" kind
+  kind="$(kind_of "$parent")"
   if [ "$action" = link ]; then
-    update_record "$parent" --arg child "$child" '.dependent_on = ((.dependent_on // []) + [$child] | unique) | .complexity = 0'
+    [ "$kind" != epic ] || refuse_epic_cycle "$parent" "$child"
+    update_record "$parent" --arg child "$child" --arg kind "$kind" '.dependent_on = ((.dependent_on // []) + [$child] | unique)
+      | if $kind == "card" then .complexity = 0 else . end'
     update_record "$child" --arg parent "$parent" '.dependency_for = ((.dependency_for // []) + [$parent] | unique)'
   else
-    update_record "$parent" --arg child "$child" '.dependent_on = ((.dependent_on // []) - [$child])
-      | if (.dependent_on | length) == 0 and .complexity == 0 then .complexity = null else . end'
+    update_record "$parent" --arg child "$child" --arg kind "$kind" '.dependent_on = ((.dependent_on // []) - [$child])
+      | if $kind == "card" and (.dependent_on | length) == 0 and .complexity == 0 then .complexity = null else . end'
     update_record "$child" --arg parent "$parent" '.dependency_for = ((.dependency_for // []) - [$parent])'
   fi
 }
 
+epic_dependencies_json() {
+  local file
+  { for file in "$BOARD_DIR"/epics/*.md; do [ ! -f "$file" ] || parse_file "$file"; done; } \
+    | jq --slurp --compact-output 'map({key: .id, value: (.dependent_on // [])}) | from_entries'
+}
+
+refuse_epic_cycle() {
+  local parent="$1" child="$2" path
+  path="$(epic_dependencies_json | jq --raw-output --arg from "$child" --arg to "$parent" '
+    . as $graph
+    | def reach($seen):
+        ($seen[-1]) as $at
+        | if $at == $to then $seen
+          else ($graph[$at] // [])[] | select(. as $next | $seen | index([$next]) | not) | reach($seen + [.]) end;
+    [reach([$from])] | first // empty | join(" -> ")')"
+  [ -z "$path" ] || die 2 "$child already depends on $parent ($path), so $parent depending on $child would make a cycle"
+}
+
 command_link() {
-  local action="$1" parent child
+  local action="$1" parent child kind
   parent="$(normalise_id "${2:-}")"
   child="$(normalise_id "${3:-}")"
-  [ "$parent" != "$child" ] || die 2 "a ticket cannot depend on itself"
-  [ "$(kind_of "$parent")" = card ] && [ "$(kind_of "$child")" = card ] || die 2 "only tickets depend on tickets"
+  kind="$(kind_of "$parent")"
+  [ "$parent" != "$child" ] || die 2 "a $(kind_name "$kind") cannot depend on itself"
+  case "$kind/$(kind_of "$child")" in
+    card/card | epic/epic) ;;
+    *) die 2 "only tickets depend on tickets and epics on epics" ;;
+  esac
   require_record "$parent"
   require_record "$child"
   with_lock link_locked "$parent" "$child" "$action"
-  command_show "$parent" "Dependent on" "Complexity"
+  if [ "$kind" = epic ]; then command_show "$parent" "Dependent on"; else command_show "$parent" "Dependent on" "Complexity"; fi
 }
 
 command_claim() {
@@ -2443,12 +2468,12 @@ undo_locked() {
   for link in ${links[@]+"${links[@]}"}; do
     IFS=$'\t' read -r other field change <<<"$link"
     if [ "$change" = add ]; then
-      update_record "$other" --arg self "$before_id" --arg field "$field" '
-        .[$field] = ((.[$field] // []) + [$self] | unique) | if $field == "dependent_on" then .complexity = 0 else . end'
+      update_record "$other" --arg self "$before_id" --arg field "$field" --arg kind "$(kind_of "$other")" '
+        .[$field] = ((.[$field] // []) + [$self] | unique) | if $field == "dependent_on" and $kind == "card" then .complexity = 0 else . end'
     elif [ -f "$(record_file "$other")" ]; then
-      update_record "$other" --arg self "$before_id" --arg field "$field" '
+      update_record "$other" --arg self "$before_id" --arg field "$field" --arg kind "$(kind_of "$other")" '
         .[$field] = ((.[$field] // []) - [$self])
-        | if $field == "dependent_on" and (.dependent_on | length) == 0 and .complexity == 0 then .complexity = null else . end'
+        | if $field == "dependent_on" and $kind == "card" and (.dependent_on | length) == 0 and .complexity == 0 then .complexity = null else . end'
     fi
   done
   if [ -z "$session" ] && [ -n "$owner" ]; then
