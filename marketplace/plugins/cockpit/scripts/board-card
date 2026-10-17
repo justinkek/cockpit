@@ -40,6 +40,7 @@
 #   board-card tracks [<n> | '']
 #   board-card me [<name>... | '']
 #   board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>
+#   board-card breaks [--json] | breaks add <from> <to> [--project <PRJ-n>] [--name <text>] | breaks remove <id | index>
 #   board-card migrate
 #
 # Exit codes:
@@ -2216,6 +2217,83 @@ command_views() {
   with_lock views_save_locked "$name" "$kind" "$view"
 }
 
+breaks_json() { if [ -f "$BOARD_DIR/breaks" ]; then cat "$BOARD_DIR/breaks"; else printf '[]\n'; fi; }
+
+break_day() {
+  jq --null-input --exit-status --arg value "$2" \
+    'try ($value | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") and ($value + "T00:00:00Z" | fromdateiso8601 | todate | .[:10]) == $value) catch false' >/dev/null \
+    || die 2 "a break's $1 is a date like 2026-10-12, not '$2'"
+}
+
+breaks_add_locked() {
+  local id
+  id="b$(breaks_json | jq '[.[].id | ltrimstr("b") | tonumber] | max // 0 | . + 1')"
+  breaks_json | jq --arg id "$id" --arg from "$1" --arg to "$2" --arg project "$3" --arg name "$4" \
+    '. + [{id: $id, from: $from, to: $to, project: (if $project == "" then null else $project end), name: (if $name == "" then null else $name end)}]
+     | sort_by(.from, .to, (.id | ltrimstr("b") | tonumber))' > "$BOARD_DIR/breaks.new"
+  mv "$BOARD_DIR/breaks.new" "$BOARD_DIR/breaks"
+  printf '%s\n' "$id"
+}
+
+breaks_remove_locked() {
+  breaks_json | jq --arg id "$1" '[.[] | select(.id != $id)]' > "$BOARD_DIR/breaks.new"
+  if [ "$(jq length "$BOARD_DIR/breaks.new")" -eq 0 ]; then
+    rm -f "$BOARD_DIR/breaks" "$BOARD_DIR/breaks.new"
+  else
+    mv "$BOARD_DIR/breaks.new" "$BOARD_DIR/breaks"
+  fi
+}
+
+command_breaks() {
+  local verb="${1:-}" usage="usage: board-card breaks [--json] | breaks add <from> <to> [--project <PRJ-n>] [--name <text>] | breaks remove <id | index>"
+  local from to project="" name="" id
+  require_board
+  case "$verb" in
+    "" | --json)
+      [ "$#" -le 1 ] || die 2 "$usage"
+      if [ "$verb" = --json ]; then breaks_json; else breaks_json | jq --raw-output '.[] | [.id, .from, .to, (.project // "board"), (.name // "")] | @tsv'; fi
+      return 0
+      ;;
+    add)
+      shift
+      [ "$#" -ge 2 ] || die 2 "$usage"
+      from="$1" to="$2"
+      shift 2
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --project) [ "$#" -ge 2 ] || die 2 "--project needs a PRJ-n"; project="$2"; shift 2 ;;
+          --name) [ "$#" -ge 2 ] || die 2 "--name needs a name"; name="$2"; shift 2 ;;
+          *) die 2 "$usage" ;;
+        esac
+      done
+      break_day start "$from"
+      break_day end "$to"
+      [[ ! "$to" < "$from" ]] || die 2 "a break ends on or after it starts, and $to is before $from"
+      if [ -n "$project" ]; then
+        project="$(normalise_id "$project")"
+        [ "$(kind_of "$project")" = project ] || die 2 "a break belongs to the board or to one project, and $project is not a project"
+        require_record "$project"
+      fi
+      [ "$name" = "${name//$'\n'/}" ] || die 2 "a break's name is one line, not '$name'"
+      with_lock breaks_add_locked "$from" "$to" "$project" "$name"
+      ;;
+    remove)
+      shift
+      [ "$#" -eq 1 ] || die 2 "$usage"
+      if printf '%s' "$1" | grep --quiet --extended-regexp '^[1-9][0-9]*$'; then
+        id="$(breaks_json | jq --raw-output --argjson index "$1" '.[$index - 1].id // ""')"
+        [ -n "$id" ] || die 3 "no break at $1 - the list has $(breaks_json | jq length)"
+      else
+        id="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+        breaks_json | jq --exit-status --arg id "$id" 'any(.[]; .id == $id)' >/dev/null || die 3 "no break is called '$1'"
+      fi
+      with_lock breaks_remove_locked "$id"
+      printf '%s\n' "$id"
+      ;;
+    *) die 2 "$usage" ;;
+  esac
+}
+
 inbox_read_locked() {
   printf '%s\n' "$1" > "$BOARD_DIR/inbox-seen"
 }
@@ -2453,5 +2531,6 @@ case "$action" in
   migrate) command_migrate "$@" ;;
   me) command_me "$@" ;;
   views) command_views "$@" ;;
+  breaks) command_breaks "$@" ;;
   *) sed -n '3,/^#   board-card migrate/p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac

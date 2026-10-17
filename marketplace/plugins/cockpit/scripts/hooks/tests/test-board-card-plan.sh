@@ -244,6 +244,34 @@ stub set "$tracked" body "tracks: 9" >/dev/null
 assert_eq "a line in a project's content that reads like a share is never counted as one" "3" "$(stub tracks)"
 assert_eq "the epics with no project have no count of their own any more" "2" "$(refused no-project-tracks 2)"
 
+printf "\nTest group: a break is a span of days off, board-wide or for one project, kept at the board's root\n"
+
+assert_eq "a board with no breaks lists none" "" "$(stub breaks)"
+assert_eq "and gives an empty list as JSON" "[]" "$(stub breaks --json | jq --compact-output .)"
+assert_eq "a break added gets an id" "b1" "$(stub breaks add 2026-12-21 2027-01-02 --name 'Christmas')"
+assert_eq "and is committed under its verb" "breaks" "$(git -C "$COCKPIT_BOARD_DIR" log -1 --format=%s)"
+assert_eq "and leaves nothing uncommitted" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain)"
+assert_eq "a break for one project names it" "b2" "$(stub breaks add 2026-11-02 2026-11-06 --project prj-1)"
+assert_eq "the list runs in the order the breaks start, board-wide ones read as the board's" \
+  "b2	2026-11-02	2026-11-06	PRJ-1	|b1	2026-12-21	2027-01-02	board	Christmas" "$(stub breaks | paste -sd '|' -)"
+assert_eq "the file at the root is JSON" "b2,b1" "$(jq --raw-output 'map(.id) | join(",")' "$COCKPIT_BOARD_DIR/breaks")"
+assert_eq "a break that ends before it starts is refused" "2" "$(refused breaks add 2026-11-10 2026-11-09)"
+assert_eq "a one-day break is kept" "b3" "$(stub breaks add 2026-11-10 2026-11-10)"
+assert_eq "a date that is not one is refused" "2" "$(refused breaks add 2026-02-30 2026-03-02)"
+assert_eq "a date in another shape is refused" "2" "$(refused breaks add 1/11/2026 2026-11-02)"
+assert_eq "a project the board does not have is refused" "3" "$(refused breaks add 2026-11-02 2026-11-06 --project PRJ-99)"
+assert_eq "a break for a record that is not a project is refused" "2" "$(refused breaks add 2026-11-02 2026-11-06 --project EPIC-1)"
+assert_eq "an option breaks does not take is refused" "2" "$(refused breaks add 2026-11-02 2026-11-06 --track 1)"
+assert_eq "a refused break writes nothing" "3" "$(stub breaks --json | jq length)"
+assert_eq "a break is removed by its place in the list" "b2" "$(stub breaks remove 1)"
+assert_eq "or by its id" "b3" "$(stub breaks remove B3)"
+assert_eq "and the others stay" "b1" "$(stub breaks --json | jq --raw-output 'map(.id) | join(",")')"
+assert_eq "a break the list does not have is refused" "3" "$(refused breaks remove b9)"
+assert_eq "a place past the list is refused" "3" "$(refused breaks remove 5)"
+stub breaks remove b1 >/dev/null
+assert_eq "the file goes with the last break" "false" "$([ -f "$COCKPIT_BOARD_DIR/breaks" ] && echo true || echo false)"
+assert_eq "and its going is committed too" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain)"
+
 printf "\nTest group: migrate gives each project with open epics a share and sets the board's count\n"
 
 shared="$TMPDIR/shared"
