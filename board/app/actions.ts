@@ -29,6 +29,7 @@ import {
 	readInboxUpTo,
 	readBreaks,
 	readRecord,
+	readAllViews,
 	readViews,
 	removeBreak,
 	type SavedView,
@@ -491,6 +492,18 @@ export async function forgetView(kind: Kind, name: string): Promise<{ views?: Sa
 	try {
 		await deleteNamedView(kind, name);
 		return { views: await readViews(kind) };
+	} catch (error) {
+		if (!(error instanceof BoardError)) throw error;
+		return { error: error.message };
+	}
+}
+
+export async function forgetSavedView(kind: Kind, name: string): Promise<{ views?: SavedView[]; error?: string }> {
+	try {
+		await deleteNamedView(kind, name);
+		revalidatePath("/");
+		revalidatePath("/epics");
+		return { views: await readAllViews() };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
 		return { error: error.message };

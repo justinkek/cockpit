@@ -65,9 +65,12 @@ export async function meNames(): Promise<string[]> {
 	return author && !names.includes(author) ? [...names, author] : names;
 }
 
+export async function readAllViews(): Promise<SavedView[]> {
+	return JSON.parse(await boardCard(["views", "--json"]));
+}
+
 export async function readViews(kind: Kind): Promise<SavedView[]> {
-	const views: SavedView[] = JSON.parse(await boardCard(["views", "--json"]));
-	return views.filter((view) => view.kind === kind);
+	return (await readAllViews()).filter((view) => view.kind === kind);
 }
 
 export async function saveNamedView(kind: Kind, name: string, view: Record<string, unknown>): Promise<void> {
