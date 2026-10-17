@@ -1,4 +1,4 @@
-import { inPreset, type Kind, manualRank, showsOverrun, type Card as Stub, TYPES } from "@/lib/shared";
+import { type Kind, manualRank, showsOverrun, type Card as Stub, TYPES } from "@/lib/shared";
 
 export type GroupBy = "" | "epic" | "project" | "type" | "sprint" | "label";
 
@@ -32,7 +32,6 @@ export const LAYOUTS: [Layout, string][] = [
 ];
 
 export type View = {
-	preset: string;
 	query: string;
 	types: string[];
 	epic: string;
@@ -51,7 +50,6 @@ export type View = {
 };
 
 export const DEFAULT_VIEW: View = {
-	preset: "all",
 	query: "",
 	types: [],
 	epic: "",
@@ -76,8 +74,9 @@ export function defaultView(kind: Kind): View {
 }
 
 export function restoredView(kind: Kind, saved: Partial<View>): View {
-	const collapsed = saved.collapsed ?? COLLAPSED[kind];
-	return { ...defaultView(kind), ...saved, collapsed, listCollapsed: saved.listCollapsed ?? collapsed };
+	const known: Partial<View> = Object.fromEntries(Object.entries(saved).filter(([key]) => key in DEFAULT_VIEW));
+	const collapsed = known.collapsed ?? COLLAPSED[kind];
+	return { ...defaultView(kind), ...known, collapsed, listCollapsed: known.listCollapsed ?? collapsed };
 }
 
 export function collapsedIn(view: View): string[] {
@@ -196,7 +195,6 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
 	if (!epicPasses(view.epic, stub.epic)) return false;
 	if (view.labels.length > 0 && !(stub.labels ?? []).some((label) => view.labels.includes(label))) return false;
-	if (!inPreset(stub, view.preset)) return false;
 	if (view.urgent && !stub.urgent) return false;
 	if (view.blocked && !stub.blocked) return false;
 	if (view.claimed && !stub.session) return false;

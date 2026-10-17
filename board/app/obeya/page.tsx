@@ -94,7 +94,7 @@ export default async function ObeyaPage() {
 			</header>
 
 			<div className="stat-row">
-				<Link href="/?view=sprint">
+				<Link href="/">
 					<span className="stat-label">In progress</span>
 					<span className="stat-value">
 						{active.length} <span>in dev, review or validation</span>
@@ -108,7 +108,7 @@ export default async function ObeyaPage() {
 					<span className="stat-label">Overrunning</span>
 					<span className="stat-value">{overrunning.length}</span>
 				</div>
-				<Link href="/?view=week">
+				<Link href="/">
 					<span className="stat-label">Done in the last 7 days</span>
 					<span className="stat-value">{doneThisWeek.length}</span>
 				</Link>

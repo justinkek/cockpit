@@ -3,10 +3,7 @@ import { BoardError, type Card, listRecords, readViews, type SavedView, manualRa
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ view?: string | string[] }> };
-
-export default async function CardsPage({ searchParams }: Props) {
-	const { view } = await searchParams;
+export default async function CardsPage() {
 	let cards: Card[];
 	let epics: Card[];
 	let sprints: Card[];
@@ -30,7 +27,6 @@ export default async function CardsPage({ searchParams }: Props) {
 			kind="card"
 			views={views}
 			initial={cards}
-			preset={typeof view === "string" ? view : undefined}
 			lists={{
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
 				epics: [...epics]

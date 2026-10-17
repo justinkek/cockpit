@@ -101,9 +101,7 @@ import {
 	type Named,
 	overrunTitle,
 	type SavedView,
-	PRESETS,
 	phaseOf,
-	presetOf,
 	showsOverrun,
 	SPLIT_ABOVE,
 	type Card as Stub,
@@ -779,23 +777,18 @@ export function Board({
 	kind = "card",
 	lists,
 	children = {},
-	preset: presetParam,
 	views = [],
 }: {
 	views?: SavedView[];
 	initial: Stub[];
 	kind?: Kind;
-	preset?: string;
 	lists: Lists;
 	children?: Record<string, Child[]>;
 }) {
 	const epics = lists.epics;
 	const router = useRouter();
 	const [stubs, setStubs] = useState(initial);
-	const [view, setView] = useState<View>({
-		...defaultView(kind),
-		...(kind === "card" && presetParam ? { preset: presetOf(presetParam).id } : {}),
-	});
+	const [view, setView] = useState<View>(defaultView(kind));
 	const [loaded, setLoaded] = useState(false);
 	const [dragging, setDragging] = useState<Stub | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
@@ -831,15 +824,9 @@ export function Board({
 		const saved = loadView(kind);
 		const params = new URLSearchParams(window.location.search);
 		const epic = params.get("epic");
-		const preset = kind === "card" ? params.get("view") : null;
 		const failure = params.get("error");
 		if (failure) setNotice({ id: "", text: failure });
-		if (saved || epic || preset)
-			setView({
-				...(saved ?? defaultView(kind)),
-				...(epic ? { epic } : {}),
-				...(preset ? { preset: presetOf(preset).id } : {}),
-			});
+		if (saved || epic) setView({ ...(saved ?? defaultView(kind)), ...(epic ? { epic } : {}) });
 		const opening = params.get("open")?.toUpperCase();
 		if (opening) {
 			const number = opening.split("-").at(-1);
@@ -861,10 +848,9 @@ export function Board({
 		if (openId) url.searchParams.set("open", openId);
 		else url.searchParams.delete("open");
 		url.searchParams.delete("error");
-		if (kind === "card" && view.preset !== PRESETS[0].id) url.searchParams.set("view", view.preset);
-		else url.searchParams.delete("view");
+		url.searchParams.delete("view");
 		if (url.href !== window.location.href) window.history.replaceState(null, "", url);
-	}, [openId, loaded, view.preset]);
+	}, [openId, loaded]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -917,20 +903,16 @@ export function Board({
 		() => [...new Set([...stubs.flatMap((stub) => stub.labels ?? []), ...view.labels])].sort(),
 		[stubs, view.labels],
 	);
-	const preset = kind === "card" ? presetOf(view.preset) : PRESETS[0];
-	const columnsOfKind = preset.id === PRESETS[0].id ? boardColumns(kind) : preset.columns;
+	const columnsOfKind = boardColumns(kind);
 	const visible = useMemo(
 		() => stubs.filter((stub) => matches(stub, view, found)).sort(sorter(view.sort)),
 		[stubs, view, found],
 	);
 	const columns = useMemo(() => {
-		const extra =
-			preset.id === PRESETS[0].id
-				? [...new Set(stubs.map((stub) => stub.status))].filter((status) => !columnsOfKind.includes(status))
-				: [];
+		const extra = [...new Set(stubs.map((stub) => stub.status))].filter((status) => !columnsOfKind.includes(status));
 		const all = [...columnsOfKind, ...extra];
 		return view.hideEmpty ? all.filter((column) => visible.some((stub) => stub.status === column)) : all;
-	}, [stubs, visible, view.hideEmpty, columnsOfKind, preset.id]);
+	}, [stubs, visible, view.hideEmpty, columnsOfKind]);
 	const open = openId ? (stubs.find((stub) => stub.id === openId) ?? null) : null;
 	const progresses = useMemo(
 		() =>
@@ -1174,15 +1156,6 @@ export function Board({
 				keywords: layout === "table" ? "every field property columns" : undefined,
 				run: () => update({ layout }),
 			})),
-			...(kind === "card"
-				? PRESETS.filter((choice) => choice.id !== preset.id).map((choice) => ({
-						id: `go:view:${choice.id}`,
-						group: "Board",
-						label: choice.show,
-						keywords: `view ${choice.label} ${choice.title}`,
-						run: () => update({ preset: choice.id }),
-					}))
-				: []),
 			...saved.map((other) => ({
 				id: `go:saved:${other.name}`,
 				group: "Board",
@@ -1653,21 +1626,6 @@ export function Board({
 				<MentionContext.Provider value={mentions}>
 					<div className={`board${open ? " peeking" : ""}`}>
 						<div className="toolbar">
-							{kind === "card" && (
-								<select
-									className="view-pick"
-									value={preset.id}
-									onChange={(event) => update({ preset: event.target.value })}
-									aria-label="View"
-									title={preset.title}
-								>
-									{PRESETS.map((choice) => (
-										<option key={choice.id} value={choice.id} title={choice.title}>
-											{choice.label}
-										</option>
-									))}
-								</select>
-							)}
 							<select
 								className="view-pick saved-views"
 								value=""

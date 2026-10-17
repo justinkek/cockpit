@@ -49,9 +49,9 @@ for (const [name, file] of [["shared", "lib/shared.ts"], ["view", "app/view.ts"]
 
 kept() {
   node --input-type=module -e '
-import { matches, DEFAULT_VIEW } from "'"$WORK"'/view.mjs";
+import { matches, restoredView } from "'"$WORK"'/view.mjs";
 const [cards, change] = process.argv.slice(1).map((text) => JSON.parse(text));
-const view = { ...DEFAULT_VIEW, ...change };
+const view = restoredView("card", change);
 process.stdout.write(cards.filter((card) => matches({ created: "", body: "", ...card }, view)).map((card) => card.id).join(" "));
 ' "$1" "$2"
 }
@@ -76,22 +76,12 @@ CARDS='[
   {"id":"FEAT-12","name":"l","status":"Done","epic":"EPIC-2","dates":{"Done":"'"$(stamp 30)"'"},"moved":"'"$(stamp 1)"'"}
 ]'
 
-printf "Test group: a view keeps the cards of its columns\n"
+printf "Test group: the board shows every column\n"
 
-assert_eq "All columns keeps every card" \
-  "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{"preset":"all"}')"
-assert_eq "the Sprint Board keeps Sprint Backlog to Ready for Validation" \
-  "FEAT-2 FEAT-3 FEAT-4" "$(kept "$CARDS" '{"preset":"sprint"}')"
-assert_eq "the current week keeps open cards and those done in the last 7 days" \
-  "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{"preset":"week"}')"
-assert_eq "refinement triage keeps the BR and TR cards with no epic" \
-  "FEAT-10" "$(kept "$CARDS" '{"preset":"triage"}')"
-assert_eq "a view nobody knows reads as All columns" \
-  "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{"preset":"nonsense"}')"
-
-DONE_NOW='[{"id":"FEAT-13","name":"m","status":"Done","epic":null,"moved":"'"$(stamp 0)"'"}]'
-assert_eq "a card moved to Done just now stays in the current week before its Done date arrives" \
-  "FEAT-13" "$(kept "$DONE_NOW" '{"preset":"week"}')"
+assert_eq "a view with no filters keeps every card" \
+  "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{}')"
+assert_eq "a saved view naming a column preset the board no longer has keeps every card" \
+  "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{"preset":"sprint"}')"
 
 printf "Test group: the epic filter keeps one epic, no epic, or all but one\n"
 
@@ -100,7 +90,6 @@ assert_eq "no epic keeps the cards that have none" \
   "FEAT-1 FEAT-3 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10" "$(kept "$CARDS" '{"epic":"none"}')"
 assert_eq "all but one epic keeps the cards of others and of none" \
   "FEAT-1 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-12" "$(kept "$CARDS" '{"epic":"!EPIC-1"}')"
-assert_eq "the epic filter stacks on a view" "FEAT-3" "$(kept "$CARDS" '{"preset":"sprint","epic":"none"}')"
 
 printf "Test group: the Overrunning toggle and the days in column sort\n"
 
