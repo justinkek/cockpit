@@ -272,7 +272,7 @@ assert_eq "an epic walks its own columns and stamps them" "Backlog Ready for FD 
 assert_eq "leaving Backlog stamps the epic's start" "2026-10-16" "$(field EPIC-2 .start)"
 stub move EPIC-2 Backlog >/dev/null
 COCKPIT_NOW=2026-10-20T09:00:00Z stub move EPIC-2 "Ready for FD" >/dev/null
-assert_eq "and leaving it again keeps the first start" "2026-10-16" "$(field EPIC-2 .start)"
+assert_eq "and moving back to Backlog clears it, so leaving again stamps it afresh" "2026-10-20" "$(field EPIC-2 .start)"
 assert_eq "an epic created past Backlog starts the day it is created" "2026-10-21" \
   "$(COCKPIT_NOW=2026-10-21T09:00:00Z stub create --kind epic --project PRJ-1 --name "Straight in" --status "Ready for FD by AI" >/dev/null; field EPIC-3 .start)"
 stub archive EPIC-3 >/dev/null
