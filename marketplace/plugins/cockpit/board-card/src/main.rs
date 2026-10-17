@@ -15,16 +15,16 @@ use ctx::{die, outln};
 use std::fs;
 use std::path::Path;
 
-const USAGE: &str = "board-card - the cockpit board, kept as one markdown file per record.
+const USAGE: &str = "board-card - the cockpit board, kept as one markdown file per entity.
 
   board-card init
-  board-card create [--kind card|epic|project|sprint|reference|milestone] --name <name> [--type Feature|Bug|Timebox]
+  board-card create [--kind ticket|epic|project|sprint|reference|milestone] --name <name> [--type Feature|Bug|Timebox]
                     [--status <column>] [--epic <EPIC-n>] [--project <PRJ-n>] [--icon <emoji>] [--timebox-mins <n>] [--body -]
                     [--start <date>] [--end <date>] [--target <date>] [--date <date>] [--dev-days <n>] [--speed <n>] [--priority <n>] [--repo <url>] [--key <KEY>]
   board-card show <id> [--json | --section <heading> | <property>...]
-  board-card list [--kind card|epic|project|sprint|reference|milestone] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
-  board-card search <text> [--kind card|epic|project|sprint|reference|milestone]
-  board-card statuses [--kind card|epic]
+  board-card list [--kind ticket|epic|project|sprint|reference|milestone] [--status <column>] [--epic <EPIC-n>] [--archived] [--json]
+  board-card search <text> [--kind ticket|epic|project|sprint|reference|milestone]
+  board-card statuses [--kind ticket|epic]
   board-card set <id> <field> <value> [--close] | set <id> body <value> --base <file | ->
   board-card section <id> <heading> [--before <heading> | --after <heading>] [--under <heading>] < <content>
   board-card bounce <id> <gate>
@@ -53,7 +53,7 @@ const USAGE: &str = "board-card - the cockpit board, kept as one markdown file p
   board-card inbox [--json] [--author <name>] [--limit <n>] | inbox --read [<time>]
   board-card path [<id>]
   board-card tracks [<n> | '']
-  board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>
+  board-card views [--json] | views save [--kind ticket|epic] [--] <name> < <json> | views delete [--kind ticket|epic] [--] <name>
   board-card breaks [--json] | breaks add <from> <to> [--name <text>] [--id <bn>] | breaks remove <id | index>
   board-card maintenance <PRJ-n> [--date <date>] | maintenance --close
   board-card aliases [--json]

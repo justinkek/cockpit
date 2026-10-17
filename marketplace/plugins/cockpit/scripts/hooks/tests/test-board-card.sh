@@ -103,6 +103,7 @@ stub move HOM-1 EPIC-1 Deprioritised >/dev/null 2>&1
 assert_eq "records of two kinds are refused" "2" "$?"
 stub move HOM-1 HOM-999 Deprioritised >/dev/null 2>&1
 assert_eq "a record that is not on the board refuses the whole move" "3" "$?"
+assert_eq "naming the entity it could not find" "[board-card] no entity HOM-999 in $COCKPIT_BOARD_DIR/cards" "$(stub move HOM-1 HOM-999 Deprioritised 2>&1 >/dev/null)"
 assert_eq "leaving the others where they were" "In Dev" "$(field HOM-1 .status)"
 stub move Deprioritised >/dev/null 2>&1
 assert_eq "a column with no record is refused" "2" "$?"
@@ -189,6 +190,7 @@ assert_eq "a bounce counts from one" "Back from CR	2" "$(stub bounce HOM-2 CR)"
 stub set HOM-2 due 2026-10-20 >/dev/null
 assert_eq "due is a date" "2026-10-20" "$(field HOM-2 .due)"
 assert_eq "statuses lists the card columns in walk order" "Backlog" "$(stub statuses | head -1)"
+assert_eq "--kind ticket names the tickets, as --kind card does" "$(stub list --kind card)" "$(stub list --kind ticket)"
 
 printf "\nTest group: a section is written on its own\n"
 

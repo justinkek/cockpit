@@ -81,7 +81,11 @@ pub const MODEL_STAGES: &str = " BR TR Dev CR ";
 pub const RESERVED_KEYS: &str = " EPIC PRJ SPR REF MS FEAT BUG TIME ";
 
 pub fn kind_arg(given: &str) -> String {
-    given.to_string()
+    if given == "ticket" {
+        "card".to_string()
+    } else {
+        given.to_string()
+    }
 }
 
 pub fn prefix_of_kind(kind: &str) -> &'static str {
@@ -334,7 +338,7 @@ pub fn require_record(id: &str) {
     if exists(&archive_file(id)) {
         die(3, &format!("{} is archived - run: board-card unarchive {}", id, id));
     }
-    die(3, &format!("no record {} in {}", id, directory_of_kind(kind_of(id))));
+    die(3, &format!("no entity {} in {}", id, directory_of_kind(kind_of(id))));
 }
 
 pub fn require_board() {

@@ -406,7 +406,7 @@ pub fn migrate(args: &[String]) {
                     die(2, &format!("{} is not a project", project));
                 }
                 if !exists(&record_file(&project)) && !exists(&archive_file(&project)) {
-                    die(3, &format!("no record {}", project));
+                    die(3, &format!("no entity {}", project));
                 }
                 check_key(&key, &project);
                 for (p, k) in &given {

@@ -253,7 +253,7 @@ pub fn list(args: &[String]) {
 pub fn search(args: &[String]) {
     let text = args.first().cloned().unwrap_or_default();
     if text.is_empty() {
-        die(2, "usage: board-card search <text> [--kind card|epic|project|sprint|reference|milestone]");
+        die(2, "usage: board-card search <text> [--kind ticket|epic|project|sprint|reference|milestone]");
     }
     let mut kind = "card".to_string();
     let mut at = 1;
@@ -445,7 +445,7 @@ pub fn attachments(args: &[String]) {
     let mut directory = format!("{}/attachments/{}", ctx::board_dir(), id);
     if !exists(&record_file(&id)) {
         if !exists(&archive_file(&id)) {
-            die(3, &format!("no record {} in {}", id, directory_of_kind(kind_of(&id))));
+            die(3, &format!("no entity {} in {}", id, directory_of_kind(kind_of(&id))));
         }
         directory = format!("{}/archive/attachments/{}", ctx::board_dir(), id);
     }

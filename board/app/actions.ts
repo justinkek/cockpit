@@ -95,7 +95,7 @@ async function failed(id: string, error: unknown): Promise<Failure> {
 		};
 	}
 	if (archived) return { error: `${archived} is archived - bring it back from its page first` };
-	const missing = error.message.match(/^no record (\S+) in /)?.[1];
+	const missing = error.message.match(/^no entity (\S+) in /)?.[1];
 	if (!missing) return { error: error.message };
 	if (missing !== id) return { error: `${missing} is not on the board` };
 	const moved = await findRenamed(id);

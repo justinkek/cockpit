@@ -222,7 +222,7 @@ pub fn views(args: &[String]) {
             return;
         }
         "save" | "delete" => {}
-        _ => die(2, "usage: board-card views [--json] | views save [--kind card|epic] [--] <name> < <json> | views delete [--kind card|epic] [--] <name>"),
+        _ => die(2, "usage: board-card views [--json] | views save [--kind ticket|epic] [--] <name> < <json> | views delete [--kind ticket|epic] [--] <name>"),
     }
     let mut name = String::new();
     let mut kind = "card".to_string();
