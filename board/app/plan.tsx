@@ -29,7 +29,6 @@ import {
 import {
 	type Change,
 	createMilestone,
-	dropBreak,
 	dropCard,
 	editCard,
 	finishEpic,
@@ -39,8 +38,6 @@ import {
 	rankPlan,
 	removeMilestone,
 	resolveThread,
-	saveBreak,
-	setBoardTracks,
 	type Span,
 	undoChange,
 } from "@/app/actions";
@@ -747,126 +744,12 @@ function MilestoneEditor({
 	);
 }
 
-type BreakDraft = { from: string; to: string; project: string; name: string };
-
-function BreaksEditor({
-	breaks,
-	projects,
-	busy,
-	error,
-	onAdd,
-	onRemove,
-	onClose,
-}: {
-	breaks: Break[];
-	projects: Project[];
-	busy: boolean;
-	error: string | null;
-	onAdd: (draft: BreakDraft) => void;
-	onRemove: (id: string) => void;
-	onClose: () => void;
-}) {
-	const [draft, setDraft] = useState<BreakDraft>({ from: "", to: "", project: "", name: "" });
-	useEffect(() => setDraft({ from: "", to: "", project: "", name: "" }), [breaks]);
-	const nameOf = (id: string | null) => (id ? (projects.find((one) => one.id === id)?.name ?? id) : "Whole board");
-	return (
-		<form
-			className="plan-popover plan-milestone-form plan-breaks-form"
-			aria-label="Breaks"
-			onSubmit={(event) => {
-				event.preventDefault();
-				onAdd(draft);
-			}}
-			onKeyDown={(event) => {
-				if (event.key === "Escape") {
-					event.stopPropagation();
-					onClose();
-				}
-			}}
-		>
-			<strong>Breaks</strong>
-			{breaks.length === 0 ? (
-				<span className="plan-speed-from">No breaks - nothing is left out of the speed or the forecast</span>
-			) : (
-				<ul className="plan-breaks">
-					{breaks.map((one) => (
-						<li key={one.id}>
-							<span>
-								{one.name || "Break"} · {short(dayOf(one.from) ?? 0)} to {short(dayOf(one.to) ?? 0)} ·{" "}
-								{nameOf(one.project)}
-							</span>
-							<button
-								type="button"
-								className="quiet danger"
-								disabled={busy}
-								aria-label={`Remove the break ${one.name || one.id}`}
-								onClick={() => onRemove(one.id)}
-							>
-								Remove
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
-			<input
-				aria-label="Break name"
-				placeholder="Leave, a holiday, a project put down…"
-				value={draft.name}
-				onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-			/>
-			<span className="plan-breaks-days">
-				<input
-					type="date"
-					aria-label="First day of the break"
-					required
-					value={draft.from}
-					onChange={(event) => setDraft({ ...draft, from: event.target.value, to: draft.to || event.target.value })}
-				/>
-				<input
-					type="date"
-					aria-label="Last day of the break"
-					required
-					min={draft.from || undefined}
-					value={draft.to}
-					onChange={(event) => setDraft({ ...draft, to: event.target.value })}
-				/>
-			</span>
-			<select
-				aria-label="Whom the break is for"
-				value={draft.project}
-				onChange={(event) => setDraft({ ...draft, project: event.target.value })}
-			>
-				<option value="">Whole board</option>
-				{projects.map((project) => (
-					<option key={project.id} value={project.id}>
-						{project.name}
-					</option>
-				))}
-			</select>
-			{error && (
-				<span className="notice error" role="alert">
-					{error}
-				</span>
-			)}
-			<span className="plan-popover-actions">
-				<span className="spacer" />
-				<button type="button" className="quiet" onClick={onClose}>
-					Close
-				</button>
-				<button type="submit" disabled={busy || !draft.from || !draft.to || draft.to < draft.from}>
-					Add
-				</button>
-			</span>
-		</form>
-	);
-}
-
 export function Plan({
 	initial,
 	cards,
 	milestones: initialMilestones,
-	tracks: initialTracks,
-	breaks: initialBreaks,
+	tracks: boardCount,
+	breaks,
 	projects,
 	sprints,
 	today: todayText,
@@ -898,10 +781,6 @@ export function Plan({
 	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
 	const [trackCounts, setTrackCounts] = useState<Record<string, number>>({});
-	const [boardCount, setBoardCount] = useState(initialTracks);
-	const [breaks, setBreaks] = useState(initialBreaks);
-	const [breaksOpen, setBreaksOpen] = useState(false);
-	const [breakError, setBreakError] = useState<string | null>(null);
 	const [saving, startTransition] = useTransition();
 	const scroller = useRef<HTMLDivElement>(null);
 	const dndId = useId();
@@ -922,8 +801,6 @@ export function Plan({
 	);
 	useEffect(() => setMilestones(initialMilestones), [initialMilestones]);
 	useEffect(() => setTrackCounts({}), [projects]);
-	useEffect(() => setBoardCount(initialTracks), [initialTracks]);
-	useEffect(() => setBreaks(initialBreaks), [initialBreaks]);
 
 	useEffect(() => {
 		setPrefs(loadPrefs());
@@ -1219,7 +1096,7 @@ export function Plan({
 			setToast(null);
 			setNotice({
 				id: "",
-				text: `${teamName(team)} cannot take ${tracksText(count)}: the projects' shares would add up to ${allocated - before + count}, over the board's ${tracksText(boardCount)}. Raise the board's tracks first, or take one from another project.`,
+				text: `${teamName(team)} cannot take ${tracksText(count)}: the projects' shares would add up to ${allocated - before + count}, over the board's ${tracksText(boardCount)}. Raise the board's tracks in Settings first, or take one from another project.`,
 			});
 			return;
 		}
@@ -1237,55 +1114,6 @@ export function Plan({
 			}
 			setToast(undoable(team, result.undo, label));
 			router.refresh();
-		});
-	}
-
-	function changeBoardTracks(count: number) {
-		const before = boardCount;
-		if (count < 1 || count === before) return;
-		setToast(null);
-		if (count < allocated) {
-			setNotice({
-				id: "",
-				text: `The projects' shares add up to ${allocated}, so the board needs at least ${tracksText(allocated)} - take a track from a project first.`,
-			});
-			return;
-		}
-		setNotice(null);
-		setBoardCount(count);
-		startTransition(async () => {
-			const result = await setBoardTracks(count);
-			if (result.error) {
-				setBoardCount(before);
-				setNotice({ id: "", text: `The board's tracks: ${result.error}` });
-				return;
-			}
-			if (result.tracks) setBoardCount(result.tracks);
-			router.refresh();
-		});
-	}
-
-	function addBreakFrom(draft: BreakDraft) {
-		setBreakError(null);
-		startTransition(async () => {
-			const result = await saveBreak(draft.from, draft.to, draft.project, draft.name);
-			if (result.error || !result.breaks) {
-				setBreakError(`Could not add the break: ${result.error ?? "board-card added nothing"}`);
-				return;
-			}
-			setBreaks(result.breaks);
-		});
-	}
-
-	function removeBreakOf(id: string) {
-		setBreakError(null);
-		startTransition(async () => {
-			const result = await dropBreak(id);
-			if (result.error || !result.breaks) {
-				setBreakError(`Could not remove the break: ${result.error ?? "board-card removed nothing"}`);
-				return;
-			}
-			setBreaks(result.breaks);
 		});
 	}
 
@@ -2061,25 +1889,18 @@ export function Plan({
 						By project
 					</button>
 					<span className="spacer" />
-					<button
-						type="button"
-						className={`chip-toggle${breaksOpen ? " on" : ""}`}
-						aria-pressed={breaksOpen}
-						onClick={() => {
-							setEditing(null);
-							setBreakError(null);
-							setBreaksOpen(!breaksOpen);
-						}}
+					<Link
+						href="/settings#planning"
+						className="plan-settings-link"
+						title="The board's tracks and breaks are set in Settings"
 					>
-						Breaks{breaks.length > 0 ? ` · ${breaks.length}` : ""}
-					</button>
+						{tracksText(boardCount)} · {breaks.length === 1 ? "1 break" : `${breaks.length} breaks`} - change in
+						Settings
+					</Link>
 					<button
 						type="button"
 						className="chip-toggle"
-						onClick={() => {
-							setBreaksOpen(false);
-							setEditing({ id: null, name: "", date: dayText(today) });
-						}}
+						onClick={() => setEditing({ id: null, name: "", date: dayText(today) })}
 					>
 						+ Milestone
 					</button>
@@ -2098,34 +1919,7 @@ export function Plan({
 					</div>
 					<div title="How many epics you can run at once across the board, shared out between the projects by hand">
 						<span className="stat-label">Tracks</span>
-						<span className="stat-value plan-board-tracks">
-							<span className="plan-tracks-step" role="group" aria-label="The board's tracks">
-								<button
-									type="button"
-									className="quiet"
-									disabled={boardCount <= Math.max(1, allocated)}
-									aria-label="One track fewer for the board"
-									title={
-										boardCount <= allocated
-											? "Every track is given to a project - take one from a project first"
-											: "One track fewer for the board"
-									}
-									onClick={() => changeBoardTracks(boardCount - 1)}
-								>
-									−
-								</button>
-								<span className="plan-tracks-count">{boardCount}</span>
-								<button
-									type="button"
-									className="quiet"
-									aria-label="One track more for the board"
-									title="One track more for the board, to give a project"
-									onClick={() => changeBoardTracks(boardCount + 1)}
-								>
-									+
-								</button>
-							</span>
-						</span>
+						<span className="stat-value">{boardCount}</span>
 						<span className="plan-speed-from">
 							{allocated} given to projects
 							{boardCount > allocated ? ` · ${boardCount - allocated} unallocated` : " · none unallocated"}
@@ -2195,17 +1989,6 @@ export function Plan({
 						{view.clippedBefore && view.clippedAfter ? " and " : ""}
 						{view.clippedAfter ? "five years ahead" : ""} - what lies past that is cut at the edge.
 					</p>
-				)}
-				{breaksOpen && (
-					<BreaksEditor
-						breaks={breaks}
-						projects={projects}
-						busy={saving}
-						error={breakError}
-						onAdd={addBreakFrom}
-						onRemove={removeBreakOf}
-						onClose={() => setBreaksOpen(false)}
-					/>
 				)}
 				{editing && (
 					<MilestoneEditor

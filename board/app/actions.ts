@@ -65,6 +65,7 @@ function refresh(id: string) {
 	revalidatePath("/references");
 	revalidatePath("/archive");
 	revalidatePath("/plan");
+	revalidatePath("/settings");
 	revalidatePath(`/card/${id}`);
 }
 
@@ -313,6 +314,7 @@ export async function setBoardTracks(count: number): Promise<{ tracks?: number; 
 	try {
 		const tracks = await boardTracks(String(count));
 		revalidatePath("/plan");
+		revalidatePath("/settings");
 		return { tracks };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
@@ -329,6 +331,7 @@ export async function saveBreak(
 	try {
 		await addBreak(from, to, project, name.replace(/\s*[\r\n]+\s*/g, " ").trim());
 		revalidatePath("/plan");
+		revalidatePath("/settings");
 		return { breaks: await readBreaks() };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
@@ -340,6 +343,7 @@ export async function dropBreak(id: string): Promise<{ breaks?: Break[]; error?:
 	try {
 		await removeBreak(id);
 		revalidatePath("/plan");
+		revalidatePath("/settings");
 		return { breaks: await readBreaks() };
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
