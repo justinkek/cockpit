@@ -59,12 +59,6 @@ export async function readInbox(limit = 100): Promise<Inbox> {
 	return JSON.parse(await boardCard(["inbox", "--json", "--limit", String(limit)]));
 }
 
-export async function meNames(): Promise<string[]> {
-	const names = (await boardCard(["me"])).split("\n").filter(Boolean);
-	const author = commentAuthor();
-	return author && !names.includes(author) ? [...names, author] : names;
-}
-
 export async function readAllViews(): Promise<SavedView[]> {
 	return JSON.parse(await boardCard(["views", "--json"]));
 }

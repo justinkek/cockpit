@@ -21,7 +21,7 @@ import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
 import { ago, type Card, type CommentThread } from "@/lib/shared";
 
-type Threads = { threads?: CommentThread[]; me?: string[]; error?: string };
+type Threads = { threads?: CommentThread[]; me?: string | null; error?: string };
 
 type Picked = { text: string; top: number; bottom: number; left: number };
 
@@ -163,7 +163,7 @@ export function Content({
 	const rewriteDraft = useRef("");
 	const rewritingNow = useRef(rewriting);
 	rewritingNow.current = rewriting;
-	const [me, setMe] = useState<string[]>([]);
+	const [me, setMe] = useState<string | null>(null);
 	const [editing, setEditing] = useState<string | null>(null);
 	const [base, setBase] = useState("");
 	const [saving, setSaving] = useState(false);
@@ -512,7 +512,7 @@ export function Content({
 	const anchored = open.filter((thread) => thread.anchor);
 	function renderComment(thread: CommentThread, comment: CommentThread["comments"][number]) {
 		const pending = comment.id.startsWith("pending-");
-		const mine = !pending && me.includes(comment.author);
+		const mine = !pending && me !== null && comment.author === me;
 		return (
 			<div key={comment.id} className={`comment${pending ? " pending" : ""}`}>
 				<span className="comment-head">
