@@ -80,7 +80,14 @@ const PREFERENCES = "cockpit-plan";
 const DONE = "Done";
 const HOLD = 280;
 
-type Project = { id: string; name: string; icon?: string | null; priority?: number | null; tracks?: number | null };
+type Project = {
+	id: string;
+	name: string;
+	icon?: string | null;
+	priority?: number | null;
+	tracks?: number | null;
+	status?: string | null;
+};
 type Prefs = { scale: Scale; grouped: boolean };
 type Mode = "target" | "draw" | "milestone";
 type Drag = {
@@ -959,7 +966,8 @@ export function Plan({
 	}, [projects, speeds, trackCounts, projectOf]);
 	const teamName = (team: string) => projectOf[team]?.name ?? team;
 	const fallbackOf = (team: string) => (speeds.teams[team] ?? speeds.overall).source === "overall";
-	const allocated = projects.reduce((sum, project) => sum + tracksOf(project.id), 0);
+	const counts = (team: string) => projectOf[team]?.status !== "Done";
+	const allocated = projects.reduce((sum, project) => sum + (counts(project.id) ? tracksOf(project.id) : 0), 0);
 	const homeless = epics.filter((epic) => !epic.project || !projectOf[epic.project]);
 
 	const shown = useMemo(() => {
@@ -1207,7 +1215,7 @@ export function Plan({
 	function changeTracks(team: string, count: number) {
 		const before = tracksOf(team);
 		if (count < 0 || count === before) return;
-		if (count > before && allocated - before + count > boardCount) {
+		if (count > before && counts(team) && allocated - before + count > boardCount) {
 			setToast(null);
 			setNotice({
 				id: "",

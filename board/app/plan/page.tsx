@@ -54,7 +54,7 @@ export default async function PlanPage() {
 			milestones={milestones}
 			tracks={tracks}
 			breaks={breaks}
-			projects={projects.map(({ id, name, icon, priority, tracks }) => ({ id, name, icon, priority, tracks }))}
+			projects={projects.map(({ id, name, icon, priority, tracks, status }) => ({ id, name, icon, priority, tracks, status }))}
 			sprints={sprints.map(({ start, end, speed }) => ({ start, end, speed }))}
 			today={today()}
 			lists={{
