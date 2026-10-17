@@ -161,20 +161,17 @@ export function EpicsDoneDialog({
 
 export type Closing = { id: string; name: string; epics: number; tickets: number };
 
-export function projectRefusal(error: string | undefined): { epics: number; tickets: number } | null {
-	const match = error?.match(/still has (\d+) open epics? and (\d+) open tickets?/);
-	return match ? { epics: Number(match[1]), tickets: Number(match[2]) } : null;
-}
-
 export function ProjectDoneDialog({
 	closing,
 	busy,
 	onClose,
+	onAnyway,
 	onCancel,
 }: {
 	closing: Closing;
 	busy: boolean;
 	onClose: () => void;
+	onAnyway: () => void;
 	onCancel: () => void;
 }) {
 	const panel = useRef<HTMLDivElement>(null);
@@ -214,14 +211,18 @@ export function ProjectDoneDialog({
 					</h2>
 				</header>
 				<p>
-					{closing.name} can be marked Done only once nothing in it is open. Closing it deprioritises every ticket that
-					is neither done nor deprioritised and moves every epic not in Epic Done there, in one change.
+					{closing.name} is being marked Done while work in it is still open. Closing it deprioritises every ticket that
+					is neither done nor deprioritised and moves every epic not in Epic Done there, in one change. Marking it Done
+					anyway leaves that work where it is.
 				</p>
 				<footer className="epic-done-actions">
 					<button type="button" className="quiet" disabled={busy} onClick={onCancel}>
 						Cancel
 					</button>
 					<span className="spacer" />
+					<button type="button" className="quiet" disabled={busy} onClick={onAnyway}>
+						Mark Done anyway
+					</button>
 					<button type="button" disabled={busy} onClick={onClose}>
 						Deprioritise and close everything
 					</button>

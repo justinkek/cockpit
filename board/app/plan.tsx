@@ -43,6 +43,7 @@ import {
 	type Span,
 	undoChange,
 } from "@/app/actions";
+import { askOverShares, useConfirm } from "@/app/confirm";
 import { Content, confirmDiscard } from "@/app/content";
 import { Fields, type Handlers, type Lists, TextField, Title, useHydrated } from "@/app/fields";
 import { EpicDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
@@ -906,6 +907,7 @@ export function Plan({
 	const [openId, setOpenId] = useState<string | null>(null);
 	const [notice, setNotice] = useState<Notice>(null);
 	const [toast, setToast] = useState<Undoable | null>(null);
+	const [confirmDialog, ask] = useConfirm();
 	const [undoing, setUndoing] = useState(false);
 	const [editing, setEditing] = useState<Editing>(null);
 	const [legendOpen, setLegendOpen] = useState(false);
@@ -1226,17 +1228,12 @@ export function Plan({
 		);
 	}
 
-	function changeTracks(team: string, count: number) {
+	async function changeTracks(team: string, count: number) {
 		const before = tracksOf(team);
 		if (count < 0 || count === before) return;
-		if (count > before && counts(team) && allocated - before + count > boardCount) {
-			setToast(null);
-			setNotice({
-				id: "",
-				text: `${teamName(team)} cannot take ${tracksText(count)}: the projects' shares would add up to ${allocated - before + count}, over the board's ${tracksText(boardCount)}. Raise the board's tracks first, or take one from another project.`,
-			});
-			return;
-		}
+		const shares = allocated - before + count;
+		const over = count > before && counts(team) && shares > boardCount;
+		if (over && !(await askOverShares(ask, shares, boardCount))) return;
 		const label =
 			count === 0 ? `Took every track from ${teamName(team)}` : `Gave ${teamName(team)} ${tracksText(count)}`;
 		setNotice(null);
@@ -1254,17 +1251,11 @@ export function Plan({
 		});
 	}
 
-	function changeBoardTracks(count: number) {
+	async function changeBoardTracks(count: number) {
 		const before = boardCount;
 		if (count < 1 || count === before) return;
+		if (count < before && count < allocated && !(await askOverShares(ask, allocated, count))) return;
 		setToast(null);
-		if (count < allocated) {
-			setNotice({
-				id: "",
-				text: `The projects' shares add up to ${allocated}, so the board needs at least ${tracksText(allocated)} - take a track from a project first.`,
-			});
-			return;
-		}
 		setNotice(null);
 		setBoardCount(count);
 		startTransition(async () => {
@@ -2156,18 +2147,21 @@ export function Plan({
 						</span>
 						<span className="plan-speed-from">{speedFrom(rate)}</span>
 					</div>
-					<div title="How many epics you can run at once across the board, shared out between the projects by hand">
+					<div
+						className={allocated > boardCount ? "alert" : undefined}
+						title="How many epics you can run at once across the board, shared out between the projects by hand"
+					>
 						<span className="stat-label">Tracks</span>
 						<span className="stat-value plan-board-tracks">
 							<span className="plan-tracks-step" role="group" aria-label="The board's tracks">
 								<button
 									type="button"
 									className="quiet"
-									disabled={boardCount <= Math.max(1, allocated)}
+									disabled={boardCount <= 1}
 									aria-label="One track fewer for the board"
 									title={
 										boardCount <= allocated
-											? "Every track is given to a project - take one from a project first"
+											? "Every track is given to a project - a track fewer asks first"
 											: "One track fewer for the board"
 									}
 									onClick={() => changeBoardTracks(boardCount - 1)}
@@ -2188,7 +2182,11 @@ export function Plan({
 						</span>
 						<span className="plan-speed-from">
 							{allocated} given to projects
-							{boardCount > allocated ? ` · ${boardCount - allocated} unallocated` : " · none unallocated"}
+							{boardCount > allocated
+								? ` · ${boardCount - allocated} unallocated`
+								: boardCount < allocated
+									? ` · ${allocated - boardCount} over`
+									: " · none unallocated"}
 						</span>
 					</div>
 					<div title={`Refinement still to come is forecast at this: ${refinementText(refinement)}`}>
@@ -2228,6 +2226,13 @@ export function Plan({
 						</button>
 					</p>
 				)}
+				{allocated > boardCount && (
+					<p className="report-note plan-over-shares" role="status">
+						The projects' shares add up to {allocated}, {allocated - boardCount} over the board's{" "}
+						{tracksText(boardCount)} - the plan schedules every share, so it runs more epics at once than the board has
+						tracks for.
+					</p>
+				)}
 				{homeless.length > 0 && (
 					<p className="report-note plan-homeless">
 						{homeless.length === 1 ? "This epic needs a project" : "These epics need a project"} before the plan can
@@ -2256,6 +2261,7 @@ export function Plan({
 						{view.clippedAfter ? "five years ahead" : ""} - what lies past that is cut at the edge.
 					</p>
 				)}
+				{confirmDialog}
 				{breaksOpen && (
 					<BreaksEditor
 						breaks={breaks}

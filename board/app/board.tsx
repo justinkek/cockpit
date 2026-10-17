@@ -49,6 +49,7 @@ import {
 } from "@/app/actions";
 import { Activity } from "@/app/activity";
 import { cardCommands, type Edits, epicPage, movePage, recordCommands, themeCommands } from "@/app/commands";
+import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
 import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
 import { EpicDoneDialog, EpicsDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
@@ -856,6 +857,7 @@ export function Board({
 	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [finishBusy, setFinishBusy] = useState(false);
 	const [finishingMany, setFinishingMany] = useState<{ ids: string[]; open: Finishing[] } | null>(null);
+	const [confirmDialog, ask] = useConfirm();
 	const [undoing, setUndoing] = useState(false);
 	const [lastParent, setLastParent] = useState<string | null>(null);
 	const [composing, setComposing] = useState(false);
@@ -1153,7 +1155,12 @@ export function Board({
 	function bulkEdits(ids: string[]): Edits {
 		return {
 			label: ids.length === 1 ? ids[0] : `${ids.length} ${kindName(kind)}s`,
-			move: (column) => {
+			move: async (column) => {
+				const done =
+					kind === "card" && column !== "Done"
+						? stubs.filter((stub) => ids.includes(stub.id) && stub.status === "Done")
+						: [];
+				if (done.length > 0 && !(await askMoveDone(ask, done.length))) return;
 				if (kind === "epic" && column === "Epic Done") {
 					const open = ids.flatMap((id) => {
 						const stub = stubs.find((other) => other.id === id);
@@ -1164,8 +1171,11 @@ export function Board({
 				}
 				runBulk(ids, { op: "move", column }, movedTo(column), `Moved {n} to ${column}`);
 			},
-			edit: (field, value, change) =>
-				runBulk(ids, { op: "set", field, value }, change, `Changed the ${fieldName(field)} of {n}`),
+			edit: async (field, value, change) => {
+				const finished = kind === "card" && field === "epic" ? finishedEpic(lists.epics, value) : undefined;
+				if (finished && !(await askFinishedEpic(ask, finished))) return;
+				runBulk(ids, { op: "set", field, value }, change, `Changed the ${fieldName(field)} of {n}`);
+			},
 			archive: () => runBulk(ids, { op: "archive" }, null, "Archived {n}"),
 		};
 	}
@@ -1506,9 +1516,13 @@ export function Board({
 		});
 	}
 
-	function move(id: string, column: string, rank?: number, checked = false, sets: FieldChange[] = []) {
+	async function move(id: string, column: string, rank?: number, checked = false, sets: FieldChange[] = []) {
 		const stub = stubs.find((s) => s.id === id);
 		if (!stub || (stub.status === column && rank === undefined && sets.length === 0)) return;
+		if (!checked && kind === "card" && stub.status === "Done" && column !== "Done" && !(await askMoveDone(ask))) return;
+		const epic = sets.find((set) => set.field === "epic")?.value;
+		const finished = !checked && kind === "card" && epic !== stub.epic ? finishedEpic(lists.epics, epic) : undefined;
+		if (finished && !(await askFinishedEpic(ask, finished))) return;
 		if (!checked && kind === "epic" && column === "Epic Done" && stub.status !== column) {
 			const open = openTickets(children[id] ?? []);
 			if (open.length > 0) {
@@ -1590,8 +1604,12 @@ export function Board({
 	function handlersFor(stub: Stub): Handlers {
 		return {
 			onMove: (column) => move(stub.id, column),
-			onEdit: (field, value, change) =>
-				apply(stub.id, change, () => editCard(stub.id, field, value), `Changed the ${fieldName(field)} of ${stub.id}`),
+			onEdit: async (field, value, change) => {
+				const finished =
+					kind === "card" && field === "epic" && value !== stub.epic ? finishedEpic(lists.epics, value) : undefined;
+				if (finished && !(await askFinishedEpic(ask, finished))) return;
+				apply(stub.id, change, () => editCard(stub.id, field, value), `Changed the ${fieldName(field)} of ${stub.id}`);
+			},
 			onLink: (parent, child, linked) =>
 				apply(
 					stub.id,
@@ -1608,6 +1626,8 @@ export function Board({
 		const ranks = stubs.filter((stub) => stub.status === draft.status).map(effectiveRank);
 		const { name, status, ...options } = draft;
 		const parent = kind === "epic" ? options.project : options.epic;
+		const finished = kind === "card" ? finishedEpic(lists.epics, options.epic) : undefined;
+		if (finished && !(await askFinishedEpic(ask, finished))) return null;
 		if (parent) {
 			setLastParent(parent);
 			saveLastParent(kind, parent);
@@ -1659,7 +1679,10 @@ export function Board({
 		);
 	}
 
-	function duplicate(id: string) {
+	async function duplicate(id: string) {
+		const epic = stubs.find((stub) => stub.id === id)?.epic;
+		const finished = kind === "card" ? finishedEpic(lists.epics, epic) : undefined;
+		if (finished && !(await askFinishedEpic(ask, finished))) return;
 		setNotice(null);
 		startTransition(async () => {
 			const result = await duplicateCard(id);
@@ -2091,6 +2114,7 @@ export function Board({
 								onCancel={() => setFinishingMany(null)}
 							/>
 						)}
+						{confirmDialog}
 						{viewAsk && (
 							<ViewDialog
 								ask={viewAsk}

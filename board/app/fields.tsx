@@ -406,9 +406,7 @@ export function Fields({ record, lists, handlers }: { record: Card; lists: Lists
 		<dl className="props">
 			<dt>Status</dt>
 			<dd>
-				{kind === "card" && record.status === "Done" ? (
-					<span title="Done is final - raise a new ticket for what is left instead">Done</span>
-				) : kind ? (
+				{kind ? (
 					<Fallback id={id} op="move" label="Move">
 						<select
 							name="value"

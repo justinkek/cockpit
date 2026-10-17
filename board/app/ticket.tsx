@@ -25,7 +25,8 @@ import {
 	themeCommands,
 } from "@/app/commands";
 import { Content, confirmDiscard } from "@/app/content";
-import { type Closing, ProjectDoneDialog, projectRefusal } from "@/app/epic-done";
+import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
+import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
 import { EstimateFacts } from "@/app/estimates";
 import { Fields, type Handlers, Links, type Lists, linkChange, type Picked, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
@@ -98,6 +99,7 @@ export function Ticket({
 	const [undoing, setUndoing] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
 	const [closing, setClosing] = useState<Closing | null>(null);
+	const [confirmDialog, ask] = useConfirm();
 
 	const [view, setView] = useState<View | null>(null);
 
@@ -166,11 +168,6 @@ export function Ticket({
 			const result = await request();
 			if (result.error) {
 				setRecord(before);
-				const refused = projectRefusal(result.error);
-				if (refused) {
-					setClosing({ id: before.id, name: before.name, ...refused });
-					return;
-				}
 				setError(result.error);
 				if (result.moved || result.archived) {
 					router.replace(`/card/${result.moved ?? before.id}?error=${encodeURIComponent(result.error)}`);
@@ -219,10 +216,35 @@ export function Ticket({
 		save({ status: "Done" }, () => closeProject(shown.id), `Closed ${shown.id} and everything open in it`);
 	}
 
+	function closeAnyway(shown: Closing) {
+		setClosing(null);
+		save({ status: "Done" }, () => editCard(shown.id, "status", "Done"), `Marked ${shown.id} Done`);
+	}
+
+	function openWork() {
+		const epics = members.filter((member) => member.id.startsWith("EPIC-") && member.status !== "Epic Done").length;
+		const tickets = members.filter(
+			(member) => !member.id.startsWith("EPIC-") && member.status !== "Done" && member.status !== "Deprioritised",
+		).length;
+		return { epics, tickets };
+	}
+
 	const handlers: Handlers = {
-		onMove: (status) => save(movedTo(status), () => dropCard(record.id, status), `Moved ${record.id} to ${status}`),
-		onEdit: (field, value, change) =>
-			save(change, () => editCard(record.id, field, value), `Changed the ${fieldName(field)} of ${record.id}`),
+		onMove: async (status) => {
+			const leavingDone = kindOf(record.id) === "card" && record.status === "Done" && status !== "Done";
+			if (leavingDone && !(await askMoveDone(ask))) return;
+			save(movedTo(status), () => dropCard(record.id, status), `Moved ${record.id} to ${status}`);
+		},
+		onEdit: async (field, value, change) => {
+			const joining = kindOf(record.id) === "card" && field === "epic" && value !== record.epic;
+			const finished = joining ? finishedEpic(lists.epics, value) : undefined;
+			if (finished && !(await askFinishedEpic(ask, finished))) return;
+			if (recordKindOf(record.id) === "project" && field === "status" && value === "Done" && record.status !== "Done") {
+				const open = openWork();
+				if (open.epics > 0 || open.tickets > 0) return setClosing({ id: record.id, name: record.name, ...open });
+			}
+			save(change, () => editCard(record.id, field, value), `Changed the ${fieldName(field)} of ${record.id}`);
+		},
 		onLink: (parent, child, linked) =>
 			save(
 				linkChange(record, parent, child, linked),
@@ -265,8 +287,10 @@ export function Ticket({
 		});
 	}
 
-	function duplicate() {
+	async function duplicate() {
 		if (!confirmDiscard()) return;
+		const finished = kindOf(record.id) === "card" ? finishedEpic(lists.epics, record.epic) : undefined;
+		if (finished && !(await askFinishedEpic(ask, finished))) return;
 		setError("");
 		startTransition(async () => {
 			const result = await duplicateCard(record.id);
@@ -510,9 +534,11 @@ export function Ticket({
 					closing={closing}
 					busy={saving}
 					onClose={() => close(closing)}
+					onAnyway={() => closeAnyway(closing)}
 					onCancel={() => setClosing(null)}
 				/>
 			)}
+			{confirmDialog}
 			<UndoToast toast={toast} busy={undoing} onUndo={undo} onDismiss={() => setToast(null)} />
 			{palette && <Palette start={palette} onClose={() => setPalette(null)} />}
 		</article>

@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { closeProject, editCard, undoChange } from "@/app/actions";
 import { type Notice, NoticeBar } from "@/app/board";
-import { type Closing, ProjectDoneDialog, projectRefusal } from "@/app/epic-done";
+import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
 import { NewOther } from "@/app/new-record";
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
 
@@ -248,12 +248,12 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 		});
 	}
 
-	function move(id: string, status: string) {
+	function move(id: string, status: string, checked = false) {
 		const before = projects.find((project) => project.id === id);
 		if (!before || before.status === status) return;
 		setNotice(null);
 		setToast(null);
-		if (status === "Done" && (before.openEpics > 0 || before.open > 0)) {
+		if (!checked && status === "Done" && (before.openEpics > 0 || before.open > 0)) {
 			setClosing({ id, name: before.name, epics: before.openEpics, tickets: before.open });
 			return;
 		}
@@ -264,9 +264,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 			markPending(id, false);
 			if (result.error) {
 				setProjects((current) => current.map((project) => (project.id === id ? before : project)));
-				const refused = projectRefusal(result.error);
-				if (refused) setClosing({ id, name: before.name, ...refused });
-				else setNotice({ id, text: `${id}: ${result.error}` });
+				setNotice({ id, text: `${id}: ${result.error}` });
 				return;
 			}
 			setToast(undoable(id, result.undo, `Moved ${id} to ${status}`));
@@ -394,6 +392,10 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 					closing={closing}
 					busy={pending.has(closing.id)}
 					onClose={() => close(closing)}
+					onAnyway={() => {
+						setClosing(null);
+						move(closing.id, "Done", true);
+					}}
 					onCancel={() => setClosing(null)}
 				/>
 			)}

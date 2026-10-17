@@ -24,7 +24,6 @@ import {
 	editComment,
 	duplicateRecord,
 	findRenamed,
-	kindOf,
 	lastCommit,
 	link,
 	listRecords,
@@ -174,9 +173,6 @@ export async function dropCard(id: string, column: string, rank?: number, sets: 
 	const held: string[] = [];
 	const result = await report(id, async () => {
 		let current = id;
-		const before = await readRecord(id);
-		if (kindOf(id) === "card" && before.status === "Done" && column !== "Done")
-			throw new BoardError(`${id} is Done, and Done is final - raise a new ticket for what is left instead`);
 		for (const { field, value } of sets) {
 			const change = await setFieldHolding(current, field, value);
 			held.push(...change.held);
