@@ -484,6 +484,12 @@ function blockedWhy(epic: Card | undefined, row: Row, cards: Card[]) {
 	return `every open feature or bug card on it is blocked: ${open.map((card) => `${card.id}, "${card.blocked}"`).join("; ")}`;
 }
 
+function blockedForecast(row: Row) {
+	return row.begin != null
+		? `it gives up its track, and the forecast assumes it is unblocked by ${short(row.begin)}, when the next track frees after the epics that took its place`
+		: "it gives up its track, and has no forecast until a track can take it";
+}
+
 function runTitle(row: Row) {
 	const { complexity, fromEstimate, points, tickets, sized, unsized } = row.remaining;
 	const onEstimates = tickets - sized - unsized;
@@ -1647,7 +1653,7 @@ export function Plan({
 					epics.find((epic) => epic.id === row.id),
 					row,
 					cardsOf[row.id] ?? [],
-				)}. It gives up its track to the next epic in ${teamName(row.team)}'s priority and has no projected end until it is unblocked.`,
+				)}. It gives up its track to the next epic in ${teamName(row.team)}'s priority, and its delivery is queued for the next track that frees after those epics${row.begin != null ? `, from ${short(row.begin)}` : ""}: the forecast assumes it is unblocked by then.`,
 			});
 		}
 		if (row.pinIgnored && !row.done) {
@@ -1685,7 +1691,7 @@ export function Plan({
 					title={breakTitle(one)}
 				/>
 			));
-		const scheduled = `on track ${row.track} at ${figure(row.perWeek)} points a week${fallbackOf(row.team) ? `, a fallback: ${teamName(row.team)} has no done history, so it takes the board's overall average rather than a speed of its own` : ""}: ${runTitle(row)}`;
+		const scheduled = `${row.blocked != null ? `${blockedForecast(row)}, ` : ""}on track ${row.track} at ${figure(row.perWeek)} points a week${fallbackOf(row.team) ? `, a fallback: ${teamName(row.team)} has no done history, so it takes the board's overall average rather than a speed of its own` : ""}: ${runTitle(row)}`;
 		if (row.refineStart != null && row.refineEnd != null) {
 			const refinedTo = Math.min(row.refineEnd, today);
 			if (refinedTo > row.refineStart) {
@@ -1745,7 +1751,7 @@ export function Plan({
 					key="blocked"
 					className="plan-blocked"
 					style={{ left: x(today) + ppd / 2 - 7 }}
-					title={`Blocked, as ${blockedWhy(epic, row, cardsOf[epic.id] ?? [])} - it takes no track and has no projected end until it is unblocked`}
+					title={`Blocked, as ${blockedWhy(epic, row, cardsOf[epic.id] ?? [])} - ${blockedForecast(row)}`}
 				>
 					<Icon name="blocked" />
 				</span>,
@@ -1856,8 +1862,6 @@ export function Plan({
 			}
 			words.push(row.doneDay != null ? `Done ${short(row.doneDay)}` : "Done");
 			if (row.late > 0) words.push(lateText(row.late, true));
-		} else if (row.blocked != null) {
-			words.push("Blocked - no projected end until unblocked");
 		} else if (row.projected != null) {
 			ends.push(row.projected);
 			pieces.push(
@@ -1865,13 +1869,15 @@ export function Plan({
 					key="projected"
 					className="plan-mark projected"
 					style={{ left: x(row.projected) + ppd / 2 - 7 }}
-					title={`Projected to end ${short(row.projected)}: ${runTitle(row)}`}
+					title={`Projected to end ${short(row.projected)}${row.blocked != null ? `, ${blockedForecast(row)}` : ""}: ${runTitle(row)}`}
 				>
 					<Icon name="projected" />
 				</span>,
 			);
 			words.push(
-				row.remaining.open === 0 ? `All cards done ${short(row.projected)}` : `Projected ${short(row.projected)}`,
+				row.remaining.open === 0
+					? `All cards done ${short(row.projected)}`
+					: `Projected ${short(row.projected)}${row.blocked != null ? " if unblocked" : ""}`,
 			);
 		} else if (row.remaining.points > 0 && tracksOf(row.team) === 0) {
 			words.push(`Not scheduled - ${teamName(row.team)} has no tracks`);
@@ -1962,7 +1968,7 @@ export function Plan({
 							{row?.blocked != null && (
 								<span
 									className="plan-points blocked"
-									title={`Blocked, as ${blockedWhy(epic, row, cardsOf[epic.id] ?? [])}`}
+									title={`Blocked, as ${blockedWhy(epic, row, cardsOf[epic.id] ?? [])} - ${blockedForecast(row)}`}
 								>
 									<Icon name="blocked" />
 									Blocked
@@ -2449,7 +2455,7 @@ export function Plan({
 						<span className="legend-blocked">
 							<Icon name="blocked" />
 						</span>{" "}
-						Blocked, no track and no projected end
+						Blocked, forecast after the epics that took its track
 					</span>
 					<span>
 						<Icon name="projected" /> Projected end
