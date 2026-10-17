@@ -544,7 +544,12 @@ export type Row = {
 	blocked: Blocked;
 	dependsOn: string[];
 	waitingOn: string | null;
+	stalledOn: Stalled | null;
 };
+
+export type Undated = "unsized" | "no tickets" | "no tracks" | "off the board" | "waiting";
+
+export type Stalled = { id: string; why: Undated; on: string | null };
 
 type PlanCards = (Sized & Pick<Card, "epic"> & Partial<Pick<Card, "dates" | "moved">>)[];
 
@@ -602,6 +607,36 @@ function scheduleOnce(
 	const blocked: Record<string, Blocked> = Object.fromEntries(
 		epics.map((epic) => [epic.id, blockedOf(epic, byEpic[epic.id] ?? [])]),
 	);
+	const known: Record<string, Team> = typeof teams === "number" ? { "": { tracks: 1, perWeek: teams } } : teams;
+	const undated: Record<string, { why: Undated; on: string | null } | null> = {};
+	const undatedOf = (id: string, seen: Set<string> = new Set()): { why: Undated; on: string | null } | null => {
+		if (id in undated) return undated[id];
+		const epic = byId[id];
+		if (!epic || epic.status === "Epic Done" || seen.has(id)) return null;
+		seen.add(id);
+		const team = typeof teams === "number" ? "" : teamOf(epic, known);
+		const left = remainingOf(byEpic[id] ?? []);
+		let found: { why: Undated; on: string | null } | null = null;
+		if (team == null) found = { why: "off the board", on: null };
+		else if (Math.floor(known[team].tracks) <= 0) found = { why: "no tracks", on: null };
+		else if (left.open === 0) found = left.done > 0 ? null : { why: "no tickets", on: null };
+		else if (left.points === 0) found = { why: "unsized", on: null };
+		else {
+			for (const dependency of epic.dependent_on ?? []) {
+				if (dependency === id || !undatedOf(dependency, seen)) continue;
+				found = { why: "waiting", on: dependency };
+				break;
+			}
+		}
+		undated[id] = found;
+		return found;
+	};
+	const stalledOf = (id: string): Stalled | null => {
+		const own = undatedOf(id);
+		if (own?.why !== "waiting" || own.on == null) return null;
+		const reason = undatedOf(own.on);
+		return reason == null ? null : { id: own.on, ...reason };
+	};
 	const endOf = (id: string): number | null => {
 		const row = rows[id];
 		if (row?.done) return null;
@@ -613,7 +648,6 @@ function scheduleOnce(
 			today,
 			...row.dependsOn.map((id) => endOf(id)).flatMap((end) => (end == null ? [] : [openFrom(end + 1, off)])),
 		);
-	const known: Record<string, Team> = typeof teams === "number" ? { "": { tracks: 1, perWeek: teams } } : teams;
 	const grouped: Record<string, Planned[]> = {};
 	for (const epic of epics) {
 		const team = typeof teams === "number" ? "" : teamOf(epic, known);
@@ -669,8 +703,10 @@ function scheduleOnce(
 				dependsOn: (epic.dependent_on ?? []).filter(
 					(id) => id !== epic.id && byId[id] != null && byId[id].status !== "Epic Done",
 				),
-				waitingOn: blocked[epic.id] == null ? waitingOnOf(epic.id, byId, blocked) : null,
+				waitingOn: null,
+				stalledOn: stalledOf(epic.id),
 			};
+			row.waitingOn = blocked[epic.id] == null && row.stalledOn == null ? waitingOnOf(epic.id, byId, blocked) : null;
 			rows[epic.id] = row;
 			if (row.done) {
 				const at = doneAt(epic);
@@ -697,11 +733,11 @@ function scheduleOnce(
 			Math.max(today, row.phase === "delivery" ? today : (row.refineEnd ?? today), dependenciesReady(row));
 		const laneOf = (row: Row) => (row.pin != null && !row.pinIgnored ? row.pin - 1 : null);
 		for (const row of queue) {
-			if (row.remaining.points > 0) continue;
+			if (row.remaining.points > 0 && row.stalledOn == null) continue;
 			row.begin = readyOf(row);
-			row.track = row.pin != null && !row.pinIgnored ? row.pin : null;
+			row.track = row.stalledOn == null && row.pin != null && !row.pinIgnored ? row.pin : null;
 		}
-		const sized = queue.filter((row) => row.remaining.points > 0);
+		const sized = queue.filter((row) => row.remaining.points > 0 && row.stalledOn == null);
 		const held = (row: Row) => row.blocked != null || row.waitingOn != null;
 		for (const waiting of [sized.filter((row) => !held(row)), sized.filter(held)]) {
 			let now = today;

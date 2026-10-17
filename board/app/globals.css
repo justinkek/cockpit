@@ -5394,6 +5394,11 @@
 		z-index: 2;
 	}
 
+	.plan-unsized.stalled {
+		border-color: var(--plan-late);
+		color: var(--plan-late);
+	}
+
 	.plan-paused {
 		position: absolute;
 		top: 37px;

@@ -67,6 +67,7 @@ import {
 	type Refinement,
 	refinementOf,
 	type Row,
+	type Stalled,
 	spanOf,
 	type AverageSpeed,
 	type Team,
@@ -1520,6 +1521,19 @@ export function Plan({
 				: `No ticket with a TR complexity was finished on the last ${AVERAGE_SPEED_DAYS} working days and no sprint has a speed, so this is the default`;
 
 	const nameOf = (id: string) => epics.find((epic) => epic.id === id)?.name ?? id;
+	const undatedWhy = (stalled: Stalled): string => {
+		const project = epics.find((epic) => epic.id === stalled.id)?.project;
+		if (stalled.why === "unsized") return `none of its open tickets has an estimate or a complexity`;
+		if (stalled.why === "no tickets") return "it has no tickets";
+		if (stalled.why === "no tracks") return `${project ? teamName(project) : "its project"} has no tracks`;
+		if (stalled.why === "off the board") return "its project is not on the board";
+		const next = stalled.on == null ? null : committedRows[stalled.id]?.stalledOn;
+		return next
+			? `it is waiting on ${next.id}, which has no end date either, as ${undatedWhy(next)}`
+			: `it is waiting on ${stalled.on ?? "an epic"} that has no end date`;
+	};
+	const stalledTitle = (stalled: Stalled) =>
+		`Waiting on ${stalled.id}, an epic it depends on that the plan cannot give an end date, as ${undatedWhy(stalled)} - so its delivery has no projected end and takes no track until ${stalled.id} has one`;
 	const trackNotes = Object.values(committedRows).flatMap((row) => {
 		const notes: { key: string; text: string }[] = [];
 		if (row.pausedUntil != null) {
@@ -1545,6 +1559,12 @@ export function Plan({
 			notes.push({
 				key: `waiting-${row.id}`,
 				text: `${nameOf(row.id)} is waiting on ${nameOf(row.waitingOn)}, a blocked epic it depends on, so it waits behind it rather than moving up with the unblocked epics${row.begin != null ? `, its delivery queued from ${short(row.begin)}` : ""}.`,
+			});
+		}
+		if (row.stalledOn != null) {
+			notes.push({
+				key: `stalled-${row.id}`,
+				text: `${nameOf(row.id)} is waiting on ${nameOf(row.stalledOn.id)}, an epic it depends on that has no end date, as ${undatedWhy(row.stalledOn)}, so its delivery has no projected end and it takes no track.`,
 			});
 		}
 		if (row.pinIgnored && !row.done) {
@@ -1686,7 +1706,20 @@ export function Plan({
 				);
 			}
 		}
-		if (row.remaining.unsized > 0 && !row.done && row.begin != null) {
+		if (row.stalledOn != null && !row.done && row.begin != null) {
+			ends.push(row.begin);
+			pieces.push(
+				<span
+					key="stalled"
+					className="plan-unsized stalled"
+					style={{ left: x(row.begin) + 2 }}
+					title={stalledTitle(row.stalledOn)}
+				>
+					<Icon name="blocked" />
+				</span>,
+			);
+		}
+		if (row.remaining.unsized > 0 && !row.done && row.begin != null && row.stalledOn == null) {
 			const at = row.projected != null && row.remaining.points > 0 ? x(row.projected + 1) : x(row.begin);
 			ends.push(row.projected ?? row.begin);
 			pieces.push(
@@ -1782,6 +1815,8 @@ export function Plan({
 					? `All tickets done ${short(row.projected)}`
 					: `Projected ${short(row.projected)}${row.blocked != null ? " if unblocked" : ""}`,
 			);
+		} else if (row.stalledOn != null) {
+			words.push(`Waiting on ${row.stalledOn.id}`);
 		} else if (row.remaining.points > 0 && tracksOf(row.team) === 0) {
 			words.push(`Not scheduled - ${teamName(row.team)} has no tracks`);
 		} else if (row.remaining.unsized > 0) {
@@ -1884,6 +1919,12 @@ export function Plan({
 								>
 									<Icon name="blocked" />
 									Waiting on {row.waitingOn}
+								</span>
+							)}
+							{row?.stalledOn != null && (
+								<span className="plan-points blocked" title={stalledTitle(row.stalledOn)}>
+									<Icon name="blocked" />
+									Waiting on {row.stalledOn.id}
 								</span>
 							)}
 							{row && !row.done && tracksOf(row.team) > 0 && (
