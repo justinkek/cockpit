@@ -77,3 +77,26 @@ export function Nav() {
 		</nav>
 	);
 }
+
+export function SettingsLink() {
+	const pathname = usePathname();
+	return (
+		<Link
+			href="/settings"
+			className={`settings-link${pathname === "/settings" ? " on" : ""}`}
+			aria-label="Settings"
+			title="Settings"
+		>
+			<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+				<path
+					d="M6.9 1.5h2.2l.4 1.8 1.2.5 1.6-1 1.5 1.5-1 1.6.5 1.2 1.8.4v2.2l-1.8.4-.5 1.2 1 1.6-1.5 1.5-1.6-1-1.2.5-.4 1.8H6.9l-.4-1.8-1.2-.5-1.6 1-1.5-1.5 1-1.6-.5-1.2-1.8-.4V6.9l1.8-.4.5-1.2-1-1.6 1.5-1.5 1.6 1 1.2-.5z"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.3"
+					strokeLinejoin="round"
+				/>
+				<circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+			</svg>
+		</Link>
+	);
+}

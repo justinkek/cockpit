@@ -48,30 +48,42 @@ export function onThemeChange(listener: () => void) {
 	};
 }
 
-export function ThemeSwitch() {
-	const [theme, setTheme] = useState<Theme>("system");
+export function ThemeSync() {
 	useEffect(() => {
-		setTheme(savedTheme());
 		function fromAnotherTab(event: StorageEvent) {
 			if (event.key === KEY || event.key === null) showTheme(savedTheme());
 		}
 		window.addEventListener("storage", fromAnotherTab);
-		const stop = onThemeChange(() => setTheme(savedTheme()));
-		return () => {
-			window.removeEventListener("storage", fromAnotherTab);
-			stop();
-		};
+		return () => window.removeEventListener("storage", fromAnotherTab);
+	}, []);
+	return null;
+}
+
+const THEMES: { value: Theme; label: string }[] = [
+	{ value: "system", label: "System" },
+	{ value: "light", label: "Light" },
+	{ value: "dark", label: "Dark" },
+];
+
+export function ThemePicker() {
+	const [theme, setTheme] = useState<Theme>("system");
+	useEffect(() => {
+		setTheme(savedTheme());
+		return onThemeChange(() => setTheme(savedTheme()));
 	}, []);
 	return (
-		<select
-			className="theme-switch"
-			aria-label="Theme"
-			value={theme}
-			onChange={(event) => applyTheme(event.target.value as Theme)}
-		>
-			<option value="system">System theme</option>
-			<option value="light">Light</option>
-			<option value="dark">Dark</option>
-		</select>
+		<span className="segmented" role="group" aria-label="Theme">
+			{THEMES.map((option) => (
+				<button
+					key={option.value}
+					type="button"
+					className={theme === option.value ? "on" : undefined}
+					aria-pressed={theme === option.value}
+					onClick={() => applyTheme(option.value)}
+				>
+					{option.label}
+				</button>
+			))}
+		</span>
 	);
 }
