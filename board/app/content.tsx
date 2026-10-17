@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { type MouseEvent as Click, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import {
 	changeComment,
 	loadBody,
@@ -17,6 +17,7 @@ import { useHydrated } from "@/app/fields";
 import { onBoardChange } from "@/app/live";
 import { Markdown } from "@/app/markdown";
 import { anchorFor } from "@/lib/anchor";
+import { appendBlock, type BlockSpan, blockSource, blockSpans, replaceBlock } from "@/lib/blocks";
 import { ago, type Card, type CommentThread } from "@/lib/shared";
 
 type Threads = { threads?: CommentThread[]; me?: string | null; error?: string };
@@ -65,6 +66,67 @@ function Stamp({ at, edited }: { at: string; edited?: string }) {
 				</span>
 			)}
 		</>
+	);
+}
+
+type BlockEdit = { span: BlockSpan | null; base: string; original: string; text: string };
+
+const ACTIVE = "a, button, input, select, textarea, label, summary, mark, .thread, .block-editor";
+
+function blockIndex(body: string, span: BlockSpan) {
+	return blockSpans(body).findIndex((other) => other.start === span.start && other.end === span.end);
+}
+
+function BlockEditor({
+	text,
+	onChange,
+	onSave,
+	onCancel,
+}: {
+	text: string;
+	onChange: (text: string) => void;
+	onSave: () => void;
+	onCancel: () => void;
+}) {
+	const box = useRef<HTMLTextAreaElement>(null);
+	useLayoutEffect(() => {
+		const area = box.current;
+		if (!area) return;
+		area.style.height = "auto";
+		area.style.height = `${area.scrollHeight + 2}px`;
+	}, [text]);
+	useEffect(() => {
+		const area = box.current;
+		if (!area) return;
+		area.focus();
+		area.setSelectionRange(area.value.length, area.value.length);
+	}, []);
+	return (
+		<div className="body-editor block-editor">
+			<textarea
+				ref={box}
+				aria-label="Block"
+				value={text}
+				rows={Math.max(1, text.split("\n").length)}
+				spellCheck={!text.startsWith("```")}
+				onChange={(event) => onChange(event.target.value)}
+				onBlur={() => {
+					if (document.hasFocus()) onSave();
+				}}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+						event.preventDefault();
+						onSave();
+					}
+					if (event.key === "Escape") {
+						event.preventDefault();
+						event.stopPropagation();
+						onCancel();
+					}
+				}}
+			/>
+			<span className="body-hint">Markdown · Cmd/Ctrl+Enter or click away to save · Esc to cancel · empty it to delete</span>
+		</div>
 	);
 }
 
@@ -164,14 +226,14 @@ export function Content({
 	const rewritingNow = useRef(rewriting);
 	rewritingNow.current = rewriting;
 	const [me, setMe] = useState<string | null>(null);
-	const [editing, setEditing] = useState<string | null>(null);
-	const [base, setBase] = useState("");
-	const [saving, setSaving] = useState(false);
+	const [editing, setEditingState] = useState<BlockEdit | null>(null);
+	const editingNow = useRef<BlockEdit | null>(null);
 	const [target, setTarget] = useState<string | null>(null);
 	const hydrated = useHydrated();
 	const seenRevision = useRef(revision);
 	const isEditing = editing !== null;
-	const dirty = isEditing && editing !== base;
+	const dirty = isEditing && editing.text !== editing.original;
+	const shownBody = editing ? editing.base : body;
 	const previous = useRef(id);
 	const [, startTransition] = useTransition();
 	const area = useRef<HTMLDivElement>(null);
@@ -200,6 +262,7 @@ export function Content({
 		if (!renamed) {
 			setError("");
 			setEditing(null);
+			setTarget(null);
 		}
 		if (!bodyGiven) {
 			setBody("");
@@ -218,55 +281,83 @@ export function Content({
 		};
 	}, [id, bodyGiven]);
 
-	function check(line: number, done: boolean) {
-		const lines = body.split("\n");
-		const expected = lines[line];
-		if (expected === undefined) return;
-		const before = body;
-		lines[line] = expected.replace(/- \[( |x)\] /, done ? "- [x] " : "- [ ] ");
-		const edited = lines.join("\n");
+	function setEditing(next: BlockEdit | null) {
+		editingNow.current = next;
+		setEditingState(next);
+	}
+
+	function persist(before: string, edited: string, done: { label?: string; toast?: boolean; reopen?: BlockEdit } = {}) {
 		setBody(edited);
 		checking.current++;
 		startTransition(async () => {
-			const result = await saveBody(id, before, edited);
+			const result = await saveBody(target ?? id, before, edited);
 			checking.current--;
 			if (result.error) {
 				setBody(before);
-				setError(result.error);
+				if (result.moved) setTarget(result.moved);
+				setError(result.moved ? `${result.error} - save again to save your edit to ${result.moved}` : result.error);
+				if (done.reopen && !editingNow.current) setEditing({ ...done.reopen, base: before });
 				return;
 			}
 			setError("");
+			setTarget(null);
 			if (result.entity) {
 				if (checking.current === 0) setBody(result.entity.body);
 				onEntity?.(result.entity);
+				if (done.toast) onSaved?.(result.entity, result.undo, done.label);
 			}
 		});
 	}
 
-	function changeLanguage(line: number, language: string) {
-		const lines = body.split("\n");
+	function check(line: number, finished: boolean) {
+		const lines = shownBody.split("\n");
 		const expected = lines[line];
 		if (expected === undefined) return;
-		const before = body;
+		lines[line] = expected.replace(/- \[( |x)\] /, finished ? "- [x] " : "- [ ] ");
+		persist(shownBody, lines.join("\n"));
+	}
+
+	function changeLanguage(line: number, language: string) {
+		const lines = shownBody.split("\n");
+		const expected = lines[line];
+		if (expected === undefined) return;
 		lines[line] = expected.replace(/^(\s*)```.*$/, (_, indent: string) => `${indent}\`\`\`${language.trim()}`);
-		const edited = lines.join("\n");
-		setBody(edited);
-		checking.current++;
-		startTransition(async () => {
-			const result = await saveBody(id, before, edited);
-			checking.current--;
-			if (result.error) {
-				setBody(before);
-				setError(result.error);
-				return;
-			}
-			setError("");
-			if (result.entity) {
-				if (checking.current === 0) setBody(result.entity.body);
-				onEntity?.(result.entity);
-				onSaved?.(result.entity, result.undo, `Changed a code block of ${result.entity.id} to ${nameOf(language)}`);
-			}
+		persist(shownBody, lines.join("\n"), {
+			toast: true,
+			label: `Changed a code block of ${id} to ${nameOf(language)}`,
 		});
+	}
+
+	function startBlock(block: number) {
+		const span = blockSpans(shownBody)[block];
+		if (!span) return;
+		const original = blockSource(shownBody, span);
+		setEditing({ span, base: shownBody, original, text: original });
+	}
+
+	function startAdding() {
+		setEditing({ span: null, base: shownBody, original: "", text: "" });
+	}
+
+	function saveBlock() {
+		const open = editingNow.current;
+		if (!open) return;
+		setEditing(null);
+		if (open.text.replace(/\s+$/, "") === open.original.replace(/\s+$/, "")) return;
+		const edited = open.span ? replaceBlock(open.base, open.span, open.text) : appendBlock(open.base, open.text);
+		if (edited === open.base) return;
+		const label = open.span && open.text.trim() === "" ? `Deleted a block of ${id}` : undefined;
+		persist(open.base, edited, { toast: true, label, reopen: open });
+	}
+
+	function pick(event: Click<HTMLDivElement>) {
+		if (!hydrated || event.defaultPrevented || event.button !== 0) return;
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+		const node = event.target;
+		if (!(node instanceof Element) || !event.currentTarget.contains(node) || node.closest(ACTIVE)) return;
+		if (window.getSelection()?.toString().trim()) return;
+		const block = node.closest("[data-block]");
+		if (block) startBlock(Number(block.getAttribute("data-block")));
 	}
 
 	useEffect(() => {
@@ -300,43 +391,6 @@ export function Content({
 			document.removeEventListener("click", guard, true);
 		};
 	}, [dirty]);
-
-	function startEditing() {
-		setBase(body);
-		setEditing(body);
-		setError("");
-	}
-
-	function stopEditing() {
-		if (dirty && !window.confirm(DISCARD)) return;
-		setEditing(null);
-		setError("");
-	}
-
-	function save(text: string) {
-		if (saving) return;
-		const started = base;
-		setSaving(true);
-		startTransition(async () => {
-			const result = await saveBody(target ?? id, started, text);
-			setSaving(false);
-			if (result.error) {
-				if (result.moved) setTarget(result.moved);
-				setError(
-					result.moved ? `${result.error} - press Save again to save your draft to ${result.moved}` : result.error,
-				);
-				return;
-			}
-			setError("");
-			setEditing(null);
-			setTarget(null);
-			if (result.entity) {
-				setBody(result.entity.body);
-				onEntity?.(result.entity);
-				onSaved?.(result.entity, result.undo);
-			}
-		});
-	}
 
 	useEffect(
 		() =>
@@ -546,6 +600,18 @@ export function Content({
 		);
 	}
 
+	const blockEditor = editing && (
+		<BlockEditor
+			text={editing.text}
+			onChange={(text) => {
+				const open = editingNow.current;
+				if (open) setEditing({ ...open, text });
+			}}
+			onSave={saveBlock}
+			onCancel={() => setEditing(null)}
+		/>
+	);
+
 	const anchors = anchored.map((thread) => ({ text: thread.anchor as string, thread: thread.thread }));
 	const orphaned = anchored.filter((thread) => !body.includes(thread.anchor as string));
 
@@ -570,63 +636,22 @@ export function Content({
 						</span>
 					</form>
 				</details>
-			) : editing === null ? (
-				<div className="content-head">
-					<button type="button" className="quiet" onClick={startEditing}>
-						Edit content
-					</button>
-				</div>
-			) : (
-				<form
-					className="body-editor"
-					onSubmit={(event) => {
-						event.preventDefault();
-						save(editing);
-					}}
-				>
-					<textarea
-						aria-label="Content"
-						value={editing}
-						autoFocus
-						readOnly={saving}
-						rows={Math.min(40, Math.max(8, editing.split("\n").length + 1))}
-						onChange={(event) => setEditing(event.target.value)}
-						onKeyDown={(event) => {
-							const command = event.metaKey || event.ctrlKey;
-							if (command && (event.key === "Enter" || event.key.toLowerCase() === "s")) {
-								event.preventDefault();
-								event.currentTarget.form?.requestSubmit();
-							}
-							if (event.key === "Escape") {
-								event.stopPropagation();
-								stopEditing();
-							}
-						}}
+			) : null}
+			<div className="content-body" ref={area} onClick={pick}>
+				{shownBody ? (
+					<Markdown
+						source={shownBody}
+						anchors={anchors}
+						onAnchor={reveal}
+						onCheck={check}
+						onLanguage={changeLanguage}
+						editable={hydrated}
+						editing={editing?.span ? { block: blockIndex(shownBody, editing.span), node: blockEditor } : undefined}
 					/>
-					<span className="composer-actions">
-						<span className="body-hint">Markdown · Cmd/Ctrl+S to save · Esc to cancel</span>
-						<button type="button" className="quiet" onClick={stopEditing}>
-							Cancel
-						</button>
-						<button type="submit" disabled={saving || !dirty}>
-							{saving ? "Saving…" : "Save"}
-						</button>
-					</span>
-				</form>
-			)}
-			<div className="content-body" ref={area} hidden={editing !== null}>
-				{body ? (
-					<Markdown source={body} anchors={anchors} onAnchor={reveal} onCheck={check} onLanguage={changeLanguage} />
 				) : (
-					<p className="empty">
-						No content.{" "}
-						{hydrated && (
-							<button type="button" className="quiet" onClick={startEditing}>
-								Add some
-							</button>
-						)}
-					</p>
+					!editing && <p className="empty">No content.</p>
 				)}
+				{editing && !editing.span && blockEditor}
 				{selection && !drafting && (
 					<button
 						type="button"
@@ -654,14 +679,19 @@ export function Content({
 					</div>
 				)}
 			</div>
+			{hydrated && !editing && (
+				<button type="button" className="quiet add-block" onClick={startAdding}>
+					+ Add a block
+				</button>
+			)}
 
 			{error && <p className="notice error">{error}</p>}
 			{editing === null && CONFLICT.test(body) && (
 				<p className="notice error conflict">
 					Two edits changed the same lines of this content at once, so both versions are kept, the one saved last
 					between the &lt;&lt;&lt;&lt;&lt;&lt;&lt; your edit and ======= lines and the one already there between =======
-					and &gt;&gt;&gt;&gt;&gt;&gt;&gt; on the board now. Edit the content to keep the one you want and take out the
-					marker lines.
+					and &gt;&gt;&gt;&gt;&gt;&gt;&gt; on the board now. Click the block holding them to keep the one you want and
+					take out the marker lines.
 				</p>
 			)}
 			{lost && (

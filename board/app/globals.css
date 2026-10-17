@@ -1958,6 +1958,35 @@
 		}
 	}
 
+	.md-block {
+		display: grid;
+		gap: 4px;
+		min-width: 0;
+		margin: 0 -6px;
+		padding: 2px 6px;
+		border-radius: var(--radius);
+		cursor: text;
+
+		&:hover {
+			box-shadow: 0 0 0 1px var(--line);
+		}
+	}
+
+	.block-editor {
+		margin: 0 -6px;
+
+		& textarea {
+			resize: none;
+			overflow: hidden;
+		}
+	}
+
+	.add-block {
+		justify-self: start;
+		margin-top: 6px;
+		color: var(--muted);
+	}
+
 	.card-picker {
 		position: relative;
 		margin: 0 0 16px;
@@ -3017,11 +3046,6 @@
 			color: var(--muted);
 			text-align: right;
 		}
-	}
-
-	.content-body .empty .quiet {
-		height: 22px;
-		padding: 0 6px;
 	}
 
 	@media (width < 760px) {

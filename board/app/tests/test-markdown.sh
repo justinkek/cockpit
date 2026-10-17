@@ -44,7 +44,15 @@ const fs = require("node:fs");
 const [board, work] = process.argv.slice(2);
 const ts = require(`${board}/node_modules/typescript`);
 const rewrites = [
-	["app/markdown.tsx", "markdown.mjs", [['from "@/app/code-block"', 'from "./code-block.mjs"']]],
+	[
+		"app/markdown.tsx",
+		"markdown.mjs",
+		[
+			['from "@/app/code-block"', 'from "./code-block.mjs"'],
+			['from "@/lib/blocks"', 'from "./blocks.mjs"'],
+		],
+	],
+	["lib/blocks.ts", "blocks.mjs", []],
 	[
 		"app/code-block.tsx",
 		"code-block.mjs",

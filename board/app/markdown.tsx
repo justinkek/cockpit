@@ -1,5 +1,6 @@
 import { createContext, type MouseEvent, type ReactNode, useContext } from "react";
 import { CodeBlock } from "@/app/code-block";
+import { blockSpans } from "@/lib/blocks";
 
 export type Mentions = { nameOf?: (id: string) => string | undefined; onOpen?: (id: string) => boolean };
 
@@ -79,7 +80,39 @@ type Source = {
 	onAnchor: (thread: string) => void;
 	onCheck?: (line: number, done: boolean) => void;
 	onLanguage?: (line: number, language: string) => void;
+	owners?: (number | undefined)[];
+	editing?: Editing;
 };
+
+export type Editing = { block: number; node: ReactNode };
+
+function grouped(source: Source, nodes: ReactNode[], owners: (number | undefined)[]): ReactNode[] {
+	if (!source.owners) return nodes;
+	const out: ReactNode[] = [];
+	let placed = false;
+	let k = 0;
+	while (k < nodes.length) {
+		const owner = owners[k];
+		if (owner === undefined) {
+			out.push(nodes[k++]);
+			continue;
+		}
+		const first = k;
+		const members: ReactNode[] = [];
+		while (k < nodes.length && owners[k] === owner) members.push(nodes[k++]);
+		if (source.editing?.block !== owner) {
+			out.push(
+				<div key={`block${first}`} className="md-block" data-block={owner}>
+					{members}
+				</div>,
+			);
+		} else if (!placed) {
+			placed = true;
+			out.push(<div key={`editing${first}`}>{source.editing.node}</div>);
+		}
+	}
+	return out;
+}
 
 function highlight(
 	text: string,
@@ -256,6 +289,13 @@ function untangled(written: string[]): { lines: string[]; origins: number[] } {
 function blocksOf(source: Source, from: number, base: number, nested: boolean): { blocks: ReactNode[]; next: number } {
 	const { lines, anchors, onAnchor } = source;
 	const blocks: ReactNode[] = [];
+	const owners: (number | undefined)[] = [];
+	const emit = (node: ReactNode, origin: number) => {
+		blocks.push(node);
+		owners.push(source.owners?.[origin]);
+	};
+	const here = (node: ReactNode) => emit(node, source.origins[i]);
+	const done = (next: number) => ({ blocks: grouped(source, blocks, owners), next });
 	const counters: number[] = [];
 	let i = from;
 	while (i < lines.length) {
@@ -265,10 +305,10 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 		const key = `b${i}`;
 		const style = depth > 0 ? { marginLeft: `${depth * 18}px` } : undefined;
 
-		if (nested && section.test(line)) return { blocks, next: i };
+		if (nested && section.test(line)) return done(i);
 
 		if (line.trimEnd() === closing) {
-			if (nested) return { blocks, next: i + 1 };
+			if (nested) return done(i + 1);
 			i++;
 			continue;
 		}
@@ -281,11 +321,12 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 			const first = filled(lines, next);
 			const body = Math.min(depthOf(raw) + 1, first < lines.length ? depthOf(lines[first]) : depthOf(raw) + 1);
 			const inner = blocksOf(source, next, body, true);
-			blocks.push(
+			emit(
 				<details key={key} className="md-details" style={style}>
 					<summary>{inline(title, anchors, onAnchor, key)}</summary>
 					<div className="md-details-body">{inner.blocks}</div>
 				</details>,
+				source.origins[i],
 			);
 			i = inner.next;
 			continue;
@@ -301,7 +342,7 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 			i++;
 			const origin = source.origins[start];
 			const onLanguage = source.onLanguage;
-			blocks.push(
+			emit(
 				<CodeBlock
 					key={key}
 					language={language}
@@ -309,11 +350,13 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 					style={style}
 					onLanguage={onLanguage ? (next) => onLanguage(origin, next) : undefined}
 				/>,
+				origin,
 			);
 			continue;
 		}
 
 		if (line.startsWith("|")) {
+			const start = i;
 			const rows: string[][] = [];
 			while (i < lines.length && lines[i].trimStart().startsWith("|")) {
 				const cells = lines[i]
@@ -325,7 +368,7 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 				i++;
 			}
 			const [head, ...body] = rows;
-			blocks.push(
+			emit(
 				<div key={key} className="md-table" style={style}>
 					<table>
 						<thead>
@@ -346,6 +389,7 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 						</tbody>
 					</table>
 				</div>,
+				source.origins[start],
 			);
 			continue;
 		}
@@ -361,14 +405,14 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 
 		if (image) {
 			const src = hrefOf(image[2]);
-			blocks.push(
+			here(
 				<a key={key} className="md-image" style={style} href={src} target="_blank" rel="noreferrer">
 					<img src={src} alt={image[1]} loading="lazy" />
 				</a>,
 			);
 		} else if (heading) {
 			const Tag = `h${heading[1].length + 2}` as "h3" | "h4" | "h5";
-			blocks.push(
+			here(
 				<Tag key={key} className="md-heading" style={style}>
 					{inline(heading[2], anchors, onAnchor, key)}
 				</Tag>,
@@ -376,7 +420,7 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 		} else if (todo) {
 			const done = todo[1] === "x";
 			const origin = source.origins[i];
-			blocks.push(
+			here(
 				<div key={key} className={`md-todo${done ? " done" : ""}`} style={style} data-line={origin}>
 					<input
 						type="checkbox"
@@ -396,7 +440,7 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 				counters[depth] = counted;
 				marker = `${counted}.`;
 			}
-			blocks.push(
+			here(
 				<div key={key} className={`md-item${numbered ? " numbered" : ""}`} style={style}>
 					<span className="marker" aria-hidden="true">
 						{marker}
@@ -405,17 +449,17 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 				</div>,
 			);
 		} else if (quote) {
-			blocks.push(
+			here(
 				<blockquote key={key} className="md-quote" style={style}>
 					{inline(quote[1], anchors, onAnchor, key)}
 				</blockquote>,
 			);
 		} else if (line === "---") {
-			blocks.push(<hr key={key} />);
+			here(<hr key={key} />);
 		} else if (line === "") {
-			blocks.push(<div key={key} className="md-gap" />);
+			here(<div key={key} className="md-gap" />);
 		} else {
-			blocks.push(
+			here(
 				<p key={key} className="md-p" style={style}>
 					{inline(line, anchors, onAnchor, key)}
 				</p>,
@@ -423,7 +467,15 @@ function blocksOf(source: Source, from: number, base: number, nested: boolean): 
 		}
 		i++;
 	}
-	return { blocks, next: i };
+	return done(i);
+}
+
+function ownersOf(source: string) {
+	const owners: (number | undefined)[] = [];
+	blockSpans(source).forEach((span, block) => {
+		for (let line = span.start; line <= span.end; line++) owners[line] = block;
+	});
+	return owners;
 }
 
 export function Markdown({
@@ -432,15 +484,22 @@ export function Markdown({
 	onAnchor = () => {},
 	onCheck,
 	onLanguage,
+	editable = false,
+	editing,
 }: {
 	source: string;
 	anchors?: Anchor[];
 	onAnchor?: (thread: string) => void;
 	onCheck?: (line: number, done: boolean) => void;
 	onLanguage?: (line: number, language: string) => void;
+	editable?: boolean;
+	editing?: Editing;
 }) {
 	const { lines, origins } = untangled(source.split("\n"));
+	const owners = editable ? ownersOf(source) : undefined;
 	return (
-		<div className="md">{blocksOf({ lines, origins, anchors, onAnchor, onCheck, onLanguage }, 0, 0, false).blocks}</div>
+		<div className="md">
+			{blocksOf({ lines, origins, anchors, onAnchor, onCheck, onLanguage, owners, editing }, 0, 0, false).blocks}
+		</div>
 	);
 }
