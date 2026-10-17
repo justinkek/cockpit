@@ -21,6 +21,7 @@ import {
 	showsOverrun,
 	type Sprint,
 	TYPES,
+	pageOf,
 } from "@/lib/shared";
 
 export type Picked = Named & { status: string };
@@ -356,7 +357,7 @@ function Linked({
 							{id}
 						</button>
 					) : (
-						<Link href={`/card/${id}`} className="ident-link">
+						<Link href={pageOf(id)} className="ident-link">
 							{id}
 						</Link>
 					)}
@@ -551,7 +552,7 @@ export function Fields({ entity, lists, handlers }: { entity: Card; lists: Lists
 						</Fallback>
 						{entity.epic && (
 							<Link
-								href={`/card/${entity.epic}`}
+								href={pageOf(entity.epic)}
 								className="quiet-link"
 								aria-label="Open the epic"
 								onClick={(event) => {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { NewOther } from "@/app/new-entity";
-import { BoardError, type Card, DOMAINS, listEntities } from "@/lib/board";
+import { BoardError, type Card, DOMAINS, listEntities, pageOf } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export default async function ReferencesPage({ searchParams }: Props) {
 						{group.references.map((reference) => (
 							<li key={reference.id}>
 								<span className="ident">{reference.id}</span>
-								<Link href={`/card/${reference.id}`} className="report-name" title={reference.description ?? undefined}>
+								<Link href={pageOf(reference.id)} className="report-name" title={reference.description ?? undefined}>
 									{reference.icon && <span className="entity-icon">{reference.icon}</span>}
 									{reference.name}
 								</Link>

@@ -11,7 +11,7 @@ Same shape as a commit message - `<type>(<scope>): <short description>` - descri
 A link to the ticket page and nothing else - no summary, no co-author trailer and no generated-with line, whichever other instruction asks for one. The page is the ticket's page on the local board app:
 
     ## Ticket
-    [<ticket-id> <ticket-name>](http://localhost:4646/card/<ticket-id>)
+    [<ticket-id> <ticket-name>](http://localhost:4646/ticket/<ticket-id>)
 
 ## Link it
 

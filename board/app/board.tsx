@@ -110,6 +110,7 @@ import {
 	TIMEBOXES,
 	TYPES,
 	timeboxText,
+	pageOf,
 } from "@/lib/shared";
 
 const HEADER_SORT = "header";
@@ -1066,7 +1067,7 @@ export function Board({
 			actions.push(
 				{ id: "do:copy", group: entity.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(entity.id, false) },
 				{ id: "do:link", group: entity.id, label: "Copy link", run: () => copy(entity.id, true) },
-				{ id: "do:page", group: entity.id, label: "Open its page", run: () => go(`/card/${entity.id}`) },
+				{ id: "do:page", group: entity.id, label: "Open its page", run: () => go(pageOf(entity.id)) },
 			);
 		}
 		const general: Command[] = [

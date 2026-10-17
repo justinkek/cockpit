@@ -30,20 +30,23 @@ line_of() {
 printf "Test group: the links register reads are the ones the app serves\n"
 
 assert_eq "the app listens on 4646" "yes" "$(has '--port 4646' "$APP/package.json")"
-assert_eq "the app serves a card page at /card/<id>" "yes" "$([ -f "$APP/app/card/[id]/page.tsx" ] && echo yes || echo no)"
+assert_eq "the app serves an entity page at /<kind>/<id>" "yes" "$([ -f "$APP/app/[kind]/[id]/page.tsx" ] && echo yes || echo no)"
+assert_eq "a ticket's page is /ticket/<id>" "yes" "$(has '? "ticket" : kind' "$APP/lib/shared.ts")"
+assert_eq "the page still answers an old /card/<id> link" "yes" "$(has '"card"]' "$APP/app/[kind]/[id]/page.tsx")"
 assert_eq "the board opens a card at /?open=<id>" "yes" "$(has 'return `/?open=${id}`' "$APP/lib/shared.ts")"
 assert_eq "the board reads the entity to open from ?open=" "yes" "$(has '.get("open")' "$APP/app/entity-overlay.tsx")"
 assert_eq "the epics board opens an epic at /epics?open=<id>" "yes" "$(has '/epics?open=${' "$APP/app/markdown.tsx")"
 
 printf "\nTest group: register takes a board app link as the id it names\n"
 
-assert_eq "a /card/<id> link is named" "yes" "$(has 'http://<host>:4646/card/<id>' "$REGISTER")"
+assert_eq "a /ticket/<id> link is named" "yes" "$(has 'http://<host>:4646/ticket/<id>' "$REGISTER")"
+assert_eq "an older /card/<id> link is named" "yes" "$(has 'http://<host>:4646/card/<id>' "$REGISTER")"
 assert_eq "a /?open=<id> link is named" "yes" "$(has 'http://<host>:4646/?open=<id>' "$REGISTER")"
 assert_eq "an /epics?open=<id> link is named" "yes" "$(has 'http://<host>:4646/epics?open=<id>' "$REGISTER")"
 assert_eq "the id is resolved as case 1" "yes" "$(has 'Take the id out of it and resolve that id as case 1.' "$REGISTER")"
 assert_eq "a link never creates a card" "yes" "$(has "It is never case 3's URL" "$REGISTER")"
 
-link="$(line_of 'http://<host>:4646/card/<id>' "$REGISTER")"
+link="$(line_of 'http://<host>:4646/ticket/<id>' "$REGISTER")"
 cases="$(line_of '1. **Ticket id**' "$REGISTER")"
 assert_eq "the link is read before the cases are" "yes" "$([ -n "$link" ] && [ -n "$cases" ] && [ "$link" -lt "$cases" ] && echo yes || echo no)"
 

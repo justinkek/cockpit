@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { RestoreButton } from "@/app/archived";
-import { BoardError, type Card, listEntities, type EntityKind } from "@/lib/board";
+import { BoardError, type Card, listEntities, type EntityKind, pageOf } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +57,7 @@ export default async function ArchivePage({ searchParams }: Props) {
 			{typeof restored === "string" && (
 				<p className="notice" role="status">
 					<span>
-						Brought back <Link href={`/card/${restored}`}>{restored}</Link>.
+						Brought back <Link href={pageOf(restored)}>{restored}</Link>.
 					</span>
 				</p>
 			)}
@@ -71,7 +71,7 @@ export default async function ArchivePage({ searchParams }: Props) {
 						{group.entities.map((entity) => (
 							<li key={entity.id}>
 								<span className="ident">{entity.id}</span>
-								<Link href={`/card/${entity.id}`} className="report-name">
+								<Link href={pageOf(entity.id)} className="report-name">
 									{entity.icon && <span className="entity-icon">{entity.icon}</span>}
 									{entity.name.trim() || "(untitled)"}
 								</Link>

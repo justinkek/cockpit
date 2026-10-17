@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { pageOf } from "@/lib/shared";
 
 export async function copyText(text: string): Promise<boolean> {
 	try {
@@ -25,7 +26,7 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export function cardLink(id: string) {
-	return `${window.location.origin}/card/${encodeURIComponent(id)}`;
+	return `${window.location.origin}${pageOf(id)}`;
 }
 
 export function useKeys(handler: (event: KeyboardEvent) => void) {

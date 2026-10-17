@@ -50,9 +50,11 @@ const rewrites = [
 		[
 			['from "@/app/code-block"', 'from "./code-block.mjs"'],
 			['from "@/lib/blocks"', 'from "./blocks.mjs"'],
+			['from "@/lib/shared"', 'from "./shared.mjs"'],
 		],
 	],
 	["lib/blocks.ts", "blocks.mjs", []],
+	["lib/shared.ts", "shared.mjs", []],
 	[
 		"app/code-block.tsx",
 		"code-block.mjs",
@@ -356,7 +358,7 @@ else
   assert_ko "a bare id, one in bold and an epic's become links, and none in code, a link, a longer word or a url" "got '$mentions_found' from $mention_html"
 fi
 case "$mention_html" in
-*'href="/card/FEAT-12"'*'href="/epics?open=EPIC-4"'*) assert_ok "a card links to its page and an epic to the epics board" ;;
+*'href="/ticket/FEAT-12"'*'href="/epics?open=EPIC-4"'*) assert_ok "a card links to its page and an epic to the epics board" ;;
 *) assert_ko "a card links to its page and an epic to the epics board" "$mention_html" ;;
 esac
 

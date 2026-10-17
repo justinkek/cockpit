@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { editCard } from "@/app/tracked";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { Choice, Fallback, type Handlers, type Lists, TextField } from "@/app/fields";
-import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, entityKindOf } from "@/lib/shared";
+import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, entityKindOf, pageOf } from "@/lib/shared";
 
 type Edit = Handlers["onEdit"];
 
@@ -246,7 +246,7 @@ function ReferenceFields({ entity, lists, onEdit }: { entity: Card; lists: Lists
 					/>
 				</Fallback>
 				{entity.card && (
-					<Link href={`/card/${entity.card}`} className="quiet-link" aria-label="Open the ticket">
+					<Link href={pageOf(entity.card)} className="quiet-link" aria-label="Open the ticket">
 						↗
 					</Link>
 				)}
@@ -335,7 +335,7 @@ export function SprintDates({ sprint }: { sprint: Card }) {
 				<span>End</span>
 				<DateField entity={entity} field="end" onEdit={onEdit} />
 			</label>
-			<Link href={`/card/${entity.id}`} className="quiet-link">
+			<Link href={pageOf(entity.id)} className="quiet-link">
 				Dev days and speed
 			</Link>
 			{saving && <span className="saving">Saving…</span>}

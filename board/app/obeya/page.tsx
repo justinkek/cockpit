@@ -12,6 +12,7 @@ import {
 	phaseOf,
 	readBreaks,
 	showsOverrun,
+	pageOf,
 } from "@/lib/board";
 import { flowOf, median, progressOf, span, throughputOf } from "@/lib/metrics";
 
@@ -207,7 +208,7 @@ export default async function ObeyaPage({ searchParams }: { searchParams: Promis
 								<li key={card.id}>
 									<span className={`dot phase-${phaseOf(card.status)}`} aria-hidden="true" />
 									<span className="ident">{card.id}</span>
-									<Link href={`/card/${card.id}`} className="report-name">
+									<Link href={pageOf(card.id)} className="report-name">
 										{card.name}
 									</Link>
 									<span className="report-status">{card.status}</span>

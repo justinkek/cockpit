@@ -30,8 +30,8 @@ lookup="$(grep '^gh pr view ' "$REGISTER" | head -n 1)"
 filter="$(printf '%s' "$lookup" | sed -n "s/.*--jq '\([^']*\)'.*/\1/p")"
 assert_eq "register carries a gh pr view lookup with a --jq filter" "yes" "$([ -n "$filter" ] && echo yes || echo no)"
 
-link_line="$(grep --fixed-strings '/card/<ticket-id>' "$PR_TEMPLATE" | head -n 1)"
-assert_eq "the pull request template links the card page" "yes" "$([ -n "$link_line" ] && echo yes || echo no)"
+link_line="$(grep --fixed-strings '/ticket/<ticket-id>' "$PR_TEMPLATE" | head -n 1)"
+assert_eq "the pull request template links the ticket page" "yes" "$([ -n "$link_line" ] && echo yes || echo no)"
 
 body_for() {
   local card="$1" line="$link_line"
@@ -51,6 +51,7 @@ url="https://github.com/owner/repo/pull/9"
 assert_eq "a PR the flow opened for FEAT-7 is kept" "$url" "$(kept_url FEAT-7 "$(body_for FEAT-7)")"
 assert_eq "a PR the flow opened for FEAT-72 is not taken for FEAT-7" "" "$(kept_url FEAT-7 "$(body_for FEAT-72)")"
 assert_eq "a PR the flow opened for BUG-7 is not taken for FEAT-7" "" "$(kept_url FEAT-7 "$(body_for BUG-7)")"
+assert_eq "a PR opened before the page moved, linking /card/FEAT-7, is kept" "$url" "$(kept_url FEAT-7 "$(body_for FEAT-7 | sed 's#/ticket/#/card/#')")"
 assert_eq "a PR on the branch for other work is not taken" "" "$(kept_url FEAT-7 "Lands the board handoff")"
 assert_eq "a PR with an empty body is not taken" "" "$(kept_url FEAT-7 "")"
 

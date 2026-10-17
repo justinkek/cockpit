@@ -10,6 +10,7 @@ import { onBoardChange } from "@/app/live";
 import { type OverlayHost, EntityView } from "@/app/entity-view";
 import { typingIn } from "@/app/toast";
 import type { EntityLookup } from "@/lib/entity-view";
+import { pageOf } from "@/lib/shared";
 
 const PUSHED = "cockpitOpened";
 
@@ -126,7 +127,7 @@ export function EntityOverlay({
 					<span className="ident">{id}</span>
 					<span className="spacer" />
 					<Link
-						href={`/card/${id}`}
+						href={pageOf(id)}
 						className="quiet-link"
 						onClick={(event) => {
 							if (!confirmDiscard()) event.preventDefault();

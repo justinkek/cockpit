@@ -24,6 +24,7 @@ import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
 import { NewOther } from "@/app/new-entity";
 import { EntityOverlay, useOpenEntity } from "@/app/entity-overlay";
 import { type Undoable, UndoToast, undoable } from "@/app/toast";
+import { pageOf } from "@/lib/shared";
 
 export type ProjectEntry = {
 	id: string;
@@ -198,7 +199,7 @@ function ProjectList({ projects, onOpen }: { projects: ProjectEntry[]; onOpen: (
 					<li key={project.id}>
 						<span className="ident">{project.id}</span>
 						<Link
-							href={`/card/${project.id}`}
+							href={pageOf(project.id)}
 							className="report-name"
 							onClick={(event) => {
 								if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

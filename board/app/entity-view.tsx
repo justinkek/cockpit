@@ -59,6 +59,7 @@ import {
 	type Named,
 	phaseOf,
 	entityKindOf,
+	pageOf,
 } from "@/lib/shared";
 
 type Result = {
@@ -178,14 +179,14 @@ export function EntityView({
 
 	function to(id: string, replace = false) {
 		if (overlay) overlay.onOpen(id, replace);
-		else if (replace) router.replace(`/card/${id}`);
-		else go(`/card/${id}`);
+		else if (replace) router.replace(pageOf(id));
+		else go(pageOf(id));
 	}
 
 	function entityLink(id: string, children: ReactNode, rest: { title?: string; rel?: string } = {}) {
 		return (
 			<Link
-				href={`/card/${id}`}
+				href={pageOf(id)}
 				{...rest}
 				onClick={(event) => {
 					if (!overlay || !plainClick(event)) return;
@@ -211,7 +212,7 @@ export function EntityView({
 				if (overlay && result.moved) overlay.onOpen(result.moved, true);
 				else if (overlay && result.archived) overlay.onReload();
 				else if (result.moved || result.archived) {
-					router.replace(`/card/${result.moved ?? before.id}?error=${encodeURIComponent(result.error)}`);
+					router.replace(`${pageOf(result.moved ?? before.id)}?error=${encodeURIComponent(result.error)}`);
 				}
 				return;
 			}
@@ -334,7 +335,7 @@ export function EntityView({
 			nameOf: mentionNames([...lists.cards, ...lists.epics], lists.aliases),
 			onOpen: (id) => {
 				if (overlay) to(id);
-				else go(id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`);
+				else go(id.startsWith("EPIC-") ? `/epics?open=${id}` : pageOf(id));
 				return true;
 			},
 		}),
@@ -363,7 +364,7 @@ export function EntityView({
 			if (overlay) {
 				overlay.onChanged();
 				overlay.onReload();
-			} else router.push(`/card/${entity.id}`);
+			} else router.push(pageOf(entity.id));
 		});
 	}
 
@@ -381,7 +382,7 @@ export function EntityView({
 			carryTo(result.entity.id, toastOf(`Duplicated ${entity.id} as ${result.entity.id}`));
 			overlay?.onChanged();
 			if (overlay) overlay.onOpen(result.entity.id);
-			else router.push(`/card/${result.entity.id}`);
+			else router.push(pageOf(result.entity.id));
 		});
 	}
 
@@ -407,7 +408,7 @@ export function EntityView({
 				{ id: "do:copy", group: entity.id, label: "Copy id", hint: "Cmd/Ctrl+.", run: () => copy(false) },
 				{ id: "do:link", group: entity.id, label: "Copy link", run: () => copy(true) },
 				...(overlay
-					? [{ id: "do:page", group: entity.id, label: "Open as page", run: () => go(`/card/${entity.id}`) }]
+					? [{ id: "do:page", group: entity.id, label: "Open as page", run: () => go(pageOf(entity.id)) }]
 					: []),
 				{
 					id: "go:board",

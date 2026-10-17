@@ -1,6 +1,7 @@
 import { createContext, type MouseEvent, type ReactNode, useContext } from "react";
 import { CodeBlock } from "@/app/code-block";
 import { blockSpans } from "@/lib/blocks";
+import { pageOf } from "@/lib/shared";
 
 export type Mentions = { nameOf?: (id: string) => string | undefined; onOpen?: (id: string) => boolean };
 
@@ -43,7 +44,7 @@ function Mention({ id }: { id: string }) {
 	const { nameOf, onOpen } = useContext(MentionContext);
 	const name = nameOf?.(id);
 	if (!name && !ALWAYS_LINKED.test(id)) return <>{id}</>;
-	const href = id.startsWith("EPIC-") ? `/epics?open=${id}` : `/card/${id}`;
+	const href = id.startsWith("EPIC-") ? `/epics?open=${id}` : pageOf(id);
 	function open(event: MouseEvent<HTMLAnchorElement>) {
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
 		if (onOpen?.(id)) event.preventDefault();

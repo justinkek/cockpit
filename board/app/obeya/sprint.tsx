@@ -3,7 +3,7 @@ import { BurndownChart } from "@/app/burndown";
 import { NewOther } from "@/app/new-entity";
 import { SprintPicker } from "@/app/picker";
 import { SprintDates } from "@/app/entity-fields";
-import { type Break, type Card, phaseOf } from "@/lib/board";
+import { type Break, type Card, phaseOf, pageOf } from "@/lib/board";
 import { burndownOf, currentSprint, type Measure, sprintDays } from "@/lib/metrics";
 import { daysOff, deliveredIn } from "@/lib/plan";
 
@@ -194,7 +194,7 @@ export function SprintSection({
 							<li key={card.id}>
 								<span className={`dot phase-${phaseOf(card.status)}`} aria-hidden="true" />
 								<span className="ident">{card.id}</span>
-								<Link href={`/card/${card.id}`} className="report-name">
+								<Link href={pageOf(card.id)} className="report-name">
 									{card.name}
 								</Link>
 								<span className="report-status">{card.status}</span>

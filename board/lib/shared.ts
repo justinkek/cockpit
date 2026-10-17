@@ -196,6 +196,15 @@ export function entityKindOf(id: string): EntityKind | null {
 	return kindOf(id) ?? ENTITY_KINDS[id.split("-")[0]] ?? null;
 }
 
+export function pageKind(id: string): string {
+	const kind = entityKindOf(id);
+	return !kind || kind === "card" ? "ticket" : kind;
+}
+
+export function pageOf(id: string): string {
+	return `/${pageKind(id)}/${encodeURIComponent(id)}`;
+}
+
 export function homeOf(id: string): string {
 	const kind = entityKindOf(id);
 	if (kind === "epic") return `/epics?open=${id}`;

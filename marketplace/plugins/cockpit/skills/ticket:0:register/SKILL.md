@@ -26,7 +26,7 @@ Once the ticket is registered, the column it sits in decides what kind of output
 
 If no input was supplied, ask which ticket the user is working on.
 
-A link to an entity on the board app - `http://<host>:4646/card/<id>`, `http://<host>:4646/?open=<id>` or `http://<host>:4646/epics?open=<id>`, whatever the host - is the id it names. Take the id out of it and resolve that id as case 1. It is never case 3's URL: the ticket already exists, and creating one from its link would duplicate it.
+A link to an entity on the board app - `http://<host>:4646/ticket/<id>`, the page of another kind such as `http://<host>:4646/epic/<id>`, the older `http://<host>:4646/card/<id>`, `http://<host>:4646/?open=<id>` or `http://<host>:4646/epics?open=<id>`, whatever the host - is the id it names. Take the id out of it and resolve that id as case 1. It is never case 3's URL: the ticket already exists, and creating one from its link would duplicate it.
 
 Otherwise resolve the argument as one of:
 
@@ -167,7 +167,7 @@ The branch the session sits on proves nothing on its own. Registration can run b
 If the session is in a git repository with a GitHub remote, look up the current branch's pull request, keeping it only when its body names the ticket:
 
 ```sh
-gh pr view --json url,body --jq 'select(.body | test("/card/<ticket-id>([^0-9]|$)")) | .url' 2>/dev/null
+gh pr view --json url,body --jq 'select(.body | test("/(ticket|card)/<ticket-id>([^0-9]|$)")) | .url' 2>/dev/null
 ```
 
 If a PR URL is returned, read the ticket's `PRs` with `board-card show <ticket-id> PRs`. If it already holds that URL, leave it. Otherwise write it back with the new URL on a line of its own after whatever was there:

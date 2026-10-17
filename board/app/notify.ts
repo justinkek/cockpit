@@ -1,4 +1,5 @@
 import type { InboxItem } from "@/lib/shared";
+import { pageOf } from "@/lib/shared";
 
 const KEY = "cockpit-notify";
 export const INBOX_READ = "cockpit-inbox-read";
@@ -34,7 +35,7 @@ export function itemKey(item: InboxItem) {
 }
 
 export function itemHref(item: InboxItem) {
-	return item.id.startsWith("EPIC-") ? `/epics?open=${item.id}` : `/card/${item.id}`;
+	return item.id.startsWith("EPIC-") ? `/epics?open=${item.id}` : pageOf(item.id);
 }
 
 export function itemTitle(item: InboxItem) {

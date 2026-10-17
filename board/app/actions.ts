@@ -50,6 +50,7 @@ import {
 	unarchiveEntity,
 	undoMany,
 	undoSince,
+	pageOf,
 } from "@/lib/board";
 import { lookupEntity, type EntityLookup } from "@/lib/entity-view";
 
@@ -77,7 +78,7 @@ function refresh(id: string) {
 	revalidatePath("/references");
 	revalidatePath("/archive");
 	revalidatePath("/plan");
-	revalidatePath(`/card/${id}`);
+	revalidatePath(pageOf(id));
 }
 
 async function heldChanges(held: string[], until: string | undefined): Promise<Change[]> {
@@ -274,7 +275,7 @@ export async function archiveOne(id: string): Promise<Failure> {
 
 export async function submitUnarchive(form: FormData): Promise<void> {
 	const id = text(form, "id");
-	const back = text(form, "back") === "archive" ? "/archive" : `/card/${encodeURIComponent(id)}`;
+	const back = text(form, "back") === "archive" ? "/archive" : pageOf(id);
 	let failure = "";
 	try {
 		await unarchiveEntity(id);
@@ -299,7 +300,7 @@ export async function submitNew(form: FormData): Promise<void> {
 	});
 	const made = result.entity?.id ?? result.moved;
 	if (made)
-		redirect(`/card/${encodeURIComponent(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
+		redirect(`${pageOf(made)}${result.error ? `?error=${encodeURIComponent(result.error)}` : ""}`);
 	redirect(
 		`${kind === "epic" ? "/epics" : "/"}?error=${encodeURIComponent(`Could not create the ${kindName(kind)}: ${result.error}`)}`,
 	);
@@ -334,7 +335,7 @@ export async function submitEntity(_previous: string | null, form: FormData): Pr
 	if (!id) return refused(failure);
 	const query = failure ? `error=${encodeURIComponent(failure)}` : "";
 	if (kind === "sprint") redirect(`/obeya?sprint=${encodeURIComponent(id)}${query ? `&${query}` : ""}#sprint`);
-	redirect(`/card/${encodeURIComponent(id)}${query ? `?${query}` : ""}`);
+	redirect(`${pageOf(id)}${query ? `?${query}` : ""}`);
 }
 
 export async function editCard(id: string, field: string, value: string): Promise<Result> {
@@ -611,7 +612,7 @@ export async function submitCard(form: FormData): Promise<void> {
 		failure = result.error ?? "";
 		current = result.moved ?? current;
 	}
-	redirect(`/card/${encodeURIComponent(current)}${failure ? `?error=${encodeURIComponent(failure)}` : ""}`);
+	redirect(`${pageOf(current)}${failure ? `?error=${encodeURIComponent(failure)}` : ""}`);
 }
 
 export type Bulk = { op: "move"; column: string } | { op: "set"; field: string; value: string } | { op: "archive" };
