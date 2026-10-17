@@ -91,6 +91,13 @@ assert_eq "no epic keeps the cards that have none" \
 assert_eq "all but one epic keeps the cards of others and of none" \
   "FEAT-1 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-12" "$(kept "$CARDS" '{"epic":"!EPIC-1"}')"
 
+printf "Test group: the project filter keeps the cards whose own project or whose epic's project it names\n"
+
+assert_eq "a project keeps the cards that carry it" "FEAT-2" \
+  "$(kept '[{"id":"FEAT-1","name":"a","status":"Backlog","epic":"EPIC-2","project":"PRJ-2"},{"id":"FEAT-2","name":"b","status":"Backlog","epic":"EPIC-1","project":"PRJ-1"}]' '{"project":"PRJ-1"}')"
+assert_eq "no project keeps every card" "FEAT-1 FEAT-2" \
+  "$(kept '[{"id":"FEAT-1","name":"a","status":"Backlog","epic":"EPIC-2","project":"PRJ-2"},{"id":"FEAT-2","name":"b","status":"Backlog","epic":"EPIC-1","project":"PRJ-1"}]' '{"project":""}')"
+
 printf "Test group: the Overrunning toggle and the days in column sort\n"
 
 OVERRUN='[

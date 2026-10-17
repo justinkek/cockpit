@@ -34,6 +34,7 @@ export const LAYOUTS: [Layout, string][] = [
 export type View = {
 	query: string;
 	types: string[];
+	project: string;
 	epic: string;
 	labels: string[];
 	urgent: boolean;
@@ -52,6 +53,7 @@ export type View = {
 export const DEFAULT_VIEW: View = {
 	query: "",
 	types: [],
+	project: "",
 	epic: "",
 	labels: [],
 	urgent: false,
@@ -185,7 +187,15 @@ export function sorter(sort: Sort) {
 	}
 }
 
-export type Found = { names?: Record<string, string>; inContent?: Set<string> };
+export type Found = {
+	names?: Record<string, string>;
+	inContent?: Set<string>;
+	epicProjects?: Record<string, string | null | undefined>;
+};
+
+export function projectOf(stub: Stub, epicProjects: Record<string, string | null | undefined> = {}) {
+	return stub.project || (stub.epic ? epicProjects[stub.epic] : null) || "";
+}
 
 export function matches(stub: Stub, view: View, found: Found = {}) {
 	const query = view.query.trim().toLowerCase();
@@ -193,6 +203,7 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 	if (query && !`${stub.id} ${stub.name} ${epic}`.toLowerCase().includes(query) && !found.inContent?.has(stub.id))
 		return false;
 	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
+	if (view.project && projectOf(stub, found.epicProjects) !== view.project) return false;
 	if (!epicPasses(view.epic, stub.epic)) return false;
 	if (view.labels.length > 0 && !(stub.labels ?? []).some((label) => view.labels.includes(label))) return false;
 	if (view.urgent && !stub.urgent) return false;
@@ -237,7 +248,7 @@ export function groupValue(stub: Stub, groupBy: GroupBy, context: GroupContext):
 		case "epic":
 			return stub.epic || null;
 		case "project":
-			return stub.project || (stub.epic ? context.epicProjects[stub.epic] : null) || null;
+			return projectOf(stub, context.epicProjects) || null;
 		case "type":
 			return stub.type || null;
 		case "sprint":

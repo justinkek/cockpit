@@ -207,6 +207,7 @@ function filterCount(view: View) {
 	return [
 		view.query.trim() !== "",
 		view.types.length > 0,
+		view.project !== "",
 		view.epic !== "",
 		view.labels.length > 0,
 		view.urgent,
@@ -860,10 +861,12 @@ export function Board({
 
 	const names = useMemo(() => Object.fromEntries(epics.map((epic) => [epic.id, epic.name])), [epics]);
 	const query = view.query.trim();
+	const epicProjects = useMemo(() => Object.fromEntries(epics.map((epic) => [epic.id, epic.project])), [epics]);
 	const found = useMemo<Found>(
-		() => ({ names, inContent: inContent?.query === query ? inContent.ids : undefined }),
-		[names, inContent, query],
+		() => ({ names, epicProjects, inContent: inContent?.query === query ? inContent.ids : undefined }),
+		[names, epicProjects, inContent, query],
 	);
+	const filterEpics = view.project ? epics.filter((epic) => epic.project === view.project) : epics;
 
 	useEffect(() => {
 		if (query.length < 2) return;
@@ -947,9 +950,9 @@ export function Board({
 				project: lists.projects.map((project) => project.id),
 				sprint: sprints.map((sprint) => sprint.id),
 			},
-			epicProjects: Object.fromEntries(lists.epics.map((epic) => [epic.id, epic.project])),
+			epicProjects,
 		};
-	}, [lists]);
+	}, [lists, epicProjects]);
 	const swimlanes = useMemo(
 		() => (view.layout === "board" ? swimlanesOf(visible, kind, groupBy, groupContext) : null),
 		[view.layout, visible, kind, groupBy, groupContext],
@@ -1181,7 +1184,7 @@ export function Board({
 	}
 
 	function clearFilters() {
-		update({ query: "", types: [], epic: "", labels: [], urgent: false, blocked: false, claimed: false, overrunning: false });
+		update({ query: "", types: [], project: "", epic: "", labels: [], urgent: false, blocked: false, claimed: false, overrunning: false });
 	}
 
 	useKeys((event) => {
@@ -1721,6 +1724,23 @@ export function Board({
 										))}
 									</div>
 								)}
+								<select
+									value={view.project}
+									onChange={(event) => {
+										const project = event.target.value;
+										const epic = view.epic.replace(/^!/, "");
+										const kept = !project || !epics.some((other) => other.id === epic) || epicProjects[epic] === project;
+										update({ project, ...(kept ? {} : { epic: "" }) });
+									}}
+									aria-label="Project"
+								>
+									<option value="">All projects</option>
+									{lists.projects.map((project) => (
+										<option key={project.id} value={project.id}>
+											{project.name}
+										</option>
+									))}
+								</select>
 								{kind === "card" && (
 									<select
 										value={view.epic}
@@ -1730,14 +1750,14 @@ export function Board({
 										<option value="">All epics</option>
 										<option value={NO_EPIC}>No epic</option>
 										<optgroup label="Only">
-											{epics.map((epic) => (
+											{filterEpics.map((epic) => (
 												<option key={epic.id} value={epic.id}>
 													{epic.name}
 												</option>
 											))}
 										</optgroup>
 										<optgroup label="All but">
-											{epics.map((epic) => (
+											{filterEpics.map((epic) => (
 												<option key={epic.id} value={exceptEpic(epic.id)}>
 													Not {epic.name}
 												</option>

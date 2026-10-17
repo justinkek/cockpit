@@ -124,6 +124,8 @@ The board app's saved views live in `views.json` at the board's root, each a nam
 
 The app's Settings page, behind the gear at the right end of the masthead, holds only what applies to the whole app: its theme, System, Light or Dark, and whether a desktop notification shows when something new reaches the inbox, both kept in the browser alone. A setting that belongs to one page sits on that page, so the board's tracks and breaks are set on the Plan page and saved views are saved, brought back and deleted from the toolbar of the Cards and Epics boards.
 
+The Cards and Epics boards both filter by project, a card's being its epic's, and on the Cards board picking a project narrows the Epic filter to that project's epics. The project filter is kept in a saved view and in the view the browser remembers, like every other filter.
+
 The board's breaks, the days nobody works on it, live in `breaks` at the board's root as a JSON list, each an id like `b1`, a `from` and a `to` day, both `YYYY-MM-DD` and both counted, a `project` or null for the whole board, and an optional `name`. `board-card breaks` lists them one a line in the order they start, as the id, the two days, the project or `board`, and the name, `--json` prints the whole file, `board-card breaks add <from> <to> [--project <PRJ-n>] [--name <text>]` adds one and prints its id, refusing a day that is not a date, an end before the start and a project the board does not have, and `board-card breaks remove <id | n>` takes one off by its id or by its place in the list, the file going with the last of them. Each change is committed as `breaks`.
 
 Every write stamps `updated` on the record it changes, a comment or an attachment included, and a write that changes nothing leaves the stamp as it was.
