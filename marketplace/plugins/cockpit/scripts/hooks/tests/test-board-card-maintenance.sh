@@ -111,6 +111,16 @@ COCKPIT_NOW=2027-03-01T00:00:00Z stub maintenance PRJ-1 --date 2027-03-01 2>/dev
 assert_eq "asking for the new month's epic across the boundary rolls the old one into it" "EPIC-9 Epic Done" "$(field TIME-2 .epic) $(field EPIC-8 .status)"
 assert_eq "which is the epic the call printed" "EPIC-9" "$(COCKPIT_NOW=2027-03-01T00:00:00Z stub maintenance PRJ-1 --date 2027-03-01 2>/dev/null)"
 
+printf "\nTest group: asking for a month that is over gives the current month's epic\n"
+
+assert_eq "a past month's --date prints this month's epic" "EPIC-9" "$(COCKPIT_NOW=2027-03-05T09:00:00Z stub maintenance PRJ-1 --date 2027-01-20 2>/dev/null)"
+assert_eq "and makes no epic for the month that is over" "9" "$(stub list --kind epic --json | jq length)"
+assert_eq "a month that is over with no epic of its own is never given one" "EPIC-10 Cockpit maintenance - Apr 2027" \
+  "$(id="$(COCKPIT_NOW=2027-04-02T09:00:00Z stub maintenance PRJ-1 --date 2026-12-15 2>/dev/null)"; printf '%s %s' "$id" "$(field "$id" .name)")"
+assert_eq "after the sweep has rolled March's cards into it" "EPIC-10 Epic Done" "$(field TIME-2 .epic) $(field EPIC-9 .status)"
+assert_eq "a month still to come is that month" "Cockpit maintenance - May 2027" \
+  "$(field "$(COCKPIT_NOW=2027-04-02T09:00:00Z stub maintenance PRJ-1 --date 2027-05-03 2>/dev/null)" .name)"
+
 printf "\nTest group: maintenance refuses what it cannot file under\n"
 
 stub maintenance PRJ-9 >/dev/null 2>&1

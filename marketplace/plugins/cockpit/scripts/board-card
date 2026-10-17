@@ -2320,7 +2320,7 @@ open_cards_of() {
 }
 
 close_maintenance_locked() {
-  local keep="${1:-}" today month file epic record project target card cards
+  local today month file epic record project target card cards
   today="$(now | cut -c1-10)"
   month="${today:0:7}"
   while IFS= read -r file; do
@@ -2329,7 +2329,6 @@ close_maintenance_locked() {
     printf '%s' "$record" | jq --exit-status --arg month "$month" "$maintenance_program and .status != \"Epic Done\" and .maintenance < \$month" >/dev/null || continue
     epic="${file##*/}"
     epic="${epic%.md}"
-    [ "$epic" != "$keep" ] || continue
     cards="$(open_cards_of "$epic")"
     if [ -n "$cards" ]; then
       project="$(printf '%s' "$record" | jq --raw-output '.project // ""')"
@@ -2370,14 +2369,12 @@ maintenance_epic_for() {
 }
 
 maintenance_locked() {
-  local id
-  id="$(maintenance_epic_for "$1" "$2")"
-  close_maintenance_locked "$id" >&2
-  printf '%s\n' "$id"
+  close_maintenance_locked >&2
+  maintenance_epic_for "$1" "$2"
 }
 
 command_maintenance() {
-  local project="" day="" usage="usage: board-card maintenance <PRJ-n> [--date YYYY-MM-DD] | maintenance --close"
+  local project="" day="" today usage="usage: board-card maintenance <PRJ-n> [--date YYYY-MM-DD] | maintenance --close"
   require_board
   if [ "${1:-}" = --close ]; then
     [ "$#" -eq 1 ] || die 2 "$usage"
@@ -2392,8 +2389,10 @@ command_maintenance() {
     esac
   done
   [ -n "$project" ] || die 2 "$usage"
-  [ -n "$day" ] || day="$(now | cut -c1-10)"
+  today="$(now | cut -c1-10)"
+  [ -n "$day" ] || day="$today"
   date_json "a maintenance epic's day" "$day" >/dev/null
+  [[ ! "${day:0:7}" < "${today:0:7}" ]] || day="$today"
   project="$(normalise_id "$project")"
   [ "$(kind_of "$project")" = project ] || die 2 "a maintenance epic belongs to a project, and $project is not a project"
   require_record "$project"
