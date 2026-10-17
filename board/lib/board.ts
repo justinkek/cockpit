@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Card, CommentThread, Inbox, Kind, RecordKind, SavedView } from "./shared";
+import type { Break, Card, CommentThread, Inbox, Kind, RecordKind, SavedView } from "./shared";
 
 export * from "./shared";
 
@@ -76,6 +76,10 @@ export async function saveNamedView(kind: Kind, name: string, view: Record<strin
 
 export async function deleteNamedView(kind: Kind, name: string): Promise<void> {
 	await boardCard(["views", "delete", "--kind", kind, "--", name]);
+}
+
+export async function readBreaks(): Promise<Break[]> {
+	return JSON.parse(await boardCard(["breaks", "--json"]));
 }
 
 export async function readInboxUpTo(stamp: string): Promise<void> {

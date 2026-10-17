@@ -4608,6 +4608,41 @@
 		border-left: 1.5px dashed color-mix(in srgb, var(--phase-refine) 70%, transparent);
 	}
 
+	.plan-break-line,
+	.plan-break.project,
+	.legend-break {
+		background: repeating-linear-gradient(
+			-45deg,
+			color-mix(in srgb, var(--muted) 16%, transparent) 0 4px,
+			color-mix(in srgb, var(--muted) 6%, transparent) 4px 8px
+		);
+	}
+
+	.plan-break-line {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+	}
+
+	.plan-break {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+	}
+
+	.plan-break-scale {
+		position: absolute;
+		top: 20px;
+		height: 20px;
+		background: color-mix(in srgb, var(--muted) 22%, transparent);
+	}
+
+	.legend-break {
+		width: 22px;
+		height: 12px;
+		border-radius: 2px;
+	}
+
 	.plan-group-head {
 		min-height: 30px;
 		border-bottom: 1px solid var(--line);

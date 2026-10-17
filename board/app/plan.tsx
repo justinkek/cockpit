@@ -69,7 +69,7 @@ import {
 	type TrackSpeed,
 	trackSpeedsOf,
 } from "@/lib/plan";
-import { type Card, type CommentThread, fieldName, kindOf, movedTo, phaseOf } from "@/lib/shared";
+import { type Break, type Card, type CommentThread, fieldName, kindOf, movedTo, phaseOf } from "@/lib/shared";
 
 const DAY = 86400000;
 const SCALES = { weeks: 8, months: 2.4 } as const;
@@ -743,6 +743,7 @@ export function Plan({
 	cards,
 	milestones: initialMilestones,
 	tracks: initialTracks,
+	breaks,
 	projects,
 	sprints,
 	today: todayText,
@@ -752,6 +753,7 @@ export function Plan({
 	cards: Card[];
 	milestones: Card[];
 	tracks: number;
+	breaks: Break[];
 	projects: Project[];
 	sprints: Pick<Card, "start" | "end" | "speed">[];
 	today: string;
@@ -822,8 +824,9 @@ export function Plan({
 				projects.map((project) => project.id),
 				sprints,
 				now,
+				breaks,
 			),
-		[cards, epics, projects, sprints, now],
+		[cards, epics, projects, sprints, now, breaks],
 	);
 	const rate = speeds.overall.speed;
 	const tracksOf = (team: string) => trackCounts[team] ?? projectOf[team]?.tracks ?? 0;
@@ -854,11 +857,21 @@ export function Plan({
 	}, [epics, drag]);
 
 	const refinement = useMemo(() => refinementOf(epics), [epics]);
-	const rows = useMemo(() => planOf(shown, cards, teams, today, refinement), [shown, cards, teams, today, refinement]);
-	const committedRows = useMemo(
-		() => planOf(epics, cards, teams, today, refinement),
-		[epics, cards, teams, today, refinement],
+	const rows = useMemo(
+		() => planOf(shown, cards, teams, today, refinement, breaks),
+		[shown, cards, teams, today, refinement, breaks],
 	);
+	const committedRows = useMemo(
+		() => planOf(epics, cards, teams, today, refinement, breaks),
+		[epics, cards, teams, today, refinement, breaks],
+	);
+	const spans = breaks.flatMap((one) => {
+		const from = dayOf(one.from);
+		const to = dayOf(one.to);
+		return from != null && to != null && to >= from ? [{ ...one, first: from, last: to }] : [];
+	});
+	const breakTitle = (one: (typeof spans)[number]) =>
+		`${one.name || "Break"} · ${long(one.first)} to ${long(one.last)} · ${one.project ? teamName(one.project) : "the whole board"} - nothing is refined or delivered on these days`;
 
 	const span = useMemo(
 		() =>
@@ -1503,7 +1516,16 @@ export function Plan({
 		const start = row.start;
 		const target = row.target;
 		const ends: number[] = [];
-		const pieces: ReactNode[] = [];
+		const pieces: ReactNode[] = spans
+			.filter((one) => one.project == null || one.project === row.team)
+			.map((one) => (
+				<span
+					key={`break-${one.id}`}
+					className={`plan-break${one.project ? " project" : " board"}`}
+					style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
+					title={breakTitle(one)}
+				/>
+			));
 		const scheduled = `on track ${row.track} at ${figure(row.perWeek)} points a week${fallbackOf(row.team) ? `, a fallback: ${teamName(row.team)} has no done history, so it takes the board's overall average rather than a speed of its own` : ""}: ${runTitle(row)}`;
 		if (row.refineStart != null && row.refineEnd != null) {
 			const refinedTo = Math.min(row.refineEnd, today);
@@ -2094,6 +2116,16 @@ export function Plan({
 											);
 										})}
 									</div>
+									{spans
+										.filter((one) => one.project == null)
+										.map((one) => (
+											<span
+												key={one.id}
+												className="plan-break-scale"
+												style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
+												title={breakTitle(one)}
+											/>
+										))}
 									<span className="plan-today-label" style={{ left: x(today) + ppd / 2 }}>
 										Today
 									</span>
@@ -2118,6 +2150,15 @@ export function Plan({
 											<span key={milestone.id} className="plan-milestone-line" style={{ left: x(at) + ppd / 2 }} />
 										);
 									})}
+									{spans
+										.filter((one) => one.project == null)
+										.map((one) => (
+											<span
+												key={one.id}
+												className="plan-break-line"
+												style={{ left: x(one.first), width: x(one.last + 1) - x(one.first) }}
+											/>
+										))}
 									<span className="plan-today" style={{ left: x(today) + ppd / 2 }} />
 								</div>
 								{epics.length === 0 && (
@@ -2199,6 +2240,9 @@ export function Plan({
 					</span>
 					<span>
 						<span className="legend-today" /> Today
+					</span>
+					<span>
+						<span className="legend-break" /> Break, nothing forecast
 					</span>
 					<span>
 						<Icon name="milestone" /> Milestone

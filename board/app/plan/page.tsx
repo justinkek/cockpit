@@ -1,5 +1,5 @@
 import { Plan } from "@/app/plan";
-import { BoardError, boardTracks, type Card, listRecords } from "@/lib/board";
+import { BoardError, type Break, boardTracks, type Card, listRecords, readBreaks } from "@/lib/board";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +15,16 @@ export default async function PlanPage() {
 	let sprints: Card[];
 	let milestones: Card[];
 	let tracks: number;
+	let breaks: Break[];
 	try {
-		[cards, epics, projects, sprints, milestones, tracks] = await Promise.all([
+		[cards, epics, projects, sprints, milestones, tracks, breaks] = await Promise.all([
 			listRecords("card"),
 			listRecords("epic"),
 			listRecords("project"),
 			listRecords("sprint"),
 			listRecords("milestone"),
 			boardTracks(),
+			readBreaks(),
 		]);
 	} catch (error) {
 		if (!(error instanceof BoardError)) throw error;
@@ -51,6 +53,7 @@ export default async function PlanPage() {
 			)}
 			milestones={milestones}
 			tracks={tracks}
+			breaks={breaks}
 			projects={projects.map(({ id, name, icon, priority, tracks }) => ({ id, name, icon, priority, tracks }))}
 			sprints={sprints.map(({ start, end, speed }) => ({ start, end, speed }))}
 			today={today()}
