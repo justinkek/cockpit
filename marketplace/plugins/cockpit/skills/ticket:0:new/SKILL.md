@@ -35,6 +35,8 @@ If the concern clearly belongs to a different epic, pick the closest match among
 
 With no session card to take an epic from, pick the closest match among the open epics and post what decided it on the new card - never ask. Every card has an epic, so `board-card create` refuses one without `--epic`.
 
+When no open epic fits a bug, a timebox or an improvement to finished work, it goes under its project's maintenance epic for the month instead of the closest match: run `"$HOME/.cockpit/scripts/board-card" maintenance <PRJ-n>` for the project the work belongs to - the project of the session card's epic, or with no session card the closest open epic's, read with `"$HOME/.cockpit/scripts/board-card" show <EPIC-n> Project` - and use the id it prints. Feature work that fits no open epic still goes under the closest match. Post what decided it on the new card either way - never ask.
+
 Same-project siblings follow the epic gate's rule: pick by the kind of work (diff on the product → dev epic, reporting or process → delivery epic), never by the closer name.
 
 **From register:** epic is resolved by register's epic gate - skip.
