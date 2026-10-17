@@ -58,7 +58,15 @@ import {
 	recordKindOf,
 } from "@/lib/shared";
 
-type Result = { record?: Card; error?: string; moved?: string; archived?: boolean; undo?: Span; more?: Change[] };
+type Result = {
+	record?: Card;
+	error?: string;
+	moved?: string;
+	archived?: boolean;
+	undo?: Span;
+	more?: Change[];
+	closed?: Change[];
+};
 
 export function Ticket({
 	initial,
@@ -171,6 +179,7 @@ export function Ticket({
 			if (!result.record) return;
 			setRecord(result.record);
 			const shown = undoable(result.record.id, result.undo, withNewId(label, before.id, result.record.id), result.more);
+			shown?.changes.push(...(result.closed ?? []));
 			setToast(shown);
 			if (result.record.id !== before.id) {
 				carryTo(result.record.id, shown);

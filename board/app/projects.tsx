@@ -292,7 +292,9 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 				setNotice({ id: shown.id, text: `${shown.id}: ${result.error}` });
 				return;
 			}
-			setToast(undoable(shown.id, result.undo, `Closed ${shown.id} and everything open in it`, result.more));
+			const toast = undoable(shown.id, result.undo, `Closed ${shown.id} and everything open in it`);
+			toast?.changes.push(...(result.closed ?? []));
+			setToast(toast);
 			router.refresh();
 		});
 	}

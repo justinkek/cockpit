@@ -279,12 +279,12 @@ export async function editCard(id: string, field: string, value: string): Promis
 	return { ...result, more: await heldChanges(held, result.undo?.until) };
 }
 
-export async function closeProject(id: string): Promise<Result> {
+export async function closeProject(id: string): Promise<Result & { closed?: Change[] }> {
 	const moved: string[] = [];
 	const result = await report(id, async () => {
 		moved.push(...(await closeProjectRecord(id)));
 	});
-	return { ...result, more: await heldChanges(moved, result.undo?.until) };
+	return { ...result, closed: await heldChanges(moved, result.undo?.until) };
 }
 
 export type Ranked = { id: string; rank: number };

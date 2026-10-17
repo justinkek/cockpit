@@ -181,8 +181,12 @@ export function ProjectDoneDialog({
 	useEffect(() => {
 		panel.current?.focus();
 	}, []);
-	const epics = closing.epics === 1 ? "1 open epic" : `${closing.epics} open epics`;
-	const tickets = closing.tickets === 1 ? "1 open ticket" : `${closing.tickets} open tickets`;
+	const open = [
+		closing.epics === 0 ? "" : closing.epics === 1 ? "1 open epic" : `${closing.epics} open epics`,
+		closing.tickets === 0 ? "" : closing.tickets === 1 ? "1 open ticket" : `${closing.tickets} open tickets`,
+	]
+		.filter(Boolean)
+		.join(" and ");
 	return (
 		<div
 			className="overlay"
@@ -206,7 +210,7 @@ export function ProjectDoneDialog({
 			>
 				<header className="dialog-head">
 					<h2>
-						{closing.id} still has {epics} and {tickets}
+						{closing.id} still has {open}
 					</h2>
 				</header>
 				<p>
