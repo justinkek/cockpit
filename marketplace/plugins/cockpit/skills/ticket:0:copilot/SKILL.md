@@ -54,7 +54,7 @@ Treat a `stale` claim as unheld, and say in the report that a claim was taken ov
 Take the first claimable ticket:
 
 ```sh
-"$HOME/.cockpit/scripts/board-card" claim <card-id>
+"$HOME/.cockpit/scripts/board-card" claim <ticket-id>
 ```
 
 It takes `ticket-claim-lock` first - `mkdir` is atomic, so exactly one session on this machine can win it - and only then writes this session's id onto the ticket. Exit 0 means it is yours. Exit 1 means another session holds the lock, a stale one whose lock is still on this machine included — leave that ticket alone and try the next one down.

@@ -62,7 +62,7 @@ assert_eq "raise-a-decision.md carries the heading the board rules name" "yes" "
 answered_section="$(awk '/^## Once it is answered$/ { inside = 1; next } /^## / { inside = 0 } inside' "$AGENTS/claude/templates/$TEMPLATE")"
 
 closes="no"
-printf '%s\n' "$answered_section" | grep --fixed-strings --quiet 'board-card" resolve <card-id> <thread-id>' && closes="yes"
+printf '%s\n' "$answered_section" | grep --fixed-strings --quiet 'board-card" resolve <ticket-id> <thread-id>' && closes="yes"
 assert_eq "and that section resolves the thread" "yes" "$closes"
 
 amends="no"

@@ -50,9 +50,9 @@ Read `rules/tech-steps.md` from the tech-ref plugin before drafting - the pointe
 
 One layer is this board's own, and is not in that table:
 
-| Layer   | Who runs it                                                                         |
-| ------- | ----------------------------------------------------------------------------------- |
-| `Board` | the local cockpit board - `board-card`, its records and fields, the app in `board/` |
+| Layer   | Who runs it                                                                          |
+| ------- | ------------------------------------------------------------------------------------ |
+| `Board` | the local cockpit board - `board-card`, its entities and fields, the app in `board/` |
 
 It carries no concern level - the layer is already the division.
 

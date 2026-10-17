@@ -122,11 +122,11 @@ DIVERGENCE="$REVIEWS/divergence-from-tech-steps.md"
 assert_names "it reads the steps through board-card" \
   "$DIVERGENCE" '"$HOME/.cockpit/scripts/board-card" show <id> --section "Tech Steps"'
 assert_names "and reads a missing section off the exit status" \
-  "$DIVERGENCE" 'Exit 7 means the card has no `## Tech Steps`'
+  "$DIVERGENCE" 'Exit 7 means the ticket has no `## Tech Steps`'
 assert_lacks "and fetches no page" \
   "$DIVERGENCE" 'Fetch that page'
 assert_names "an approved divergence is not reported" \
-  "$DIVERGENCE" 'A divergence a person approved in a reply on the card'
+  "$DIVERGENCE" 'A divergence a person approved in a reply on the ticket'
 assert_names "and resolved threads are read for the approval" \
   "$DIVERGENCE" 'board-card" comments <id> --all'
 

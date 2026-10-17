@@ -19,7 +19,7 @@ Generate a copy-pasteable daily status email in the team's standardised format b
 "$HOME/.cockpit/scripts/board-card" list --json
 ```
 
-Keep the cards whose `status` is one of the sprint statuses listed above, and read `name`, `status`, `blocked`, `due`, `overrunning`, `days_in_column` and `type` off each. `board-card` works out `overrunning` and `days_in_column` as it reads, so take them as it gives them and never work either out from the card's dates.
+Keep the tickets whose `status` is one of the sprint statuses listed above, and read `name`, `status`, `blocked`, `due`, `overrunning`, `days_in_column` and `type` off each. `board-card` works out `overrunning` and `days_in_column` as it reads, so take them as it gives them and never work either out from the card's dates.
 
 Group tickets by `status`.
 

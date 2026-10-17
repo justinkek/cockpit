@@ -119,7 +119,7 @@ fi
 printf "\nTest group: a moved body landed in a reference and left the core\n"
 
 moved_sentences=(
-  "where an agent picks the card up automatically"
+  "where an agent picks the ticket up automatically"
   "Fibonacci scale (1, 2, 3, 5, 8, 13)"
   "is the last section on every ticket"
   "needs to be created, insert it after"

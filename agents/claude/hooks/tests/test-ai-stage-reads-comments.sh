@@ -70,7 +70,7 @@ printf "\nTest group: one read, taken once, at the start\n"
 assert_names "the template takes one read" \
   "$TEMPLATE" 'One read sees everything open:'
 assert_names "and that read is the board's own" \
-  "$TEMPLATE" 'board-card" comments <card-id>'
+  "$TEMPLATE" 'board-card" comments <id>'
 assert_names "and page and line-anchored comments come back alike" \
   "$TEMPLATE" 'Page comments and line-anchored ones come back alike'
 assert_names "and leaves the resolved threads out" \
@@ -87,7 +87,7 @@ assert_names "an answered thread is closed by the decision template" \
 assert_names "and a reply that asks something back keeps it open" \
   "$TEMPLATE" 'A reply that asks something back is not an answer'
 assert_names "an unanswered one past a gate is resolved with the card left alone" \
-  "$TEMPLATE" 'Resolve it and change nothing on the card'
+  "$TEMPLATE" 'Resolve it and change nothing on the ticket'
 assert_names "whatever the card holds, a person's own value or a declined redraft included" \
   "$TEMPLATE" 'a value a person put there instead, or the original a redraft was offered against'
 assert_absent "and never only while the card carries the default" \
@@ -95,13 +95,13 @@ assert_absent "and never only while the card carries the default" \
 assert_absent "and never reads a declined redraft as accepted" \
   "$TEMPLATE" 'counts as accepted'
 assert_names "a drag back is not moving past the gate" \
-  "$TEMPLATE" 'A card a person dragged back to a gate or before it has not moved past that gate'
+  "$TEMPLATE" 'A ticket a person dragged back to a gate or before it has not moved past that gate'
 assert_names "and Done is past every gate" \
-  "$TEMPLATE" 'A card in `Done` has moved past every gate'
+  "$TEMPLATE" 'A ticket in `Done` has moved past every gate'
 assert_names "the time each comment was posted is read off the JSON" \
-  "$TEMPLATE" 'board-card" comments <card-id> --json'
+  "$TEMPLATE" 'board-card" comments <id> --json'
 assert_names "and so are the card's column and its gate dates" \
-  "$TEMPLATE" 'board-card" show <card-id> --json'
+  "$TEMPLATE" 'board-card" show <id> --json'
 assert_absent "and the pointer at the contract carries no summary of it" \
   "$TEMPLATE" 'Moving the card on is the approval'
 

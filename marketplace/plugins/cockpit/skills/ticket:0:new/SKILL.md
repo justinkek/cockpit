@@ -29,7 +29,7 @@ Infer a ticket title from the concern: succinct, the outcome not an instruction.
 
 ### 2. Resolve the epic
 
-Read the current session's ticket id from `~/.local/state/claude-ticket-sessions/<session_id>.ticket` with the Read tool, then its epic with `"$HOME/.cockpit/scripts/board-card" show <card-id> Epic`. Read that epic's status the way the register skill's epic gate does - its line in `"$HOME/.cockpit/scripts/board-card" list --kind epic`, no epic record read on its own. Default to the same epic unless its status is `Epic Done`, in which case pick from the open epics in that listing by the rule below and say on the new ticket which epic had closed.
+Read the current session's ticket id from `~/.local/state/claude-ticket-sessions/<session_id>.ticket` with the Read tool, then its epic with `"$HOME/.cockpit/scripts/board-card" show <ticket-id> Epic`. Read that epic's status the way the register skill's epic gate does - its line in `"$HOME/.cockpit/scripts/board-card" list --kind epic`, no epic record read on its own. Default to the same epic unless its status is `Epic Done`, in which case pick from the open epics in that listing by the rule below and say on the new ticket which epic had closed.
 
 If the concern clearly belongs to a different epic, pick the closest match among the open epics in that listing and post what decided it on the new ticket - never ask.
 
@@ -41,7 +41,7 @@ Same-project siblings follow the epic gate's rule: pick by the kind of work (dif
 
 **From register:** epic is resolved by register's epic gate - skip.
 
-### 3. Create the card with body content
+### 3. Create the ticket with body content
 
 Every ticket is created with a non-empty body. Never create one without it.
 

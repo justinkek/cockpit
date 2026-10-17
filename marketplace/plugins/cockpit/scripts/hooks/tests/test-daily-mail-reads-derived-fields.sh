@@ -34,7 +34,7 @@ printf "Test group: daily-mail reads off list --json every field it names\n"
 assert_eq "daily-mail reads the board with list --json" "yes" \
   "$(grep --fixed-strings --quiet '"$HOME/.cockpit/scripts/board-card" list --json' "$DAILY_MAIL" && echo yes || echo no)"
 
-read_line="$(grep '^Keep the cards whose `status`' "$DAILY_MAIL" | head -n 1)"
+read_line="$(grep '^Keep the tickets whose `status`' "$DAILY_MAIL" | head -n 1)"
 fields="$(printf '%s' "${read_line%% off each*}" | grep --only-matching --extended-regexp '`[a-z_]+`' | tr -d '`')"
 assert_eq "it reads overrunning" "yes" "$(printf '%s\n' "$fields" | grep --quiet --line-regexp overrunning && echo yes || echo no)"
 assert_eq "it reads days_in_column" "yes" "$(printf '%s\n' "$fields" | grep --quiet --line-regexp days_in_column && echo yes || echo no)"

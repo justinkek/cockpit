@@ -30,7 +30,7 @@ printf "Test group: the skill points at the rules rather than restating them\n"
 assert_names "the tr skill names the plugin's rules file" \
   "$TR" 'Read `rules/tech-steps.md` from the tech-ref plugin'
 assert_names "and adds the one layer the plugin has no row for" \
-  "$TR" 'the local cockpit board - `board-card`, its records and fields, the app in `board/`'
+  "$TR" 'the local cockpit board - `board-card`, its entities and fields, the app in `board/`'
 
 printf "\nTest group: the skill builds them before it writes the section\n"
 

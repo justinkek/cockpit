@@ -7,19 +7,19 @@ description: Register a cockpit epic for this session - scope the session to the
 
 Counterpart to `/cockpit:ticket:0:register` for epic-level work. Where `/cockpit:ticket:0:register` scopes a session to a single ticket (BR → TR → Dev), `/epic` scopes a session to an epic (FD → TD → Breakdown) and routes to the right workflow based on the epic's current status.
 
-An epic is a local record, `EPIC-n`, on columns of its own. `"$HOME/.cockpit/scripts/board-card" statuses --kind epic` prints them in walk order. `<epic-id>` below is the epic's id.
+An epic is a local entity, `EPIC-n`, on columns of its own. `"$HOME/.cockpit/scripts/board-card" statuses --kind epic` prints them in walk order. `<epic-id>` below is the epic's id.
 
 ## Workflow
 
 ### 1. Resolve the input to a cockpit epic
 
-Read it with `"$HOME/.cockpit/scripts/board-card" show <epic-id> Name Status Project`. Exit 3 means there is no such record.
+Read it with `"$HOME/.cockpit/scripts/board-card" show <epic-id> Name Status Project`. Exit 3 means there is no such epic.
 
 An id that does not start with `EPIC-` is not an epic. Stop and tell the user to use `/cockpit:ticket:0:register` instead.
 
 ### 2. Auto-name the session
 
-The epic's `Project` is a project record's id, `PRJ-n`. When it is set, read the project's name with `"$HOME/.cockpit/scripts/board-card" show <project-id> Name`.
+The epic's `Project` is a project's id, `PRJ-n`. When it is set, read the project's name with `"$HOME/.cockpit/scripts/board-card" show <project-id> Name`.
 
 Every epic has a project. One from before that rule may have none: ask the person which project it belongs to, from `"$HOME/.cockpit/scripts/board-card" list --kind project`, and set it with `"$HOME/.cockpit/scripts/board-card" set <epic-id> project <PRJ-n>` before going on.
 

@@ -26,15 +26,15 @@ Once the ticket is registered, the column it sits in decides what kind of output
 
 If no input was supplied, ask which ticket the user is working on.
 
-A link to a record on the board app - `http://<host>:4646/card/<id>`, `http://<host>:4646/?open=<id>` or `http://<host>:4646/epics?open=<id>`, whatever the host - is the id it names. Take the id out of it and resolve that id as case 1. It is never case 3's URL: the ticket already exists, and creating one from its link would duplicate it.
+A link to an entity on the board app - `http://<host>:4646/card/<id>`, `http://<host>:4646/?open=<id>` or `http://<host>:4646/epics?open=<id>`, whatever the host - is the id it names. Take the id out of it and resolve that id as case 1. It is never case 3's URL: the ticket already exists, and creating one from its link would duplicate it.
 
 Otherwise resolve the argument as one of:
 
-1. **Card id** (`<KEY>-n`, such as `COC-12`, or an older id the ticket once held, such as `FEAT-n`) — read it once with `"$HOME/.cockpit/scripts/board-card" show <card-id> --json`, confirm its name and continue to the epic gate. Exit 3 means no such ticket: say so and stop. An `EPIC-n` id is an epic, not a ticket - inform the user and invoke the `/cockpit:epic:0:register` skill with the id instead of continuing the ticket flow. Stop this skill's execution.
+1. **Ticket id** (`<KEY>-n`, such as `COC-12`, or an older id the ticket once held, such as `FEAT-n`) — read it once with `"$HOME/.cockpit/scripts/board-card" show <ticket-id> --json`, confirm its name and continue to the epic gate. Exit 3 means no such ticket: say so and stop. An `EPIC-n` id is an epic, not a ticket - inform the user and invoke the `/cockpit:epic:0:register` skill with the id instead of continuing the ticket flow. Stop this skill's execution.
 2. **A Notion URL** — the board no longer lives in Notion. Ask for the ticket id and stop.
 3. **Title, free text or any other URL** — delegate ticket creation to `/cockpit:ticket:0:new`, passing: title (from the text, or the page a URL names), type (from step 2.5), and epic (from step 2). A URL is reference material: it goes in the ticket's `## Context`, and nothing reads or writes the page it names.
 
-Case 3 has no ticket to read until it creates one. Run step 2's points 1 to 4 and step 2.5 first, answering them from the person's text, then delegate. Read the ticket it creates once with `"$HOME/.cockpit/scripts/board-card" show <card-id> --json` - that read is the step 1 read every later step refers to - and carry on at step 3.
+Case 3 has no ticket to read until it creates one. Run step 2's points 1 to 4 and step 2.5 first, answering them from the person's text, then delegate. Read the ticket it creates once with `"$HOME/.cockpit/scripts/board-card" show <ticket-id> --json` - that read is the step 1 read every later step refers to - and carry on at step 3.
 
 Handle epic ambiguity only in the epic gate; do not ask twice.
 
@@ -50,7 +50,7 @@ Take the `epic` field from the step 1 read - never a second read of the ticket s
 2. Search for a matching epic: run `"$HOME/.cockpit/scripts/board-card" list --kind epic`. Each line is an epic id, its status, its session and its name. Only an epic whose status is not `Epic Done` is a candidate - a closed epic is never a valid home for a new ticket.
 3. If an epic fits, note its id for linking after registration (step 4.1). **When two open epics share the ticket's project, the kind of work decides, never the closer name.** A project typically runs a dev epic and a delivery epic whose names differ by one word. Work whose output is a diff on the product goes to the dev epic; work whose output is reporting, ceremony, or client-facing process goes to the delivery epic. Work that is genuinely both goes to the dev epic, named alongside the sibling it was picked over.
 4. When none fits, a bug, a timebox or an improvement to finished work goes under its project's maintenance epic for the month: run `"$HOME/.cockpit/scripts/board-card" maintenance <PRJ-n>` for the project the work belongs to - the closest open epic's, read with `"$HOME/.cockpit/scripts/board-card" show <EPIC-n> Project` - and note the id it prints. The type is the one step 2.5 picks. Feature work goes under the closest open epic anyway. Either way, name the gap in the comment below - never ask. Creating an epic is never the gate's move beyond what `maintenance` makes, and no ticket goes without one: `board-card` refuses a ticket with no epic and refuses to clear one.
-5. A populated field is read for the epic's status, not only its presence. Find the linked epic's id in the same `list --kind epic` output - no epic record is read on its own.
+5. A populated field is read for the epic's status, not only its presence. Find the linked epic's id in the same `list --kind epic` output - no epic is read on its own.
    - **`Epic Done`** - the epic has closed. Pick a replacement by points 1 to 4 above, note its id for step 4.1 to write, and post which epic had closed and which one the ticket moved to on the ticket, following `~/.claude-shared/templates/raise-a-decision.md`.
    - **Any other status** - the epic is open. Carry on.
 
@@ -81,7 +81,7 @@ If the session is already named under that convention, it already matches what t
 Run exactly:
 
 ```sh
-"$HOME/.cockpit/scripts/ticket-register" "<card-id>"
+"$HOME/.cockpit/scripts/ticket-register" "<ticket-id>"
 ```
 
 ### 4.1. Write what the gates picked
@@ -91,12 +91,12 @@ Only case 1 writes here. A ticket the workflow created carries the epic and the 
 For case 1, write the epic when the gate picked one - for an empty field by points 1 to 4, or when point 5 picked a replacement for a closed one:
 
 ```sh
-"$HOME/.cockpit/scripts/board-card" set <card-id> epic <EPIC-n>
+"$HOME/.cockpit/scripts/board-card" set <ticket-id> epic <EPIC-n>
 ```
 
 An open epic the gate found already linked is right - skip the epic half of this step.
 
-A `Type` picked at step 2.5 for a ticket that arrived without one is written with `board-card set <card-id> type <Type>`.
+A `Type` picked at step 2.5 for a ticket that arrived without one is written with `board-card set <ticket-id> type <Type>`.
 
 ### 4.5. Store work item type
 
@@ -127,7 +127,7 @@ Read the ticket's `session` (already in the step 1 read) and act on what it hold
 - **Empty** - claim it:
 
   ```sh
-  "$HOME/.cockpit/scripts/board-card" claim <card-id>
+  "$HOME/.cockpit/scripts/board-card" claim <ticket-id>
   ```
 
   It takes `ticket-claim-lock` and writes this session's id onto the ticket. Exit 0 means it is yours. Exit 1 means a session on this machine got there first. Say so and leave the ticket alone - registration itself still succeeds.
@@ -152,7 +152,7 @@ Use the ticket's current status (e.g. `In BR by AI` after step 4.6, or whatever 
 
 Arm the watcher here, once. Call the `Monitor` tool with:
 
-- `command`: `"$HOME/.cockpit/scripts/ticket-watch-column" "<card-id>"`.
+- `command`: `"$HOME/.cockpit/scripts/ticket-watch-column" "<ticket-id>"`.
 - `description`: `cockpit ticket column changes`.
 - `persistent`: `true` - never a timeout.
 
@@ -160,20 +160,20 @@ Arming is best-effort. A watcher that exits at once with an error line leaves re
 
 ### 4.75. Check for pre-existing PR
 
-Run this step only for a card at `In Dev` or later, and never for a card this run created.
+Run this step only for a ticket at `In Dev` or later, and never for a ticket this run created.
 
 The branch the session sits on proves nothing on its own. Registration can run before `/cockpit:ticket:3:dev` enters the ticket's worktree, and a session started in a worktree of its own can be on any branch, with a PR on it that is other work. Every PR the flow opens links the ticket's page in its body, as `~/.claude-shared/templates/pull-request-to-ticket.md` writes it, so a PR counts only when its body names this ticket.
 
 If the session is in a git repository with a GitHub remote, look up the current branch's pull request, keeping it only when its body names the ticket:
 
 ```sh
-gh pr view --json url,body --jq 'select(.body | test("/card/<card-id>([^0-9]|$)")) | .url' 2>/dev/null
+gh pr view --json url,body --jq 'select(.body | test("/card/<ticket-id>([^0-9]|$)")) | .url' 2>/dev/null
 ```
 
-If a PR URL is returned, read the ticket's `PRs` with `board-card show <card-id> PRs`. If it already holds that URL, leave it. Otherwise write it back with the new URL on a line of its own after whatever was there:
+If a PR URL is returned, read the ticket's `PRs` with `board-card show <ticket-id> PRs`. If it already holds that URL, leave it. Otherwise write it back with the new URL on a line of its own after whatever was there:
 
 ```sh
-"$HOME/.cockpit/scripts/board-card" set <card-id> prs "<existing urls and the new one>"
+"$HOME/.cockpit/scripts/board-card" set <ticket-id> prs "<existing urls and the new one>"
 ```
 
 If the command fails (no git repo, no GitHub remote, no PR on the branch) or prints nothing, skip silently.

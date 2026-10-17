@@ -118,7 +118,7 @@ assert_decision() {
 
 NEW_SKILL="$(cd "$(dirname "$0")/../../.." && pwd)/skills/ticket:0:new/SKILL.md"
 NEW_CARD_CREATE="$(awk '
-  /^### 3\. Create the card/ { step = 1 }
+  /^### 3\. Create the ticket/ { step = 1 }
   open && /^```$/ { exit }
   open { print }
   step && /^```sh$/ { open = 1 }

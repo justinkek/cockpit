@@ -11,7 +11,7 @@ Complexity measures delivery effort on a Fibonacci scale (1, 2, 3, 5, 8, 13).
 - **Split threshold** = tickets with Complexity > 5 must be broken down before Ready for Sprint.
 - **Timebox exclusion** = timebox tickets don't get Complexity points (they have explicit time bounds via Timebox (mins)).
 - **Cross-domain** = one speed across all domains (Tech, Bizdev). Each domain has its own reference tickets for calibration; references converge iteratively during an initial calibration phase, then lock as stable anchors.
-- **Reference tickets** = the board's `REF-n` records, read with `"$HOME/.cockpit/scripts/board-card" list --kind reference --json`. Agents must consult reference tickets when proposing Complexity.
+- **Reference tickets** = the board's `REF-n` entities, read with `"$HOME/.cockpit/scripts/board-card" list --kind reference --json`. Agents must consult reference tickets when proposing Complexity.
 - **Derived from layers** = a ticket's Complexity is the sum of its Tech Steps layer points, and reference tickets are consulted per-layer rather than per-ticket.
 
 ## Split at the exit gate

@@ -44,7 +44,7 @@ assert_eq "the id is resolved as case 1" "yes" "$(has 'Take the id out of it and
 assert_eq "a link never creates a card" "yes" "$(has "It is never case 3's URL" "$REGISTER")"
 
 link="$(line_of 'http://<host>:4646/card/<id>' "$REGISTER")"
-cases="$(line_of '1. **Card id**' "$REGISTER")"
+cases="$(line_of '1. **Ticket id**' "$REGISTER")"
 assert_eq "the link is read before the cases are" "yes" "$([ -n "$link" ] && [ -n "$cases" ] && [ "$link" -lt "$cases" ] && echo yes || echo no)"
 
 printf "\n%d passed, %d failed\n" "$pass" "$fail"

@@ -9,7 +9,7 @@ Write the functional design output for an epic on the cockpit board. FD captures
 
 FD is the epic-level equivalent of BR: it answers the same "what and why" question but at a higher altitude, covering the full scope of an epic rather than a single ticket.
 
-The epic is a local record, `EPIC-n`; `<epic-id>` below is its id. Read its open comments with `"$HOME/.cockpit/scripts/board-card" comments <epic-id>` before drafting, following `~/.claude-shared/templates/page-comments.md`.
+The epic is a local entity, `EPIC-n`; `<epic-id>` below is its id. Read its open comments with `"$HOME/.cockpit/scripts/board-card" comments <epic-id>` before drafting, following `~/.claude-shared/templates/page-comments.md`.
 
 Read `~/.claude-shared/templates/cockpit-operating-contract.md` first.
 

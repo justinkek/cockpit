@@ -11,7 +11,7 @@ TD is the epic-level counterpart to TR: it answers "what is the right technical 
 
 This skill maps to the Epic Tech Strategy standard.
 
-The epic is a local record, `EPIC-n`, and `<epic-id>` below is its id. Before drafting, read its open comments with `"$HOME/.cockpit/scripts/board-card" comments <epic-id>`, following `~/.claude-shared/templates/page-comments.md`.
+The epic is a local entity, `EPIC-n`, and `<epic-id>` below is its id. Before drafting, read its open comments with `"$HOME/.cockpit/scripts/board-card" comments <epic-id>`, following `~/.claude-shared/templates/page-comments.md`.
 
 Read `~/.claude-shared/templates/cockpit-operating-contract.md` first.
 
