@@ -52,7 +52,7 @@ import { Content, confirmDiscard } from "@/app/content";
 import { type Draft, NewRecord } from "@/app/create";
 import { EpicDoneDialog, EpicsDoneDialog, type Finishing, openTickets } from "@/app/epic-done";
 import { ViewDialog, type ViewDialogAsk } from "@/app/view-dialog";
-import { type SearchOption, SearchSelect } from "@/app/search-select";
+import { ChoiceSelect, type SearchOption } from "@/app/search-select";
 import { Fields, type Handlers, Links, type Lists, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, type Shortcut, ShortcutHelp, useKeys } from "@/app/keys";
 import { MentionContext, type Mentions, mentionNames } from "@/app/markdown";
@@ -65,8 +65,10 @@ import { toastOf, typingIn, type Undoable, UndoToast, undoable, withNewId } from
 import {
 	collapsedIn,
 	defaultView,
+	choicePasses,
+	chosen,
 	droppedInto,
-	exceptEpic,
+	keptIn,
 	type FieldChange,
 	type Found,
 	GROUPINGS,
@@ -77,6 +79,7 @@ import {
 	loadView,
 	restoredView,
 	matches,
+	NO_CHOICE,
 	onlyEpic,
 	type Sort,
 	saveLastParent,
@@ -209,8 +212,8 @@ function filterCount(view: View) {
 	return [
 		view.query.trim() !== "",
 		view.types.length > 0,
-		view.project !== "",
-		view.epic !== "",
+		chosen(view.projects) > 0,
+		chosen(view.epics) > 0,
 		view.labels.length > 0,
 		view.urgent,
 		view.blocked,
@@ -831,7 +834,7 @@ export function Board({
 		const epic = params.get("epic");
 		const failure = params.get("error");
 		if (failure) setNotice({ id: "", text: failure });
-		if (saved || epic) setView({ ...(saved ?? defaultView(kind)), ...(epic ? { epic } : {}) });
+		if (saved || epic) setView({ ...(saved ?? defaultView(kind)), ...(epic ? { epics: { include: [epic], exclude: [] } } : {}) });
 		const opening = params.get("open")?.toUpperCase();
 		if (opening) {
 			const number = opening.split("-").at(-1);
@@ -871,31 +874,22 @@ export function Board({
 		[names, epicProjects, inContent, query],
 	);
 	const projectOptions = useMemo<SearchOption[]>(
-		() => [
-			{ value: "", label: "All projects" },
-			...lists.projects.map((project) => ({
+		() =>
+			lists.projects.map((project) => ({
 				value: project.id,
 				id: project.id,
 				label: project.name,
 				done: project.status === "Done",
 			})),
-		],
 		[lists.projects],
 	);
-	const epicOptions = useMemo<SearchOption[]>(() => {
-		const shown = view.project ? epics.filter((epic) => epic.project === view.project) : epics;
-		const option = (epic: (typeof epics)[number], except: boolean) => ({
-			value: except ? exceptEpic(epic.id) : epic.id,
-			id: epic.id,
-			label: except ? `Not ${epic.name}` : epic.name,
-			done: epic.status === "Epic Done",
-		});
-		return [
-			{ value: "", label: "All epics" },
-			...shown.map((epic) => option(epic, false)),
-			...shown.map((epic) => option(epic, true)),
-		];
-	}, [epics, view.project]);
+	const epicOptions = useMemo<SearchOption[]>(
+		() =>
+			epics
+				.filter((epic) => choicePasses(view.projects, epic.project ?? ""))
+				.map((epic) => ({ value: epic.id, id: epic.id, label: epic.name, done: epic.status === "Epic Done" })),
+		[epics, view.projects],
+	);
 
 	useEffect(() => {
 		if (query.length < 2) return;
@@ -1235,7 +1229,7 @@ export function Board({
 	}
 
 	function clearFilters() {
-		update({ query: "", types: [], project: "", epic: "", labels: [], urgent: false, blocked: false, claimed: false, overrunning: false });
+		update({ query: "", types: [], projects: NO_CHOICE, epics: NO_CHOICE, labels: [], urgent: false, blocked: false, claimed: false, overrunning: false });
 	}
 
 	useKeys((event) => {
@@ -1785,18 +1779,25 @@ export function Board({
 										))}
 									</div>
 								)}
-								<SearchSelect
+								<ChoiceSelect
 									label="Project"
-									value={view.project}
+									all="All projects"
+									value={view.projects}
 									options={projectOptions}
-									onChange={(project) => {
-										const epic = view.epic.replace(/^!/, "");
-										const kept = !project || !epics.some((other) => other.id === epic) || epicProjects[epic] === project;
-										update({ project, ...(kept ? {} : { epic: "" }) });
+									onChange={(projects) => {
+										const fits = (epic: string) =>
+											!epics.some((other) => other.id === epic) || choicePasses(projects, epicProjects[epic] ?? "");
+										update({ projects, epics: keptIn(view.epics, fits) });
 									}}
 								/>
 								{kind === "card" && (
-									<SearchSelect label="Epic" value={view.epic} options={epicOptions} onChange={(epic) => update({ epic })} />
+									<ChoiceSelect
+										label="Epic"
+										all="All epics"
+										value={view.epics}
+										options={epicOptions}
+										onChange={(epics) => update({ epics })}
+									/>
 								)}
 								{labels.length > 0 && (
 									<div className="chips" role="group" aria-label="Label">

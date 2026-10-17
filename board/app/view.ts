@@ -31,11 +31,15 @@ export const LAYOUTS: [Layout, string][] = [
 	["table", "Table"],
 ];
 
+export type Choice = { include: string[]; exclude: string[] };
+
+export const NO_CHOICE: Choice = { include: [], exclude: [] };
+
 export type View = {
 	query: string;
 	types: string[];
-	project: string;
-	epic: string;
+	projects: Choice;
+	epics: Choice;
 	labels: string[];
 	urgent: boolean;
 	blocked: boolean;
@@ -53,8 +57,8 @@ export type View = {
 export const DEFAULT_VIEW: View = {
 	query: "",
 	types: [],
-	project: "",
-	epic: "",
+	projects: NO_CHOICE,
+	epics: NO_CHOICE,
 	labels: [],
 	urgent: false,
 	blocked: false,
@@ -75,10 +79,29 @@ export function defaultView(kind: Kind): View {
 	return { ...DEFAULT_VIEW, collapsed: COLLAPSED[kind], listCollapsed: COLLAPSED[kind] };
 }
 
-export function restoredView(kind: Kind, saved: Partial<View>): View {
+const EXCEPT = "!";
+
+export function choiceFrom(saved: unknown, single?: unknown): Choice {
+	if (saved && typeof saved === "object") {
+		const { include, exclude } = saved as Partial<Choice>;
+		const ids = (list: unknown) => (Array.isArray(list) ? list.filter((id): id is string => typeof id === "string") : []);
+		return { include: ids(include), exclude: ids(exclude) };
+	}
+	if (typeof single !== "string" || !single || single === "none") return NO_CHOICE;
+	return single.startsWith(EXCEPT) ? { include: [], exclude: [single.slice(EXCEPT.length)] } : { include: [single], exclude: [] };
+}
+
+export function restoredView(kind: Kind, saved: Partial<View> & { project?: unknown; epic?: unknown }): View {
 	const known: Partial<View> = Object.fromEntries(Object.entries(saved).filter(([key]) => key in DEFAULT_VIEW));
 	const collapsed = known.collapsed ?? COLLAPSED[kind];
-	return { ...defaultView(kind), ...known, collapsed, listCollapsed: known.listCollapsed ?? collapsed };
+	return {
+		...defaultView(kind),
+		...known,
+		projects: choiceFrom(saved.projects, saved.project),
+		epics: choiceFrom(saved.epics, saved.epic),
+		collapsed,
+		listCollapsed: known.listCollapsed ?? collapsed,
+	};
 }
 
 export function collapsedIn(view: View): string[] {
@@ -97,23 +120,36 @@ export const TOGGLES = [
 	["overrunning", "Overrunning"],
 ] as const;
 
-export const NO_EPIC = "none";
-
-const EXCEPT = "!";
-
-export function exceptEpic(id: string) {
-	return `${EXCEPT}${id}`;
+export function choicePasses(choice: Choice, value?: string | null) {
+	if (choice.include.length > 0 && !choice.include.includes(value ?? "")) return false;
+	return !choice.exclude.includes(value ?? "");
 }
 
-export function epicPasses(filter: string, epic?: string | null) {
-	if (!filter) return true;
-	if (filter === NO_EPIC) return !epic;
-	if (filter.startsWith(EXCEPT)) return (epic ?? "") !== filter.slice(EXCEPT.length);
-	return (epic ?? "") === filter;
+export function chosen(choice: Choice) {
+	return choice.include.length + choice.exclude.length;
+}
+
+export type Mark = "include" | "exclude" | null;
+
+export function markOf(choice: Choice, value: string): Mark {
+	return choice.include.includes(value) ? "include" : choice.exclude.includes(value) ? "exclude" : null;
+}
+
+export function cycled(choice: Choice, value: string): Choice {
+	const include = choice.include.filter((other) => other !== value);
+	const exclude = choice.exclude.filter((other) => other !== value);
+	const mark = markOf(choice, value);
+	if (mark === null) return { include: [...include, value], exclude };
+	if (mark === "include") return { include, exclude: [...exclude, value] };
+	return { include, exclude };
+}
+
+export function keptIn(choice: Choice, keep: (value: string) => boolean): Choice {
+	return { include: choice.include.filter(keep), exclude: choice.exclude.filter(keep) };
 }
 
 export function onlyEpic(view: View) {
-	return view.epic && view.epic !== NO_EPIC && !view.epic.startsWith(EXCEPT) ? view.epic : undefined;
+	return view.epics.include.length === 1 ? view.epics.include[0] : undefined;
 }
 
 export function storageKey(kind: Kind) {
@@ -203,8 +239,8 @@ export function matches(stub: Stub, view: View, found: Found = {}) {
 	if (query && !`${stub.id} ${stub.name} ${epic}`.toLowerCase().includes(query) && !found.inContent?.has(stub.id))
 		return false;
 	if (view.types.length > 0 && !view.types.includes(stub.type ?? "")) return false;
-	if (view.project && projectOf(stub, found.epicProjects) !== view.project) return false;
-	if (!epicPasses(view.epic, stub.epic)) return false;
+	if (!choicePasses(view.projects, projectOf(stub, found.epicProjects))) return false;
+	if (!choicePasses(view.epics, stub.epic)) return false;
 	if (view.labels.length > 0 && !(stub.labels ?? []).some((label) => view.labels.includes(label))) return false;
 	if (view.urgent && !stub.urgent) return false;
 	if (view.blocked && !stub.blocked) return false;

@@ -56,6 +56,23 @@ process.stdout.write(cards.filter((card) => matches({ created: "", body: "", ...
 ' "$1" "$2"
 }
 
+restored() {
+  node --input-type=module -e '
+import { restoredView } from "'"$WORK"'/view.mjs";
+const view = restoredView("card", JSON.parse(process.argv[1]));
+process.stdout.write(`${JSON.stringify(view.projects)} ${JSON.stringify(view.epics)}`);
+' "$1"
+}
+
+cycles() {
+  node --input-type=module -e '
+import { cycled, NO_CHOICE } from "'"$WORK"'/view.mjs";
+const once = cycled(NO_CHOICE, process.argv[1]);
+const twice = cycled(once, process.argv[1]);
+process.stdout.write([once, twice, cycled(twice, process.argv[1])].map((choice) => JSON.stringify(choice)).join(" "));
+' "$1"
+}
+
 NOW="$(node -e 'process.stdout.write(String(Date.now()))')"
 stamp() {
   node -e 'process.stdout.write(new Date(Number(process.argv[1]) - Number(process.argv[2]) * 86400000).toISOString())' "$NOW" "$1"
@@ -83,20 +100,42 @@ assert_eq "a view with no filters keeps every card" \
 assert_eq "a saved view naming a column preset the board no longer has keeps every card" \
   "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{"preset":"sprint"}')"
 
-printf "Test group: the epic filter keeps one epic, no epic, or all but one\n"
+printf "Test group: the epic filter keeps the cards of any epic it includes and of none it excludes\n"
 
-assert_eq "one epic keeps its cards" "FEAT-2 FEAT-11" "$(kept "$CARDS" '{"epic":"EPIC-1"}')"
-assert_eq "no epic keeps the cards that have none" \
-  "FEAT-1 FEAT-3 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10" "$(kept "$CARDS" '{"epic":"none"}')"
-assert_eq "all but one epic keeps the cards of others and of none" \
+assert_eq "one included epic keeps its cards" "FEAT-2 FEAT-11" "$(kept "$CARDS" '{"epics":{"include":["EPIC-1"],"exclude":[]}}')"
+assert_eq "two included epics keep the cards of either" "FEAT-2 FEAT-4 FEAT-11 FEAT-12" \
+  "$(kept "$CARDS" '{"epics":{"include":["EPIC-1","EPIC-2"],"exclude":[]}}')"
+assert_eq "an excluded epic keeps the cards of others and of none" \
+  "FEAT-1 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-12" "$(kept "$CARDS" '{"epics":{"include":[],"exclude":["EPIC-1"]}}')"
+assert_eq "an epic both included and excluded keeps none of its cards" "FEAT-4 FEAT-12" \
+  "$(kept "$CARDS" '{"epics":{"include":["EPIC-1","EPIC-2"],"exclude":["EPIC-1"]}}')"
+
+printf "Test group: a view saved with one epic or all but one still loads\n"
+
+assert_eq "an old view naming one epic keeps its cards" "FEAT-2 FEAT-11" "$(kept "$CARDS" '{"epic":"EPIC-1"}')"
+assert_eq "an old view naming all but one epic keeps the cards of others and of none" \
   "FEAT-1 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-12" "$(kept "$CARDS" '{"epic":"!EPIC-1"}')"
+assert_eq "an old view naming no epic keeps every card" \
+  "FEAT-1 FEAT-2 FEAT-3 FEAT-4 FEAT-5 FEAT-6 FEAT-7 FEAT-8 FEAT-9 FEAT-10 FEAT-11 FEAT-12" "$(kept "$CARDS" '{"epic":"none"}')"
+assert_eq "an old view comes back in the new shape" '{"include":["PRJ-1"],"exclude":[]} {"include":[],"exclude":["EPIC-1"]}' \
+  "$(restored '{"project":"PRJ-1","epic":"!EPIC-1"}')"
 
-printf "Test group: the project filter keeps the cards whose own project or whose epic's project it names\n"
+printf "Test group: the project filter keeps the cards whose own project or whose epic's project it includes and does not exclude\n"
 
-assert_eq "a project keeps the cards that carry it" "FEAT-2" \
-  "$(kept '[{"id":"FEAT-1","name":"a","status":"Backlog","epic":"EPIC-2","project":"PRJ-2"},{"id":"FEAT-2","name":"b","status":"Backlog","epic":"EPIC-1","project":"PRJ-1"}]' '{"project":"PRJ-1"}')"
-assert_eq "no project keeps every card" "FEAT-1 FEAT-2" \
-  "$(kept '[{"id":"FEAT-1","name":"a","status":"Backlog","epic":"EPIC-2","project":"PRJ-2"},{"id":"FEAT-2","name":"b","status":"Backlog","epic":"EPIC-1","project":"PRJ-1"}]' '{"project":""}')"
+PROJECTED='[{"id":"FEAT-1","name":"a","status":"Backlog","epic":"EPIC-2","project":"PRJ-2"},{"id":"FEAT-2","name":"b","status":"Backlog","epic":"EPIC-1","project":"PRJ-1"},{"id":"FEAT-3","name":"c","status":"Backlog","epic":"EPIC-3","project":"PRJ-3"}]'
+assert_eq "an included project keeps the cards that carry it" "FEAT-2" \
+  "$(kept "$PROJECTED" '{"projects":{"include":["PRJ-1"],"exclude":[]}}')"
+assert_eq "two included projects keep the cards of either" "FEAT-1 FEAT-2" \
+  "$(kept "$PROJECTED" '{"projects":{"include":["PRJ-1","PRJ-2"],"exclude":[]}}')"
+assert_eq "an excluded project keeps the cards of the others" "FEAT-1 FEAT-3" \
+  "$(kept "$PROJECTED" '{"projects":{"include":[],"exclude":["PRJ-1"]}}')"
+assert_eq "no project keeps every card" "FEAT-1 FEAT-2 FEAT-3" "$(kept "$PROJECTED" '{}')"
+assert_eq "an old view naming one project keeps its cards" "FEAT-2" "$(kept "$PROJECTED" '{"project":"PRJ-1"}')"
+
+printf "Test group: a row of the filter list cycles through include, exclude and neither\n"
+
+assert_eq "a row cycles from neither to include to exclude and back" \
+  '{"include":["EPIC-1"],"exclude":[]} {"include":[],"exclude":["EPIC-1"]} {"include":[],"exclude":[]}' "$(cycles EPIC-1)"
 
 printf "Test group: the Overrunning toggle and the days in column sort\n"
 

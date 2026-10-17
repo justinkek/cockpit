@@ -2044,6 +2044,58 @@
 		color: var(--faint);
 	}
 
+	.search-select-open.on {
+		max-width: 260px;
+		border-color: var(--accent);
+	}
+
+	.choice-head {
+		display: flex;
+		gap: 6px;
+
+		& input {
+			flex: 1;
+			min-width: 0;
+		}
+	}
+
+	.choice-clear {
+		flex: none;
+	}
+
+	.choice-hint {
+		margin: 0;
+		font-size: 11.5px;
+		color: var(--faint);
+	}
+
+	.choice-mark {
+		flex: none;
+		width: 16px;
+		height: 16px;
+		display: inline-grid;
+		place-items: center;
+		font: 600 12px var(--mono);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+
+		&.include {
+			color: var(--panel);
+			background: var(--accent);
+			border-color: var(--accent);
+		}
+
+		&.exclude {
+			color: var(--panel);
+			background: var(--danger);
+			border-color: var(--danger);
+		}
+	}
+
+	.search-select-panel li[data-mark="exclude"] .card-picker-name {
+		text-decoration: line-through;
+	}
+
 	@media (width < 760px) {
 		.card-picker-panel {
 			position: fixed;
