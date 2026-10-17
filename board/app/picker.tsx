@@ -16,7 +16,9 @@ export function SprintPicker({
 		<select
 			aria-label="Sprint"
 			value={value}
-			onChange={(event) => router.push(`/sprints?sprint=${encodeURIComponent(event.target.value)}&measure=${measure}`)}
+			onChange={(event) =>
+				router.push(`/obeya?sprint=${encodeURIComponent(event.target.value)}&measure=${measure}#sprint`, { scroll: false })
+			}
 		>
 			{sprints.map((sprint) => (
 				<option key={sprint.id} value={sprint.id}>

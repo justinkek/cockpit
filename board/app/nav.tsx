@@ -12,7 +12,6 @@ const LINKS = [
 	{ href: "/plan", label: "Plan" },
 	{ href: "/projects", label: "Projects" },
 	{ href: "/epics", label: "Epics" },
-	{ href: "/sprints", label: "Sprints" },
 	{ href: "/", label: "Cards" },
 	{ href: "/references", label: "References" },
 	{ href: "/archive", label: "Archive" },

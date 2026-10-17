@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BurndownChart } from "@/app/burndown";
+import { SprintSection, type SprintParams } from "@/app/obeya/sprint";
 import { ProgressMeter } from "@/app/progress";
 import {
 	BoardError,
@@ -11,7 +11,7 @@ import {
 	phaseOf,
 	showsOverrun,
 } from "@/lib/board";
-import { burndownOf, currentSprint, flowOf, median, progressOf, span, throughputOf } from "@/lib/metrics";
+import { flowOf, median, progressOf, span, throughputOf } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,8 @@ function weekLabel(start: string) {
 	return new Date(year, month - 1, day).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-export default async function ObeyaPage() {
+export default async function ObeyaPage({ searchParams }: { searchParams: Promise<SprintParams> }) {
+	const params = await searchParams;
 	let cards: Card[];
 	let epics: Card[];
 	let sprints: Card[];
@@ -68,10 +69,6 @@ export default async function ObeyaPage() {
 
 	const weeks = throughputOf(cards, WEEKS, new Date(now));
 	const weekTop = Math.max(1, ...weeks.map((week) => week.done));
-
-	const sprint = currentSprint(sprints);
-	const sprintCards = sprint ? cards.filter((card) => card.sprint === sprint.id) : [];
-	const burndown = sprint ? burndownOf(sprint, sprintCards, "points", now) : null;
 
 	const children: Record<string, Card[]> = {};
 	for (const card of cards) if (card.epic) (children[card.epic] ??= []).push(card);
@@ -149,18 +146,6 @@ export default async function ObeyaPage() {
 
 				<div className="report-card">
 					<h2>
-						{sprint ? `Sprint ${sprint.name}` : "Sprint"}
-						<Link href={sprint ? `/sprints?sprint=${sprint.id}` : "/sprints"}>Open the burndown</Link>
-					</h2>
-					{sprint && burndown ? (
-						<BurndownChart burndown={burndown} unit="Points" sprint={sprint} compact />
-					) : (
-						<p className="empty">No sprint is on the board yet.</p>
-					)}
-				</div>
-
-				<div className="report-card">
-					<h2>
 						Throughput <span className="count">cards done each week</span>
 					</h2>
 					<ol className="week-bars">
@@ -179,7 +164,7 @@ export default async function ObeyaPage() {
 					</ol>
 				</div>
 
-				<div className="report-card">
+				<div className="report-card span-all">
 					<h2>
 						Epics in flight <span className="count">{epicsInFlight.length}</span>
 						<Link href="/epics">All epics</Link>
@@ -237,6 +222,8 @@ export default async function ObeyaPage() {
 					)}
 				</div>
 			</div>
+
+			<SprintSection cards={cards} sprints={sprints} params={params} />
 		</section>
 	);
 }

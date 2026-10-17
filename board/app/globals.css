@@ -3591,10 +3591,6 @@
 		touch-action: pan-y;
 		outline: none;
 
-		.compact & {
-			height: 150px;
-		}
-
 		&:focus-visible {
 			box-shadow: 0 0 0 2px var(--accent-soft);
 			border-radius: 4px;
@@ -3770,6 +3766,16 @@
 @layer components {
 	.report.obeya {
 		max-width: 1280px;
+	}
+
+	.obeya-sprint {
+		display: grid;
+		gap: 14px;
+		scroll-margin-top: 14px;
+
+		& > .report-head h2 {
+			margin: 0 8px 0 0;
+		}
 	}
 
 	.obeya-grid {

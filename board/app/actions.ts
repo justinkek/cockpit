@@ -62,7 +62,7 @@ function refresh(id: string) {
 	revalidatePath("/");
 	revalidatePath("/epics");
 	revalidatePath("/projects");
-	revalidatePath("/sprints");
+	revalidatePath("/obeya");
 	revalidatePath("/references");
 	revalidatePath("/archive");
 	revalidatePath("/plan");
@@ -264,7 +264,7 @@ export async function submitRecord(_previous: string | null, form: FormData): Pr
 	}
 	if (!id) return refused(failure);
 	const query = failure ? `error=${encodeURIComponent(failure)}` : "";
-	if (kind === "sprint") redirect(`/sprints?sprint=${encodeURIComponent(id)}${query ? `&${query}` : ""}`);
+	if (kind === "sprint") redirect(`/obeya?sprint=${encodeURIComponent(id)}${query ? `&${query}` : ""}#sprint`);
 	redirect(`/card/${encodeURIComponent(id)}${query ? `?${query}` : ""}`);
 }
 
