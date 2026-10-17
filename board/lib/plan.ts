@@ -518,24 +518,11 @@ export function planOf(
 			}
 		}
 		if (tracks === 0) continue;
-		const busy: number[] = [];
 		for (const row of Object.values(rows)) {
-			if (row.team !== team || row.phase !== "refinement") continue;
-			row.refineStart ??= today;
+			if (row.team !== team || (row.phase !== "refinement" && row.phase !== "backlog")) continue;
+			row.refineStart ??= openFrom(today, off);
 			row.refineEnd = Math.max(today, afterOpen(row.refineStart, refinement.days, off));
 			row.refineForecast = true;
-			busy.push(row.refineEnd);
-		}
-		let slot = today;
-		for (const row of Object.values(rows)) {
-			if (row.team !== team || row.phase !== "backlog") continue;
-			const ends = [...busy].sort((a, b) => a - b);
-			const freed = ends.length >= tracks ? ends[ends.length - tracks] : today;
-			slot = Math.max(slot, freed);
-			row.refineStart = openFrom(slot, off);
-			row.refineEnd = afterOpen(row.refineStart, refinement.days, off);
-			row.refineForecast = true;
-			busy.push(row.refineEnd);
 		}
 		const readyOf = (row: Row) => Math.max(today, row.phase === "delivery" ? today : (row.refineEnd ?? today));
 		const laneOf = (row: Row) => (row.pin != null && !row.pinIgnored ? row.pin - 1 : null);

@@ -229,7 +229,7 @@ assert_eq "refinement under way is forecast to end the average after its start" 
   "$(evaluate "pick($staged[\"EPIC-2\"], \"refineStart refineEnd refineForecast\")")"
 assert_eq "and one already past the average is forecast to end today" '20740' "$(evaluate "$staged[\"EPIC-5\"].refineEnd")"
 assert_eq "its delivery begins no earlier than its refinement ends" '20745' "$(evaluate "$staged[\"EPIC-2\"].begin")"
-assert_eq "a backlog epic starts refinement when one of the project's refinement slots frees, as many as its tracks" '20740:20750,20745:20755' \
+assert_eq "every backlog epic starts refinement today, however many are in refinement already, as refinement has no limit" '20740:20750,20740:20750' \
   "$(evaluate "[3,4].map((n) => $staged[\"EPIC-\" + n].refineStart + \":\" + $staged[\"EPIC-\" + n].refineEnd).join()")"
 assert_eq "refinement takes no track, so the epic in delivery runs from today beside it" '1@20740' \
   "$(evaluate "$staged[\"EPIC-1\"].track + \"@\" + $staged[\"EPIC-1\"].begin")"

@@ -1639,18 +1639,6 @@ export function Plan({
 		}
 		return notes;
 	});
-	for (const project of projects) {
-		const limit = tracksOf(project.id);
-		const refining = Object.values(committedRows).filter(
-			(row) => row.team === project.id && row.phase === "refinement",
-		);
-		if (limit > 0 && refining.length > limit) {
-			trackNotes.push({
-				key: `refining-${project.id}`,
-				text: `${project.name} has ${refining.length} epics in refinement, over its limit of ${limit}, its share of the tracks: ${refining.map((row) => nameOf(row.id)).join(", ")}. The plan forecasts each of them, and holds its next epic in Backlog until enough of them are refined.`,
-			});
-		}
-	}
 
 	if (!hydrated) {
 		return (
@@ -1702,7 +1690,7 @@ export function Plan({
 						key="refining"
 						className="plan-refine forecast"
 						style={{ left: x(from), width: x(row.refineEnd) - x(from) }}
-						title={`${row.phase === "backlog" ? `Refinement forecast to start ${short(row.refineStart)}, when a refinement slot of ${teamName(row.team)} frees, and` : "Refinement"} forecast to end ${short(row.refineEnd)}: ${refinementText(refinement)}`}
+						title={`${row.phase === "backlog" ? `Refinement forecast to start ${short(row.refineStart)}, as refinement has no limit, and` : "Refinement"} forecast to end ${short(row.refineEnd)}: ${refinementText(refinement)}`}
 					/>,
 				);
 			}
