@@ -39,12 +39,10 @@ export function BurndownChart({
 	burndown,
 	unit,
 	sprint,
-	compact = false,
 }: {
 	burndown: Burndown;
 	unit: string;
 	sprint: Dates;
-	compact?: boolean;
 }) {
 	const [at, setAt] = useState<number | null>(null);
 	const steps = burndown.days.length;
@@ -56,7 +54,7 @@ export function BurndownChart({
 	const known = burndown.remaining.flatMap((value, index) => (value == null ? [] : [[index, value] as const]));
 	const actual = known.map(([index, value]) => `${x(index)},${y(value)}`).join(" ");
 	const last = known.at(-1);
-	const labelEvery = Math.ceil(steps / (compact ? 4 : 8));
+	const labelEvery = Math.ceil(steps / 8);
 	const shown = at ?? null;
 
 	function pick(event: React.PointerEvent<HTMLDivElement>) {
@@ -73,7 +71,7 @@ export function BurndownChart({
 	}
 
 	return (
-		<figure className={`burndown${compact ? " compact" : ""}`}>
+		<figure className="burndown">
 			<figcaption className="chart-legend">
 				<span>
 					<span className="key remaining" aria-hidden="true" />
@@ -157,35 +155,33 @@ export function BurndownChart({
 					)}
 				</span>
 			</div>
-			{!compact && (
-				<details className="chart-numbers">
-					<summary>Show the numbers</summary>
-					<table>
-						<thead>
-							<tr>
-								<th scope="col">When</th>
-								<th scope="col" className="numeric">
-									{unit} left
-								</th>
-								<th scope="col" className="numeric">
-									Ideal
-								</th>
+			<details className="chart-numbers">
+				<summary>Show the numbers</summary>
+				<table>
+					<thead>
+						<tr>
+							<th scope="col">When</th>
+							<th scope="col" className="numeric">
+								{unit} left
+							</th>
+							<th scope="col" className="numeric">
+								Ideal
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						{burndown.ideal.map((ideal, index) => (
+							<tr key={pointLabel(burndown, index)}>
+								<th scope="row">{pointLabel(burndown, index)}</th>
+								<td className="numeric">
+									{burndown.remaining[index] == null ? "-" : amount(burndown.remaining[index] ?? 0)}
+								</td>
+								<td className="numeric">{amount(ideal)}</td>
 							</tr>
-						</thead>
-						<tbody>
-							{burndown.ideal.map((ideal, index) => (
-								<tr key={pointLabel(burndown, index)}>
-									<th scope="row">{pointLabel(burndown, index)}</th>
-									<td className="numeric">
-										{burndown.remaining[index] == null ? "-" : amount(burndown.remaining[index] ?? 0)}
-									</td>
-									<td className="numeric">{amount(ideal)}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</details>
-			)}
+						))}
+					</tbody>
+				</table>
+			</details>
 		</figure>
 	);
 }
