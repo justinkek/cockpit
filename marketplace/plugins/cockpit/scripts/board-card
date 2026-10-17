@@ -112,6 +112,33 @@ die() {
   exit "$status"
 }
 
+warn() { echo "board-card: warning: $*" >&2; }
+
+warn_shares_over() {
+  local doing="$1" total board
+  board="$(board_tracks)"
+  [ -n "$board" ] || return 0
+  total="$(shares_total)"
+  [ "$total" -le "$board" ] || warn "the projects' shares add up to $total, over the board's $board tracks - $doing anyway"
+}
+
+warn_epic_done() {
+  local epic="$1" doing="$2"
+  [ -n "$epic" ] && [ -f "$(record_file "$epic")" ] || return 0
+  [ "$(read_record "$epic" | jq --raw-output '.status // ""')" = "Epic Done" ] || return 0
+  warn "$epic is in Epic Done - $doing anyway"
+}
+
+warn_open_work() {
+  local project="$1" epic_count card_count
+  [ "$closing_project" != true ] || return 0
+  [ "$(read_record "$project" | jq --raw-output '.status // ""')" != Done ] || return 0
+  epic_count="$(open_epics_of_project "$project" | grep --count . || true)"
+  card_count="$(open_cards_of_project "$project" | grep --count . || true)"
+  [ "$epic_count" -gt 0 ] || [ "$card_count" -gt 0 ] || return 0
+  warn "$project still has $epic_count open $( [ "$epic_count" -eq 1 ] && echo epic || echo epics) and $card_count open $( [ "$card_count" -eq 1 ] && echo ticket || echo tickets) - marked it Done anyway"
+}
+
 now() { printf '%s\n' "${COCKPIT_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"; }
 
 RESERVED_KEYS=" EPIC PRJ SPR REF MS FEAT BUG TIME "
@@ -737,6 +764,7 @@ last_epic_rank() {
 create_locked() {
   local kind="$1" name="$2" type="$3" status="$4" epic="$5" body="$6" fields="${7:-"{}"}" id stamp stamped=false
   id="$(next_id "$kind" "$epic")" || exit "$?"
+  [ "$kind" != card ] || warn_epic_done "$epic" "added $id to it"
   stamp="$(now)"
   if has_board "$kind" && is_stamped "$kind" "$status"; then stamped=true; fi
   [ "$kind" != epic ] || fields="$(jq --compact-output --argjson rank "$(last_epic_rank)" '{rank: ($rank + 1)} + .' <<<"$fields")"
@@ -1491,8 +1519,13 @@ set_locked() {
           ;;
         epic/target) check_epic_span "$(read_record "$id" | jq --raw-output '.start // empty')" "$value" ;;
       esac
+      local was_status
+      was_status="$(read_record "$id" | jq --raw-output '.status // ""')"
+      [ "$(kind_of "$id")/$field" != project/status ] || [ "$value" != Done ] || warn_open_work "$id"
       [ "$(kind_of "$id")/$field" != project/status ] || [ "$value" != Done ] || [ "$closing_project" != true ] || close_project "$id"
       update_record "$id" --arg field "$field" --argjson value "$json" "$unnest_reference_program | .[\$field] = \$value"
+      [ "$(kind_of "$id")/$field" != project/tracks ] || [ -z "$value" ] || [ "$was_status" = Done ] || warn_shares_over "gave $id a share of $value"
+      [ "$(kind_of "$id")/$field" != project/status ] || [ "$was_status" != Done ] || [ "$value" = Done ] || warn_shares_over "reopened $id"
       [ "$field" != target ] || hold_epic_cards "$id"
       ;;
     epic|project|sprint)
@@ -1506,6 +1539,8 @@ set_locked() {
         reference="$(normalise_id "$value")"
         require_record "$reference"
         [ "$(kind_of "$reference")" = "$field" ] || die 2 "$reference is not a $field"
+        [ "$field/$(kind_of "$id")" != epic/card ] || [ "$reference" = "$(read_record "$id" | jq --raw-output '.epic // ""')" ] \
+          || warn_epic_done "$reference" "moved $id into it"
       fi
       local key="" was
       case "$(kind_of "$id")/$field" in
@@ -1758,6 +1793,7 @@ command_bounce() {
   id="$(normalise_id "${1:-}")"
   case "$GATES" in *" $gate "*) ;; *) die 2 "a bounce is back from one of:$GATES- not '$gate'" ;; esac
   require_record "$id"
+  [ "$(kind_of "$id")" != card ] || [ "$(read_record "$id" | jq --raw-output '.status // ""')" != Done ] || warn "$id is Done - bounced it anyway"
   with_lock update_record "$id" --arg gate "$gate" '.back_from = ((.back_from // {}) + {($gate): (((.back_from // {})[$gate] // 0) + 1)})'
   command_show "$id" "Back from $gate"
 }
@@ -1776,6 +1812,7 @@ hop() {
   record="$(read_record "$id")"
   from="$(printf '%s' "$record" | jq --raw-output '.status')"
   [ "$from" = "$column" ] && return 0
+  [ "$kind" != card ] || [ "$from" != Done ] || warn "$id was Done - moved it anyway"
   if is_stamped "$kind" "$column"; then stamped=true; fi
   if [ "$kind" = epic ] && [ "$from" = Backlog ]; then starting=true; fi
   stamp="$(now)"
@@ -2858,6 +2895,7 @@ tracks_locked() {
     return 0
   fi
   printf '%s\n' "$1" > "$BOARD_DIR/tracks"
+  warn_shares_over "set the board's count to $1"
 }
 
 command_tracks() {

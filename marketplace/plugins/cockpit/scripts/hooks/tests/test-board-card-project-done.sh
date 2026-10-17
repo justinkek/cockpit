@@ -51,8 +51,9 @@ stub create --epic EPIC-4 --name Elsewhere >/dev/null
 
 printf "Test group: a project with open work is marked Done on its own, leaving that work open\n"
 
-stub set PRJ-1 status Done >/dev/null
+warning="$(stub set PRJ-1 status Done 2>&1 >/dev/null)"
 assert_eq "plain set marks it Done" "0 Done" "$? $(field PRJ-1 .status)"
+assert_eq "warning how much it left open" "board-card: warning: PRJ-1 still has 2 open epics and 2 open tickets - marked it Done anyway" "$warning"
 assert_eq "and leaves its tickets and epics where they were" "Backlog In Dev Backlog Backlog" "$(field COC-1 .status) $(field COC-2 .status) $(field EPIC-1 .status) $(field EPIC-2 .status)"
 stub undo PRJ-1 >/dev/null
 assert_eq "undo puts it back" "Not started" "$(field PRJ-1 .status)"
@@ -62,8 +63,9 @@ assert_eq "--close is refused on anything but marking a project Done" "2" "$?"
 printf "\nTest group: --close closes everything open in the project and marks it Done in one commit\n"
 
 before="$(git -C "$COCKPIT_BOARD_DIR" rev-list --count HEAD)"
-output="$(stub set PRJ-1 status Done --close)"
+output="$(stub set PRJ-1 status Done --close 2>"$TMPDIR/close-warnings")"
 assert_eq "the project is Done" "Done" "$(field PRJ-1 .status)"
+assert_eq "with no warning, as it leaves nothing open" "" "$(cat "$TMPDIR/close-warnings")"
 assert_eq "its open tickets are deprioritised" "Deprioritised Deprioritised" "$(field COC-1 .status) $(field COC-2 .status)"
 assert_eq "its open epics move to Epic Done" "Epic Done Epic Done" "$(field EPIC-1 .status) $(field EPIC-2 .status)"
 assert_eq "a done ticket stays done" "Done" "$(field COC-3 .status)"

@@ -228,11 +228,13 @@ other="$(stub create --kind project --name Other --key OTH)"
 stub set "$other" tracks 1 >/dev/null
 assert_eq "until it is set, the board's count reads as the shares added up" "4" "$(stub tracks)"
 assert_eq "and no share is refused" "Tracks	2" "$(stub set "$other" tracks 2)"
-assert_eq "a count below the shares is kept, for the app to warn about" "3" "$(stub tracks 3)"
-assert_eq "a count the shares fit in is kept" "6" "$(stub tracks 6)"
+assert_eq "a count below the shares is kept, for the app to warn about" "3" "$(stub tracks 3 2>/dev/null)"
+assert_eq "warning how far over the shares are" "board-card: warning: the projects' shares add up to 5, over the board's 3 tracks - set the board's count to 3 anyway" "$(stub tracks 3 2>&1 >/dev/null)"
+assert_eq "a count the shares fit in is kept" "6|" "$(stub tracks 6 2>/dev/null)|$(stub tracks 6 2>&1 >/dev/null)"
 assert_eq "at the board's root" "6" "$(cat "$COCKPIT_BOARD_DIR/tracks")"
 assert_eq "and committed there" "" "$(git -C "$COCKPIT_BOARD_DIR" status --porcelain tracks)"
-assert_eq "a share that takes the total over the count is kept" "Tracks	9" "$(stub set "$other" tracks 9)"
+assert_eq "a share that takes the total over the count is kept" "Tracks	9" "$(stub set "$other" tracks 9 2>/dev/null)"
+assert_eq "warning how far over the shares are" "board-card: warning: the projects' shares add up to 12, over the board's 6 tracks - gave $other a share of 9 anyway" "$(stub set "$other" tracks 9 2>&1 >/dev/null)"
 stub set "$other" tracks 3 >/dev/null
 assert_eq "as is one that fits exactly" "3" "$(field "$other" .tracks)"
 stub set "$tracked" tracks "" >/dev/null
@@ -254,8 +256,9 @@ assert_eq "but leaves it out of the shares the count is checked against" "3" "$(
 stub tracks 3 >/dev/null
 assert_eq "so the count can drop to the open projects' shares alone" "3" "$(stub tracks)"
 assert_eq "a done project's share can change without counting either" "Tracks	4" "$(stub set "$finished" tracks 4)"
-stub set "$finished" status "In progress" >/dev/null
-assert_eq "reopening a project whose share takes the total over the count is made" "In progress" "$(field "$finished" .status)"
+warning="$(stub set "$finished" status "In progress" 2>&1 >/dev/null)"
+assert_eq "reopening a project whose share takes the total over the count is made" "0 In progress" "$? $(field "$finished" .status)"
+assert_eq "with a warning how far over the shares are" "board-card: warning: the projects' shares add up to 7, over the board's 3 tracks - reopened $finished anyway" "$warning"
 assert_eq "and its share counts again" "7" "$(stub tracks "" >/dev/null; stub tracks)"
 
 printf "\nTest group: a break is a span of days off for the whole board, kept at the board's root\n"

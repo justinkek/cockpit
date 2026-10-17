@@ -1127,8 +1127,9 @@ printf "\nTest group: a ticket moves out of Done like any other, as the app is w
 finished="$(stub create --name Finished --epic "$home")"
 stub move "$finished" "In Dev" >/dev/null
 stub move "$finished" Done >/dev/null
-stub move "$finished" "In Dev" >/dev/null
+warning="$(stub move "$finished" "In Dev" 2>&1 >/dev/null)"
 assert_eq "a move out of Done is made" "0 In Dev" "$? $(field "$finished" .status)"
+assert_eq "with a warning that it was Done" "board-card: warning: $finished was Done - moved it anyway" "$warning"
 stub move "$finished" Done >/dev/null
 stub move "$finished" Deprioritised >/dev/null
 assert_eq "and so is a move to Deprioritised" "Deprioritised" "$(field "$finished" .status)"
@@ -1136,8 +1137,10 @@ stub move "$finished" Done >/dev/null
 stub undo "$finished" >/dev/null
 assert_eq "undo takes back the move to Done as it takes back any other" "Deprioritised" "$(field "$finished" .status)"
 stub move "$finished" Done >/dev/null
-stub bounce "$finished" CR >/dev/null
-assert_eq "a bounce of a Done ticket is counted" "1" "$(field "$finished" '.back_from.CR')"
+warning="$(stub bounce "$finished" CR 2>&1 >/dev/null)"
+assert_eq "a bounce of a Done ticket is counted" "0 1" "$? $(field "$finished" '.back_from.CR')"
+assert_eq "with a warning that it is Done" "board-card: warning: $finished is Done - bounced it anyway" "$warning"
+assert_eq "a move into Done warns of nothing" "" "$(stub move "$finished" "In Dev" >/dev/null 2>&1; stub move "$finished" Done 2>&1 >/dev/null)"
 
 printf "\nTest group: an epic waits in Ready for Dev until its first card starts dev\n"
 
@@ -1165,12 +1168,18 @@ printf "\nTest group: a ticket is moved to and copied under an epic in Epic Done
 done_epic="$(stub create --kind epic --name "Finished again" --project PRJ-1)"
 stub move "$done_epic" "Epic Done" >/dev/null
 on_open="$(stub create --name "On an open epic" --epic EPIC-1)"
-stub set "$on_open" epic "$done_epic" >/dev/null
+warnings="$TMPDIR/epic-done-warnings"
+stub set "$on_open" epic "$done_epic" >/dev/null 2>"$warnings"
 assert_eq "a ticket is moved to an epic in Epic Done" "0|$done_epic" "$?|$(field "$on_open" .epic)"
-late="$(stub create --name Late --epic "$done_epic")"
-assert_eq "a ticket is made under an epic in Epic Done" "$done_epic" "$(field "$late" .epic)"
-copy="$(stub duplicate "$on_open")"
-assert_eq "and a ticket whose epic is in Epic Done is duplicated under it" "$done_epic" "$(field "$copy" .epic)"
+assert_eq "with a warning naming the epic" "board-card: warning: $done_epic is in Epic Done - moved $on_open into it anyway" "$(cat "$warnings")"
+assert_eq "giving it the same epic again warns of nothing" "" "$(stub set "$on_open" epic "$done_epic" 2>&1 >/dev/null)"
+late="$(stub create --name Late --epic "$done_epic" 2>"$warnings")"
+assert_eq "a ticket is made under an epic in Epic Done" "0|$done_epic" "$?|$(field "$late" .epic)"
+assert_eq "with a warning naming the epic and the ticket" "board-card: warning: $done_epic is in Epic Done - added $late to it anyway" "$(cat "$warnings")"
+copy="$(stub duplicate "$on_open" 2>"$warnings")"
+assert_eq "and a ticket whose epic is in Epic Done is duplicated under it" "0|$done_epic" "$?|$(field "$copy" .epic)"
+assert_eq "with a warning naming the epic and the copy" "board-card: warning: $done_epic is in Epic Done - added $copy to it anyway" "$(cat "$warnings")"
+rm -f "$warnings"
 stub archive "$late" >/dev/null
 stub archive "$copy" >/dev/null
 stub archive "$on_open" >/dev/null
