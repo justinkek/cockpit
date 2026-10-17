@@ -29,20 +29,16 @@ import {
 	type Change,
 	createMilestone,
 	dropBreak,
-	dropCard,
-	editCard,
-	finishEpic,
 	loadComments,
 	postComment,
 	type Ranked,
-	rankPlan,
-	removeMilestone,
 	resolveThread,
 	saveBreak,
 	setBoardTracks,
 	type Span,
-	undoChange,
 } from "@/app/actions";
+import { dropCard, editCard, finishEpic, rankPlan, removeMilestone, undoAll } from "@/app/tracked";
+import { busyWith, stillSaving, useBusyIds, withBusy } from "@/app/work";
 import { askOverShares, useConfirm } from "@/app/confirm";
 import { confirmDiscard } from "@/app/content";
 import { TextField, useHydrated } from "@/app/fields";
@@ -822,6 +818,7 @@ export function Plan({
 	const [legendOpen, setLegendOpen] = useState(false);
 	const [finishing, setFinishing] = useState<Finishing | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
+	const busyNow = withBusy(pending, useBusyIds());
 	const [trackCounts, setTrackCounts] = useState<Record<string, number>>({});
 	const [boardCount, setBoardCount] = useState(initialTracks);
 	const [breaks, setBreaks] = useState(initialBreaks);
@@ -1030,6 +1027,10 @@ export function Plan({
 	function apply(id: string, optimistic: Partial<Card>, request: () => Promise<Outcome>, label: string) {
 		const before = epics.find((epic) => epic.id === id);
 		if (!before) return;
+		if (busyWith([id])) {
+			setNotice({ id, text: stillSaving(id) });
+			return;
+		}
 		setNotice(null);
 		setToast(null);
 		setEpics((current) => current.map((epic) => (epic.id === id ? { ...epic, ...optimistic } : epic)));
@@ -1325,6 +1326,11 @@ export function Plan({
 				.slice(0, Math.max(at + 1, order.filter((epic) => epic.rank != null).length))
 				.map((epic, index) => ({ id: epic.id, rank: index + 1 }))
 				.filter((rank) => order.find((epic) => epic.id === rank.id)?.rank !== rank.rank);
+		const still = busyWith([id, ...ranks.map((rank) => rank.id)]);
+		if (still) {
+			setNotice({ id: still, text: stillSaving(still) });
+			return;
+		}
 		const rankOf = Object.fromEntries(ranks.map((rank) => [rank.id, rank.rank]));
 		const earlier = epics;
 		setNotice(null);
@@ -1450,8 +1456,7 @@ export function Plan({
 				if (result.error || !result.breaks) failures.push(result.error ?? "board-card changed no break");
 				else setBreaks(result.breaks);
 			}
-			for (const change of shownToast.changes) {
-				const result = await undoChange(change.id, { since: change.since, until: change.until });
+			for (const { change, result } of await undoAll(shownToast.changes, shownToast.text)) {
 				if (result.error) {
 					failures.push(result.error);
 					continue;
@@ -1588,7 +1593,7 @@ export function Plan({
 		const row = rows[epic.id];
 		if (!row) return null;
 		const active = drag?.id === epic.id && drag.mode !== "milestone";
-		const pendingNow = pending.has(epic.id);
+		const pendingNow = busyNow.has(epic.id);
 		const start = row.start;
 		const target = row.target;
 		const ends: number[] = [];

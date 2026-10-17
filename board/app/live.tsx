@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { onWorkChange, workRunning } from "@/app/work";
 
 const CHANGED = "cockpit-board-change";
 const FALLBACK = 60000;
@@ -86,7 +87,7 @@ export function LiveUpdates() {
 
 		function refresh() {
 			window.clearTimeout(settle);
-			if (owed === null || pending > 0) return;
+			if (owed === null || pending > 0 || workRunning() > 0) return;
 			const revision = owed;
 			owed = null;
 			router.refresh();
@@ -103,7 +104,7 @@ export function LiveUpdates() {
 			known.current = revision;
 			if (before === null || before === revision) return;
 			owed = revision;
-			if (pending === 0) refresh();
+			if (pending === 0 && workRunning() === 0) refresh();
 		}
 
 		function close() {
@@ -166,7 +167,12 @@ export function LiveUpdates() {
 			connect();
 			void fallback();
 		};
+		function workChanged() {
+			if (workRunning() === 0 && pending === 0 && owed !== null) quiet();
+		}
+
 		settled.add(quiet);
+		const unwatch = onWorkChange(workChanged);
 		connect();
 		poll = window.setTimeout(fallback, FALLBACK);
 		document.addEventListener("visibilitychange", visibility);
@@ -175,6 +181,7 @@ export function LiveUpdates() {
 		return () => {
 			stopped = true;
 			settled.delete(quiet);
+			unwatch();
 			window.clearTimeout(settle);
 			close();
 			window.clearTimeout(poll);

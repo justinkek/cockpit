@@ -2374,6 +2374,45 @@
 		}
 	}
 
+	.work-spinner {
+		display: inline-block;
+		flex: none;
+		width: 10px;
+		height: 10px;
+		border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: work-spin 0.8s linear infinite;
+	}
+
+	.entity-busy-spinner {
+		margin-right: 4px;
+		vertical-align: -1px;
+	}
+
+	.card.pending,
+	.row.pending {
+		position: relative;
+
+		&::after {
+			content: "";
+			position: absolute;
+			top: 8px;
+			right: 8px;
+			width: 9px;
+			height: 9px;
+			border: 1.5px solid color-mix(in srgb, var(--accent) 25%, transparent);
+			border-top-color: var(--accent);
+			border-radius: 50%;
+			animation: work-spin 0.8s linear infinite;
+		}
+	}
+
+	.row.pending::after {
+		top: calc(50% - 5px);
+		right: 4px;
+	}
+
 	@media (width < 760px) {
 		.live-label {
 			position: absolute;
@@ -6059,6 +6098,12 @@
 
 .skeleton-page .skeleton-bar {
 	margin-bottom: 4px;
+}
+
+@keyframes work-spin {
+	to {
+		rotate: 360deg;
+	}
 }
 
 @keyframes skeleton-shimmer {

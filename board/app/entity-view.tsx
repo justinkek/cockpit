@@ -4,18 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type MouseEvent, type ReactNode, useEffect, useMemo, useState, useTransition } from "react";
 import { ActivitySection } from "@/app/activity";
-import {
-	archiveOne,
-	closeProject,
-	dropCard,
-	duplicateCard,
-	editCard,
-	findInContent,
-	finishEpic,
-	linkCards,
-	type Span,
-	undoChange,
-} from "@/app/actions";
+import { findInContent, type Span } from "@/app/actions";
 import {
 	cardCommands,
 	type Edits,
@@ -28,6 +17,17 @@ import {
 import { Content, confirmDiscard } from "@/app/content";
 import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
 import { type Closing, EpicDoneDialog, type Finishing, openTickets, ProjectDoneDialog } from "@/app/epic-done";
+import {
+	archiveOne,
+	closeProject,
+	dropCard,
+	duplicateCard,
+	editCard,
+	finishEpic,
+	linkCards,
+	undoChange,
+} from "@/app/tracked";
+import { useBusy } from "@/app/work";
 import { EstimateFacts } from "@/app/estimates";
 import { Fields, type Handlers, Links, linkChange, Title } from "@/app/fields";
 import { cardLink, copyText, useKeys } from "@/app/keys";
@@ -109,6 +109,7 @@ export function EntityView({
 	const [entity, setEntity] = useState(initial);
 	const [error, setError] = useState(failure ?? "");
 	const [saving, startTransition] = useTransition();
+	const busy = useBusy(entity.id);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
 	const [palette, setPalette] = useState<Page | null>(null);
@@ -480,7 +481,12 @@ export function EntityView({
 				{entity.type && <span>{entity.type}</span>}
 				{!kind && <span>{entityKindOf(entity.id)}</span>}
 				{entity.status && <span>{entity.status}</span>}
-				{saving && <span className="saving">Saving…</span>}
+				{(saving || busy) && (
+					<span className="saving">
+						<span className="work-spinner entity-busy-spinner" aria-hidden="true" />
+						Saving…
+					</span>
+				)}
 				<span className="entity-actions">
 					<button type="button" className="quiet" onClick={() => copy(true)} title="Copy link (Cmd/Ctrl+Shift+.)">
 						Copy link

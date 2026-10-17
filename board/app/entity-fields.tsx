@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { editCard } from "@/app/actions";
+import { editCard } from "@/app/tracked";
 import { EmojiPicker } from "@/app/emoji-picker";
 import { Choice, Fallback, type Handlers, type Lists, TextField } from "@/app/fields";
 import { type Card, DOMAINS, FIBONACCI, PROJECT_STATUSES, entityKindOf } from "@/lib/shared";

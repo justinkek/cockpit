@@ -16,7 +16,8 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
-import { closeProject, editCard, undoChange } from "@/app/actions";
+import { closeProject, editCard, undoAll } from "@/app/tracked";
+import { busyWith, stillSaving, useBusyIds, withBusy } from "@/app/work";
 import { type Notice, NoticeBar } from "@/app/board";
 import { confirmDiscard } from "@/app/content";
 import { type Closing, ProjectDoneDialog } from "@/app/epic-done";
@@ -228,6 +229,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 	const [loaded, setLoaded] = useState(false);
 	const [dragging, setDragging] = useState<ProjectEntry | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
+	const saving = withBusy(pending, useBusyIds());
 	const [notice, setNotice] = useState<Notice>(null);
 	const [toast, setToast] = useState<Undoable | null>(null);
 	const [undoing, setUndoing] = useState(false);
@@ -288,6 +290,10 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 	function move(id: string, status: string, checked = false) {
 		const before = projects.find((project) => project.id === id);
 		if (!before || before.status === status) return;
+		if (busyWith([id])) {
+			setNotice({ id, text: stillSaving(id) });
+			return;
+		}
 		setNotice(null);
 		setToast(null);
 		if (!checked && status === "Done" && (before.openEpics > 0 || before.open > 0)) {
@@ -339,8 +345,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 		setNotice(null);
 		startTransition(async () => {
 			const failures: string[] = [];
-			for (const change of shown.changes) {
-				const result = await undoChange(change.id, { since: change.since, until: change.until });
+			for (const { change, result } of await undoAll(shown.changes, shown.text)) {
 				if (result.error) {
 					failures.push(result.error);
 					continue;
@@ -419,7 +424,7 @@ export function Projects({ initial, error }: { initial: ProjectEntry[]; error?: 
 								key={status}
 								status={status}
 								projects={shown.filter((project) => project.status === status).sort(byPriority)}
-								pending={pending}
+								pending={saving}
 								onOpen={show}
 							/>
 						))}

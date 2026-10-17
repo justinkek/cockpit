@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { loadHistory, restoreVersion, type Span } from "@/app/actions";
+import { loadHistory, type Span } from "@/app/actions";
+import { restoreVersion } from "@/app/tracked";
 import { stampText } from "@/app/stages";
 import { type Card, fieldName, type HistoryChange, type HistoryComment, type HistoryEntry } from "@/lib/shared";
 

@@ -9,9 +9,9 @@ import {
 	removeComment,
 	resolveThread,
 	type Span,
-	saveBody,
 	submitCard,
 } from "@/app/actions";
+import { saveBody } from "@/app/tracked";
 import { nameOf } from "@/app/code-block";
 import { useHydrated } from "@/app/fields";
 import { onBoardChange } from "@/app/live";

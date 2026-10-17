@@ -28,26 +28,21 @@ import {
 	useState,
 	useTransition,
 } from "react";
-import {
-	type Bulk,
-	bulkChange,
-	type Change,
-	createCard,
-	dropCard,
-	type FieldSet,
-	duplicateCard,
-	editCard,
-	findInContent,
-	finishEpic,
-	finishEpics,
-	forgetView,
-	linkCards,
-	type Span,
-	storeView,
-	undoChange,
-} from "@/app/actions";
+import { type Bulk, type Change, type FieldSet, findInContent, forgetView, type Span, storeView } from "@/app/actions";
 import { cardCommands, type Edits, epicPage, movePage, entityCommands, themeCommands } from "@/app/commands";
 import { ColumnOverview } from "@/app/column-overview";
+import {
+	bulkChange,
+	createCard,
+	dropCard,
+	duplicateCard,
+	editCard,
+	finishEpic,
+	finishEpics,
+	linkCards,
+	undoAll,
+} from "@/app/tracked";
+import { busyWith, stillSaving, useBusyIds, withBusy } from "@/app/work";
 import { askFinishedEpic, askMoveDone, finishedEpic, useConfirm } from "@/app/confirm";
 import { confirmDiscard } from "@/app/content";
 import { type Draft, NewEntity } from "@/app/create";
@@ -658,6 +653,10 @@ export function Board({
 	const [loaded, setLoaded] = useState(false);
 	const [dragging, setDragging] = useState<Stub | null>(null);
 	const [pending, setPending] = useState<Set<string>>(new Set());
+	const busy = useBusyIds();
+	const saving = withBusy(pending, busy);
+	const pendingNow = useRef(pending);
+	pendingNow.current = pending;
 	const [notice, setNotice] = useState<Notice>(null);
 	const [openId, openEntity] = useOpenEntity();
 	const shownId = useRef(openId);
@@ -684,7 +683,15 @@ export function Board({
 	const workspace = useRef<HTMLDivElement>(null);
 	const dndId = useId();
 
-	useEffect(() => setStubs(initial), [initial]);
+	useEffect(
+		() =>
+			setStubs((current) =>
+				initial.flatMap((stub) =>
+					pendingNow.current.has(stub.id) ? current.filter((one) => one.id === stub.id) : [stub],
+				),
+			),
+		[initial],
+	);
 
 	useEffect(() => setSaved(views), [views]);
 
@@ -912,6 +919,11 @@ export function Board({
 		request = () => bulkChange(ids, change),
 	) {
 		if (ids.length === 0) return;
+		const still = busyWith(ids);
+		if (still) {
+			setNotice({ id: still, text: stillSaving(still) });
+			return;
+		}
 		const before = stubs.filter((stub) => ids.includes(stub.id));
 		setNotice(null);
 		setToast(null);
@@ -1267,6 +1279,10 @@ export function Board({
 	) {
 		const before = stubs.find((s) => s.id === id);
 		if (!before) return;
+		if (busyWith([id])) {
+			setNotice({ id, text: stillSaving(id) });
+			return;
+		}
 		setNotice(null);
 		setToast(null);
 		setStubs((current) => current.map((s) => (s.id === id ? { ...s, ...optimistic } : s)));
@@ -1297,8 +1313,7 @@ export function Board({
 		setNotice(null);
 		startTransition(async () => {
 			const failures: string[] = [];
-			for (const change of shown.changes) {
-				const result = await undoChange(change.id, { since: change.since, until: change.until });
+			for (const { change, result } of await undoAll(shown.changes, shown.text)) {
 				if (result.error) {
 					failures.push(result.error);
 					continue;
@@ -1543,7 +1558,7 @@ export function Board({
 		total: (swimlane?.stubs ?? stubs).filter((stub) => stub.status === column).length,
 		collapsed: collapsedIn(view).includes(column),
 		onToggle: () => toggleColumn(column),
-		pending,
+		pending: saving,
 		focusedId,
 		selected,
 		onOpen: clickCard,
@@ -1842,7 +1857,7 @@ export function Board({
 										context={tableContext}
 										sort={tableSort}
 										onSort={(key) => update({ tableSort: nextTableSort(tableSort, key) })}
-										pending={pending}
+										pending={saving}
 										focusedId={focusedId}
 										selected={selected}
 										onOpen={clickCard}
