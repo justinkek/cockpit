@@ -537,6 +537,11 @@ export function EntityView({
 								<span className={`dot phase-${phaseOf(member.status)}`} aria-hidden="true" />
 								{entityLink(member.id, member.name)}
 								<span className="ident">{member.id}</span>
+								{member.size && (
+									<span className="member-size" title={member.size.title}>
+										{member.size.text}
+									</span>
+								)}
 							</li>
 						))}
 					</ol>

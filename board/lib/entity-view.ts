@@ -15,6 +15,27 @@ import {
 	entityKindOf,
 	resolveId,
 } from "@/lib/board";
+import { timeboxText } from "@/lib/shared";
+
+export type Size = { text: string; title: string };
+
+export type Member = Picked & { size?: Size };
+
+function points(count: number) {
+	return `${count} ${count === 1 ? "pt" : "pts"}`;
+}
+
+function sizeOf(card: Card): Size {
+	if (card.type === "Timebox")
+		return card.timebox_mins
+			? { text: timeboxText(card.timebox_mins), title: `A timebox of ${card.timebox_mins} minutes` }
+			: { text: "timebox", title: "A timebox with no length set" };
+	if ((card.complexity ?? 0) > 0)
+		return { text: points(card.complexity ?? 0), title: `TR complexity ${card.complexity}` };
+	if ((card.estimate ?? 0) > 0)
+		return { text: `~${points(card.estimate ?? 0)}`, title: `TD estimate ${card.estimate}, with no TR complexity yet` };
+	return { text: "?", title: "Unsized: neither a TR complexity nor a TD estimate" };
+}
 
 export type EntityViewData = {
 	entity: Card;
@@ -24,7 +45,7 @@ export type EntityViewData = {
 	attachments: string[];
 	progresses: Record<string, Progress>;
 	estimates?: Estimates;
-	members: Picked[];
+	members: Member[];
 };
 
 export type EntityLookup = { view: EntityViewData } | { archived: Card } | { renamed: string } | { missing: string };
@@ -97,7 +118,12 @@ export async function lookupEntity(id: string): Promise<EntityLookup> {
 			estimates: kind === "epic" ? estimatesOf(cards.filter((card) => card.epic === entity.id)) : undefined,
 			attachments: attachments.map((file) => file.slice(file.lastIndexOf("/") + 1)),
 			members: members
-				.map(({ id, name, status }) => ({ id, name, status }))
+				.map((member) => ({
+					id: member.id,
+					name: member.name,
+					status: member.status,
+					...(kind === "epic" ? { size: sizeOf(member) } : {}),
+				}))
 				.sort((a, b) => Number(phaseOf(a.status) === "done") - Number(phaseOf(b.status) === "done")),
 			lists: {
 				cards: cards.map(({ id, name, status }) => ({ id, name, status })),
